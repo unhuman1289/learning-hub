@@ -1,4 +1,4 @@
-# Nhà học
+# Learning Hub
 
 Private research and learning workspace for Vũ, Ly and Bột. All learners use the same content, notes and progress; no person selector or assigned learning tracks. Initial audience is owner-only; Google Docs sharing and Site sharing are separate.
 
