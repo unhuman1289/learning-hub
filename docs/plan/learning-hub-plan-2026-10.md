@@ -108,7 +108,7 @@ Mục tiêu: biết chắc tác vụ 03:00 có chạy hay không, đã làm gì,
 | # | Việc | File chính | Xong khi | Trạng thái |
 | --- | --- | --- | --- | --- |
 | 0.1 | Kiểm tra lượt chạy sáng 08/10 | (không code) | Mảng đã xong có bài mới, mảng chưa xong giữ nguyên, câu trả lời cũ còn, `learning_runs` có dòng ngày 08/10 | Chưa làm |
-| 0.2 | Thêm CI: test và typecheck mỗi lần push | `.github/workflows/ci.yml` | Một PR có test sai thì báo đỏ | Đang làm |
+| 0.2 | Thêm CI: test và typecheck mỗi lần push | `.github/workflows/ci.yml` | Một PR có test sai thì báo đỏ | Xong |
 | 0.3 | Nhật ký lượt chạy chỉ ghi thêm: bảng `runs`, `run_items`; tác vụ gửi `runId` | `drizzle/0002_*.sql`, `lib/daily-store.ts` | Hai lần POST trong một ngày tạo hai dòng `runs`; có test | Xong |
 | 0.4 | GET `/api/learning-run` ghi `started`, POST ghi `finished` | `app/api/learning-run/route.ts` | Lượt chỉ có `started` quá 2 giờ thì hiện là lỗi | Xong |
 | 0.5 | Banner cảnh báo và chi tiết lượt chạy trên trang Hôm nay | `app/daily-learning.tsx` | Quá 26 giờ không có lượt thành công thì hiện cảnh báo; mỗi mảng ghi rõ được thay hay giữ và lý do | Xong |
@@ -116,7 +116,7 @@ Mục tiêu: biết chắc tác vụ 03:00 có chạy hay không, đã làm gì,
 | 0.7 | Nút "Tải bản sao lưu" (JSON toàn bộ bảng) và lịch nhắc sao lưu hằng tuần | `app/api/export/route.ts` | Khôi phục được bản tải về vào D1 local bằng `npm run db:restore:local` | Đang làm |
 | 0.8 | Cập nhật prompt tác vụ: gửi `runId`, kết thúc bằng tóm tắt ngắn; bật thông báo Email | `LEARNING-UPDATES.md`, cài đặt tác vụ ChatGPT | Mỗi sáng nhận một email: mảng nào được thay, mảng nào giữ, lỗi nếu có | Đang làm |
 
-**Ghi nhận triển khai 07/10:** mục 0.3–0.6 xong trong source/local và có test, **chưa publish live** vì kết nối Sites không tìm thấy project. Mục 0.7 đã tải và restore đủ 7 bảng local, nhắc tuần trên Hub đã có; nhắc cloud chờ prompt live. Mục 0.8 mới chuẩn bị prompt, chưa bật Email. Mục 0.2 đang kiểm chứng CI trên GitHub. Mục 0.1 chưa đến thời điểm chạy thật.
+**Ghi nhận triển khai 07/10:** mục 0.3–0.6 xong trong source/local và có test, **chưa publish live** vì kết nối Sites không tìm thấy project. Mục 0.7 đã tải và restore đủ 7 bảng local, nhắc tuần trên Hub đã có; nhắc cloud chờ prompt live. Mục 0.8 mới chuẩn bị prompt, chưa bật Email. Mục 0.2 đã kiểm chứng PR đỏ đúng do test sai trên GitHub; test kiểm chứng tạm đã bỏ. Mục 0.1 chưa đến thời điểm chạy thật.
 
 Sau migration 0002, dùng `runs`/`run_items` để kiểm chứng mục 0.1, thay nhật ký `learning_runs` ghi theo ngày; bảng cũ vẫn giữ nguyên dữ liệu export. Xem [vận hành phase 0](../PHASE-0-OPERATIONS.md).
 
@@ -220,6 +220,7 @@ Câu hỏi mở:
 | 07/10/2026 | Lập kế hoạch | Trạng thái ban đầu trước triển khai; chưa có kế hoạch cũ để lưu trữ. |
 | 07/10/2026 | Triển khai source giai đoạn 0 | 8 test qua; typecheck, lint, build qua. Chrome desktop/mobile không tràn ngang; 5 bài/câu trả lời không đổi; replay không sinh lượt trùng. |
 | 07/10/2026 | Restore backup tải bằng nút Hub local | Bảy bảng: workspace 1, lessons 5, slots 5, learning_runs 1, runs 1, run_items 5, backup_events 1; mọi giá trị khớp. Lượt manual local không tính vào cổng ba đêm. |
+| 07/10/2026 | CI từ chối PR có test sai | [Lượt PR đỏ](https://github.com/unhuman1289/learning-hub/actions/runs/37633696510); 8 test sản phẩm qua, 1 assertion cố ý sai. Probe đã bỏ khỏi source cuối. |
 | 07/10/2026 | Chờ kết nối Sites | Project trả NOT_FOUND, danh sách Sites rỗng; chưa publish, chưa đổi tác vụ cloud, chưa bật Email. |
 
 ## Nguồn
