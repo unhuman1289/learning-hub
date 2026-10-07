@@ -1,4 +1,5 @@
 import { getChatGPTUser } from '../../chatgpt-auth';
+import {apiFailure} from '../../../lib/api-error';
 import { storage } from '../../../db/storage';
 function validData(d:unknown):boolean {
  if(!d||typeof d!=='object')return false;const x=d as Record<string,unknown>;
@@ -25,9 +26,9 @@ export async function GET() {
 export async function PUT(req:Request) {
  const u=await getChatGPTUser(); if(!u)return Response.json({error:'Sign in required'},{status:401});
  if(req.headers.get('origin') && new URL(req.url).origin!==req.headers.get('origin'))return Response.json({error:'Origin rejected'},{status:403});
- try {const body=await req.json() as {revision:number,data:{notes:unknown[],logs:unknown[],done:unknown[]}};if(!Number.isInteger(body.revision)||body.revision<0||!validData(body.data)||JSON.stringify(body.data).length>500000)return Response.json({error:'Dữ liệu không hợp lệ hoặc quá lớn.'},{status:400});
+ try {const body=await req.json() as {revision:number,data:{notes:unknown[],logs:unknown[],done:unknown[]}};if(!body||typeof body!=='object'||!Number.isInteger(body.revision)||body.revision<0||!validData(body.data)||JSON.stringify(body.data).length>500000)return Response.json({error:'Dữ liệu không hợp lệ hoặc quá lớn.'},{status:400});
  const db=await sharedStorage();
  const result=await db.prepare('UPDATE learning_workspace SET payload = ?, revision = revision + 1, updated = ? WHERE owner = ? AND revision = ?').bind(JSON.stringify(body.data),new Date().toISOString(),SHARED_KEY,body.revision).run();
  if(!result.meta.changes)return Response.json({error:'Dữ liệu đã thay đổi trên thiết bị khác. Xuất bản nháp trước khi tải lại.'},{status:409});return Response.json({revision:body.revision+1});
- }catch(e){console.error('save workspace',e);return Response.json({error:'Chưa lưu được. Bản nháp vẫn ở trang này.'},{status:503});}
+ }catch(e){return apiFailure(e,'Chưa lưu được. Bản nháp vẫn ở trang này.');}
 }

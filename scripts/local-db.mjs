@@ -1,10 +1,13 @@
 import {spawnSync} from 'node:child_process';
-import {resolve} from 'node:path';
+import {resolve,relative,isAbsolute} from 'node:path';
 
 export function runLocalD1(args) {
+  const state=resolve(process.env.LEARNING_HUB_LOCAL_STATE??'.wrangler/state');
+  const within=relative(process.cwd(),state);
+  if(!within||within.startsWith('..')||isAbsolute(within))throw Error('Local state must be a subdirectory of this checkout');
   const result = spawnSync(process.execPath, [
     resolve('node_modules/wrangler/bin/wrangler.js'), 'd1', ...args,
-    '--local', '--persist-to', '.wrangler/state', '--config', 'wrangler.local.json',
+    '--local', '--persist-to', state, '--config', 'wrangler.local.json',
   ], {stdio:'inherit', env:{...process.env,
     WRANGLER_LOG_PATH:resolve('.wrangler/logs'), WRANGLER_WRITE_LOGS:'false',
     WRANGLER_SEND_METRICS:'false', CLOUDFLARE_CF_FETCH_ENABLED:'false',

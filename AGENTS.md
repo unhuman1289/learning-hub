@@ -4,6 +4,8 @@
 
 Build one shared learning workspace. Everyone can study every track; do not split navigation into Vũ/Ly/Gia đình. Read README.md and DESIGN.md before changing product behavior. Use Vietnamese for primary product copy and explanations, with EN/DE terminology and German practice. Keep the interface centered on current lessons, progress and practical outputs.
 
+Follow `docs/plan/learning-hub-plan-2026-10.md` in order. Do not start phase 1 until three consecutive real nightly runs have complete journals and a full backup has been restored successfully. Local/manual runs do not satisfy the nightly gate. Phase 1 will separate progress by authenticated learner while keeping all five tracks available to everyone; phase 0 retains the existing shared state.
+
 ## Architecture and cost
 
 - Start with Workers Free and D1; measure real CPU/usage before recommending a paid plan.
@@ -22,6 +24,7 @@ Build one shared learning workspace. Everyone can study every track; do not spli
 - Completion after today's 03:00 cutoff waits until the next day. Undoing completion must be respected by the database writer.
 - Re-read after uncertain write failures; no blind retry. Preserve optimistic concurrency and SQL parameter binding.
 - The task still records an accurate check when no track can advance. Source/access failures retain old lessons.
+- Initial GET creates a unique `runId`. POST must include it; verification and uncertain-write recovery use GET with that same `runId`, without starting another run. Replaying identical data must not duplicate assignments or alter a finished run.
 
 ## Content quality
 

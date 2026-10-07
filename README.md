@@ -6,6 +6,8 @@ Không gian học chung tại `learn.unhuman.cc`: đọc, hiểu, thực hành, 
 
 ## Trạng thái bản export
 
+Triển khai theo [kế hoạch 0–3](docs/plan/learning-hub-plan-2026-10.md). Source hiện bổ sung **giai đoạn 0**: CI, nhật ký từng lượt, cảnh báo và backup đầy đủ. Chưa publish bản mới vì kết nối Sites không tìm thấy project; chưa áp dụng prompt live hoặc bật Email. Chỉ sang giai đoạn 1 sau ba đêm thật có nhật ký đầy đủ và một lần restore thành công. Xem [vận hành phase 0](docs/PHASE-0-OPERATIONS.md).
+
 - Source của Sites phiên bản 5, commit gốc `ed5cdc0a2b7e86b899f0810690a4de4033908d47`, được export ngày 07/10/2026; giữ nguyên lịch sử Git.
 - Giao diện local đổi sang **xám–hồng**; tài liệu vận hành và phục hồi D1 đã bổ sung.
 - Website hiện dùng React 19, Vinext/Vite, Cloudflare Workers và D1. Dependency giữ theo `package-lock.json`.
@@ -46,6 +48,7 @@ Build thành công không xác nhận đã deploy hoặc đã đạt giới hạ
 3. Làm thực hành, trả lời câu hỏi bằng lời của mình; đối chiếu tiêu chí sẵn.
 4. Bấm **Lưu câu trả lời**; bấm **Đã học xong** khi thực sự hoàn thành. Các nút bài hằng ngày lưu ngay. Ghi chú/nhật ký ở khu vực khác cần bấm **Lưu thay đổi**.
 5. Lượt cập nhật ngày tiếp theo chỉ thay bài của mảng đã xong trước 03:00 Berlin. Bài chưa xong giữ nguyên. Bài cũ và câu trả lời được giữ để ôn.
+6. Mở **Nhật ký cập nhật** để xem từng lượt và lý do thay/giữ; cảnh báo hiện khi lượt dở hơn hai giờ hoặc hơn 26 giờ chưa có lượt thành công. Bấm **Tải bản sao lưu** để giữ toàn bộ bài, câu trả lời, ghi chú và nhật ký ở nơi riêng tư. Nhắc tuần tính từ lúc tạo backup, không xác nhận nơi file được lưu.
 
 Thời lượng mục tiêu là tối thiểu 240 phút/ngày, chia thành nhiều phiên linh hoạt. Dùng sơ đồ → đọc → nhớ lại → thực hành → phản hồi → ôn. Đánh dấu hoàn thành là hành động của người học; AI không tự đánh dấu.
 
@@ -72,19 +75,18 @@ flowchart TD
   A[ChatGPT hoặc Claude: lịch 03:00 Berlin] --> T[Công cụ được xác thực của Hub]
   T <--> D
   A --> S[Nguồn gốc được đọc và kiểm tra]
-  A --> G[Google Docs: tài liệu biên soạn]
   A --> T
   R[Git: source và cấu hình] --> H
 ```
 
-Đây là kiến trúc đích. Repo hiện chưa có kết nối Claude hoặc OAuth Google riêng. Scheduled task phải có công cụ đọc/ghi Hub và quyền Docs; chỉ đăng nhập Plus/Pro không tự tạo các quyền đó. Task cloud không dùng thư mục local khi laptop tắt. Xem [AUTOMATION.md](docs/AUTOMATION.md) và [LEARNING-UPDATES.md](LEARNING-UPDATES.md).
+Repo chưa có kết nối Claude hoặc OAuth Google riêng. Theo kế hoạch, tác vụ chỉ đọc/ghi API Hub có quyền dịch vụ Sites; Email chỉ báo kết quả, Drive không vận chuyển bài/tiến độ. Đăng nhập Plus/Pro không tự tạo quyền dịch vụ. Task cloud không dùng thư mục local khi laptop tắt. Xem [AUTOMATION.md](docs/AUTOMATION.md) và [LEARNING-UPDATES.md](LEARNING-UPDATES.md).
 
 Không cần push code mỗi ngày để đổi bài: dữ liệu bài nằm trong D1. Nếu biên soạn bài dạng file trong Git, chỉ cập nhật thư mục content và import qua writer có kiểm tra completion; deploy source không được tự thay bài đang học.
 
 ## Source, tài liệu, trạng thái ở đâu?
 
 - **Git:** source, schema/migrations, tài liệu hướng dẫn, thiết kế, prompt chuẩn. Repo riêng tư; không có token, câu trả lời hay backup live.
-- **D1:** trạng thái dùng chung, bài hiện tại/lịch sử, câu trả lời, revision và kết quả cập nhật.
+- **D1:** hiện còn trạng thái dùng chung, bài/lịch sử, câu trả lời, revision và nhật ký từng lượt. Giai đoạn 1 sẽ tách tiến độ theo người đăng nhập, vẫn cho mọi người học mọi mảng.
 - **Google Docs/Drive:** tài liệu dài, ghi chú có thể chỉnh sửa, paper/PDF. Docs không làm database tiến độ.
 - **Local private-data:** snapshot phục hồi; cần backup riêng vì Git không chứa nó.
 
