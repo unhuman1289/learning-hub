@@ -1,6 +1,6 @@
 # Nhà học
 
-Private research and learning workspace for Vũ, Ly and Bột. Perspectives do not change authorization. Initial audience is owner-only; Google Docs sharing and Site sharing are separate.
+Private research and learning workspace for Vũ, Ly and Bột. All learners use the same content, notes and progress; no person selector or assigned learning tracks. Initial audience is owner-only; Google Docs sharing and Site sharing are separate.
 
 ## Product
 Five tracks: AI/coding/deployment; Medical Systems Biology/MTB/sequencing/PGx; Ly's Cardio; German; family and Bột. Today has time-bounded tasks. Learning map contains examples, questions and curated feedback. Project milestones, notes, completed tasks, journal and review dates persist in D1. Manual explicit Save changes protects drafts; export supports recovery; conditional revision writes reject conflicts.
@@ -17,4 +17,6 @@ Bột: born 2025-07-04; age derived at display. Priorities are food/sleep, physi
 User conversation is authoritative for goals. Earlier directly-read chat supplements inform context, not live connector data. Site does not connect to saved memory, external chats, QUEST/SWARM execution, Google Drive APIs, calendar or automated reports. Google Docs supports manual links with original permissions. Source links are included in each lesson; clinical concepts are teaching/research framing.
 
 ## Technical
-Vinext React Worker; private Sites dispatch identity; D1 owner-keyed workspace with optimistic revision. SQL migration schema-only. No localStorage user records. No uploads, LLM secrets or patient integrations. WebMCP: read_learning_state and stage_completed_tasks; changes are staged and require visible save. Feature detection and abort cleanup. QA uses a browser registry shim because native WebMCP is unavailable in Chrome.
+Vinext React Worker; private Sites dispatch identity; D1 shared workspace with optimistic revision. SQL migration schema-only. No localStorage user records. No uploads, LLM secrets or patient integrations. WebMCP: read_learning_state and stage_completed_tasks; changes are staged and require visible save. Feature detection and abort cleanup. QA uses a browser registry shim because native WebMCP is unavailable in Chrome.
+
+Shared workspace update: platform still controls admitted viewers. On first access, existing owner data is copied atomically into the shared workspace if absent; legacy rows remain intact. All admitted signed-in users read/write the same revision-controlled record.
