@@ -1,6 +1,6 @@
 # Learning Hub daily cloud update
 
-The Site is owner-private and its hosted D1 storage is shared. The daily updater is
+The exported Site uses a custom access policy (owner plus an invited family viewer), and its hosted D1 storage is shared. The daily updater is
 authenticated by the Sites hosting boundary, using the supported platform service
 credential. It does not use a signed-in visitor's Google Drive or local files.
 Review updater authorization before changing the Site to public.

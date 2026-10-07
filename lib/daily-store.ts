@@ -1,6 +1,6 @@
 import {storage} from '../db/storage';
 import {berlinDay,canAdvance,cutoffFor,learningTracks,type LearningTrack} from './daily-policy';
-import type {DailyContent,DailyLesson} from './daily-types';
+import type {DailyLesson} from './daily-types';
 import {z} from 'zod';
 import {assignmentSql} from './daily-sql';
 const text=z.string().trim().min(1).max(18000);

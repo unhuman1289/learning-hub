@@ -2,10 +2,11 @@ import { getChatGPTUser } from '../../chatgpt-auth';
 import { storage } from '../../../db/storage';
 function validData(d:unknown):boolean {
  if(!d||typeof d!=='object')return false;const x=d as Record<string,unknown>;
- const isText=(v:unknown)=>typeof v==='string';
+ const isRecord=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object';
+ const isText=(v:unknown):v is string=>typeof v==='string';
  if(!Array.isArray(x.done)||!x.done.every(isText)||!Array.isArray(x.notes)||!Array.isArray(x.logs)||!x.starts||typeof x.starts!=='object'||!Object.values(x.starts).every(isText))return false;
- if(!x.notes.every((n:any)=>n&&isText(n.id)&&isText(n.title)&&isText(n.track)&&isText(n.body)&&isText(n.url)&&(!n.url||/^https?:\/\//.test(n.url))))return false;
- if(!x.logs.every((l:any)=>l&&isText(l.id)&&isText(l.kind)&&isText(l.track)&&isText(l.body)&&isText(l.date)&&Number.isFinite(Date.parse(l.date))&&(!l.due||/^\d{4}-\d{2}-\d{2}$/.test(l.due))&&(l.minutes===undefined||Number.isInteger(l.minutes)&&l.minutes>0&&l.minutes<=1440)))return false;
+ if(!x.notes.every((n:unknown)=>isRecord(n)&&isText(n.id)&&isText(n.title)&&isText(n.track)&&isText(n.body)&&isText(n.url)&&(!n.url||/^https?:\/\//.test(n.url))))return false;
+ if(!x.logs.every((l:unknown)=>isRecord(l)&&isText(l.id)&&isText(l.kind)&&isText(l.track)&&isText(l.body)&&isText(l.date)&&Number.isFinite(Date.parse(l.date))&&(!l.due||typeof l.due==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(l.due))&&(l.minutes===undefined||typeof l.minutes==='number'&&Number.isInteger(l.minutes)&&l.minutes>0&&l.minutes<=1440)))return false;
  return true;
 }
 // All admitted Site visitors use one workspace; the platform controls Site access.

@@ -1,10 +1,10 @@
 export type Track='AI'|'MTB'|'Cardio'|'Deutsch'|'Bột';
 export const tracks: {id:Track,title:string,sub:string,color:string}[]=[
-{id:'AI',title:'AI & Engineering',sub:'Từ hệ thống chạy được đến nghiên cứu đáng tin',color:'#6355a0'},
-{id:'MTB',title:'Medical Systems Biology',sub:'Oncology · sequencing · pharmacogenomics',color:'#197d80'},
-{id:'Cardio',title:'Cardio & nghiên cứu',sub:'Van hai lá · cấu trúc tim · ICU',color:'#a14b60'},
-{id:'Deutsch',title:'Deutsch',sub:'A2 → B2 cho công việc → C2 dài hạn',color:'#b08031'},
-{id:'Bột',title:'Bột & gia đình',sub:'Ăn, ngủ, vận động và lớn lên tự tin',color:'#65834b'}];
+{id:'AI',title:'AI & Engineering',sub:'Từ hệ thống chạy được đến nghiên cứu đáng tin',color:'#875b75'},
+{id:'MTB',title:'Medical Systems Biology',sub:'Oncology · sequencing · pharmacogenomics',color:'#626779'},
+{id:'Cardio',title:'Cardio & nghiên cứu',sub:'Van hai lá · cấu trúc tim · ICU',color:'#9b4268'},
+{id:'Deutsch',title:'Deutsch',sub:'A2 → B2 cho công việc → C2 dài hạn',color:'#73566c'},
+{id:'Bột',title:'Bột & gia đình',sub:'Ăn, ngủ, vận động và lớn lên tự tin',color:'#916678'}];
 export const tasks=[
 {id:'a1',track:'AI',title:'Vẽ luồng SWARM và điểm dừng để chuyên gia duyệt',minutes:30,deliver:'Một sơ đồ: dữ liệu → giả thuyết → phản biện → duyệt → ranking.'},
 {id:'m1',track:'MTB',title:'Giải thích VCF và vùng không gọi được biến thể',minutes:10,deliver:'Viết 3 câu phân biệt “không có biến thể” với “không đủ dữ liệu”.'},
