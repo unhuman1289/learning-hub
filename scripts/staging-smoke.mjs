@@ -10,12 +10,20 @@ const homeMs = [];
 const healthMs = [];
 const percentile95 = (values) => [...values].sort((a, b) => a - b)[Math.ceil(values.length * 0.95) - 1];
 
+const initialHealth = await fetch(new URL("/api/health", url));
+const initialHealthBody = await initialHealth.text();
+if (!initialHealth.ok || !initialHealthBody.includes('"d1":"connected"')) {
+  throw new Error(`Health check failed (${initialHealth.status}): ${initialHealthBody.slice(0, 400)}`);
+}
+
 for (let i = 0; i < 20; i += 1) {
   const homeStart = performance.now();
   const home = await fetch(new URL("/", url));
   const homeBody = await home.text();
   homeMs.push(performance.now() - homeStart);
-  if (!home.ok || !homeBody.trim()) throw new Error(`Home request ${i + 1} returned ${home.status}.`);
+  if (!home.ok || !homeBody.trim()) {
+    throw new Error(`Home request ${i + 1} returned ${home.status}: ${homeBody.slice(0, 400)}`);
+  }
 
   const healthStart = performance.now();
   const health = await fetch(new URL("/api/health", url));
