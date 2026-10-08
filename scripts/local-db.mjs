@@ -7,7 +7,7 @@ export function runLocalD1(args) {
   if(!within||within.startsWith('..')||isAbsolute(within))throw Error('Local state must be a subdirectory of this checkout');
   const result = spawnSync(process.execPath, [
     resolve('node_modules/wrangler/bin/wrangler.js'), 'd1', ...args,
-    '--local', '--persist-to', state, '--config', 'wrangler.local.json',
+    '--local', '--persist-to', state, '--config', 'wrangler.jsonc',
   ], {stdio:'inherit', env:{...process.env,
     WRANGLER_LOG_PATH:resolve('.wrangler/logs'), WRANGLER_WRITE_LOGS:'false',
     WRANGLER_SEND_METRICS:'false', CLOUDFLARE_CF_FETCH_ENABLED:'false',
