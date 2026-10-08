@@ -16,7 +16,7 @@ jobs:
       CLOUDFLARE_CF_FETCH_ENABLED: 'false'
       WRANGLER_SEND_METRICS: 'false'
       WRANGLER_WRITE_LOGS: 'false'
-      WRANGLER_LOG_PATH: ${{ runner.temp }}/wrangler-logs
+      WRANGLER_LOG_PATH: .wrangler/logs
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
