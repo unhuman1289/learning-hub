@@ -1,15 +1,15 @@
-import {getChatGPTUser} from '../../chatgpt-auth';
+import {getHubUser} from '../../../lib/auth/session';
 import {readDaily} from '../../../lib/daily-store';
 import {apiFailure} from '../../../lib/api-error';
 import {storage} from '../../../db/storage';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
 export async function GET(){
- if(!await getChatGPTUser())return Response.json({error:'Sign in required'},{status:401,headers});
+ if(!await getHubUser())return Response.json({error:'Sign in required'},{status:401,headers});
  try{return Response.json(await readDaily(),{headers});}catch(e){console.error(e);return Response.json({error:'Không tải được bài học. Hãy thử lại.'},{status:503,headers});}
 }
 export async function POST(req:Request){
- if(!await getChatGPTUser())return Response.json({error:'Sign in required'},{status:401,headers});
+ if(!await getHubUser())return Response.json({error:'Sign in required'},{status:401,headers});
  if(req.headers.get('origin')!==new URL(req.url).origin)return Response.json({error:'Origin rejected'},{status:403,headers});
  try{
   const x=await req.json() as {id:string,expectedUpdated:string,response:string,completed:boolean};

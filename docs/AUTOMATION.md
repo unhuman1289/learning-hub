@@ -1,6 +1,6 @@
 # Vận hành tác vụ 03:00
 
-Nguồn hướng dẫn triển khai là [kế hoạch 0–3](plan/learning-hub-plan-2026-10.md). Chỉ sang giai đoạn 1 sau ba đêm liên tiếp có nhật ký đầy đủ và một lần khôi phục backup thành công.
+Nguồn hướng dẫn triển khai là [kế hoạch v2](plan/learning-hub-plan-v2-cloudflare.md) (hạ tầng Cloudflare độc lập trước, Automation API v1 sau). Luồng Sites mô tả bên dưới chỉ còn giá trị lịch sử cho đến cutover; không mở rộng thêm.
 
 ## Hiện tại
 
