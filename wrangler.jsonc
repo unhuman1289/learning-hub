@@ -1,0 +1,69 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "learning-hub-local",
+  "main": "./build/worker.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "vars": {
+    "ENVIRONMENT": "local",
+    "APP_VERSION": "local"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "learning-hub",
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "env": {
+    "staging": {
+      "name": "learning-hub-staging",
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "APP_VERSION": "local",
+        "STAGING_SPIKE_LOCKDOWN": "true"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "learning-hub-staging",
+          "database_id": "6f2f1df1-1dcd-4810-8812-1c6e4d7ef1d5",
+          "migrations_dir": "drizzle"
+        }
+      ],
+      "assets": {
+        "run_worker_first": true
+      }
+    },
+    "production": {
+      "name": "learning-hub-prod",
+      "workers_dev": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "APP_VERSION": "local"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "learning-hub-prod",
+          "database_id": "545cedea-a4a5-4bdb-b370-8d447fe0833c",
+          "migrations_dir": "drizzle"
+        }
+      ],
+      "assets": {
+        "run_worker_first": true
+      }
+    }
+  },
+  "assets": {
+    "run_worker_first": true
+  }
+}
