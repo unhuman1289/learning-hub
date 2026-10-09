@@ -19,10 +19,10 @@ Thay thế `archive/learning-hub-plan-2026-10.md` (đã chuyển vào archive ng
 Đã triển khai `https://learning-hub-staging.tranvu-812.workers.dev` với app auth email/mật khẩu, D1, worker API guards và `STAGING_SPIKE_LOCKDOWN=false` sau khi kiểm tra trên Worker local. Production, DNS và Sites không thay đổi.
 
 - **Đạt:** migration `0003_auth_users.sql`; import snapshot Sites vào D1 staging rỗng; đọc lại và so từng ô (5 lessons, 5 slots, 1 workspace, 2 runs); health/D1; login pages; anonymous/forged-header API trả 401; endpoint cũ trả 410; test local email/password, signup allowlist, logout/login và progress round-trip trong D1.
-- **Đạt local:** `npm run test` (24 test), `npm run typecheck`, `npm run lint`, `npm run build`; CI kiểm tra đủ bốn lệnh; workflow deploy staging thủ công đã thêm.
+- **Đạt:** `npm run test` (25 test), `npm run typecheck`, `npm run lint`, `npm run build`; GitHub Actions push run [37975728541](https://github.com/unhuman1289/learning-hub/actions/runs/37975728541) xanh trên commit `8da6d1b`; deploy workflow staging kiểm tra bốn lệnh trước migration/deploy.
 - **Đã cấu hình:** `APP_ORIGIN`, `EMAIL_FROM`, bốn secret staging theo tên; bucket riêng `learning-hub-backups-staging`; cron backup `0 1,2 * * *`, code chỉ chạy khi giờ Berlin là 03:00; endpoint admin tạo/tải bản R2.
-- **Đạt qua thao tác owner:** staging login thành công; câu trả lời còn nguyên sau khi đăng xuất rồi đăng nhập lại. Owner đã tải backup R2 và `db:restore:drill` xác nhận đủ 7 bảng trong database SQLite mới; truy cập object R2 cũng đã được xác nhận.
-- **Còn trước Cổng 0:** đặt lại mật khẩu chưa thử; GitHub Actions chưa chạy trên remote với mã nguồn hiện tại. CPU p95 và 48 giờ không còn là gate. Không được suy ra đã sẵn sàng cutover production.
+- **Đạt qua thao tác owner:** staging login thành công; câu trả lời còn nguyên sau khi đăng xuất rồi đăng nhập lại. Owner đã tải backup R2 và `db:restore:drill` xác nhận 7 bảng trong SQLite mới (workspace 1, lessons 5, slots 5, learning runs 2, legacy runs 0, run items 0, backup event 1); truy cập object R2 cũng đã được xác nhận.
+- **Còn trước Cổng 0:** chủ dự án chưa thử luồng đặt lại mật khẩu qua email. CPU p95 và 48 giờ không còn là gate. Không được suy ra đã sẵn sàng cutover production.
 - **Phase 1 còn nguyên:** per-user progress, Access service auth và Automation API v1 chưa triển khai; staging hiện dùng workspace chung và chưa sinh bài mới theo lịch.
 
 ---
