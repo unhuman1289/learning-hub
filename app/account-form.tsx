@@ -104,11 +104,11 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
             {busy ? "Đang xử lý…" : copy[mode].submit}
           </button>
         </form>
-        <nav className="account-links" aria-label="Liên kết tài khoản">
-          {mode !== "login" && <Link href="/login">Đăng nhập</Link>}
-          {mode !== "register" && <Link href="/register">Tạo tài khoản</Link>}
-          {mode !== "forgot" && mode !== "reset" && <Link href="/forgot-password">Quên mật khẩu?</Link>}
-        </nav>
+        <div className="account-links" role="navigation" aria-label="Liên kết tài khoản">
+          {mode !== "login" && <a href="/login">Đăng nhập</a>}
+          {mode !== "register" && <a href="/register">Tạo tài khoản</a>}
+          {mode !== "forgot" && mode !== "reset" && <a href="/forgot-password">Quên mật khẩu?</a>}
+        </div>
       </section>
     </main>
   );
