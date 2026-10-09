@@ -18,8 +18,17 @@ async function postAuth(path: string, body: Record<string, string>) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!response.ok) throw new Error("Yêu cầu chưa hoàn tất. Hãy kiểm tra thông tin và thử lại.");
-  return response.json() as Promise<Record<string, unknown>>;
+  const result = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Bạn đã thử quá nhiều lần. Hãy đợi một phút rồi thử lại.");
+    }
+    if (response.status >= 500) {
+      throw new Error("Dịch vụ đang gặp lỗi. Hãy thử lại sau; nếu vẫn lỗi, báo quản trị viên.");
+    }
+    throw new Error("Yêu cầu chưa hoàn tất. Kiểm tra email và thử lại.");
+  }
+  return result;
 }
 
 export default function AccountForm({ mode }: { mode: AccountMode }) {
@@ -43,10 +52,10 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
       } else if (mode === "register") {
         if (password !== passwordAgain) throw new Error("Hai mật khẩu chưa khớp.");
         await postAuth("sign-up/email", { email, password, name, callbackURL: "/" });
-        setMessage("Nếu email này đã được mời, hãy mở thư xác minh để kích hoạt tài khoản.");
+        setMessage("Nếu email đủ điều kiện và chưa có tài khoản, thư xác minh sẽ được gửi. Hãy kiểm tra Inbox và Spam. Nếu bạn đã có tài khoản, hãy đăng nhập hoặc dùng Quên mật khẩu; người mới cần được quản trị viên thêm email vào danh sách mời trước.");
       } else if (mode === "forgot") {
         await postAuth("request-password-reset", { email, redirectTo: "/reset-password" });
-        setMessage("Nếu tài khoản tồn tại, hướng dẫn đặt lại mật khẩu sẽ được gửi qua email.");
+        setMessage("Nếu tài khoản này tồn tại, email đặt lại mật khẩu đã được yêu cầu. Hãy kiểm tra Inbox và Spam; nếu chưa từng đăng ký, trước hết quản trị viên cần mời email đó.");
       } else {
         if (password !== passwordAgain) throw new Error("Hai mật khẩu chưa khớp.");
         const token = new URLSearchParams(window.location.search).get("token") ?? "";
@@ -69,11 +78,11 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
         <h1>{copy[mode].title}</h1>
         <p className="account-intro">
           {mode === "register"
-            ? "Tài khoản chỉ dành cho email đã được mời. Mật khẩu cần có ít nhất 12 ký tự."
+            ? "Chỉ email đã được mời mới đăng ký được. Người mới cần được quản trị viên thêm email vào danh sách mời trước. Nếu bạn đã có tài khoản, hãy đăng nhập hoặc đặt lại mật khẩu. Mật khẩu cần ít nhất 12 ký tự."
             : mode === "login"
               ? "Dùng email và mật khẩu Learning Hub của bạn."
               : mode === "forgot"
-                ? "Nhập email tài khoản để nhận liên kết đặt lại."
+                ? "Nhập email đã đăng ký. Vì lý do bảo mật, trang luôn xác nhận chung; thư chỉ được gửi nếu tài khoản tồn tại. Hãy kiểm tra cả Spam."
                 : "Chọn mật khẩu mới có ít nhất 12 ký tự."}
         </p>
         <form onSubmit={submit}>
