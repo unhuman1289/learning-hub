@@ -6,7 +6,7 @@ Không gian học chung tại `learn.unhuman.cc`: đọc, hiểu, thực hành, 
 
 ## Trạng thái triển khai
 
-Learning Hub đang chạy trên Cloudflare staging tại [learning-hub-staging.tranvu-812.workers.dev](https://learning-hub-staging.tranvu-812.workers.dev). Đăng ký chỉ dành cho email trong allowlist; email cần xác minh. Trang này dùng D1 staging cho bài, câu trả lời và tiến độ. Xem [hướng dẫn staging](docs/ops/STAGING-CUTOVER-GUIDE.md) để hoàn tất kiểm tra tài khoản.
+Learning Hub đang chạy trên Cloudflare staging tại [learning-hub-staging.tranvu-812.workers.dev](https://learning-hub-staging.tranvu-812.workers.dev). Ai cũng có thể đăng ký bằng email; sau khi xác minh, tài khoản chờ admin duyệt trước khi đăng nhập. Trang này dùng D1 staging cho bài, câu trả lời và tiến độ. Xem [hướng dẫn staging](docs/ops/STAGING-CUTOVER-GUIDE.md) để hoàn tất kiểm tra tài khoản.
 
 `learn.unhuman.cc` vẫn chạy Sites v5. DNS/production chưa thay đổi. Staging hiện phục vụ snapshot và nội dung đã chuẩn bị sẵn; bộ sinh bài tự động theo lịch qua Automation API chưa triển khai. Theo [kế hoạch v2](docs/plan/learning-hub-plan-v2-cloudflare.md), cutover domain chỉ diễn ra cuối Phase 1, sau khi runner thay thế hoạt động.
 

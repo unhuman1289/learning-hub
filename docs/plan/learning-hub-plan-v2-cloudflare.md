@@ -16,13 +16,13 @@ Thay thế `archive/learning-hub-plan-2026-10.md` (đã chuyển vào archive ng
 
 ## 0.1 Trạng thái MVP staging — 09/10/2026
 
-Đã triển khai `https://learning-hub-staging.tranvu-812.workers.dev` với app auth email/mật khẩu, D1, worker API guards và `STAGING_SPIKE_LOCKDOWN=false` sau khi kiểm tra trên Worker local. Production, DNS và Sites không thay đổi.
+Đã triển khai `https://learning-hub-staging.tranvu-812.workers.dev` với app auth email/mật khẩu, public signup, xác minh email, admin approval, D1, worker API guards và `STAGING_SPIKE_LOCKDOWN=false`. Production, DNS và Sites không thay đổi.
 
-- **Đạt:** migration `0003_auth_users.sql`; import snapshot Sites vào D1 staging rỗng; đọc lại và so từng ô (5 lessons, 5 slots, 1 workspace, 2 runs); health/D1; login pages; anonymous/forged-header API trả 401; endpoint cũ trả 410; test local email/password, signup allowlist, logout/login và progress round-trip trong D1.
-- **Đạt:** `npm run test` (25 test), `npm run typecheck`, `npm run lint`, `npm run build`; GitHub Actions push run [37975728541](https://github.com/unhuman1289/learning-hub/actions/runs/37975728541) xanh trên commit `8da6d1b`; deploy workflow staging kiểm tra bốn lệnh trước migration/deploy.
-- **Đã cấu hình:** `APP_ORIGIN`, `EMAIL_FROM`, bốn secret staging theo tên; bucket riêng `learning-hub-backups-staging`; cron backup `0 1,2 * * *`, code chỉ chạy khi giờ Berlin là 03:00; endpoint admin tạo/tải bản R2.
-- **Đạt qua thao tác owner:** staging login thành công; câu trả lời còn nguyên sau khi đăng xuất rồi đăng nhập lại. Owner đã tải backup R2 và `db:restore:drill` xác nhận 7 bảng trong SQLite mới (workspace 1, lessons 5, slots 5, learning runs 2, legacy runs 0, run items 0, backup event 1); truy cập object R2 cũng đã được xác nhận.
-- **Còn trước Cổng 0:** chủ dự án chưa thử luồng đặt lại mật khẩu qua email. CPU p95 và 48 giờ không còn là gate. Không được suy ra đã sẵn sàng cutover production.
+- **Đạt:** migration `0003_auth_users.sql`; import snapshot Sites vào D1 staging rỗng; đọc lại và so từng ô (5 lessons, 5 slots, 1 workspace, 2 runs); health/D1; login pages; anonymous/forged-header API trả 401; endpoint cũ trả 410; local smoke public signup, admin users API, login/logout, cross-origin rejection và progress round-trip trong D1 tạm.
+- **Đạt local:** `npm run test` (30 test), `npm run typecheck`, `npm run lint`, `npm run build`. GitHub Actions push run [37975728541](https://github.com/unhuman1289/learning-hub/actions/runs/37975728541) xanh trên commit `8da6d1b` (lịch sử); bản auth mới chưa được push lên GitHub.
+- **Đã cấu hình:** `APP_ORIGIN`, `EMAIL_FROM`, ba secret auth/mail đang dùng ở staging; bucket riêng `learning-hub-backups-staging`; cron backup `0 1,2 * * *`, code chỉ chạy khi giờ Berlin là 03:00; endpoint admin tạo/tải bản R2.
+- **Đạt qua thao tác owner trước thay đổi này:** staging login và logout/login hoạt động; câu trả lời còn nguyên; owner xác nhận đã nhận thư đặt lại mật khẩu. Backup R2 và restore drill local cũng đã đạt.
+- **Còn:** browser acceptance cho tài khoản thứ hai: đăng ký email mới → xác minh → admin duyệt trên Dashboard → learner đăng nhập. Smoke staging hiện xác nhận endpoint/API guard; chưa tự tạo thêm user hay gửi thư thử.
 - **Phase 1 còn nguyên:** per-user progress, Access service auth và Automation API v1 chưa triển khai; staging hiện dùng workspace chung và chưa sinh bài mới theo lịch.
 
 ---
@@ -227,11 +227,11 @@ Mỗi task: **Mục tiêu · Thay đổi · Migration · Test · Chấp nhận k
 
 #### P0.4 Auth: tài khoản Learning Hub email + mật khẩu — CHUYỂN (3.3, 1.2)
 - **Mục tiêu:** server xác thực mọi request browser bằng session tài khoản Hub; không tin header client gửi.
-- **Thay đổi:** tích hợp thư viện auth có hỗ trợ Workers + D1 (Better Auth là ứng viên; chứng minh build/runtime tại P0.3); đăng ký email + mật khẩu, xác minh email, đăng nhập/đăng xuất, session, đổi/đặt lại mật khẩu; cookie `Secure`, `HttpOnly`, `SameSite=Lax`; giới hạn tốc độ, chống dò email và kiểm tra `Origin` cho thao tác ghi. Mật khẩu chỉ lưu hash có salt bằng thuật toán chậm của thư viện; không tự viết crypto. Chỉ email được mời mới đăng ký; không có public open signup. Seed tài khoản admin đầu tiên bằng quy trình one-time, không hard-code email/mật khẩu. Thay `getChatGPTUser` trong `api/daily`, `api/state`, `api/export`; `/api/export` chỉ admin; bỏ `/signin-with-chatgpt` và thêm trang tài khoản.
+- **Thay đổi:** tích hợp Better Auth trên Workers + D1; đăng ký công khai bằng email + mật khẩu, xác minh email, đăng nhập/đăng xuất, session, đổi/đặt lại mật khẩu; cookie `Secure`, `HttpOnly`, `SameSite=Lax`; giới hạn tốc độ, chống dò email và kiểm tra `Origin` cho thao tác ghi. Tài khoản learner ở `pending` sau xác minh; chỉ admin duyệt mới chuyển sang `active`. Session creation và mọi API bảo vệ từ chối trạng thái chưa active. Thêm danh sách/duyệt tài khoản tối thiểu trên Dashboard và admin API. Mật khẩu chỉ lưu hash có salt bằng thuật toán chậm của thư viện; không tự viết crypto. Seed tài khoản admin đầu tiên qua `BOOTSTRAP_ADMIN_EMAIL`, không hard-code email/mật khẩu; không dùng allowlist từng người. Thay `getChatGPTUser` trong API, `/api/export` chỉ admin; bỏ `/signin-with-chatgpt` và thêm trang tài khoản.
 - **Email:** xác minh và password reset cần sender đã xác thực. Đánh giá Cloudflare Email Service hoặc provider giao dịch khác; credentials chỉ nằm trong Worker secrets. Không bật đăng ký production trước khi luồng email được test.
 - **Migration:** `0003_auth_users.sql` — user/account/session/verification theo thư viện, role `learner`/`admin`, trạng thái `pending`/`active`/`disabled`; tài khoản admin đầu tiên tạo qua seed one-time. Email không nằm trong Git.
-- **Test:** email chưa xác minh, email ngoài invite list, mật khẩu sai, rate limit, token hết hạn/đã dùng, session rotation/logout, reset password thu hồi session, CSRF, header `oai-authenticated-user-*` giả → bị từ chối; `requireAdmin` chặn learner; dev auth chỉ loopback/local; Worker + D1 integration.
-- **Chấp nhận khi:** không còn import `chatgpt-auth`/Sites header; người được mời xác minh email và tự đăng nhập; mọi API suy ra user từ session hợp lệ; test auth xanh trong CI.
+- **Test:** public signup; email chưa xác minh/chưa được duyệt không tạo session; admin duyệt chỉ learner đã xác minh ở trạng thái `pending`; email sai mật khẩu, rate limit, token hết hạn/đã dùng, logout, CSRF, header `oai-authenticated-user-*` giả → bị từ chối; `requireAdmin` chặn learner; dev auth chỉ loopback/local; Worker + D1 integration.
+- **Chấp nhận khi:** mọi email có thể gửi yêu cầu đăng ký; xác minh xong vẫn bị chặn cho tới khi admin duyệt; sau duyệt đăng nhập và dùng app được; mọi API suy ra user từ session active; test auth xanh trong CI.
 - **Phụ thuộc:** P0.2–P0.3 và sender email đã chọn. **Rủi ro:** auth library/hash không chạy ổn định trên Worker Free → chứng minh ở staging trước cutover; email lỗi thì fail-closed, không bỏ xác minh.
 
 #### P0.5 Cấu hình Cloudflare Access cho automation — CHUYỂN (3.3)
@@ -280,7 +280,7 @@ Mỗi task: **Mục tiêu · Thay đổi · Migration · Test · Chấp nhận k
 
 #### P0.11 Smoke test staging với dữ liệu thật — MỚI
 - **Mục tiêu:** người dùng thật dùng được bản staging.
-- **Test:** người được mời đăng ký, xác minh email, đăng nhập/đăng xuất/đặt lại mật khẩu; xem bài; lưu câu trả lời; refresh thấy dữ liệu; admin tải backup; email ngoài invite list bị chặn; header giả bị 401; automation thiếu service credential bị chặn. CPU p95 và 48 giờ quan sát là theo dõi sau triển khai, không gate.
+- **Test:** người dùng bất kỳ đăng ký và xác minh email; pending learner không đăng nhập được; admin duyệt, learner đăng nhập/đăng xuất/đặt lại mật khẩu; xem bài; lưu câu trả lời; refresh thấy dữ liệu; admin tải backup; header giả bị 401; automation thiếu service credential bị chặn. CPU p95 và 48 giờ quan sát là theo dõi sau triển khai, không gate.
 - **Chấp nhận khi:** đạt Cổng 0.
 - **Phụ thuộc:** P0.4–P0.10.
 
@@ -405,7 +405,7 @@ Redesign UI, dashboard đẹp, Mermaid/Markdown, a11y ngoài lỗi chặn, refac
 | `/api/automation/v1/*` | Access App B (Service Auth) | verify service JWT (`aud`=B, `common_name` khớp client) **và** Bearer key (hash trong `AUTOMATION_CLIENTS`) + scope | `clientId`; learner chỉ đến từ `run_targets` |
 | local dev | không | `lib/auth/dev.ts` khi `ENVIRONMENT=local` + loopback | user giả cố định |
 
-Quy tắc: không đọc `oai-authenticated-user-*` hoặc header user tự khai; không nhận `user_id`/email từ body/query; session phải được thư viện auth xác minh và user phải active; chỉ email có invite mới đăng ký. Automation route verify service JWT (JWKS theo `kid`) và bearer key có scope. Secrets chỉ trong Worker/GitHub secrets: `BETTER_AUTH_SECRET`, mail provider, `AUTOMATION_CLIENTS`, `CLOUDFLARE_API_TOKEN`.
+Quy tắc: không đọc `oai-authenticated-user-*` hoặc header user tự khai; không nhận `user_id`/email từ body/query; session phải được thư viện auth xác minh và user phải active; public signup yêu cầu xác minh email và admin approval trước khi active. Admin duyệt chỉ chuyển learner đã xác minh từ `pending` sang `active`. Automation route verify service JWT (JWKS theo `kid`) và bearer key có scope. Secrets chỉ trong Worker/GitHub secrets: `BETTER_AUTH_SECRET`, mail provider, `BOOTSTRAP_ADMIN_EMAIL`, `AUTOMATION_CLIENTS`, `CLOUDFLARE_API_TOKEN`.
 
 ## 8. Automation API contract v1 (đề xuất)
 
@@ -550,7 +550,7 @@ Luật server:
 | Bước | Kiểm chứng |
 | --- | --- |
 | 1. Mở `learn.unhuman.cc` | Trình duyệt sạch thấy form đăng nhập Learning Hub |
-| 2. App xác thực | Đăng ký được mời, xác minh email, đăng nhập; email ngoài invite list bị chặn |
+| 2. App xác thực | Email bất kỳ đăng ký và xác minh; pending chưa login được; admin duyệt rồi learner đăng nhập được |
 | 3. App đọc/ghi D1 production | `/api/health` báo `env=production`, D1 ID production; lưu một câu trả lời, refresh thấy lại |
 | 4. Runner có service credential | Test runner dùng `clientId=test-runner`; thiếu Access token hoặc key → 401 |
 | 5. GET context | `POST /runs` → `runId`; `GET …/context` trả target của learner; không chứa email, ghi chú |
@@ -570,9 +570,9 @@ Bài `[TEST]` trên production dùng một learner test riêng (`status=active`,
 | D2 | Giữ `vinext` beta trên Workers Free? | Tiêu chí là **ổn định**. Giữ chỉ khi đạt 3 điều kiện ở P0.3; trượt → SPA (Vite) + Hono |
 | D3 | Thời điểm cutover | **Cuối Phase 1** (P1.10) |
 | D4 | Nơi lưu backup tự động | **R2 bucket riêng**, giữ 30 bản; thêm bản tải tay hằng tháng ngoài Cloudflare |
-| D5 | Human login | **Tài khoản Learning Hub email + mật khẩu**, xác minh email và đăng ký theo invite/allowlist; không Google IdP/Access OTP (08/10/2026) |
+| D5 | Human login | **Tài khoản Learning Hub email + mật khẩu**, public signup + xác minh email + admin duyệt trước login; không Google IdP/Access OTP (điều chỉnh 09/10/2026) |
 | D6 | Learner ref trong context | **Ẩn danh** (`lrn_…`), không gửi tên/email cho model |
 | D7 | Bản phase 0 cũ trên Sites | **Không publish**; Sites giữ v5 đến cutover |
-| D8 | Sender xác minh/reset email | **Provider bên ngoài**, giữ Workers Free; Resend được dùng làm adapter ban đầu. Tài khoản provider, domain DNS và Worker secrets chưa cấu hình |
+| D8 | Sender xác minh/reset email | **Provider bên ngoài**, giữ Workers Free; Resend là adapter. Sender domain và staging secrets đã cấu hình, owner đã nhận email reset; production chưa cấu hình |
 
-Bước tiếp theo theo thứ tự vẫn là hoàn thành checklist Cloudflare/R2 và snapshot Sites (P0.0–P0.1), rồi P0.2–P0.3. Code auth local đã bắt đầu theo yêu cầu rõ ràng; chỉ kiểm thử/deploy staging sau khi các phụ thuộc đó và sender xác thực xong.
+Bổ sung quyết định 09/10/2026: bỏ allowlist từng email; mọi người có thể đăng ký nhưng cần xác minh email và admin duyệt. Đây chỉ thay đổi auth trên Cloudflare staging khi deploy; Sites v5, production và DNS không đổi.

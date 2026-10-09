@@ -10,8 +10,7 @@
   "vars": {
     "ENVIRONMENT": "local",
     "APP_VERSION": "local",
-    "BOOTSTRAP_ADMIN_EMAIL": "local@example.test",
-    "ALLOWED_SIGNUP_EMAILS": "local@example.test"
+    "BOOTSTRAP_ADMIN_EMAIL": "local@example.test"
   },
   "d1_databases": [
     {

@@ -75,8 +75,10 @@ const protectedChecks = [
   ['GET /api/state', '/api/state', { headers: forged }],
   ['GET /api/daily', '/api/daily', { headers: forged }],
   ['GET /api/export', '/api/export', { headers: forged }],
+  ['GET /api/admin/users', '/api/admin/users', { headers: forged }],
   ['PUT /api/state', '/api/state', { method: 'PUT', headers: { ...forged, origin, 'Content-Type': 'application/json' }, body: '{}' }],
   ['POST /api/daily', '/api/daily', { method: 'POST', headers: { ...forged, origin, 'Content-Type': 'application/json' }, body: '{}' }],
+  ['POST /api/admin/users', '/api/admin/users', { method: 'POST', headers: { ...forged, origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'forged' }) }],
   ['POST /api/admin/backup', '/api/admin/backup', { method: 'POST', headers: { ...forged, origin } }],
 ];
 const protectedStatus = {};

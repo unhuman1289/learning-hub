@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import AuthControls from "../components/auth-controls";
+import PendingApprovals from "../components/pending-approvals";
 import DailyLearning from "./daily-learning";
 import { googleDocs, googleDocsFolder } from "./google-docs";
 import { getLessonDetail, type LessonDetail, type LessonSource } from "./lesson-content";
@@ -418,6 +419,7 @@ export default function Home({ userEmail, userRole }: { userEmail: string; userR
                 <h1>Mỗi ngày, một bước rõ ràng.</h1>
                 <p>Bắt đầu từ bài đang học, tiếp tục ở đúng chỗ đã dừng. Bài tập đã chuẩn bị sẵn; câu trả lời và tiến độ chỉ đổi khi có tương tác.</p>
               </div>
+              {userRole === "admin" && <PendingApprovals isAdmin />}
               <DailyLearning isAdmin={userRole === "admin"} onUnsavedChange={setDailyDraft} />
 
               <section className="today-top dashboard-progress">

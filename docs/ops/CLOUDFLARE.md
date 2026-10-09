@@ -1,6 +1,6 @@
 # Cloudflare foundation checklist
 
-Updated 9 October 2026 after the staging MVP deployment. This records observed state; production/DNS remain outside this change.
+Updated 9 October 2026 after public signup and admin approval were deployed to staging. This records observed state; production/DNS remain outside this change.
 
 ## P0.0 — account and decisions
 
@@ -10,7 +10,7 @@ Updated 9 October 2026 after the staging MVP deployment. This records observed s
 | `learn.unhuman.cc` DNS | CNAME to `custom-domains.chatgpt.site`, DNS only. `quest.unhuman.cc` uses a proxied Tunnel. | Preserve both. Do not proxy or move Learning Hub until the P1 cutover. |
 | Zero Trust | Free plan activated at $0/month, 0 of 50 seats used. Team domain is now `unhuman-lab.cloudflareaccess.com`. The requested `unhuman.cloudflareaccess.com` was already claimed by another account. | Do not use for learner sign-in. Configure Service Auth for the automation route in P0.5 after standalone auth. |
 | R2 | Subscription active at $0/month base. Dedicated staging bucket `learning-hub-backups-staging` created in WEUR; Worker binding is private. | Actual first R2 object and restore drill still need an admin session or the next 03:00 Berlin cron. |
-| Learner sign-in | On 08/10/2026, owner chose Learning Hub accounts with email + password; Google and Access OTP are not desired for learners. Owner email was supplied for the initial invite; keep personal emails out of Git. | P0.4 implementation is in the local checkout. Configure app secrets and a verified transactional sender before staging signup; see [EMAIL.md](EMAIL.md). |
+| Learner sign-in | On 08/10/2026, owner chose Learning Hub accounts with email + password; Google and Access OTP are not desired. Policy revised 09/10/2026: public signup, email verification, then admin approval; no per-person allowlist. | Staging implementation uses an admin-only approval card; production remains on Sites v5 until separately approved cutover. |
 | Google IdP | Not configured; no longer needed for learner sign-in. | No action. |
 | Access applications | None exist. The Access dashboard is empty. | Per the updated plan, create only App B Service Auth for `learn-staging.unhuman.cc/api/automation/*` in P0.5. Do not attach human Access login to `learn.unhuman.cc`. |
 | GitHub Cloudflare secrets | Both `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` exist in private repository `unhuman1289/learning-hub`. | Token `learning-hub-github-deploy` expires 2027-10-08. Its permissions are Workers Scripts Write, D1 Write and Workers R2 Storage Write at account scope, plus Workers Routes Write scoped to `unhuman.cc`. Token value is stored only as the GitHub secret. |
@@ -34,12 +34,12 @@ The snapshot was restored into isolated local D1 at `.wrangler/state-snapshot-20
 ## P0.3 — staging spike
 
 - Worker: `learning-hub-staging`, https://learning-hub-staging.tranvu-812.workers.dev
-- Current Worker version: `947a4c0f-d458-4a8b-a65d-234063c33cee`, deployed 9 October 2026 after the MVP source deploy. Earlier secret-only version `0dc528f3-b055-4787-bc13-31d3ef637d82` is superseded.
-- Confirmed by `wrangler secret list --env staging` (names/types only; values not read): `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `BOOTSTRAP_ADMIN_EMAIL`, and `ALLOWED_SIGNUP_EMAILS` are present as `secret_text`.
+- Current Worker version: `d6650ee3-9420-43a6-9d99-405dd00c4886`, deployed 9 October 2026 with public signup and admin approval.
+- Confirmed by `wrangler secret list --env staging` (names/types only; values not read): `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, and `BOOTSTRAP_ADMIN_EMAIL` remain as `secret_text`. Obsolete `ALLOWED_SIGNUP_EMAILS` was removed from staging.
 - Staging variables are set to `APP_ORIGIN=https://learning-hub-staging.tranvu-812.workers.dev` and `EMAIL_FROM=Learning Hub <no-reply@notify.unhuman.cc>`; values are non-secret configuration. Worker bindings show D1 `learning-hub-staging` and R2 `learning-hub-backups-staging`.
 - Migrations `0000`–`0003` are applied. Before migration, the seven existing D1 tables were confirmed empty. The private Sites snapshot was imported with insert-only SQL. Remote readback matched every imported cell: 5 lessons, 5 slots, 1 workspace, 2 runs. The source Sites data was not modified.
 - Open-mode staging smoke passed: health/D1 200, anonymous `/` redirects to `/login`, account pages 200, `/api/state`, `/api/daily`, `/api/export`, and `/api/admin/backup` return 401 without a session even with forged Sites identity headers; `/api/learning-run` returns 410 for GET and POST.
-- An isolated local Worker + throwaway D1 test also passed invite-only signup (uninvited address 403), session login/logout, D1 progress write/read after a fresh login, and old-session rejection. Staging inbox verification/reset and the real R2 object/restore are still waiting on the owner account action or the scheduled backup.
+- Isolated local Worker + throwaway D1 smoke passed public signup (200), admin pending-user list (200), cross-origin approval rejection (403), forged-header API rejection (401), login/logout and D1 progress read/write after a fresh login. Staging smoke also passed after deployment: all account pages are available; admin approval endpoints return 401 without a session. A real email verification and approval for a second account remains a browser acceptance step.
 - The prior 48-hour/CPU p95 gate is removed by the 09/10 decision. CPU p95 is unmeasured and remains an observation after deploy, not a launch blocker.
 
 `learn.unhuman.cc` continues to point to Sites v5; no production Worker deploy, custom domain, route, or DNS cutover has been made. Staging currently has a manual backup button for admin and scheduled backup at 03:00 Europe/Berlin. The first real R2 backup is not yet recorded.

@@ -41,6 +41,13 @@ nav button,.side-tracks button,.controls select,.status,.text-button,.filters bu
 .heading h1{margin:0 0 12px}
 .dashboard-heading{margin:28px 0 26px}
 .dashboard-heading .eyebrow{display:block;margin-bottom:8px}
+.pending-approvals{margin:20px 0 28px;padding:20px 22px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.pending-approvals h2{font-size:22px;margin:5px 0}.pending-approvals .section-line{align-items:flex-start}
+.pending-approvals ul{list-style:none;margin:14px 0 0;padding:0;border-top:1px solid var(--line)}
+.pending-approvals li{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 0;border-bottom:1px solid var(--line)}
+.pending-approvals li>span{display:grid;gap:3px;min-width:0;overflow-wrap:anywhere}.pending-approvals li strong{font-size:14px;font-weight:600}.pending-approvals li small{font-size:13px;color:var(--muted)}
+.pending-approvals li button,.approval-refresh{min-height:44px;padding:8px 16px;flex:none}.approval-refresh{border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--accent-hover)}
+.pending-approvals .account-error{margin-top:12px}
 .dashboard-progress{margin:24px 0 38px;grid-template-columns:minmax(0,1.3fr) minmax(260px,.8fr);gap:18px}
 .dashboard-progress .focus h2{font-size:25px;margin:8px 0 18px}
 .dashboard-progress .focus .primary{margin-top:18px}
@@ -150,4 +157,5 @@ nav button,.side-tracks button,.controls select,.status,.text-button,.filters bu
 .lesson-actions .secondary{background:var(--surface)}
 @media(max-width:900px){.reader-columns{grid-template-columns:1fr}.reader-aside{position:static;order:-1}.reader-aside p+p{margin-top:7px}}
 @media(max-width:760px){.dashboard-progress{grid-template-columns:1fr}.goal-row{gap:9px;padding:14px 3px}.goal-icon{width:32px;height:32px}.goal-copy small{font-size:12px}.curriculum-row{grid-template-columns:28px minmax(0,1fr);gap:10px;padding:15px 3px}.curriculum-status{grid-column:2;justify-content:flex-start}.reader-top{align-items:flex-start;flex-direction:column}.lesson-reader>h1{font-size:30px}.reader-prose p,.reader-exercise>p{font-size:15px}.reader-actions{align-items:stretch;flex-direction:column}.reader-actions button{width:100%}.project{padding:20px 16px}.phases{grid-template-columns:1fr}.path-diagram{overflow-x:auto;justify-content:flex-start;white-space:nowrap}.dashboard-goals .section-line,.dashboard-journal>.section-line{align-items:flex-start}}
+@media(max-width:650px){.pending-approvals{padding:16px}.pending-approvals li{align-items:flex-start}.pending-approvals li button{padding-inline:12px}}
 @media(prefers-reduced-motion:reduce){.curriculum-row,.google-doc-card{transition:none}}

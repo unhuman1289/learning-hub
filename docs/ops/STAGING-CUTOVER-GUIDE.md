@@ -4,18 +4,19 @@
 
 - Mở staging tại [https://learning-hub-staging.tranvu-812.workers.dev](https://learning-hub-staging.tranvu-812.workers.dev). Production `learn.unhuman.cc` vẫn chạy Sites v5; DNS và production chưa đổi.
 - Staging có D1 migration `0000`–`0003`. Snapshot Sites riêng tư đã import và đối chiếu từng ô: 5 bài, 5 slot, 1 workspace, 2 lượt cập nhật.
-- Bốn secret staging đã được xác nhận theo tên và loại; giá trị không được đọc. `APP_ORIGIN` và `EMAIL_FROM` đã cấu hình. Resend đã xác minh sender domain theo cấu hình của chủ tài khoản.
+- Các secret email/auth staging được cấu hình; giá trị không được đọc. `APP_ORIGIN` và `EMAIL_FROM` đã cấu hình. Resend đã xác minh sender domain theo cấu hình của chủ tài khoản.
 - Test anonymous đạt: trang chủ chuyển tới login; API bài học, tiến độ, export, backup từ chối request không có session; header Sites giả không cấp quyền; `/api/learning-run` trả 410.
 - Code sao lưu R2 đã deploy. Chưa có object R2 thật; admin có thể tạo bản đầu ngay, hoặc đợi cron 03:00 Europe/Berlin. Restore drill local dùng database mới trong bộ nhớ và không ghi vào staging.
 - Staging chưa tự nghiên cứu và sinh bài mới. Lịch nội dung 03:00 của Sites vẫn riêng; cron Worker staging hiện chỉ sao lưu.
 
 ## Acceptance test bạn cần làm trong trình duyệt
 
-1. Mở trang và chọn **Tạo tài khoản**. Dùng email nằm trong allowlist; mật khẩu từ 12 đến 128 ký tự. Không đăng nhập bằng Google.
-2. Mở hộp thư, bấm link xác minh trong vòng một giờ, rồi đăng nhập. Tài khoản bootstrap đầu tiên được cấp quyền admin nếu email trùng secret bootstrap.
-3. Vào bài học, gõ câu trả lời thử không nhạy cảm và bấm **Lưu câu trả lời**. Đăng xuất, đăng nhập lại, tải lại bài và xác nhận câu trả lời vẫn còn.
-4. Thử **Quên mật khẩu?**, nhận email reset, đặt mật khẩu mới, rồi đăng nhập lại. Không dán link reset, mã hay mật khẩu vào chat.
-5. Nếu tài khoản là admin, tại phần nhật ký dùng **Tạo bản sao trên Cloudflare**, rồi **Tải bản R2 mới nhất**. Lưu file ở nơi riêng tư và chạy restore drill local:
+1. Mở trang và chọn **Tạo tài khoản**. Dùng email của bạn; không cần được mời trước. Mật khẩu từ 12 đến 128 ký tự. Không đăng nhập bằng Google.
+2. Mở hộp thư, bấm link xác minh trong vòng một giờ. Tài khoản mới sẽ ở trạng thái chờ admin duyệt và chưa thể đăng nhập.
+3. Admin đăng nhập, mở **Hôm nay**, tìm mục **Tài khoản chờ duyệt**, rồi bấm **Duyệt** cạnh email đã xác minh. Sau đó người học đăng nhập lại bình thường. Chỉ tài khoản bootstrap đầu tiên khớp secret `BOOTSTRAP_ADMIN_EMAIL` mới tự nhận quyền admin khi chưa có admin nào.
+4. Vào bài học, gõ câu trả lời thử không nhạy cảm và bấm **Lưu câu trả lời**. Đăng xuất, đăng nhập lại, tải lại bài và xác nhận câu trả lời vẫn còn.
+5. Thử **Quên mật khẩu?**, nhận email reset, đặt mật khẩu mới, rồi đăng nhập lại. Không dán link reset, mã hay mật khẩu vào chat.
+6. Nếu tài khoản là admin, tại phần nhật ký dùng **Tạo bản sao trên Cloudflare**, rồi **Tải bản R2 mới nhất**. Lưu file ở nơi riêng tư và chạy restore drill local:
 
    ```sh
    npm run db:restore:drill -- --file /path/to/private-r2-backup.json
@@ -23,7 +24,7 @@
 
    Script chỉ in tên bảng và số dòng, không in câu trả lời; nó không chạm database đang chạy.
 
-Nếu email báo không nằm trong danh sách mời, dừng ở đó và báo tôi. Không gửi secret vào chat. Nếu mail xác minh/reset không tới, kiểm tra spam và báo thời gian gửi cùng thông báo lỗi hiển thị; không gửi nội dung thư hoặc link bí mật.
+Không cần thêm email vào allowlist. Nếu đã xác minh mà chưa duyệt, việc đăng nhập sẽ bị chặn cho tới khi admin duyệt; đổi mật khẩu không thay thế bước duyệt. Không gửi secret vào chat. Nếu mail xác minh/reset không tới, kiểm tra spam và báo thời gian gửi cùng thông báo lỗi hiển thị; không gửi nội dung thư hoặc link bí mật.
 
 ## Những gì staging đang và chưa làm
 

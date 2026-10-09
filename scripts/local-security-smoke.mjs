@@ -26,8 +26,10 @@ const checks = [
   ['GET /api/state', '/api/state', { headers: forged }],
   ['GET /api/daily', '/api/daily', { headers: forged }],
   ['GET /api/export', '/api/export', { headers: forged }],
+  ['GET /api/admin/users', '/api/admin/users', { headers: forged }],
   ['PUT /api/state', '/api/state', { method: 'PUT', headers: { ...forged, origin, 'Content-Type': 'application/json' }, body: '{}' }],
   ['POST /api/daily', '/api/daily', { method: 'POST', headers: { ...forged, origin, 'Content-Type': 'application/json' }, body: '{}' }],
+  ['POST /api/admin/users', '/api/admin/users', { method: 'POST', headers: { ...forged, origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: 'forged' }) }],
   ['POST /api/admin/backup', '/api/admin/backup', { method: 'POST', headers: { ...forged, origin } }],
 ];
 const status = {};
@@ -41,11 +43,11 @@ for (const method of ['GET', 'POST']) {
   if (response.status !== 410) throw new Error(`/api/learning-run ${method} returned ${response.status}.`);
 }
 
-const rejectedSignup = await request('/api/auth/sign-up/email', {
+const publicSignup = await request('/api/auth/sign-up/email', {
   method: 'POST', headers: { origin, 'Content-Type': 'application/json' },
-  body: JSON.stringify({ email: `blocked-${Date.now()}@example.invalid`, name: 'Smoke', password: 'Smoke-test-password-2026!' }),
+  body: JSON.stringify({ email: `open-${Date.now()}@example.invalid`, name: 'Open signup smoke', password: 'Smoke-test-password-2026!' }),
 });
-if (rejectedSignup.status !== 403) throw new Error(`Uninvited sign-up returned ${rejectedSignup.status}; expected 403.`);
+if (publicSignup.status !== 200) throw new Error(`Public sign-up returned ${publicSignup.status}; expected 200.`);
 
 const email = 'local@example.test';
 const password = 'Local-smoke-password-2026!';
@@ -81,6 +83,14 @@ if (loggedOutState.status !== 401) throw new Error(`Signed-out session still rea
 const signin = await auth('sign-in/email', { email, password, callbackURL: '/' });
 if (signin.status !== 200) throw new Error(`Local sign-in failed (${signin.status}).`);
 sessionCookie = cookie(signin);
+const adminUsers = await request('/api/admin/users', { headers: { cookie: sessionCookie } });
+const adminUsersBody = await adminUsers.json();
+if (adminUsers.status !== 200 || !Array.isArray(adminUsersBody.users)) throw new Error(`Admin pending-user list failed (${adminUsers.status}).`);
+const crossOriginApproval = await request('/api/admin/users', {
+  method: 'POST', headers: { cookie: sessionCookie, origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+  body: JSON.stringify({ userId: 'open-smoke' }),
+});
+if (crossOriginApproval.status !== 403) throw new Error(`Cross-origin approval returned ${crossOriginApproval.status}; expected 403.`);
 const readback = await request('/api/state', { headers: { cookie: sessionCookie } });
 const savedState = await readback.json();
 if (readback.status !== 200 || savedState.data?.done?.[0] !== 'smoke-task' || savedState.revision !== 1) {
@@ -91,6 +101,7 @@ if (finalLogout.status !== 200) throw new Error(`Final local sign-out failed (${
 
 console.log(JSON.stringify({
   health: health.status, d1: body.d1, publicAccountPages: 4, anonymousHome: home.status,
-  forgedHeaderApiStatus: status, learningRun: 410, uninvitedSignup: rejectedSignup.status,
+  forgedHeaderApiStatus: status, learningRun: 410, publicSignup: publicSignup.status,
+  adminPendingUsers: adminUsers.status, crossOriginApproval: crossOriginApproval.status,
   localAuth: { signup: signup.status, saveProgress: saved.status, logout: logout.status, signin: signin.status, readback: readback.status, revision: savedState.revision },
 }));

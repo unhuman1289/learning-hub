@@ -26,12 +26,15 @@ async function postAuth(path: string, body: Record<string, string>) {
     if (response.status >= 500) {
       throw new Error("Dịch vụ đang gặp lỗi. Hãy thử lại sau; nếu vẫn lỗi, báo quản trị viên.");
     }
+    if (response.status === 401 && path === "sign-in/email") {
+      throw new Error("Chưa đăng nhập được. Kiểm tra email và mật khẩu; nếu mới đăng ký, hãy xác minh email và chờ admin duyệt tài khoản.");
+    }
     throw new Error("Yêu cầu chưa hoàn tất. Kiểm tra email và thử lại.");
   }
   return result;
 }
 
-export default function AccountForm({ mode }: { mode: AccountMode }) {
+export default function AccountForm({ mode, emailVerified = false }: { mode: AccountMode; emailVerified?: boolean }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordAgain, setPasswordAgain] = useState("");
@@ -39,7 +42,6 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
@@ -51,11 +53,11 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
         window.location.replace("/");
       } else if (mode === "register") {
         if (password !== passwordAgain) throw new Error("Hai mật khẩu chưa khớp.");
-        await postAuth("sign-up/email", { email, password, name, callbackURL: "/" });
-        setMessage("Nếu email đủ điều kiện và chưa có tài khoản, thư xác minh sẽ được gửi. Hãy kiểm tra Inbox và Spam. Nếu bạn đã có tài khoản, hãy đăng nhập hoặc dùng Quên mật khẩu; người mới cần được quản trị viên thêm email vào danh sách mời trước.");
+        await postAuth("sign-up/email", { email, password, name, callbackURL: "/login?verified=1" });
+        setMessage("Đã nhận yêu cầu đăng ký. Hãy xác minh email trong thư gửi đến (kiểm tra cả Spam). Sau khi xác minh, admin cần duyệt tài khoản trước lần đăng nhập đầu tiên.");
       } else if (mode === "forgot") {
         await postAuth("request-password-reset", { email, redirectTo: "/reset-password" });
-        setMessage("Nếu tài khoản này tồn tại, email đặt lại mật khẩu đã được yêu cầu. Hãy kiểm tra Inbox và Spam; nếu chưa từng đăng ký, trước hết quản trị viên cần mời email đó.");
+        setMessage("Nếu tài khoản này tồn tại, email đặt lại mật khẩu đã được yêu cầu. Hãy kiểm tra Inbox và Spam; nếu chưa đăng ký, hãy chọn Tạo tài khoản.");
       } else {
         if (password !== passwordAgain) throw new Error("Hai mật khẩu chưa khớp.");
         const token = new URLSearchParams(window.location.search).get("token") ?? "";
@@ -78,9 +80,9 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
         <h1>{copy[mode].title}</h1>
         <p className="account-intro">
           {mode === "register"
-            ? "Chỉ email đã được mời mới đăng ký được. Người mới cần được quản trị viên thêm email vào danh sách mời trước. Nếu bạn đã có tài khoản, hãy đăng nhập hoặc đặt lại mật khẩu. Mật khẩu cần ít nhất 12 ký tự."
+            ? "Ai cũng có thể tạo tài khoản bằng email và mật khẩu. Sau khi xác minh email, tài khoản chờ admin duyệt rồi mới đăng nhập được. Mật khẩu cần ít nhất 12 ký tự."
             : mode === "login"
-              ? "Dùng email và mật khẩu Learning Hub của bạn."
+              ? "Dùng email và mật khẩu Learning Hub. Tài khoản mới cần xác minh email và được admin duyệt trước khi đăng nhập."
               : mode === "forgot"
                 ? "Nhập email đã đăng ký. Vì lý do bảo mật, trang luôn xác nhận chung; thư chỉ được gửi nếu tài khoản tồn tại. Hãy kiểm tra cả Spam."
                 : "Chọn mật khẩu mới có ít nhất 12 ký tự."}
@@ -104,6 +106,7 @@ export default function AccountForm({ mode }: { mode: AccountMode }) {
             {busy ? "Đang xử lý…" : copy[mode].submit}
           </button>
         </form>
+        {mode === "login" && emailVerified && <p className="account-message" role="status">Email đã được xác minh. Nếu tài khoản mới, admin cần duyệt trước khi bạn đăng nhập được.</p>}
         <div className="account-links" role="navigation" aria-label="Liên kết tài khoản">
           {mode !== "login" && <a href="/login">Đăng nhập</a>}
           {mode !== "register" && <a href="/register">Tạo tài khoản</a>}

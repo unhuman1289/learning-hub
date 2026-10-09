@@ -1,5 +1,7 @@
 import { betterAuth } from "better-auth";
 import { authSchemaOptions } from "./schema-options";
+import { initialAccountStatus, statusAfterEmailVerification } from "./approval-policy";
+import { accountCanCreateSession } from "./approval-store";
 import { escapeHtml, sendAuthEmail } from "./email";
 
 export type HubAuthBindings = {
@@ -8,22 +10,12 @@ export type HubAuthBindings = {
   ENVIRONMENT?: string;
   BETTER_AUTH_SECRET?: string;
   BOOTSTRAP_ADMIN_EMAIL?: string;
-  ALLOWED_SIGNUP_EMAILS?: string;
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
 };
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
-}
-
-function parseSignupAllowlist(value: string | undefined): Set<string> {
-  return new Set(
-    (value ?? "")
-      .split(",")
-      .map(normalizeEmail)
-      .filter(Boolean),
-  );
 }
 
 function resolveOrigin(bindings: HubAuthBindings): string | undefined {
@@ -52,7 +44,7 @@ function resolveOrigin(bindings: HubAuthBindings): string | undefined {
 async function signupRole(
   bindings: HubAuthBindings,
   email: string,
-): Promise<"admin" | "learner" | null> {
+): Promise<"admin" | "learner"> {
   const normalized = normalizeEmail(email);
   const bootstrapEmail = normalizeEmail(bindings.BOOTSTRAP_ADMIN_EMAIL ?? "");
   if (bootstrapEmail && bootstrapEmail === normalized) {
@@ -64,9 +56,7 @@ async function signupRole(
     if (!admin) return "admin";
   }
 
-  return parseSignupAllowlist(bindings.ALLOWED_SIGNUP_EMAILS).has(normalized)
-    ? "learner"
-    : null;
+  return "learner";
 }
 
 function htmlLink(url: string, label: string): string {
@@ -116,31 +106,27 @@ export function createHubAuth(bindings: HubAuthBindings) {
         "/send-verification-email": { window: 60, max: 4 },
       },
     },
-    user: {
-      ...authSchemaOptions.user,
-      validateUserInfo: async ({ user, source }) => {
-        if (source.action !== "create-user") return;
-        if (await signupRole(bindings, String(user.email ?? ""))) return;
-        return {
-          error: "signup_not_invited",
-          errorDescription: "This email is not on the Learning Hub invitation list.",
-        };
-      },
-    },
     databaseHooks: {
       user: {
         create: {
           before: async (user) => {
             const email = normalizeEmail(user.email);
             const role = await signupRole(bindings, email);
-            if (!role) return false;
-            return { data: { ...user, email, role, status: isLocal ? "active" : "pending" } };
+            return { data: { ...user, email, role, status: initialAccountStatus(isLocal) } };
+          },
+        },
+      },
+      session: {
+        create: {
+          before: async (session) => {
+            if (!await accountCanCreateSession(bindings.DB, session.userId)) return false;
           },
         },
       },
     },
     emailAndPassword: {
       enabled: true,
+      autoSignIn: isLocal,
       disableSignUp: !emailDeliveryConfigured && !isLocal,
       requireEmailVerification: !isLocal,
       minPasswordLength: 12,
@@ -159,7 +145,7 @@ export function createHubAuth(bindings: HubAuthBindings) {
     emailVerification: {
       sendOnSignUp: !isLocal,
       sendOnSignIn: !isLocal,
-      autoSignInAfterVerification: true,
+      autoSignInAfterVerification: false,
       expiresIn: 60 * 60,
       sendVerificationEmail: async ({ user, url }) => {
         await sendAuthEmail(bindings, {
@@ -170,8 +156,11 @@ export function createHubAuth(bindings: HubAuthBindings) {
         });
       },
       afterEmailVerification: async (user) => {
+        const account = await bindings.DB.prepare('SELECT role FROM "user" WHERE id = ?')
+          .bind(user.id)
+          .first<{ role: string | null }>();
         await bindings.DB.prepare('UPDATE "user" SET status = ? WHERE id = ? AND status = ?')
-          .bind("active", user.id, "pending")
+          .bind(statusAfterEmailVerification(account?.role ?? "learner", isLocal), user.id, "pending")
           .run();
       },
     },

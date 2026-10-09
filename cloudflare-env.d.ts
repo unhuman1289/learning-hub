@@ -9,7 +9,6 @@ declare namespace Cloudflare {
     STAGING_SPIKE_LOCKDOWN?: string;
     BETTER_AUTH_SECRET?: string;
     BOOTSTRAP_ADMIN_EMAIL?: string;
-    ALLOWED_SIGNUP_EMAILS?: string;
     RESEND_API_KEY?: string;
     EMAIL_FROM?: string;
   }
