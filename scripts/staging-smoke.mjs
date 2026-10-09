@@ -21,8 +21,8 @@ for (let i = 0; i < 20; i += 1) {
   const home = await fetch(new URL("/", url));
   const homeBody = await home.text();
   homeMs.push(performance.now() - homeStart);
-  if (!home.ok || !homeBody.trim()) {
-    throw new Error(`Home request ${i + 1} returned ${home.status}: ${homeBody.slice(0, 400)}`);
+  if (!home.ok || !homeBody.includes("The learning app stays private until sign-in is ready.")) {
+    throw new Error(`Staging page request ${i + 1} returned ${home.status}: ${homeBody.slice(0, 400)}`);
   }
 
   const healthStart = performance.now();
@@ -38,11 +38,13 @@ const oldRun = await fetch(new URL("/api/learning-run", url));
 if (oldRun.status !== 410) throw new Error(`The Sites learning-run endpoint returned ${oldRun.status}, expected 410.`);
 const state = await fetch(new URL("/api/state", url));
 if (state.status !== 404) throw new Error(`Staging lockdown returned ${state.status} for /api/state, expected 404.`);
+const clientBundle = await fetch(new URL("/_next/static/vinext-client-entry-manifest.json", url));
+if (clientBundle.status !== 404) throw new Error(`Staging exposed a client bundle with status ${clientBundle.status}.`);
 
 console.log(JSON.stringify({
   url: url.origin,
   requests: { home: homeMs.length, health: healthMs.length },
-  status: { home: 200, health: 200, learningRun: oldRun.status, state: state.status },
+  status: { probePage: 200, health: 200, learningRun: oldRun.status, state: state.status, clientBundle: clientBundle.status },
   latencyMs: {
     homeP95: Number(percentile95(homeMs).toFixed(1)),
     healthP95: Number(percentile95(healthMs).toFixed(1)),
