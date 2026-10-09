@@ -15,3 +15,9 @@ export const runItems = sqliteTable('run_items', {
  lessonId:text('lesson_id'),sources:text('sources').notNull().default('[]'),
 },table=>[primaryKey({columns:[table.runId,table.userId,table.track]})]);
 export const backupEvents = sqliteTable('backup_events', {id:text('id').primaryKey(),createdAt:text('created_at').notNull(),createdBy:text('created_by').notNull()});
+// Study time is measured per account and Berlin day while a notebook is open; the target is per account.
+export const studyTime = sqliteTable('study_time', {
+ userId:text('user_id').notNull(),day:text('day').notNull(),track:text('track').notNull(),
+ seconds:integer('seconds').notNull().default(0),updated:text('updated').notNull(),
+},table=>[primaryKey({columns:[table.userId,table.day,table.track]})]);
+export const learnerSettings = sqliteTable('learner_settings', {userId:text('user_id').primaryKey(),dailyTargetMinutes:integer('daily_target_minutes').notNull().default(60),updated:text('updated').notNull()});
