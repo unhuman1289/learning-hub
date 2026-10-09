@@ -52,7 +52,7 @@ Build thành công không xác nhận đã deploy hoặc đã đạt giới hạ
 5. Lượt cập nhật ngày tiếp theo chỉ thay bài của mảng đã xong trước 03:00 Berlin. Bài chưa xong giữ nguyên. Bài cũ và câu trả lời được giữ để ôn.
 6. Mở **Nhật ký cập nhật** để xem dữ liệu hiện có. Admin có thể tạo bản sao trên R2 hoặc tải bản sao mới nhất về; bộ sinh bài hằng ngày chưa được nối vào staging. Bài, câu trả lời, ghi chú và tiến độ được lưu trong D1 khi máy chủ xác nhận.
 
-Thời lượng mục tiêu là tối thiểu 240 phút/ngày, chia thành nhiều phiên linh hoạt. Dùng sơ đồ → đọc → nhớ lại → thực hành → phản hồi → ôn. Đánh dấu hoàn thành là hành động của người học; AI không tự đánh dấu.
+Mỗi tài khoản tự đặt mục tiêu phút mỗi ngày (mặc định 60 phút) trên thanh trên cùng; thời gian học được tự tính khi một cuốn sổ đang mở. Dùng sơ đồ → đọc → nhớ lại → thực hành → phản hồi → ôn. Đánh dấu hoàn thành là hành động của người học; AI không tự đánh dấu.
 
 ## Năm mảng nội dung
 

@@ -7,5 +7,5 @@ export const dynamic = "force-dynamic";
 export default async function HomePage() {
   const user = await getHubUser();
   if (!user) redirect("/login");
-  return <Home userEmail={user.email} userRole={user.role ?? "learner"} />;
+  return <Home userEmail={user.email} userName={user.name ?? ""} userRole={user.role ?? "learner"} />;
 }

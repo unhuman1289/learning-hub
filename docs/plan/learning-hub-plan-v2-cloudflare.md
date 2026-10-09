@@ -379,9 +379,13 @@ Mỗi task: **Mục tiêu · Thay đổi · Migration · Test · Chấp nhận k
 | P2.7 UI tối thiểu | Trả lời từng quest, xem phản hồi | Sửa `daily-learning.tsx` ở mức chức năng | Smoke trên staging | | P2.1 | Không làm redesign |
 | P2.8 Notes/logs theo user | Bỏ khối JSON workspace chung | `0008_notes_logs.sql`, chuyển dữ liệu workspace → hàng có `user_id` | Không mất ghi chú | | P1.1 | |
 
+### Luồng song song: giao diện sổ học (duyệt 09/10/2026)
+
+Chủ dự án yêu cầu làm redesign UI ngay, song song Phase 1, trên nhánh riêng `design/notebook-ui`. Phạm vi: chỉ giao diện (Tailwind, Bàn học, sổ, trang bài, ghi chú, quản trị, trang tài khoản). Không đổi API, migration, auth hay logic cập nhật 03:00; không deploy trước khi được yêu cầu. Kệ sổ riêng từng người và "Mở sổ mới" phụ thuộc P1.1 và bộ soạn bài cho chủ đề mới. Xem `DESIGN.md` mục *Notebook interface*.
+
 ### Hoãn (không làm trong đợt này)
 
-Redesign UI, dashboard đẹp, Mermaid/Markdown, a11y ngoài lỗi chặn, refactor component vì style, adaptive curriculum nâng cao, tối ưu prompt, email thông báo (xác minh tài khoản và đặt lại mật khẩu vẫn cần), Google Drive/Docs, notification, audio, kiểm tra DOI/PMID, `content.ts` → D1, nhắc mảng kẹt.
+Dashboard đẹp ngoài thiết kế sổ học, Mermaid/Markdown, a11y ngoài lỗi chặn, refactor component vì style, adaptive curriculum nâng cao, tối ưu prompt, email thông báo (xác minh tài khoản và đặt lại mật khẩu vẫn cần), Google Drive/Docs, notification, audio, kiểm tra DOI/PMID, `content.ts` → D1, nhắc mảng kẹt.
 
 ---
 

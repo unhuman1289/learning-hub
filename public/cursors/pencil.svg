@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <!-- Pencil cursor; the hotspot is the graphite tip at (3, 29). -->
+  <g transform="translate(3 29) rotate(-45)" stroke-linejoin="round">
+    <g fill="#fff" stroke="#fff" stroke-width="2.6">
+      <polygon points="0,0 7,-3 7,3"/>
+      <rect x="7" y="-3" width="22" height="6"/>
+      <rect x="29" y="-3.2" width="4" height="6.4"/>
+      <rect x="33" y="-3" width="4.2" height="6" rx="1.6"/>
+    </g>
+    <g stroke="#2b2118" stroke-width="0.7">
+      <polygon points="0,0 7,-3 7,3" fill="#e9cda6"/>
+      <polygon points="0,0 2.7,-1.15 2.7,1.15" fill="#2b2b2e" stroke="none"/>
+      <rect x="7" y="-3" width="22" height="6" fill="#d9a23c"/>
+      <rect x="7" y="-1" width="22" height="2" fill="#efc05e" stroke="none"/>
+      <rect x="29" y="-3.2" width="4" height="6.4" fill="#b9b8bd"/>
+      <line x1="30.4" y1="-3.2" x2="30.4" y2="3.2"/>
+      <line x1="31.7" y1="-3.2" x2="31.7" y2="3.2"/>
+      <rect x="33" y="-3" width="4.2" height="6" rx="1.6" fill="#e7a3bf"/>
+    </g>
+  </g>
+</svg>
