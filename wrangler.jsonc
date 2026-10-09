@@ -35,7 +35,7 @@
         {
           "binding": "DB",
           "database_name": "learning-hub-staging",
-          "database_id": "00000000-0000-4000-8000-000000000000",
+          "database_id": "6f2f1df1-1dcd-4810-8812-1c6e4d7ef1d5",
           "migrations_dir": "drizzle"
         }
       ],
@@ -54,10 +54,13 @@
         {
           "binding": "DB",
           "database_name": "learning-hub-prod",
-          "database_id": "00000000-0000-4000-8000-000000000000",
+          "database_id": "545cedea-a4a5-4bdb-b370-8d447fe0833c",
           "migrations_dir": "drizzle"
         }
-      ]
+      ],
+      "assets": {
+        "run_worker_first": true
+      }
     }
   },
   "assets": {
