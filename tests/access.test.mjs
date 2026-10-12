@@ -58,13 +58,14 @@ test('resolveLearner defaults to the viewer and answers 404 for anyone else', as
     [{ id: 'bot' }, '?learner=ech', 'read_work'],
     [{ id: 'ly' }, '?learner=vu', 'read_progress'],
     [{ id: 'ly' }, '?learner=ech', 'edit_work'],
-    [{ id: 'ech' }, '', 'edit_settings'],
     [{ id: 'vu', role: 'admin' }, "?learner=x'%20OR%201=1", 'read_work'],
   ]) {
     const result = await resolveLearner(db, viewer, req(query), action);
     assert.ok(result instanceof Response, `${viewer.id} ${query} ${action}`);
     assert.equal(result.status, 404);
   }
+  const own = await resolveLearner(db, { id: 'ech' }, req(), 'edit_settings');
+  assert.equal(own.status, 403, 'a child changing their own minutes is told to ask a guardian');
   db.sqlite.close();
 });
 
