@@ -10,7 +10,7 @@ export async function learningContext(userId:string,runId?:string,origin:'schedu
  const db=storage();
  if(runId)await getRun(db,runId);else runId=await startRun(db,origin);
  const day=berlinDay(),daily=await readDaily(userId,true);
- const workspace=await storage().prepare('SELECT payload FROM learning_workspace WHERE owner=?').bind('__shared_family_workspace__').first<{payload:string}>();
+ const workspace=await storage().prepare('SELECT payload FROM learning_workspace WHERE owner=?').bind(userId).first<{payload:string}>();
  const progress=workspace?JSON.parse(workspace.payload):null;
  return {runId,runDate:day,timezone:'Europe/Berlin',cutoff:cutoffFor(day),eligibleTracks:learningTracks.filter(track=>canAdvance(daily.active.find(l=>l.track===track),day)),...daily,progress,payloadTemplate:{runId,runDate:day,issues:[],summary:'Accurate progress and source-research summary',lessons:[{track:'Deutsch',expectedId:null,content:{title:'Title',objective:'Learning objective',minutes:60,level:'A2',sections:[{heading:'Concept',text:'Explanation'},{heading:'Example',text:'Example'}],diagram:'Readable text diagram',exercise:'Practice instructions',questions:[{question:'Question 1',answer:'Answer rubric 1'},{question:'Question 2',answer:'Answer rubric 2'}],deliverable:'Concrete output',sources:[{title:'Primary source',url:'https://example.org',readScope:'Sections actually read, abstract/full text status',retrievedAt:new Date().toISOString(),publishedAt:null}],nextTopic:'Next prerequisite-aligned topic'}}]},instructions:UPDATE_INSTRUCTIONS};
 }
