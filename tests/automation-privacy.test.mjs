@@ -32,8 +32,8 @@ test('B2: ordinary and simulated clinical teaching content passes', () => {
     'Patient: simulated 70-year-old man with primary mitral regurgitation before surgery.',
     'Fall: Patientin mit Mammakarzinom, 45 Jahre, Erstdiagnose im Tumorboard besprochen.',
   ]) {
-    assert.equal(containsPossibleClinicalIdentifier(text, 'MTB'), false, text);
-    assert.equal(containsPossibleClinicalIdentifier(text, 'Cardio'), false, text);
+    assert.equal(containsPossibleClinicalIdentifier(text, 'clinical'), false, text);
+    assert.equal(containsPossibleClinicalIdentifier(text, 'clinical'), false, text);
   }
 });
 
@@ -44,14 +44,14 @@ test('B2: identifying clinical details are still blocked', () => {
     'Patientennummer 77812, Aufnahme Kardiologie',
     'Bệnh nhân Nguyễn Văn A, số hồ sơ 2231',
     'DOB 1961-03-12',
-  ]) assert.equal(containsPossibleClinicalIdentifier(text, 'Deutsch'), true, text);
+  ]) assert.equal(containsPossibleClinicalIdentifier(text, 'normal'), true, text);
   for (const text of [
     'Frau Schneider wurde wegen Vorhofflimmern behandelt.',
     'The patient was admitted on 12.03.2024 with chest pain.',
     'Bệnh nhân nhập viện ngày 12/03/2024.',
   ]) {
-    assert.equal(containsPossibleClinicalIdentifier(text, 'Cardio'), true, text);
-    assert.equal(containsPossibleClinicalIdentifier(text, 'Deutsch'), false, text);
+    assert.equal(containsPossibleClinicalIdentifier(text, 'clinical'), true, text);
+    assert.equal(containsPossibleClinicalIdentifier(text, 'normal'), false, text);
   }
 });
 
@@ -79,5 +79,25 @@ test('a realistic MTB lesson with dates and a simulated case is accepted', async
   const result = resultSchema.parse({ contractVersion: '1', contextHash: context.contextHash, summary: 'One MTB lesson.', items: [{ targetId: target.targetId, action: 'assign', expectedCurrentLessonId: null, lesson: mtbLesson }] });
   const saved = await acceptAutomationResult(db, run.runId, 'test-runner', result, now);
   assert.equal(saved.items.find((item) => item.targetId === target.targetId).outcome, 'assigned');
+  db.sqlite.close();
+});
+
+test('H1.7: the notebook sensitivity, not the track name, picks the filter', async () => {
+  for (const sensitivity of ['clinical', 'child_dev']) assert.equal(containsPossibleClinicalIdentifier('Frau Schneider kam heute.', sensitivity), true, sensitivity);
+  assert.equal(containsPossibleClinicalIdentifier('Frau Schneider kam heute.', 'normal'), false);
+
+  const db = memoryDb();
+  db.sqlite.prepare('INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,?,?,?,?,?)').run('admin', 'Private Name', 'owner@example.test', 1, 1, 1, 'admin', 'active');
+  const notebook = db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,sensitivity,legacy_track,status,created_by,created_at,updated_at) VALUES(?, 'admin', ?, 'reading', ?, ?, 'active', 'test', 't', 't')");
+  notebook.run('sub_00000000000000000001', 'Deutsch', 'clinical', 'Deutsch');
+  notebook.run('sub_00000000000000000002', 'MTB', 'normal', 'MTB');
+  const named = { ...mtbLesson, sections: [mtbLesson.sections[0], { heading: 'Dialog', text: 'Frau Schneider fragt nach dem Weg.' }] };
+  const run = await createAutomationRun(db, 'test-runner', startRunSchema.parse(runner), null, now);
+  const context = await serveAutomationContext(db, run.runId, 'test-runner', now);
+  const target = (track) => context.targets.find((item) => item.track === track);
+  const assign = (track) => resultSchema.parse({ contractVersion: '1', contextHash: context.contextHash, summary: 'x', items: [{ targetId: target(track).targetId, action: 'assign', expectedCurrentLessonId: null, lesson: named }] });
+  await assert.rejects(acceptAutomationResult(db, run.runId, 'test-runner', assign('Deutsch'), now), (error) => error.status === 400, 'Deutsch notebook marked clinical blocks a titled name');
+  const saved = await acceptAutomationResult(db, run.runId, 'test-runner', assign('MTB'), now);
+  assert.equal(saved.items.find((item) => item.targetId === target('MTB').targetId).outcome, 'assigned', 'MTB notebook marked normal allows it');
   db.sqlite.close();
 });

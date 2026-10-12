@@ -1,4 +1,4 @@
-import type { LearningTrack } from '../daily-policy.ts';
+import type { SubjectSensitivity } from '../subjects/sql.ts';
 
 const EMAIL = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
 // Phone candidates must start like a dialable number: "+49 …", "(0451) …" or "0451/…".
@@ -25,7 +25,7 @@ const EXPLICIT_IDENTIFIER = new RegExp([
 // Case-sensitive on purpose: "Patient: Jane Doe" is a name, "Patient: simulated woman" is not.
 const LABELLED_NAME = new RegExp(String.raw`\b(?:[Pp]atient(?:in)?|PATIENT|[Cc]ase|[Ff]all)\s*:\s*${NAME}`);
 
-// Only for clinical tracks: a named person or a dated clinical event points to a real record.
+// Only for clinical and child-development notebooks: a named person or a dated clinical event points to a real record.
 // Simulated cases ("simulated 58-year-old woman, NSCLC") contain neither and pass.
 const TITLED_NAME = /\b(?:Herr|Frau|Mr|Mrs|Ms)\.?\s+[A-ZÄÖÜ][a-zäöüß]+/;
 const DATED_EVENT = new RegExp([
@@ -33,9 +33,10 @@ const DATED_EVENT = new RegExp([
   String.raw`nhập\s+viện\s+ngày\s*${DATE}`,
 ].join('|'), 'i');
 
-export function containsPossibleClinicalIdentifier(text: string, track: LearningTrack) {
+/** Explicit identifiers are blocked everywhere; `clinical` and `child_dev` notebooks also block named people and dated events. */
+export function containsPossibleClinicalIdentifier(text: string, sensitivity: SubjectSensitivity) {
   if (containsExplicitIdentifier(text)) return true;
-  return (track === 'MTB' || track === 'Cardio') && (TITLED_NAME.test(text) || DATED_EVENT.test(text));
+  return sensitivity !== 'normal' && (TITLED_NAME.test(text) || DATED_EVENT.test(text));
 }
 
 export function containsExplicitIdentifier(text: string) {
