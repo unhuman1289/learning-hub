@@ -2,11 +2,11 @@
 
 ## Product direction
 
-A calm working surface for shared learning: show what to study now, what has been done, and the next concrete output. Gray provides the reading surface; pink identifies the primary action and selected state. Keep the five learning tracks available to everyone.
+A calm working surface for learning: show what to study now, what has been done, and the next concrete output. Paper and plaster provide the reading surface; pink marks the pen, the margin and links; brick marks the main action.
 
-This export implements the gray/pink theme on the existing interface. The simplified navigation and dedicated lesson reader below describe the next product iteration; they are not claimed as already shipped.
+Shipped on `learn.unhuman.cc` on 10/10/2026 (`main`, `bd4cddc`). What exists today is listed in [docs/FEATURES.md](docs/FEATURES.md); the sections below are the design rules.
 
-## Notebook interface (Sổ Học) — branch `design/notebook-ui`
+## Notebook interface (Sổ Học)
 
 Decided 09/10/2026: the interface is a study desk of composition notebooks. Each topic is one notebook; opening it shows the table of contents on the left page and the current lesson on ruled paper on the right. Proposal and audit: https://claude.ai/artifact/CspvHRUdbjj1FFuAze8Umc
 
@@ -21,13 +21,14 @@ Decided 09/10/2026: the interface is a study desk of composition notebooks. Each
 
 ## Information architecture
 
-Aim for three main destinations:
+Four destinations, as shipped:
 
-1. **Dashboard / Hôm nay:** current assignments, actual progress and time, unfinished work, review due, most recent verified content check.
-2. **Học / Learn:** curriculum by track, current lesson reader and history. Each lesson has its own address so it can be resumed and shared within the authenticated workspace.
-3. **Tài liệu / Library:** Docs links and short notes. Project milestones, reflection and review appear within their relevant track or dashboard rather than becoming many competing top-level pages.
+1. **Phòng học:** the desk (open lessons, reviews due, most recent content check) and the bookcase (one notebook per topic).
+2. **Cuốn sổ:** table of contents, lesson reader with history, goals, notes and documents of that topic. Each lesson has its own address so it can be resumed and shared within the signed-in workspace.
+3. **Ghi chú:** every journal entry across notebooks.
+4. **Quản trị** (admin only): approvals, update log, backups.
 
-Preserve existing notes, projects and journal during consolidation. The exported interface still exposes those destinations until a deliberate migration is implemented.
+The previous Hôm nay / Học / Tài liệu pages were folded into these; notes, projects and journal were preserved.
 
 ## Dashboard
 

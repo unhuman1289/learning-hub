@@ -1,5 +1,7 @@
 # Learning Hub — tác vụ cloud hằng ngày
 
+> **Lịch sử (ChatGPT Sites).** Prompt và quy trình cho tác vụ 03:00 gọi `/api/learning-run` của Sites. Đường này đã tắt (410) sau cutover 10/10/2026. Hiện chưa có lịch soạn bài nào. Hướng mới: [docs/hub2/LESSON-DESIGN.md](docs/hub2/LESSON-DESIGN.md) (cách soạn và chấm bài) và [docs/hub2/AI-API.md](docs/hub2/AI-API.md) (API cho runner).
+
 ## Trạng thái triển khai
 
 Lịch hiện có: **03:00 Europe/Berlin**, kể cả DST; dự kiến lượt đầu ngày 08/10/2026. Bản phase 0 trong Git bổ sung `runId` và nhật ký. **Chưa publish lên Sites và chưa sửa prompt tác vụ live:** kết nối Sites trong phiên triển khai không tìm thấy project. Không tạo tác vụ thay thế hoặc chuyển lịch sang máy local.

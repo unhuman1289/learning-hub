@@ -1,5 +1,7 @@
 # Deployment and migration status
 
+> **Lịch sử.** Danh sách việc trước khi rời ChatGPT Sites. Cutover sang Cloudflare đã xong ngày 10/10/2026; hiện trạng ở [ARCHITECTURE.md](ARCHITECTURE.md) và [ops/CLOUDFLARE.md](ops/CLOUDFLARE.md).
+
 ## Local export is ready; independent hosting is a separate step
 
 This repository retains the Sites/Vinext runtime. `.openai/hosting.json` identifies the existing Site; `wrangler.local.json` is for LOCAL D1 operations only, with a placeholder database ID. Do not deploy this configuration as production.
