@@ -4,7 +4,7 @@
 
 Build a family learning hub where each person has their own shelf and notebooks. Each learner sees only their own progress and work; admins see everyone's; guardians see their child's. Read README.md, DESIGN.md and `docs/hub2/README.md` before changing product behavior. Use Vietnamese for primary product copy and explanations, with EN/DE terminology and German practice. Keep the interface centered on current lessons, progress and practical outputs.
 
-Plan v2 (`docs/plan/learning-hub-plan-v2-cloudflare.md`) covers Phase 0–1. Learning Hub 2.0 follows plan v3 (`docs/plan/learning-hub-plan-v3-hub2.md`) in the order of its §6, respecting gates A–D; it replaces Phase 2 of v2. The ChatGPT Sites cutover finished on 10/10/2026; do not publish changes to Sites. Do not change code until the user explicitly asks to start implementation of a task. The old plan is archived in `docs/plan/archive/` for reference only.
+Follow `docs/plan/PLAN.md`, the single implementation plan, in the order of its §6, respecting gates A–D. Older plans in `docs/plan/archive/` are history only. The ChatGPT Sites cutover finished on 10/10/2026; do not publish changes to Sites. Do not change code until the user explicitly asks to start implementation of a task.
 
 ## Architecture and cost
 
