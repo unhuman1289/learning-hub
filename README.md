@@ -2,37 +2,53 @@
 
 Source riêng tư: https://github.com/unhuman1289/learning-hub
 
-Không gian học chung tại `learn.unhuman.cc`: đọc, hiểu, thực hành, nhận phản hồi và giữ tiến độ. Nội dung dùng chung; không chia quyền học theo Vũ/Ly/Gia đình.
+Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc)**: mỗi chủ đề là một cuốn sổ trên tủ sách; mở sổ để đọc bài, làm bài tập, lưu bài làm và theo dõi thời gian học. Bài được giao theo từng tài khoản; ghi chú và mốc dự án hiện còn dùng chung.
 
-## Trạng thái triển khai
+## Tài liệu
 
-Learning Hub đang chạy trên Cloudflare staging tại [learning-hub-staging.tranvu-812.workers.dev](https://learning-hub-staging.tranvu-812.workers.dev). Ai cũng có thể đăng ký bằng email; sau khi xác minh, tài khoản chờ admin duyệt trước khi đăng nhập. Trang này dùng D1 staging cho bài, câu trả lời và tiến độ. Xem [hướng dẫn staging](docs/ops/STAGING-CUTOVER-GUIDE.md) để hoàn tất kiểm tra tài khoản.
+| Đọc khi | Tài liệu |
+| --- | --- |
+| Muốn biết Hub đang làm được gì | [docs/FEATURES.md](docs/FEATURES.md) |
+| Cần hiểu hệ thống đang chạy (môi trường, dữ liệu, API, sao lưu, rủi ro) | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) |
+| Sửa giao diện | [DESIGN.md](DESIGN.md) |
+| Bàn hướng tiếp theo (Learning Hub 2.0) | [docs/hub2/README.md](docs/hub2/README.md): quyết định, vai trò, giao diện |
+| Soạn bài, viết prompt soạn hoặc chấm | [docs/hub2/LESSON-DESIGN.md](docs/hub2/LESSON-DESIGN.md) |
+| Làm bảng, luật, API cho 2.0 | [docs/hub2/DATA-MODEL.md](docs/hub2/DATA-MODEL.md), [docs/hub2/AI-API.md](docs/hub2/AI-API.md) |
+| Lên việc, mở PR | [docs/plan/learning-hub-plan-v3-hub2.md](docs/plan/learning-hub-plan-v3-hub2.md) (2.0); [plan v2](docs/plan/learning-hub-plan-v2-cloudflare.md) (Phase 0–1) |
+| Vận hành, kiểm thử | [docs/ops/](docs/ops/), [docs/VALIDATION.md](docs/VALIDATION.md), [docs/AUTOMATION.md](docs/AUTOMATION.md) (automation v1) |
+| Là agent viết code hoặc nội dung | [AGENTS.md](AGENTS.md) |
 
-`learn.unhuman.cc` vẫn chạy Sites v5. DNS/production chưa thay đổi. Staging hiện phục vụ snapshot và nội dung đã chuẩn bị sẵn; bộ sinh bài tự động theo lịch qua Automation API chưa triển khai. Theo [kế hoạch v2](docs/plan/learning-hub-plan-v2-cloudflare.md), cutover domain chỉ diễn ra cuối Phase 1, sau khi runner thay thế hoạt động.
+Tài liệu thời ChatGPT Sites (`PRODUCT.md`, `LEARNING-UPDATES.md`, `docs/DEPLOYMENT.md`, `docs/PHASE-0-OPERATIONS.md`) được giữ để tham khảo lịch sử.
 
-- Source của Sites phiên bản 5, commit gốc `ed5cdc0a2b7e86b899f0810690a4de4033908d47`, được export ngày 07/10/2026; giữ nguyên lịch sử Git.
-- Giao diện local đổi sang **xám–hồng**; tài liệu vận hành và phục hồi D1 đã bổ sung.
-- Website hiện dùng React 19, Vinext/Vite, Cloudflare Workers, D1 và bucket backup R2 riêng cho staging. CI kiểm tra test, typecheck, lint và build; workflow deploy staging chỉ chạy thủ công.
-- Bản sao dữ liệu live nằm tại `private-data/sites-export.json`, **không commit vào Git**. Bản export này gồm 5 bài, 5 slot, 1 lần cập nhật và 1 workspace; gồm câu trả lời và trạng thái tại thời điểm export.
-- Google Docs hiện là các liên kết tài liệu gốc, **chưa đồng bộ tự động hai chiều**.
-- Lịch tạo nội dung 03:00 Europe/Berlin hiện vẫn thuộc Sites; Worker staging chỉ chạy cron sao lưu D1. Export source không chuyển lịch tạo bài, credential hay database của Sites.
-- Chủ dự án đã xác nhận đăng nhập staging được và câu trả lời đã lưu vẫn còn sau khi đăng xuất rồi đăng nhập lại. Đặt lại mật khẩu và các gate vận hành còn lại được ghi trong [hướng dẫn staging](docs/ops/STAGING-CUTOVER-GUIDE.md).
+## Trạng thái (10/10/2026)
+
+- **Production**:
+  - `learn.unhuman.cc` chạy Cloudflare Worker `learning-hub-prod` với D1 `learning-hub-prod`, đã cutover khỏi Sites ngày 10/10/2026.
+  - Dữ liệu export từ Sites đã được nhập.
+  - `/api/health` báo `production-admin-bootstrap`, D1 connected.
+- **Staging**: [learning-hub-staging.tranvu-812.workers.dev](https://learning-hub-staging.tranvu-812.workers.dev), có automation API bật sau Cloudflare Access.
+- **Chưa có lịch nào tự soạn bài.** Cron chỉ tạo bản sao lưu lúc 03:00 Berlin. Hướng tiếp theo: [Learning Hub 2.0](docs/hub2/README.md).
+- **Git chưa khớp production**: phần Phase 1 (learner scope, automation v1, Access, Sites bridge) đang chạy nhưng chưa commit vào `main`. Xem [ARCHITECTURE.md §10](docs/ARCHITECTURE.md#10-git-và-production-đang-lệch-nhau).
+- **Đăng ký**: ai cũng đăng ký được bằng email; sau khi xác minh, admin duyệt rồi mới đăng nhập được.
 
 ## Chạy trên máy
 
-Cần Node.js **22.13+** cho ứng dụng; dùng **Node 24+** để chạy test TypeScript và SQLite tích hợp. npm dùng lockfile có sẵn.
+Cần Node.js **22.13+**; dùng **Node 24+** để chạy test SQLite (CI dùng Node 24).
 
 ```sh
 npm ci
 npm run db:migrate:local
-# Chỉ với database local mới, nếu có bản sao dữ liệu:
+# Chỉ với database local mới, nếu có bản sao dữ liệu riêng:
 npm run db:restore:local
-npm run dev
+npm run build
+node --import ./scripts/wrangler-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --local --persist-to .wrangler/state --port 8791
 ```
 
-Mở `http://localhost:5173`, tạo tài khoản local `local@example.test` bằng mật khẩu thử nghiệm của riêng bạn rồi đăng nhập. Tài khoản này chỉ được cho phép trong cấu hình dev loopback, không đi vào build/deploy production. Local auth không gửi email và không thay cho kiểm thử xác minh email trên staging. Với staging/production, chỉ bật đăng ký sau khi sender email đã xác thực và secrets đã được cấu hình; xem [EMAIL.md](docs/ops/EMAIL.md). Không cần AI API key để chạy Hub hoặc xem/chấm theo đáp án biên soạn sẵn.
+Mở `http://localhost:8791`. Trong cấu hình local, tài khoản mới tự active và không cần xác minh email (local không gửi email); tài khoản admin là email trong `BOOTSTRAP_ADMIN_EMAIL`.
 
-Một người clone Git lần đầu sẽ không có `private-data/sites-export.json`. Có thể chạy local với DB trống; không tự giả lập tiến độ. Để có nội dung live, chuyển bản backup riêng qua kênh tin cậy rồi chạy restore trên DB local mới. Không chạy restore vào DB đã học: INSERT không ghi đè khóa có sẵn.
+`npm run dev` hiện lỗi `sessionSchema.loose is not a function` (hai bản `zod` khi chạy dev); chạy bản build như trên. Không cần API key model để chạy Hub.
+
+Bạn clone Git lần đầu sẽ không có `private-data/`. Có thể chạy với DB trống. Để có nội dung thật, chuyển bản sao lưu riêng qua kênh tin cậy rồi restore vào DB local **mới**; restore dùng INSERT và không ghi đè dữ liệu có sẵn.
 
 ```sh
 npm run test
@@ -41,18 +57,15 @@ npm run lint
 npm run build
 ```
 
-Build thành công không xác nhận đã deploy hoặc đã đạt giới hạn CPU của Workers Free. Nếu cổng 5173 đang có phiên khác, chạy `npm run dev -- --port 5267` và mở địa chỉ tương ứng.
-
 ## Học hằng ngày
 
-1. Vào **Hôm nay**, mở bài đang học của một mảng.
-2. Đọc các phần giải thích, sơ đồ và ví dụ. Đọc tài liệu gốc khi cần.
-3. Làm thực hành, trả lời câu hỏi bằng lời của mình; đối chiếu tiêu chí sẵn.
-4. Bấm **Lưu câu trả lời**; bấm **Đã học xong** khi thực sự hoàn thành. Các nút bài hằng ngày lưu ngay. Ghi chú/nhật ký ở khu vực khác cần bấm **Lưu thay đổi**.
-5. Lượt cập nhật ngày tiếp theo chỉ thay bài của mảng đã xong trước 03:00 Berlin. Bài chưa xong giữ nguyên. Bài cũ và câu trả lời được giữ để ôn.
-6. Mở **Nhật ký cập nhật** để xem dữ liệu hiện có. Admin có thể tạo bản sao trên R2 hoặc tải bản sao mới nhất về; bộ sinh bài hằng ngày chưa được nối vào staging. Bài, câu trả lời, ghi chú và tiến độ được lưu trong D1 khi máy chủ xác nhận.
+1. Vào **Phòng học**. Trên bàn là post-it cho bài chưa xong và mục cần ôn. Bấm **Học tiếp**, **Bắt đầu**, hoặc lấy một cuốn sổ từ **Tủ sách**.
+2. Đọc giải thích và sơ đồ; làm bài tập; trả lời câu tự kiểm tra rồi mới mở **đáp án gợi ý**.
+3. Bấm **Lưu bài làm**; bấm **Đã học xong** khi thực sự hoàn thành. Chỉ hiện "Đã lưu" sau khi máy chủ xác nhận.
+4. Bài mới cho một mảng chỉ đến khi bài trước đã xong trước 03:00 Berlin; bài chưa xong giữ nguyên; bài cũ và câu trả lời giữ trong mục lục để ôn.
+5. Thời gian học tự tính khi một cuốn sổ đang mở. Rê chuột lên thước trên thanh trên cùng để xem chi tiết; bấm để đổi mục tiêu (mặc định 60 phút).
 
-Mỗi tài khoản tự đặt mục tiêu phút mỗi ngày (mặc định 60 phút) trên thanh trên cùng; thời gian học được tự tính khi một cuốn sổ đang mở. Dùng sơ đồ → đọc → nhớ lại → thực hành → phản hồi → ôn. Đánh dấu hoàn thành là hành động của người học; AI không tự đánh dấu.
+Đánh dấu hoàn thành là việc của người học; AI không tự đánh dấu.
 
 ## Năm mảng nội dung
 
@@ -62,34 +75,16 @@ Mỗi tài khoản tự đặt mục tiêu phút mỗi ngày (mặc định 60 p
 | AI & Engineering | Coding, deploy và vận hành SWARM; dữ liệu ung thư hiếm → giả thuyết → phản biện bằng chứng → expert review → therapy ranking; đánh giá hồi cứu |
 | Medical Systems Biology | MTB, oncology, pathology, sequencing, pharmacogenomics; kiến thức nền cho AG Busch/PM4Onco. Người học đã biết thống kê, Python, Linux, Git |
 | Cardio | Kiến thức tim và phương pháp nghiên cứu. Mục tiêu 3 tháng của Ly: concept, protocol và bước đầu bảo trợ cho ý tưởng can thiệp hở hai lá nguyên phát bằng implant vòng van kết hợp clip; cần kiểm tra tính mới và khả thi |
-| Bột | Ăn/ngủ, vận động, tương tác, giao tiếp, tự tin và ứng xử; cá thể hóa theo giai đoạn. Không hứa tăng IQ/chiều cao; phân biệt nghiên cứu với quan niệm văn hóa |
+| Bột | Ăn/ngủ, vận động, tương tác, giao tiếp, tự tin và ứng xử; cá thể hoá theo giai đoạn. Không hứa tăng IQ/chiều cao; phân biệt nghiên cứu với quan niệm văn hoá |
 
-Giải thích chính bằng tiếng Việt, giữ thuật ngữ Anh/Đức; bài Đức dùng tiếng Đức theo trình độ. Tháng tuổi trong phần nội dung tĩnh là bối cảnh ngày export, không phải hồ sơ phát triển đã được xác nhận.
+Giải thích chính bằng tiếng Việt, giữ thuật ngữ Anh/Đức; bài tiếng Đức theo trình độ.
 
-## AI bằng thuê bao hiện có
+## Source, dữ liệu, tài liệu ở đâu
 
-**Mục tiêu triển khai:** Workers Free + D1 cho website/trạng thái; ChatGPT Plus hoặc Claude Pro làm tác vụ cloud định kỳ để nghiên cứu và biên soạn. Không cần model API cho luồng cập nhật theo đợt. Phần runner và API thay bài chưa có trong staging.
+- **Git**: source, schema và migration, tài liệu, thiết kế. Repo riêng tư; không chứa token, câu trả lời hay bản sao lưu.
+- **D1**: tài khoản, bài và câu trả lời theo người, thời gian học, workspace dùng chung, nhật ký lượt soạn bài.
+- **R2**: bản sao lưu D1 tự động (30 bản mới nhất).
+- **Google Docs/Drive**: tài liệu dài có thể chỉnh sửa; chỉ liên kết, không đồng bộ, không làm database tiến độ.
+- **`private-data/` trên máy**: snapshot phục hồi; không vào Git.
 
-```mermaid
-flowchart TD
-  U[Người học] --> H[Learning Hub]
-  H <--> D[(D1: bài, câu trả lời, tiến độ)]
-  A[ChatGPT hoặc Claude: lịch 03:00 Berlin] --> T[Công cụ được xác thực của Hub]
-  T <--> D
-  A --> S[Nguồn gốc được đọc và kiểm tra]
-  A --> T
-  R[Git: source và cấu hình] --> H
-```
-
-Repo chưa có kết nối Claude hoặc OAuth Google riêng, và API Sites cũ đã bị tắt trên Worker. Chưa có tác vụ nào tự thay nội dung D1. Đăng nhập Plus/Pro không tự tạo quyền dịch vụ; laptop không cần chạy để Hub và D1 hoạt động. Xem [AUTOMATION.md](docs/AUTOMATION.md) và [LEARNING-UPDATES.md](LEARNING-UPDATES.md).
-
-Không cần push code mỗi ngày để đổi bài: dữ liệu bài nằm trong D1. Nếu biên soạn bài dạng file trong Git, chỉ cập nhật thư mục content và import qua writer có kiểm tra completion; deploy source không được tự thay bài đang học.
-
-## Source, tài liệu, trạng thái ở đâu?
-
-- **Git:** source, schema/migrations, tài liệu hướng dẫn, thiết kế, prompt chuẩn. Repo riêng tư; không có token, câu trả lời hay backup live.
-- **D1:** hiện còn trạng thái dùng chung, bài/lịch sử, câu trả lời, revision và nhật ký từng lượt. Giai đoạn 1 sẽ tách tiến độ theo người đăng nhập, vẫn cho mọi người học mọi mảng.
-- **Google Docs/Drive:** tài liệu dài, ghi chú có thể chỉnh sửa, paper/PDF. Docs không làm database tiến độ.
-- **Local private-data:** snapshot phục hồi; cần backup riêng vì Git không chứa nó.
-
-Các tài liệu nền: [AGENTS.md](AGENTS.md), [DESIGN.md](DESIGN.md), [PRODUCT.md](PRODUCT.md). PRODUCT giữ bối cảnh export; README/DESIGN mô tả quyết định mới. QUEST/SWARM là dự án riêng; repo Hub không chứa source hay dữ liệu bệnh nhân của hai dự án.
+QUEST/SWARM là dự án riêng; repo Hub không chứa source hay dữ liệu bệnh nhân của hai dự án.

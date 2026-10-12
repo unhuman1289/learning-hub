@@ -1,5 +1,7 @@
 # Giai đoạn 0 — kiểm tra lượt chạy và phục hồi
 
+> **Lịch sử (Phase 0 trên Sites).** Các bước publish lên project Sites và kiểm tra tác vụ 03:00 cũ không còn áp dụng. Phần sao lưu và restore vẫn đúng ý tưởng; lệnh hiện hành ở [ops/BACKUP.md](ops/BACKUP.md) và [ARCHITECTURE.md §8](ARCHITECTURE.md#8-sao-lưu-và-phục-hồi).
+
 ## Đã triển khai trong source
 
 - Migration `0002`: `runs`, `run_items`, `backup_events`; giữ nguyên bốn bảng và dữ liệu cũ.

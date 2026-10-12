@@ -1,5 +1,7 @@
 # Learning Hub
 
+> **Lịch sử (ChatGPT Sites, 07/10/2026).** Mô tả sản phẩm lúc export khỏi Sites. Một số điểm đã thay đổi: Hub chạy trên Cloudflare, bài được giao theo từng tài khoản, nút "Lưu thay đổi" chung và WebMCP không còn là cách lưu chính. Hiện trạng: [docs/FEATURES.md](docs/FEATURES.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 Private research and learning workspace for Vũ, Ly and Bột. All learners use the same content, notes and progress; no person selector or assigned learning tracks. Initial audience is owner-only; Google Docs sharing and Site sharing are separate.
 
 ## Product
