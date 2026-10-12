@@ -1,0 +1,56 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "Tỉ lệ thức trong bài toán thực tế",
+  "objective": "Lập và giải tỉ lệ thức cho bài toán mua bán, ghi đáp số có đơn vị.",
+  "why": "Mở đầu mạch tỉ lệ thức và đại lượng tỉ lệ của chương trình lớp 7.",
+  "reasonRefs": [],
+  "estMinutes": 25,
+  "level": "Lớp 7",
+  "targetSkills": ["key:ti-le-thuc"],
+  "sheet": {
+    "rules": ["Tỉ lệ thức là đẳng thức của hai tỉ số a/b = c/d.", "Trong tỉ lệ thức, tích chéo bằng nhau: a·d = b·c."],
+    "explanation": "Khi hai đại lượng tỉ lệ thuận, tỉ số giữa chúng không đổi; lập tỉ lệ thức rồi dùng tích chéo để tìm số chưa biết.",
+    "examples": [{ "text": "3 kg giá 4,50 €; x kg giá 7,50 € ⇒ 3/4,5 = x/7,5 ⇒ x = 5", "correct": true }],
+    "mistakes": ["Đặt hai đại lượng khác loại cùng tử số."],
+    "tips": ["Viết đơn vị bên cạnh từng số trước khi lập tỉ lệ thức."],
+    "checklist": ["Hai tỉ số cùng thứ tự đại lượng?", "Đáp số có đơn vị?"]
+  },
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    { "stage": "retrieval", "itemIds": ["i1"] },
+    { "stage": "sheet", "itemIds": [] },
+    { "stage": "guided", "itemIds": ["i2"] },
+    { "stage": "independent", "itemIds": ["i3"] }
+  ],
+  "items": [
+    {
+      "id": "i1", "activity": "recall", "input": "short", "skills": ["key:ti-le-thuc"], "difficulty": 1,
+      "prompt": "Tìm x: 2/5 = x/15",
+      "key": { "type": "numeric", "value": "6", "tolerance": 0, "unit": null },
+      "hints": ["Dùng tích chéo."], "solution": "x = 2·15 : 5 = 6", "attachment": "none"
+    },
+    {
+      "id": "i2", "activity": "apply", "input": "short", "skills": ["key:ti-le-thuc"], "difficulty": 2,
+      "prompt": "3 kg táo giá 4,50 €. Hỏi 5 kg giá bao nhiêu? Ghi đáp số.",
+      "key": { "type": "numeric", "value": "7,5", "tolerance": 0.001, "unit": "€" },
+      "hints": ["Tính giá 1 kg trước.", "4,50 : 3 rồi nhân 5."], "solution": "4,50 : 3 · 5 = 7,50 €", "attachment": "optional"
+    },
+    {
+      "id": "i3", "activity": "apply", "input": "long", "skills": ["key:ti-le-thuc"], "difficulty": 3,
+      "prompt": "Một xe đi 120 km hết 1,5 giờ. Với cùng vận tốc, đi 200 km hết bao lâu? Trình bày lời giải trên giấy và chụp ảnh.",
+      "rubric": [
+        { "criterion": "Lập đúng tỉ lệ thức", "points": 2 },
+        { "criterion": "Tính đúng", "points": 1 },
+        { "criterion": "Kết luận có đơn vị", "points": 1 }
+      ],
+      "hints": ["Quãng đường và thời gian tỉ lệ thuận khi vận tốc không đổi."],
+      "solution": "120/1,5 = 200/t ⇒ t = 2,5 giờ", "attachment": "required"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "Đại lượng tỉ lệ nghịch"
+}
