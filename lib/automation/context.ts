@@ -2,6 +2,8 @@ import { berlinDay, cutoffFor, learningTracks, canAdvance, type LearningTrack } 
 import type { JournalDb } from '../run-journal.ts';
 import type { ReplacementState } from './replacement.ts';
 import { containsPossibleClinicalIdentifier, redactContactDetails } from './privacy.ts';
+import { loadTrackSensitivity } from './sensitivity.ts';
+import type { SubjectSensitivity } from '../subjects/sql.ts';
 
 type UserRow = { id: string };
 type LessonRow = { id: string; user_id: string; track: LearningTrack; payload: string; assigned_date: string; completed_at: string | null; response: string; updated: string; automation_reviewed_at: string | null };
@@ -39,31 +41,27 @@ export type AutomationContext = {
   targets: PublicAutomationTarget[];
 };
 
-function parseContent(row: LessonRow): LessonContent {
+function parseContent(row: LessonRow, sensitivity: SubjectSensitivity): LessonContent {
   const value: unknown = JSON.parse(row.payload);
   if (!value || typeof value !== 'object') throw new Error('Stored lesson payload is invalid.');
   const content = value as Record<string, unknown>;
   if (typeof content.title !== 'string' || typeof content.level !== 'string' || typeof content.objective !== 'string' || typeof content.nextTopic !== 'string' || !Array.isArray(content.questions)) {
     throw new Error('Stored lesson payload is invalid.');
   }
-  const safeText = (value: string, max: number) => sanitizeText(value, row.track, max);
+  const safeText = (value: string, max: number) => sanitizeText(value, sensitivity, max);
   const questions = content.questions.filter((item): item is { question: string } => !!item && typeof item === 'object' && 'question' in item && typeof item.question === 'string').map(({ question }) => ({ question: safeText(question, 2000) }));
   return { title: safeText(content.title, 500), level: safeText(content.level, 100), objective: safeText(content.objective, 2000), nextTopic: safeText(content.nextTopic, 1000), questions };
 }
 
-function possibleClinicalIdentifier(text: string, track: LearningTrack) {
-  return containsPossibleClinicalIdentifier(text, track);
-}
-
-function sanitizeText(text: string, track: LearningTrack, max: number) {
-  if (possibleClinicalIdentifier(text, track)) return '[Content withheld: it may contain identifiable clinical information.]';
+function sanitizeText(text: string, sensitivity: SubjectSensitivity, max: number) {
+  if (containsPossibleClinicalIdentifier(text, sensitivity)) return '[Content withheld: it may contain identifiable clinical information.]';
   return redactContactDetails(text).slice(0, max);
 }
 
-function sanitizedAnswer(text: string, track: LearningTrack) {
-  const possiblePatientData = possibleClinicalIdentifier(text, track);
+function sanitizedAnswer(text: string, sensitivity: SubjectSensitivity) {
+  const possiblePatientData = containsPossibleClinicalIdentifier(text, sensitivity);
   if (possiblePatientData) return { text: '[Answer withheld: it may contain identifiable clinical information.]', truncated: false, withheldForPrivacy: true };
-  const redacted = sanitizeText(text, track, Number.MAX_SAFE_INTEGER);
+  const redacted = sanitizeText(text, sensitivity, Number.MAX_SAFE_INTEGER);
   return { text: redacted.slice(0, 4000), truncated: redacted.length > 4000, withheldForPrivacy: false };
 }
 
@@ -81,12 +79,14 @@ export async function buildAutomationContext(db: JournalDb, runId: string, now =
   const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
   const slotByKey = new Map(slots.map((slot) => [`${slot.user_id}\u0000${slot.track}`, slot]));
   const refs = new Map<string, string>();
+  const sensitivityOf = await loadTrackSensitivity(db);
   const targets: AutomationTarget[] = [];
 
   for (const user of users) {
     refs.set(user.id, await learnerRef(user.id));
     for (const track of learningTracks) {
       const slot = slotByKey.get(`${user.id}\u0000${track}`);
+      const sensitivity = sensitivityOf(user.id, track);
       const current = slot ? lessonById.get(slot.lesson_id) : undefined;
       if (slot && !current) throw new Error('Learning slot references a missing lesson.');
       const eligible = canAdvance(current ? { assignedDate: current.assigned_date, completedAt: current.completed_at } : undefined, day);
@@ -108,9 +108,9 @@ export async function buildAutomationContext(db: JournalDb, runId: string, now =
         ...state,
         learner: { ref: refs.get(user.id)! },
         goal: null,
-        currentLesson: current ? { ...parseContent(current), id: current.id, assignedDate: current.assigned_date, completedAt: current.completed_at } : null,
-        newAnswers: unseen.map((lesson) => ({ lessonId: lesson.id, ...sanitizedAnswer(lesson.response, track), submittedAt: lesson.completed_at! })),
-        recentLessonTitles: history.filter((lesson) => lesson.id !== current?.id).slice(0, 3).map((lesson) => parseContent(lesson).title),
+        currentLesson: current ? { ...parseContent(current, sensitivity), id: current.id, assignedDate: current.assigned_date, completedAt: current.completed_at } : null,
+        newAnswers: unseen.map((lesson) => ({ lessonId: lesson.id, ...sanitizedAnswer(lesson.response, sensitivity), submittedAt: lesson.completed_at! })),
+        recentLessonTitles: history.filter((lesson) => lesson.id !== current?.id).slice(0, 3).map((lesson) => parseContent(lesson, sensitivity).title),
       });
     }
   }
