@@ -15,7 +15,7 @@ export default function RunStatus({data,onBackup,isAdmin=false}:{data:DailyView,
    const response=await fetch('/api/export',{cache:'no-store'});
    const snapshot=await response.json() as {error?:string,format:number,tables?:Record<string,unknown>,exportedAt:string};
    if(!response.ok)throw Error(snapshot.error||'Không tải được bản sao lưu.');
-   if(snapshot.format!==2||!snapshot.tables)throw Error('Máy chủ chưa trả bản sao lưu đầy đủ.');
+   if(![2,3].includes(snapshot.format)||!snapshot.tables)throw Error('Máy chủ chưa trả bản sao lưu đầy đủ.');
    const blob=new Blob([JSON.stringify(snapshot,null,2)],{type:'application/json'});
    const url=URL.createObjectURL(blob),a=document.createElement('a');
    a.href=url;a.download=`learning-hub-backup-${snapshot.exportedAt.slice(0,10)}.json`;a.click();

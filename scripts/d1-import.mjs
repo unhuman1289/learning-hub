@@ -4,7 +4,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildRestoreSql } from '../lib/backup-contract.mjs';
 import {
-  configuredDatabase, countRows, readAndCompareSnapshot, readMarker, runRemoteD1,
+  canImportWithEmptyWorkspacePlaceholder, configuredDatabase, countRows, readActiveAdminId,
+  readAndCompareSnapshot, readMarker, readSharedWorkspacePlaceholder, sharedWorkspaceOwner, runRemoteD1,
 } from './d1-remote.mjs';
 
 function argumentsFrom(argv) {
@@ -16,7 +17,7 @@ function argumentsFrom(argv) {
   if (!args.env || !args.file || !args.confirm) {
     throw new Error('Usage: node scripts/d1-import.mjs --env staging --file private-data/sites-export.json --confirm learning-hub-staging');
   }
-  if (args.env !== 'staging') throw new Error('This import tool is intentionally limited to staging.');
+  if (!['staging', 'production'].includes(args.env)) throw new Error('Environment must be staging or production.');
   return args;
 }
 
@@ -24,22 +25,32 @@ const args = argumentsFrom(process.argv);
 const database = configuredDatabase(args.env);
 if (args.confirm !== database) throw new Error('Database confirmation does not match the Wrangler staging configuration.');
 const snapshot = JSON.parse(readFileSync(resolve(args.file), 'utf8'));
+const legacyOwnerId = readActiveAdminId(args.env, database);
 const importId = `sites-import-${createHash('sha256').update(JSON.stringify(snapshot)).digest('hex')}`;
 const importBy = `system:sites-import:${importId.slice('sites-import-'.length)}`;
 const marker = readMarker(args.env, database, importId);
 const counts = countRows(args.env, database);
+const workspacePlaceholder = counts.learning_workspace
+  ? readSharedWorkspacePlaceholder(args.env, database)
+  : { total: 0, emptyShared: 0, updated: null };
+const importCanKeepPlaceholder = canImportWithEmptyWorkspacePlaceholder(snapshot, counts, workspacePlaceholder);
 
 if (marker) {
   if (marker.created_by !== importBy) throw new Error('A different import already owns this marker; no rows were changed.');
-  if (counts.user || counts.account || counts.session || counts.verification || counts.rate_limit) {
-    throw new Error('Staging auth data exists; refusing to resume an import. No rows were changed.');
-  }
-} else if (Object.values(counts).some((count) => count !== 0)) {
-  throw new Error('The staging D1 database is not empty. Import stopped without changing rows.');
+} else if (
+  ['learning_lessons','learning_slots','learning_runs','runs','legacy_run_items','run_items','automation_runs','run_targets','run_events','study_time','learner_settings'].some((table) => counts[table] !== 0)
+  || (counts.learning_workspace !== 0 && !importCanKeepPlaceholder)
+) {
+  throw new Error('The target D1 already contains learning data. Import stopped without changing rows.');
 }
 
+const importSnapshot = structuredClone(snapshot);
+if (importCanKeepPlaceholder) {
+  importSnapshot.tables.learning_workspace[0].owner = sharedWorkspaceOwner;
+  importSnapshot.tables.learning_workspace[0].updated = workspacePlaceholder.updated;
+}
 const markerSql = `INSERT OR IGNORE INTO backup_events(id,created_at,created_by) VALUES('${importId}','${new Date().toISOString()}','${importBy}');`;
-const safeRestoreSql = buildRestoreSql(snapshot).replaceAll('INSERT INTO ', 'INSERT OR IGNORE INTO ');
+const safeRestoreSql = buildRestoreSql(importSnapshot,{legacyOwnerId}).replaceAll('INSERT INTO ', 'INSERT OR IGNORE INTO ');
 const directory = mkdtempSync(join(tmpdir(), 'learning-hub-sites-import-'));
 const sqlFile = join(directory, 'restore.sql');
 try {
@@ -49,7 +60,7 @@ try {
   rmSync(directory, { recursive: true, force: true });
 }
 
-const comparison = readAndCompareSnapshot(args.env, database, snapshot);
+const comparison = readAndCompareSnapshot(args.env, database, importSnapshot, { legacyOwnerId });
 if (comparison.some((table) => !table.ok)) {
   console.error(JSON.stringify(comparison));
   throw new Error('Import verification failed. Existing data was not overwritten; inspect staging before any retry.');

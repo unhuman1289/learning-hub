@@ -7,23 +7,31 @@ Thay thế `archive/learning-hub-plan-2026-10.md` (đã chuyển vào archive ng
 
 1. **Hạ tầng độc lập là ưu tiên số 1.** Không đầu tư thêm vào backend/UI/adaptive learning trên Sites. Không cố publish bản phase 0 cũ lên Sites nữa (`get_site` đang trả `NOT_FOUND`).
 2. **D1 do mình sở hữu là nguồn dữ liệu duy nhất.** Drive/Docs, email và Sites không nằm trong data flow.
-3. **Không phải "kéo Phase 3 lên đầu" nguyên khối.** Hạ tầng (Worker, D1, Access, CI/CD, backup) dựng ở **staging** trong Phase 0. **Chuyển `learn.unhuman.cc` (cutover) là bước cuối của Phase 1**, sau khi Automation API chạy end-to-end. Lý do: nếu chuyển DNS ngay cuối Phase 0, Hub mới không có đường nào sinh bài mới (Plus không ghi được, contract chưa có), và trong lúc đó Sites không còn được dùng → khoảng trống bài học + rủi ro hai nơi cùng ghi. Đã chốt: cutover cuối Phase 1 (D3).
+3. Hạ tầng Worker/D1 bắt đầu ở staging. Cutover vốn được lên lịch ở cuối Phase 1 sau Automation API; **ngày 09/10/2026 chủ dự án đã yêu cầu chuyển `learn.unhuman.cc` ngay**, nên thứ tự thời gian được rút ngắn. Quyền cutover đã có, nhưng vẫn phải giữ dữ liệu Sites và xác minh đường đăng nhập/email trước khi đổi DNS. Automation API hiện chưa vận hành end-to-end; sau cutover sẽ chưa có bài học mới tự sinh theo lịch.
 4. **AI runner là client thay thế được.** Contract `/api/automation/v1/*` không biết gì về ChatGPT, Claude hay Sites. Runner đầu tiên là **script test không dùng AI**.
 5. **Hai lớp xác thực tách biệt:** browser = tài khoản Learning Hub email + mật khẩu, session do app xác minh; automation = Access service token ở edge **và** bearer key có scope do Worker kiểm tra (hash trong Worker secret). Không dùng Google IdP hay Access OTP cho người học.
 6. **Server quyết định mọi thứ quan trọng:** ai là learner, mảng nào được thay, bài nào là hiện tại. Runner chỉ gửi đề xuất gắn với `targetId` do server cấp.
-7. **Đã chốt:** backup tự động vào R2; cutover cuối Phase 1; learner ẩn danh trong context; không publish thêm lên Sites; `vinext` chỉ giữ nếu đạt tiêu chí ổn định ở P0.3. Ngày 08/10/2026, chủ dự án chọn tài khoản email + mật khẩu do Learning Hub quản lý thay cho Google/Access login. Chi tiết ở mục 13.
-8. **Quyết định ưu tiên 09/10/2026:** triển khai staging MVP ngay khi auth/API được kiểm tra an toàn; bỏ chờ 48 giờ và bỏ CPU p95 ≤ 8 ms khỏi điều kiện mở staging. Theo dõi CPU, lỗi runtime và Workers Free quota sau deploy; nếu số liệu thực tế gây lỗi thì xử lý theo số liệu. Quyết định này chỉ áp dụng staging, không cho phép DNS/prod cutover.
+7. **Đã chốt:** backup tự động vào R2; cutover ban đầu dự kiến cuối Phase 1 nhưng đã được chủ dự án yêu cầu làm ngay ngày 09/10; learner ẩn danh trong context; không publish thêm lên Sites; `vinext` chỉ giữ nếu đạt tiêu chí ổn định ở P0.3. Ngày 08/10/2026, chủ dự án chọn tài khoản email + mật khẩu do Learning Hub quản lý thay cho Google/Access login. Chi tiết ở mục 13.
+8. **Quyết định ưu tiên 09/10/2026:** bỏ chờ 48 giờ và bỏ CPU p95 ≤ 8 ms khỏi điều kiện staging. Sau đó chủ dự án cũng đã cho phép dựng production và yêu cầu cutover ngay; đây là ngoại lệ rõ ràng so với lịch ban đầu. Theo dõi CPU/quota sau khi app được mở.
 
 ## 0.1 Trạng thái MVP staging — 09/10/2026
 
-Đã triển khai `https://learning-hub-staging.tranvu-812.workers.dev` với app auth email/mật khẩu, public signup, xác minh email, admin approval, D1, worker API guards và `STAGING_SPIKE_LOCKDOWN=false`. Production, DNS và Sites không thay đổi.
+Đã triển khai `https://learning-hub-staging.tranvu-812.workers.dev` với app auth email/mật khẩu, public signup, xác minh email, admin approval, D1, worker API guards và `STAGING_SPIKE_LOCKDOWN=false`. Production ban đầu chưa thay đổi; trạng thái production sau yêu cầu cutover nhanh được ghi ở dưới.
 
 - **Đạt:** migration `0003_auth_users.sql`; import snapshot Sites vào D1 staging rỗng; đọc lại và so từng ô (5 lessons, 5 slots, 1 workspace, 2 runs); health/D1; login pages; anonymous/forged-header API trả 401; endpoint cũ trả 410; local smoke public signup, admin users API, login/logout, cross-origin rejection và progress round-trip trong D1 tạm.
 - **Đạt local:** `npm run test` (30 test), `npm run typecheck`, `npm run lint`, `npm run build`. GitHub Actions push run [37975728541](https://github.com/unhuman1289/learning-hub/actions/runs/37975728541) xanh trên commit `8da6d1b` (lịch sử); bản auth mới chưa được push lên GitHub.
 - **Đã cấu hình:** `APP_ORIGIN`, `EMAIL_FROM`, ba secret auth/mail đang dùng ở staging; bucket riêng `learning-hub-backups-staging`; cron backup `0 1,2 * * *`, code chỉ chạy khi giờ Berlin là 03:00; endpoint admin tạo/tải bản R2.
 - **Đạt qua thao tác owner trước thay đổi này:** staging login và logout/login hoạt động; câu trả lời còn nguyên; owner xác nhận đã nhận thư đặt lại mật khẩu. Backup R2 và restore drill local cũng đã đạt.
 - **Còn:** browser acceptance cho tài khoản thứ hai: đăng ký email mới → xác minh → admin duyệt trên Dashboard → learner đăng nhập. Smoke staging hiện xác nhận endpoint/API guard; chưa tự tạo thêm user hay gửi thư thử.
-- **Phase 1 còn nguyên:** per-user progress, Access service auth và Automation API v1 chưa triển khai; staging hiện dùng workspace chung và chưa sinh bài mới theo lịch.
+- **Trạng thái staging:** per-user progress, Access service auth và Automation API v1 chưa được triển khai; staging vẫn dùng workspace chung và chưa sinh bài mới theo lịch. Local source progress is recorded below.
+
+### Phase 1 implementation status — 09/10/2026 (staging only)
+
+The owner requested implementation steps 1–5 and then explicitly authorized staging deployment. P1.1 learner scoping, P1.2 dual automation credentials, P1.3 v1 run/context/result/fail/schema endpoints and state machine, P1.4 guarded replacement logic, and P1.5 compact pseudonymous context are deployed to the staging Worker. Migrations `0004` and `0005` are applied to staging D1. All 49 tests, typecheck, lint, build, and the private-snapshot migration drill pass.
+
+Before migration, a D1 export was saved in the private staging R2 bucket and verified byte-for-byte. Comparing the current database with that pre-migration export confirms every existing cell is preserved; the foreign-key check is clean. Comparing with the older Sites snapshot finds one lesson whose completion, answer, and update timestamp differ. This reflects a difference already present before migration; confirm the latest source state before any production import.
+
+Gate 0 remains open: the owner must test the corrected reset-password browser flow, record a successful `system:scheduled` R2 backup and restore drill against current migrated staging, and configure/test Cloudflare Access Service Auth and automation credentials. Automation routes fail closed with 503 while that configuration is absent. On 09/10 the owner explicitly authorized an expedited production cutover and accepted the available Sites snapshot as its baseline. Production D1 migrations and a dormant Worker are provisioned; production still has no learning rows or user accounts, the Worker has no live route, and DNS still points to Sites. Production Resend secret is missing; after it is set, the owner must activate the bootstrap admin, then the accepted snapshot can be imported and verified. Daily lesson generation is not implemented yet.
 
 ---
 
@@ -350,10 +358,11 @@ Mỗi task: **Mục tiêu · Thay đổi · Migration · Test · Chấp nhận k
 
 #### P1.10 Cutover `learn.unhuman.cc` — CHUYỂN (3.6, 3.7)
 - **Mục tiêu:** production chạy hoàn toàn trên account riêng; Sites ngừng nhận ghi.
-- **Các bước:** (1) Acceptance P1.11 xanh trên staging. (2) Báo khung giờ đóng băng; tắt lịch 03:00 của Sites. (3) Export cuối từ Sites (đường như P0.1). (4) `d1-import --env production` + `d1-verify`. (5) Deploy production; cấu hình Access App B cho automation `learn.unhuman.cc` và kiểm chứng auth tài khoản Hub. (6) Chuyển custom domain/DNS từ Sites sang Worker. (7) Smoke + acceptance trên production. (8) Giữ Sites nguyên vẹn, không ghi, 7 ngày làm đường rollback. (9) Dọn `.openai/hosting.json`, docs Sites.
+- **Các bước ban đầu:** (1) Acceptance P1.11 xanh trên staging. (2) Báo khung giờ đóng băng; tắt lịch 03:00 của Sites. (3) Export cuối từ Sites. (4) Import/verify D1 production. (5) Deploy production và kiểm chứng auth. (6) Chuyển custom domain/DNS. (7) Smoke + acceptance production. (8) Giữ Sites nguyên vẹn, không ghi, 7 ngày làm đường rollback.
+- **Ưu tiên mới 09/10:** chủ dự án yêu cầu làm ngay, trước P1.11, và chấp nhận snapshot sẵn có `private-data/sites-export-2026-10-09.json` làm baseline, chưa cần đồng bộ lại từ Sites. Snapshot có 5 lessons, 5 slots, 1 workspace, 2 runs; drill migration giữ nguyên mọi ô. Live Site hiện có 3 runs và payload bài mới hơn, nên đây là baseline có chủ đích chứ không phải bản khớp thời điểm mới nhất. Đổi DNS sau khi production Resend secret và bootstrap admin hoạt động, rồi import/verify snapshot và smoke test login/read/write.
 - **Test:** acceptance 10 bước trên production; so sánh từng ô sau import.
-- **Chấp nhận khi:** Cổng 1.
-- **Phụ thuộc:** P1.1–P1.9, P1.11 (staging). **Rủi ro:** không lấy được export cuối từ Sites → dùng snapshot gần nhất + nhập tay phần chênh (đã được báo trước nhờ P0.1).
+- **Chấp nhận theo kế hoạch ban đầu:** Cổng 1. **Ngoại lệ expedited được chủ dự án duyệt:** dùng snapshot baseline hiện có; trước khi P1.11 hoàn tất, cần production email auth, admin active, import verify từng ô và smoke test login/read/write; ghi rõ P1.11/automation còn thiếu.
+- **Phụ thuộc ban đầu:** P1.1–P1.9, P1.11 (staging). **Rủi ro:** baseline được chấp nhận không chứa lần chạy thứ ba hoặc payload Site mới hơn; giữ nguyên Sites 7 ngày để rollback.
 
 #### P1.11 Acceptance E2E — MỚI
 - **Mục tiêu:** chứng minh đúng 10 bước bạn yêu cầu.
@@ -572,11 +581,11 @@ Bài `[TEST]` trên production dùng một learner test riêng (`status=active`,
 | --- | --- | --- |
 | D1 | Domain cho production | `unhuman.cc` thuộc sở hữu của bạn. Còn phải xác nhận zone dùng nameserver Cloudflare (P0.0) |
 | D2 | Giữ `vinext` beta trên Workers Free? | Tiêu chí là **ổn định**. Giữ chỉ khi đạt 3 điều kiện ở P0.3; trượt → SPA (Vite) + Hono |
-| D3 | Thời điểm cutover | **Cuối Phase 1** (P1.10) |
+| D3 | Thời điểm cutover | Ban đầu cuối Phase 1; **chủ dự án yêu cầu expedited cutover ngày 09/10/2026**, giữ lại các kiểm tra dữ liệu/auth cần thiết |
 | D4 | Nơi lưu backup tự động | **R2 bucket riêng**, giữ 30 bản; thêm bản tải tay hằng tháng ngoài Cloudflare |
 | D5 | Human login | **Tài khoản Learning Hub email + mật khẩu**, public signup + xác minh email + admin duyệt trước login; không Google IdP/Access OTP (điều chỉnh 09/10/2026) |
 | D6 | Learner ref trong context | **Ẩn danh** (`lrn_…`), không gửi tên/email cho model |
-| D7 | Bản phase 0 cũ trên Sites | **Không publish**; Sites giữ v5 đến cutover |
+| D7 | Bản phase 0 cũ trên Sites | **Không publish**; Sites giữ v5 đến khi cutover hoàn tất, rồi giữ nguyên 7 ngày làm đường rollback |
 | D8 | Sender xác minh/reset email | **Provider bên ngoài**, giữ Workers Free; Resend là adapter. Sender domain và staging secrets đã cấu hình, owner đã nhận email reset; production chưa cấu hình |
 
 Bổ sung quyết định 09/10/2026: bỏ allowlist từng email; mọi người có thể đăng ký nhưng cần xác minh email và admin duyệt. Đây chỉ thay đổi auth trên Cloudflare staging khi deploy; Sites v5, production và DNS không đổi.

@@ -17,6 +17,7 @@ export default {
     const day = berlinBackupDay(scheduledAt);
     ctx.waitUntil(createStoredBackup(env.DB, env.BUCKET, {
       environment: env.ENVIRONMENT ?? "unknown",
+      deploymentId: env.DEPLOYMENT_ID ?? "learning-hub",
       createdBy: "system:scheduled",
       now: scheduledAt,
       backupId: `daily-${day}`,

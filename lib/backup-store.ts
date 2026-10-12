@@ -2,7 +2,7 @@ import { backupColumns } from './backup-contract.mjs';
 import type { JournalDb } from './run-journal.ts';
 
 export type LearningBackup = {
-  format: 2;
+  format: 3;
   deploymentId: string;
   exportedAt: string;
   backupId: string;
@@ -27,7 +27,7 @@ async function readConsistentSnapshot(
   }
 
   return {
-    format: 2,
+    format: 3,
     deploymentId,
     exportedAt: now.toISOString(),
     backupId,
@@ -54,7 +54,7 @@ export async function createBackup(
   }
 
   return {
-    format: 2,
+    format: 3,
     deploymentId,
     exportedAt: createdAt,
     backupId,
@@ -102,6 +102,7 @@ export async function createStoredBackup(
   options: {
     environment: string;
     createdBy: string;
+    deploymentId?: string;
     now?: Date;
     backupId?: string;
   },
@@ -110,7 +111,7 @@ export async function createStoredBackup(
   const backupId = options.backupId ?? crypto.randomUUID();
   const prefix = backupPrefix(options.environment);
   const key = `${prefix}${now.toISOString().replaceAll(':', '-')}-${backupId}.json`;
-  const snapshot = await readConsistentSnapshot(db, 'learning-hub', now, backupId);
+  const snapshot = await readConsistentSnapshot(db, options.deploymentId ?? 'learning-hub', now, backupId);
 
   await bucket.put(key, JSON.stringify(snapshot), {
     httpMetadata: { contentType: 'application/json; charset=utf-8' },

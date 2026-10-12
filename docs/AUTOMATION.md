@@ -1,24 +1,47 @@
-# Vận hành tác vụ 03:00
+# Automation API v1
 
-Nguồn hướng dẫn triển khai là [kế hoạch v2 (đã lưu trữ)](plan/archive/learning-hub-plan-v2-cloudflare.md); plan hiện hành là [PLAN.md](plan/PLAN.md) (hạ tầng Cloudflare độc lập trước, Automation API v1 sau). Luồng Sites mô tả bên dưới chỉ còn giá trị lịch sử cho đến cutover; không mở rộng thêm.
+This is the standalone Worker contract for content-preparation runners. It is provider-neutral: a runner can use ChatGPT, Claude, or deterministic test data. It does not configure or invoke an AI model. A non-AI reference runner and end-to-end acceptance are separate Phase 1 tasks.
 
-## Hiện tại
+## Current deployment status
 
-- Lịch Sites hiện có: 03:00 Europe/Berlin, lượt đầu dự kiến 08/10/2026.
-- Code local phase 0: mỗi lượt có runId, giờ bắt đầu/kết thúc, năm kết quả theo mảng, cảnh báo và backup đầy đủ.
-- Chưa publish code phase 0 và chưa thay prompt live vì kết nối Sites không thấy project trong phiên triển khai. Lịch cũ không bị thay đổi.
-- Email tác vụ cần bật ở Settings của tài khoản sở hữu; chưa có quyền công cụ thay tùy chọn đó.
+The v1 API and D1 state machine are implemented in the local source tree. They are not deployed to staging. The staging database still needs migrations `0004_learner_scope.sql` and `0005_automation.sql`; the configured Cloudflare Access Service Auth application and automation secrets are also pending. Do not use these endpoints until those prerequisites are deployed and tested.
 
-## Một kênh dữ liệu
+## Authentication
 
-Tác vụ chỉ đọc/ghi API có quyền dịch vụ của Sites. Prompt chuẩn ở [LEARNING-UPDATES.md](../LEARNING-UPDATES.md). GET ban đầu tạo runId; POST gửi cùng ID; đọc lại bằng GET có runId để không sinh lượt thừa. Kết thúc bằng tóm tắt ngắn cho thông báo và nhắc sao lưu vào thứ Hai nếu đến hạn.
+Every `/api/automation/v1/*` request needs both:
 
-Dữ liệu bài, câu trả lời và tiến độ nằm trong D1. Git giữ source/configuration; Docs giữ tài liệu dài. Không gửi kết quả ngược qua email hoặc Drive và không push nội dung riêng tư mỗi ngày.
+1. A Cloudflare Access service-token assertion for the exact Service Auth application audience and client ID.
+2. `Authorization: Bearer lhk_<clientId>_<randomSecret>`, where Worker secret `AUTOMATION_CLIENTS` stores only the SHA-256 hash of the random secret and the allowed scopes.
 
-## Kiểm tra và phục hồi
+The route checks the signature, issuer, audience, service-token claims, client ID, bearer hash and scope. Browser sessions cannot call automation endpoints; their cookie does not grant service access. Automation credentials do not grant access to learner `/api/daily` endpoints.
 
-Xem [PHASE-0-OPERATIONS.md](PHASE-0-OPERATIONS.md) để kiểm tra lượt thật, tải backup và khôi phục vào database local riêng. GitHub CI chạy test và typecheck trên push/PR; không tự deploy từ CI.
+## Endpoints
 
-## Khi thật sự cần rời Sites
+| Method | Path | Scope |
+| --- | --- | --- |
+| `POST` | `/api/automation/v1/runs` | `runs:create` |
+| `GET` | `/api/automation/v1/runs/{runId}/context` | `context:read` |
+| `POST` | `/api/automation/v1/runs/{runId}/result` | `result:write` |
+| `POST` | `/api/automation/v1/runs/{runId}/fail` | `result:write` |
+| `GET` | `/api/automation/v1/runs/{runId}` | `context:read` |
+| `GET` | `/api/automation/v1/schema` | `context:read` |
 
-Đó là giai đoạn 3 tùy chọn, sau các cổng trước. Trước khi đổi hosting phải xác minh nơi chạy cloud có thể đọc/ghi Hub bằng quyền dịch vụ độc lập khi laptop tắt; Plus/Pro hoặc export Git không tự cung cấp quyền đó. Sau đó mới cấu hình xác thực người dùng, D1 thật và đổi lịch, tránh hai writer cùng chạy.
+Starting a run is a write. Use `Idempotency-Key` when a scheduled caller may retry. The same client/key and payload returns the original run; reusing the key with different input returns `409`. The first context read snapshots active learner targets and returns the same context on later reads. The result is accepted once. Same-payload replay returns the saved outcome; different results return `409`. Runs expire two hours after creation.
+
+Result assignments are checked again inside the D1 write batch. A changed lesson, unfinished lesson, lesson completed after the Berlin 03:00 cutoff, duplicate assignment for a learner/track/day, or expired run cannot replace existing work. Previous lessons and saved answers remain in history. At most ten lessons can be assigned per run.
+
+The context omits account names and emails, includes only short track history and completed answers not previously processed, and enforces a 64 KB limit. Lesson text is treated as untrusted data, never as an instruction. Obvious contact details are redacted; text that looks like identifiable clinical case material is withheld. Track goals currently return `null`; P1.6 will move goals into D1 before the runner is enabled. This is a safeguard, not a guarantee: never put identifiable patient information into Learning Hub answers.
+
+## Example
+
+```json
+{
+  "contractVersion": "1",
+  "trigger": "scheduled",
+  "runner": { "name": "test-runner", "version": "0.1.0", "model": "none" }
+}
+```
+
+The result payload schema and lesson package are available from the authenticated schema endpoint. `result.contextHash` must be copied from the exact context returned for that run. After a timeout or uncertain response, `GET /runs/{runId}` before deciding whether to retry.
+
+The shared daily update does not run on the Worker yet. The Cloudflare cron currently backs up D1 only; do not confuse backup success with generated lesson updates.

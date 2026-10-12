@@ -46,6 +46,7 @@ export async function POST(request: Request) {
   try {
     const backup = await createStoredBackup(storage(), access.bucket, {
       environment: (env as unknown as Cloudflare.Env).ENVIRONMENT ?? 'unknown',
+      deploymentId: (env as unknown as Cloudflare.Env).DEPLOYMENT_ID ?? 'learning-hub',
       createdBy: access.user.id,
     });
     return Response.json({ ...backup, retentionWarning: backup.retentionWarning || undefined }, { headers });

@@ -15,6 +15,14 @@ function routeFiles(directory = apiRoot) {
 test('every standalone API route is authenticated or explicitly public/disabled', () => {
   const publicRoutes = new Set(['auth/[...all]/route.ts', 'health/route.ts']);
   const disabledRoutes = new Set(['learning-run/route.ts']);
+  const serviceRoutes = new Set([
+    'automation/v1/runs/route.ts',
+    'automation/v1/runs/[runId]/route.ts',
+    'automation/v1/runs/[runId]/context/route.ts',
+    'automation/v1/runs/[runId]/result/route.ts',
+    'automation/v1/runs/[runId]/fail/route.ts',
+    'automation/v1/schema/route.ts',
+  ]);
   const files = routeFiles();
   assert.ok(files.length > 0);
 
@@ -24,6 +32,10 @@ test('every standalone API route is authenticated or explicitly public/disabled'
     if (publicRoutes.has(name)) continue;
     if (disabledRoutes.has(name)) {
       assert.match(source, /standalone Workers|independent\/public Worker|Sites dispatch\s+boundary/i, `${name} must document its mandatory Worker boundary`);
+      continue;
+    }
+    if (serviceRoutes.has(name)) {
+      assert.match(source, /requireAutomation\(request, '(runs:create|context:read|result:write)'\)/, `${name} must require scoped service authorization`);
       continue;
     }
     assert.match(source, /getHubUser\s*\(/, `${name} must derive identity from an active Hub session`);
@@ -38,4 +50,14 @@ test('standalone authentication never trusts Sites identity headers', () => {
   ].join('\n');
   assert.doesNotMatch(source, /oai-authenticated-user-/i);
   assert.doesNotMatch(source, /getChatGPTUser/);
+});
+
+test('daily read and write APIs scope progress to the active session user', () => {
+  const route = readFileSync(new URL('../app/api/daily/route.ts', import.meta.url), 'utf8');
+  const view = readFileSync(new URL('../lib/daily-view.ts', import.meta.url), 'utf8');
+  assert.match(route, /readDaily\(user\.id,user\.role==='admin'\)/);
+  assert.match(route, /WHERE user_id=\? AND id=\?/);
+  assert.match(route, /WHERE user_id=\? AND lesson_id=\?/);
+  assert.match(view, /WHERE l\.user_id=\?/);
+  assert.match(view, /s\.user_id=l\.user_id/);
 });
