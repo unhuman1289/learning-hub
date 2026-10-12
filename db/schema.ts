@@ -56,4 +56,31 @@ export const studyTime = sqliteTable('study_time', {
  userId:text('user_id').notNull(),day:text('day').notNull(),track:text('track').notNull(),
  seconds:integer('seconds').notNull().default(0),updated:text('updated').notNull(),
 },table=>[primaryKey({columns:[table.userId,table.day,table.track]})]);
-export const learnerSettings = sqliteTable('learner_settings', {userId:text('user_id').primaryKey(),dailyTargetMinutes:integer('daily_target_minutes').notNull().default(60),updated:text('updated').notNull()});
+export const learnerSettings = sqliteTable('learner_settings', {
+ userId:text('user_id').primaryKey(),dailyTargetMinutes:integer('daily_target_minutes').notNull().default(60),updated:text('updated').notNull(),
+ role:text('role').notNull().default('adult'),displayName:text('display_name'),explainLanguage:text('explain_language').notNull().default('vi'),
+ preferences:text('preferences').notNull().default('{}'),aiBudget:text('ai_budget'),
+});
+export const guardians = sqliteTable('guardians', {
+ guardianId:text('guardian_id').notNull(),learnerId:text('learner_id').notNull(),createdBy:text('created_by').notNull(),createdAt:text('created_at').notNull(),
+},table=>[primaryKey({columns:[table.guardianId,table.learnerId]})]);
+export const subjects = sqliteTable('subjects', {
+ id:text('id').primaryKey(),learnerId:text('learner_id').notNull(),title:text('title').notNull(),template:text('template').notNull(),
+ sensitivity:text('sensitivity').notNull().default('normal'),goal:text('goal').notNull().default(''),level:text('level').notNull().default(''),
+ curriculum:text('curriculum').notNull().default(''),limits:text('limits').notNull(),weight:integer('weight').notNull().default(3),
+ status:text('status').notNull().default('setup'),aiEnabled:integer('ai_enabled').notNull().default(0),legacyTrack:text('legacy_track'),
+ progressSummary:text('progress_summary').notNull().default(''),progressUpdatedAt:text('progress_updated_at'),revision:integer('revision').notNull().default(0),
+ createdBy:text('created_by').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},table=>[uniqueIndex('subjects_learner_title_unique').on(table.learnerId,table.title)]);
+export const skills = sqliteTable('skills', {
+ id:text('id').primaryKey(),subjectId:text('subject_id').notNull().references(()=>subjects.id,{onDelete:'cascade'}),learnerId:text('learner_id').notNull(),
+ key:text('key').notNull(),name:text('name').notNull(),description:text('description').notNull().default(''),pathOrder:integer('path_order').notNull().default(0),
+ prerequisites:text('prerequisites').notNull().default('[]'),status:text('status').notNull().default('planned'),origin:text('origin').notNull(),
+ createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),
+},table=>[uniqueIndex('skills_subject_key_unique').on(table.subjectId,table.key)]);
+export const learnerRequests = sqliteTable('learner_requests', {
+ id:text('id').primaryKey(),learnerId:text('learner_id').notNull(),subjectId:text('subject_id').references(()=>subjects.id,{onDelete:'set null'}),
+ kind:text('kind').notNull(),text:text('text').notNull(),urgency:text('urgency').notNull().default('tonight'),createdBy:text('created_by').notNull(),
+ status:text('status').notNull().default('queued'),activeUntil:text('active_until'),resultLessonId:text('result_lesson_id'),responseNote:text('response_note'),
+ jobId:text('job_id'),createdAt:text('created_at').notNull(),processedAt:text('processed_at'),
+});
