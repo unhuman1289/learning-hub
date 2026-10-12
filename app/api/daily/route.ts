@@ -2,12 +2,18 @@ import {getHubUser} from '../../../lib/auth/session';
 import {readDaily} from '../../../lib/daily-store';
 import {apiFailure} from '../../../lib/api-error';
 import {storage} from '../../../db/storage';
+import {resolveLearner} from '../../../lib/access';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
-export async function GET(){
+// GET ?learner=<id> lets a guardian or admin read another learner's lessons; writes stay with the learner.
+export async function GET(req:Request){
  const user=await getHubUser();
  if(!user)return Response.json({error:'Sign in required'},{status:401,headers});
- try{return Response.json(await readDaily(user.id,user.role==='admin'),{headers});}catch(e){console.error(e);return Response.json({error:'Không tải được bài học. Hãy thử lại.'},{status:503,headers});}
+ try{
+  const learnerId=await resolveLearner(storage(),user,req,'read_work');
+  if(learnerId instanceof Response)return learnerId;
+  return Response.json(await readDaily(learnerId,user.role==='admin'&&learnerId===user.id),{headers});
+ }catch(e){console.error(e);return Response.json({error:'Không tải được bài học. Hãy thử lại.'},{status:503,headers});}
 }
 export async function POST(req:Request){
  const user=await getHubUser();

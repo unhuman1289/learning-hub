@@ -5,6 +5,7 @@ import {createBackup} from '../../../lib/backup-store';
 import {apiFailure} from '../../../lib/api-error';
 export const dynamic='force-dynamic';
 const headers={'Cache-Control':'private, no-store'};
+// Full backup of every learner: admin only (docs/hub2/DATA-MODEL.md §5).
 export async function GET(){
  const user=await getHubUser();
  if(!user)return Response.json({error:'Sign in required'},{status:401,headers});
