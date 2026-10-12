@@ -187,9 +187,10 @@ Theo AGENTS.md:
 #### H0.4 AGENTS.md và chỉ dẫn plan
 - **Thay đổi:**
   - Áp các sửa đổi AGENTS.md đã duyệt (§19).
-  - Plan v2 §5 Phase 2: ghi "được thay bằng plan v3".
+  - Plan v2 §5 Phase 2: ghi "được thay bằng plan v3". Để phiên Phase 1 làm khi commit plan v2 (file đang được sửa ở checkout chính), tránh xung đột.
   - README: thêm liên kết.
 - **Chấp nhận khi:** bạn duyệt nội dung. **Phụ thuộc:** duyệt thiết kế. **Cỡ:** S.
+- **Trạng thái:** AGENTS.md đã duyệt và áp ngày 12/10/2026 (PR #3).
 
 ### H1 — Sổ theo người, riêng tư
 
