@@ -14,7 +14,7 @@ Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc
 | Bàn hướng tiếp theo (Learning Hub 2.0) | [docs/hub2/README.md](docs/hub2/README.md): quyết định, vai trò, giao diện |
 | Soạn bài, viết prompt soạn hoặc chấm | [docs/hub2/LESSON-DESIGN.md](docs/hub2/LESSON-DESIGN.md) |
 | Làm bảng, luật, API cho 2.0 | [docs/hub2/DATA-MODEL.md](docs/hub2/DATA-MODEL.md), [docs/hub2/AI-API.md](docs/hub2/AI-API.md) |
-| Lên việc, mở PR | [docs/plan/learning-hub-plan-v3-hub2.md](docs/plan/learning-hub-plan-v3-hub2.md) (2.0); [plan v2](docs/plan/learning-hub-plan-v2-cloudflare.md) (Phase 0–1) |
+| Lên việc, mở PR | [docs/plan/learning-hub-plan-v3-hub2.md](docs/plan/learning-hub-plan-v3-hub2.md) (2.0, H0–H9); [plan v2](docs/plan/learning-hub-plan-v2-cloudflare.md) (Phase 0–1) |
 | Vận hành, kiểm thử | [docs/ops/](docs/ops/), [docs/VALIDATION.md](docs/VALIDATION.md), [docs/AUTOMATION.md](docs/AUTOMATION.md) (automation v1) |
 | Là agent viết code hoặc nội dung | [AGENTS.md](AGENTS.md) |
 
