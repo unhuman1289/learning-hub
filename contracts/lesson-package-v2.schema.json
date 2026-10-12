@@ -1,0 +1,568 @@
+{
+  "$id": "learning-hub/lesson-package-v2",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "type": "string",
+      "const": "lesson-package/2"
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "new",
+        "remediation",
+        "review",
+        "exploration",
+        "diagnostic"
+      ]
+    },
+    "template": {
+      "type": "string",
+      "enum": [
+        "skill",
+        "reading"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    },
+    "why": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "reasonRefs": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(sk_|err_|key:)[A-Za-z0-9_-]{1,80}$"
+      }
+    },
+    "estMinutes": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 90
+    },
+    "level": {
+      "type": "string",
+      "maxLength": 200
+    },
+    "targetSkills": {
+      "minItems": 1,
+      "maxItems": 10,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^(sk_[A-Za-z0-9]{6,40}|key:[a-z0-9-]{1,80})$"
+      }
+    },
+    "sheet": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "rules": {
+              "minItems": 1,
+              "maxItems": 10,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "explanation": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "examples": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  },
+                  "correct": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "text",
+                  "correct"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "mistakes": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "tips": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "checklist": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            }
+          },
+          "required": [
+            "rules",
+            "explanation",
+            "examples",
+            "mistakes",
+            "tips",
+            "checklist"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sections": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "heading": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 6000
+          }
+        },
+        "required": [
+          "heading",
+          "text"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "diagram": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 6000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "stages": {
+      "minItems": 1,
+      "maxItems": 6,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "stage": {
+            "type": "string",
+            "enum": [
+              "retrieval",
+              "sheet",
+              "guided",
+              "independent",
+              "read",
+              "analyze",
+              "output",
+              "check"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "itemIds": {
+            "maxItems": 25,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^i\\d{1,2}$"
+            }
+          }
+        },
+        "required": [
+          "stage",
+          "itemIds"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "items": {
+      "minItems": 1,
+      "maxItems": 25,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^i\\d{1,2}$"
+          },
+          "activity": {
+            "type": "string",
+            "enum": [
+              "recall",
+              "recognize",
+              "correct",
+              "transform",
+              "apply",
+              "explain",
+              "create",
+              "investigate"
+            ]
+          },
+          "input": {
+            "type": "string",
+            "enum": [
+              "choice",
+              "short",
+              "long"
+            ]
+          },
+          "skills": {
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^(sk_[A-Za-z0-9]{6,40}|key:[a-z0-9-]{1,80})$"
+            }
+          },
+          "difficulty": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5
+          },
+          "prompt": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "instructions": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "choices": {
+            "minItems": 2,
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "pattern": "^[a-f]$"
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "errorLabel": {
+                  "type": "string",
+                  "maxLength": 120
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "choice"
+                  },
+                  "correct": {
+                    "minItems": 1,
+                    "maxItems": 6,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "pattern": "^[a-f]$"
+                    }
+                  }
+                },
+                "required": [
+                  "type",
+                  "correct"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "numeric"
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "tolerance": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1000000
+                  },
+                  "unit": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "maxLength": 20
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "value",
+                  "tolerance",
+                  "unit"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "text"
+                  },
+                  "accepted": {
+                    "minItems": 1,
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 200
+                    }
+                  },
+                  "caseSensitive": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "type",
+                  "accepted",
+                  "caseSensitive"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "rubric": {
+            "minItems": 2,
+            "maxItems": 5,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "criterion": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "points": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "skill": {
+                  "type": "string",
+                  "pattern": "^(sk_[A-Za-z0-9]{6,40}|key:[a-z0-9-]{1,80})$"
+                }
+              },
+              "required": [
+                "criterion",
+                "points"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "hints": {
+            "maxItems": 2,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            }
+          },
+          "solution": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 3000
+          },
+          "explanation": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "attachment": {
+            "type": "string",
+            "enum": [
+              "none",
+              "optional",
+              "required"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "activity",
+          "input",
+          "skills",
+          "difficulty",
+          "prompt",
+          "hints",
+          "solution",
+          "attachment"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "output": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 2000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sources": {
+      "maxItems": 8,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 2000,
+            "format": "uri",
+            "pattern": "^https:\\/\\/.*"
+          },
+          "readScope": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "retrievedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
+          },
+          "publishedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "title",
+          "url",
+          "readScope",
+          "retrievedAt",
+          "publishedAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "nextTopic": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  },
+  "required": [
+    "contract",
+    "kind",
+    "template",
+    "title",
+    "objective",
+    "why",
+    "reasonRefs",
+    "estMinutes",
+    "level",
+    "targetSkills",
+    "sheet",
+    "sections",
+    "diagram",
+    "stages",
+    "items",
+    "output",
+    "sources",
+    "nextTopic"
+  ],
+  "additionalProperties": false
+}

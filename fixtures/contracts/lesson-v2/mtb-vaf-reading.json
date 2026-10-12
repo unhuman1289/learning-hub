@@ -1,0 +1,48 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "reading",
+  "title": "VAF, tumor purity và clonality",
+  "objective": "Diễn giải VAF quan sát được khi biết tumor purity trong một ca giả lập.",
+  "why": "Mở đầu mạch diễn giải biến thể cho MTB.",
+  "reasonRefs": [],
+  "estMinutes": 40,
+  "level": "Người đã biết thống kê và di truyền cơ bản",
+  "targetSkills": ["key:vaf-purity"],
+  "sheet": null,
+  "sections": [
+    { "heading": "VAF là gì", "text": "Variant allele frequency là tỉ lệ read mang biến thể trên tổng read tại vị trí đó." },
+    { "heading": "Purity và VAF kỳ vọng", "text": "Với biến thể dị hợp, clonal, ở vùng lưỡng bội, VAF kỳ vọng xấp xỉ purity/2." }
+  ],
+  "diagram": "purity 40% → VAF kỳ vọng ~20% (dị hợp, clonal, CN = 2)",
+  "stages": [
+    { "stage": "read", "itemIds": [] },
+    { "stage": "analyze", "itemIds": ["i1", "i2"] },
+    { "stage": "output", "itemIds": ["i3"] }
+  ],
+  "items": [
+    {
+      "id": "i1", "activity": "explain", "input": "long", "skills": ["key:vaf-purity"], "difficulty": 3,
+      "prompt": "Ca giả lập: purity 40%, KRAS VAF 18%. Biến thể có nhiều khả năng clonal không? Giải thích.",
+      "rubric": [{ "criterion": "So sánh VAF với purity/2", "points": 2 }, { "criterion": "Nêu giả định về copy number", "points": 1 }],
+      "hints": [], "solution": "VAF 18% gần purity/2 = 20% nên phù hợp với clonal, dị hợp, nếu CN = 2.", "attachment": "none"
+    },
+    {
+      "id": "i2", "activity": "explain", "input": "long", "skills": ["key:vaf-purity"], "difficulty": 3,
+      "prompt": "Vì sao VAF 30% không có nghĩa là 30% tế bào ung thư mang biến thể?",
+      "rubric": [{ "criterion": "Nhắc đến purity", "points": 1 }, { "criterion": "Nhắc đến zygosity hoặc copy number", "points": 1 }],
+      "hints": [], "solution": "VAF đếm allele trên read, chịu ảnh hưởng của tế bào bình thường, zygosity và copy number.", "attachment": "none"
+    },
+    {
+      "id": "i3", "activity": "create", "input": "long", "skills": ["key:vaf-purity"], "difficulty": 3,
+      "prompt": "Viết checklist 5 bước để diễn giải VAF trong một báo cáo MTB.",
+      "rubric": [{ "criterion": "Có purity và copy number", "points": 1 }, { "criterion": "Có bước kiểm tra chất lượng read", "points": 1 }],
+      "hints": [], "solution": "Kiểm tra độ sâu và chất lượng → purity → copy number → zygosity → so sánh VAF kỳ vọng.", "attachment": "none"
+    }
+  ],
+  "output": "Checklist 5 bước diễn giải VAF dùng được khi đọc báo cáo.",
+  "sources": [
+    { "title": "Nguồn mẫu cho fixture, không phải tài liệu thật", "url": "https://example.org/fixture-source", "readScope": "Không áp dụng (dữ liệu thử)", "retrievedAt": "2026-10-12T08:00:00.000Z", "publishedAt": null }
+  ],
+  "nextTopic": "Copy number và ploidy"
+}

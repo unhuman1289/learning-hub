@@ -21,6 +21,7 @@ jobs:
         env:
           WRANGLER_SEND_METRICS: 'false'
       - run: npm run test
+      - run: npm run contracts:check
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build

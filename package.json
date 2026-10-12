@@ -20,7 +20,9 @@
     "db:migrate:local": "node scripts/local-db.mjs migrate",
     "db:drill:learner-migration": "node scripts/learner-migration-drill.mjs",
     "db:restore:local": "node scripts/restore-export.mjs",
-    "db:restore:drill": "node scripts/restore-drill.mjs"
+    "db:restore:drill": "node scripts/restore-drill.mjs",
+    "contracts:schema": "node --experimental-strip-types scripts/contracts-schema.mjs",
+    "contracts:check": "node --experimental-strip-types scripts/contracts-schema.mjs --check"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

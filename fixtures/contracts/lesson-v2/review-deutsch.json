@@ -1,0 +1,41 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "review",
+  "template": "skill",
+  "title": "Ôn: W-Fragen và Modalverb",
+  "objective": "Đặt câu hỏi W đúng trật tự, có và không có Modalverb.",
+  "why": "W-Fragen đến hạn ôn; trộn với Modalverb để tự chọn quy tắc.",
+  "reasonRefs": ["key:w-fragen"],
+  "estMinutes": 10,
+  "level": "A1–A2",
+  "targetSkills": ["key:w-fragen", "key:modalverb-infinitiv"],
+  "sheet": null,
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    { "stage": "retrieval", "itemIds": ["i1", "i2"] },
+    { "stage": "independent", "itemIds": ["i3"] }
+  ],
+  "items": [
+    {
+      "id": "i1", "activity": "recognize", "input": "choice", "skills": ["key:w-fragen"], "difficulty": 1,
+      "prompt": "Câu hỏi nào đúng trật tự?",
+      "choices": [{ "id": "a", "text": "Wo du wohnst?", "errorLabel": "Động từ không ở vị trí 2 trong câu hỏi W" }, { "id": "b", "text": "Wo wohnst du?" }],
+      "key": { "type": "choice", "correct": ["b"] }, "hints": [], "solution": "b", "attachment": "none"
+    },
+    {
+      "id": "i2", "activity": "recall", "input": "short", "skills": ["key:w-fragen"], "difficulty": 1,
+      "prompt": "Từ để hỏi \"ở đâu\" trong tiếng Đức là gì?",
+      "key": { "type": "text", "accepted": ["wo"], "caseSensitive": false }, "hints": [], "solution": "wo", "attachment": "none"
+    },
+    {
+      "id": "i3", "activity": "create", "input": "short", "skills": ["key:w-fragen", "key:modalverb-infinitiv"], "difficulty": 2,
+      "prompt": "Đặt một câu hỏi với Was và können.",
+      "rubric": [{ "criterion": "Was ở đầu, kann ở vị trí 2", "points": 1 }, { "criterion": "Động từ nguyên mẫu ở cuối", "points": 1 }],
+      "hints": [], "solution": "Was kannst du gut machen?", "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "nicht und kein"
+}
