@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TrackId } from "./model";
+/** A legacy track name or a notebook id (`sub_…`), as accepted by /api/study. */
+type TrackId = string;
 
 type StudyDay = { day: string; targetMinutes: number; seconds: Partial<Record<TrackId, number>> };
 

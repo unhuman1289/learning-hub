@@ -55,7 +55,7 @@ test('0007 creates one notebook per (learner, legacy track) and leaves lessons u
 test('0007 constraints reject invalid notebooks, skills, guardians and requests', () => {
   const db = memoryDb().sqlite;
   const now = '2026-10-12T10:00:00.000Z';
-  const insert = (id, learner, title, template = 'skill') => db.prepare(insertSubjectSql).run(id, learner, title, template, 'normal', '', '', '', JSON.stringify(DEFAULT_LIMITS), 3, 'setup', learner, now, now);
+  const insert = (id, learner, title, template = 'skill') => db.prepare(insertSubjectSql).run(id, learner, title, template, 'normal', '', '', '', JSON.stringify(DEFAULT_LIMITS), 3, 'setup', null, learner, now, now);
   insert('sub_a', 'ech', 'Toán 7');
   assert.throws(() => insert('sub_b', 'ech', 'Toán 7'), /UNIQUE/);
   insert('sub_c', 'vu', 'Toán 7');
@@ -86,7 +86,7 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
   copy.exec(buildRestoreSql(old));
   assert.equal(copy.prepare("SELECT role FROM learner_settings WHERE user_id='vu'").get().role, 'adult');
   const now = 't';
-  copy.prepare(insertSubjectSql).run('sub_x', 'vu', 'Deutsch B2', 'skill', 'normal', 'B2', 'A2', '', JSON.stringify(DEFAULT_LIMITS), 3, 'active', 'vu', now, now);
+  copy.prepare(insertSubjectSql).run('sub_x', 'vu', 'Deutsch B2', 'skill', 'normal', 'B2', 'A2', '', JSON.stringify(DEFAULT_LIMITS), 3, 'active', null, 'vu', now, now);
   copy.prepare("INSERT INTO guardians VALUES('vu','ech','admin',?)").run(now);
   const tables = {};
   for (const table of ['learning_workspace', 'learning_lessons', 'learning_slots', 'learning_runs', 'runs', 'legacy_run_items', 'automation_runs', 'run_targets', 'run_items', 'run_events', 'backup_events', 'study_time', 'learner_settings', 'guardians', 'subjects', 'skills', 'learner_requests']) {

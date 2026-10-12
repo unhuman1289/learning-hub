@@ -1,10 +1,11 @@
 import { ApiError } from '../api-error.ts';
-import { DEFAULT_LIMITS, type SubjectLimits, type SubjectSensitivity, type SubjectStatus, type SubjectTemplate } from './sql.ts';
+import { learningTracks, type LearningTrack } from '../daily-policy.ts';
+import { DEFAULT_LIMITS, legacyTrackDefaults, type SubjectLimits, type SubjectSensitivity, type SubjectStatus, type SubjectTemplate } from './sql.ts';
 
 /** Fields a learner (adult), guardian or admin may set; AI jobs never write these (docs/hub2 README §4). */
 export type SubjectInput = {
   title: string; template: SubjectTemplate; sensitivity: SubjectSensitivity; goal: string; level: string;
-  curriculum: string; limits: SubjectLimits; weight: number;
+  curriculum: string; limits: SubjectLimits; weight: number; legacyTrack?: LearningTrack;
 };
 export type SubjectPatch = Partial<SubjectInput & { status: SubjectStatus; aiEnabled: boolean }> & { revision: number };
 
@@ -43,6 +44,15 @@ export function parseLimits(value: unknown): SubjectLimits {
 
 export function parseSubjectInput(body: unknown): SubjectInput {
   if (!isRecord(body)) throw bad('Dữ liệu sổ không hợp lệ.');
+  // Re-shelving one of the five prepared notebooks keeps its foundation lessons, template and sensitivity.
+  if (body.legacyTrack !== undefined) {
+    if (!(learningTracks as readonly unknown[]).includes(body.legacyTrack)) throw bad('Mảng có sẵn không hợp lệ.');
+    const track = body.legacyTrack as LearningTrack;
+    return {
+      ...parseSubjectInput({ ...body, legacyTrack: undefined, title: body.title ?? track, ...legacyTrackDefaults[track] }),
+      legacyTrack: track,
+    };
+  }
   const template = body.template ?? 'skill';
   const sensitivity = body.sensitivity ?? 'normal';
   if (!templates.has(template as string)) throw bad('Khuôn bài phải là skill hoặc reading.');

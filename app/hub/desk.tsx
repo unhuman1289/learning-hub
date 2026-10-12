@@ -5,6 +5,8 @@ import { AlertCircle, RotateCcw } from "lucide-react";
 import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
 import { NotebookCover, cx } from "../../components/notebook/paper";
 import { berlinKey, coverTitle, coverTransition, dateTimeOf, isTrack, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
+import type { LearnerSummary } from "../../lib/learners/list";
+import type { ShelfApi, ShelfSubject } from "./use-shelf";
 import { buttonClass, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { Route } from "./use-route";
@@ -20,13 +22,27 @@ const postitColor: Record<TrackId, string> = {
 };
 const tilts = [-1.6, 1.2, -0.8, 1.8, -1.2, 0.9, -1.9];
 
-export function Desk({ name, isAdmin, go, daily, workspace }: {
+export type Viewing = {
+  learners: LearnerSummary[];
+  /** The learner whose shelf is shown; null = the signed-in account. */
+  id: string | null;
+  set: (id: string | null) => void;
+};
+
+export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook }: {
   name: string;
   isAdmin: boolean;
   go: (route: Route) => void;
   daily: DailyApi;
   workspace: WorkspaceApi;
+  shelf: ShelfApi;
+  viewing: Viewing;
+  canOpenNotebook: boolean;
+  onNewNotebook: () => void;
 }) {
+  // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
+  const readOnly = viewing.id !== null;
+  const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
   const date = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" }).format(new Date());
   // The desk only holds what needs attention: lessons still to learn, and notes due for review.
@@ -35,7 +51,7 @@ export function Desk({ name, isAdmin, go, daily, workspace }: {
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
   const finished = trackIds.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt);
-  const reviews = workspace.data.logs
+  const reviews = readOnly ? [] : workspace.data.logs
     .filter((log) => log.due && log.due <= today && !workspace.data.done.includes(log.id))
     .sort((x, y) => (x.due ?? "").localeCompare(y.due ?? ""));
   const health = daily.data?.health;
@@ -52,8 +68,17 @@ export function Desk({ name, isAdmin, go, daily, workspace }: {
       <section className="grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_15rem]">
         <div>
           <p className="font-hand text-xl text-accent first-letter:uppercase">{date}</p>
-          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">Chào {name}.</h1>
-          <p className="mt-1 text-muted">{summary}{loading ? "" : ". Chọn một tờ trên bàn, hoặc lấy sổ từ tủ."}</p>
+          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{readOnly ? `Kệ của ${viewedName}` : `Chào ${name}.`}</h1>
+          <p className="mt-1 text-muted">{summary}{loading || readOnly ? "" : ". Chọn một tờ trên bàn, hoặc lấy sổ từ tủ."}{readOnly ? ". Chỉ xem; bài làm và ghi chú chỉ người học sửa được." : ""}</p>
+          {viewing.learners.length > 1 && (
+            <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem kệ của
+              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="rounded-md border border-rule bg-paper px-2 py-1 text-ink">
+                {viewing.learners.map((item) => (
+                  <option key={item.id} value={item.relation === "self" ? "" : item.id}>{item.relation === "self" ? `${item.name} (tôi)` : item.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         <GardenWindow className="hidden h-36 md:block" />
       </section>
@@ -73,10 +98,12 @@ export function Desk({ name, isAdmin, go, daily, workspace }: {
                       <span className="opacity-75">{trackInfo(track).title} · {lesson.content.minutes} phút</span>
                       {isNew && <span className="-rotate-6 rounded-sm border-2 border-brick px-1.5 text-sm font-semibold uppercase tracking-wide text-brick">Mới</span>}
                     </p>
-                    <RouteLink route={route} go={go} className="pencil-underline mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</RouteLink>
+                    {readOnly
+                      ? <p className="mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</p>
+                      : <RouteLink route={route} go={go} className="pencil-underline mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</RouteLink>}
                     <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                       <span className="font-hand text-base opacity-75">{isNew ? "Bài mới hôm nay" : `Đang học · nhận ${shortDate(lesson.assignedDate)}`}</span>
-                      <RouteLink route={route} go={go} className={buttonClass("primary", "min-h-9 px-3")}>{isNew ? "Bắt đầu" : "Học tiếp"}</RouteLink>
+                      {!readOnly && <RouteLink route={route} go={go} className={buttonClass("primary", "min-h-9 px-3")}>{isNew ? "Bắt đầu" : "Học tiếp"}</RouteLink>}
                     </div>
                   </PostIt>
                 );
@@ -119,29 +146,60 @@ export function Desk({ name, isAdmin, go, daily, workspace }: {
           className="lg:sticky lg:top-24"
           title={<><h2 className="font-print text-xl font-medium">Tủ sách</h2><span className="text-sm opacity-80">Lấy một cuốn sổ</span></>}
         >
-          {trackIds.map((track) => {
-            const { assigned, foundation, active: current } = notebookPages(track, daily.data);
-            const learned = assigned.filter((page) => page.kind === "daily" && page.lesson.completedAt).length + foundation.filter((page) => workspace.data.done.includes(page.id)).length;
-            return (
-              <Shelf key={track}>
-                <RouteLink route={{ view: "notebook", track, tab: "bai" }} go={go} aria-label={`Mở sổ ${trackInfo(track).title}`} className="group block rounded-md" style={{ viewTransitionName: coverTransition[track] }}>
-                  <NotebookCover
-                    title={coverTitle[track]}
-                    lines={[`${learned}/${assigned.length + foundation.length} bài`, current ? (current.completedAt ? "chờ bài mới" : "đang học") : "chưa có bài"]}
-                    className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
-                  />
-                </RouteLink>
-              </Shelf>
-            );
-          })}
-          <Shelf>
-            <div aria-disabled="true" title="Tự chọn chủ đề muốn học · sắp có" className={cx("grid aspect-[3/4] place-items-center rounded-[3px_8px_8px_3px] border-2 border-dashed border-cabinet-ink/40 p-2 text-center")}>
-              <span className="font-hand text-lg leading-6 text-cabinet-ink/80">+ Sổ mới<br /><span className="text-sm">sắp có</span></span>
-            </div>
-          </Shelf>
+          {shelf.subjects === null && <p className="col-span-full px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}
+          {(shelf.subjects ?? []).map((subject) => (
+            <Shelf key={subject.id}>
+              {subject.legacyTrack
+                ? <PreparedNotebook track={subject.legacyTrack} daily={daily} workspace={workspace} readOnly={readOnly} go={go} />
+                : <TopicNotebook subject={subject} go={go} />}
+            </Shelf>
+          ))}
+          {canOpenNotebook && (
+            <Shelf>
+              <button type="button" onClick={onNewNotebook} className="grid aspect-[3/4] w-full place-items-center rounded-[3px_8px_8px_3px] border-2 border-dashed border-cabinet-ink/40 p-2 text-center hover:border-accent hover:bg-paper/40">
+                <span className="font-hand text-lg leading-6 text-cabinet-ink/80">+ Sổ mới</span>
+              </button>
+            </Shelf>
+          )}
+          {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
     </div>
+  );
+}
+
+/** One of the five prepared notebooks, with its foundation lessons and assigned lessons. */
+function PreparedNotebook({ track, daily, workspace, readOnly, go }: { track: TrackId; daily: DailyApi; workspace: WorkspaceApi; readOnly: boolean; go: (route: Route) => void }) {
+  const { assigned, foundation, active: current } = notebookPages(track, daily.data);
+  const learned = assigned.filter((page) => page.kind === "daily" && page.lesson.completedAt).length + (readOnly ? 0 : foundation.filter((page) => workspace.data.done.includes(page.id)).length);
+  const cover = (
+    <NotebookCover
+      title={coverTitle[track]}
+      lines={[readOnly ? `${learned}/${assigned.length} bài được giao` : `${learned}/${assigned.length + foundation.length} bài`, current ? (current.completedAt ? "chờ bài mới" : "đang học") : "chưa có bài"]}
+      className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
+    />
+  );
+  // Opening another learner's notebook comes with the guardian view (Sổ liên lạc, H6.5).
+  if (readOnly) return <div className="group block rounded-md" aria-label={`Sổ ${trackInfo(track).title}`}>{cover}</div>;
+  return (
+    <RouteLink route={{ view: "notebook", track, tab: "bai" }} go={go} aria-label={`Mở sổ ${trackInfo(track).title}`} className="group block rounded-md" style={{ viewTransitionName: coverTransition[track] }}>
+      {cover}
+    </RouteLink>
+  );
+}
+
+const topicStatus: Record<ShelfSubject["status"], string> = { setup: "đang lập lộ trình", active: "đang học", paused: "tạm dừng", archived: "đã cất" };
+
+/** A notebook opened since Learning Hub 2.0. */
+function TopicNotebook({ subject, go }: { subject: ShelfSubject; go: (route: Route) => void }) {
+  return (
+    <RouteLink route={{ view: "subject", id: subject.id }} go={go} aria-label={`Mở sổ ${subject.title}`} className="group block rounded-md" style={{ viewTransitionName: `cover-${subject.id}` }}>
+      <NotebookCover
+        title={subject.title}
+        lines={[topicStatus[subject.status], subject.skillCount ? `${subject.skillCount} kỹ năng` : "chưa có bài"]}
+        className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
+      />
+    </RouteLink>
   );
 }
 
