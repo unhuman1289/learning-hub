@@ -56,15 +56,19 @@ export async function canAccessLearner(db: Db, viewer: Viewer, learnerId: string
 
 const LEARNER_ID = /^[A-Za-z0-9_-]{1,128}$/;
 
+/** 403 when learners hit a limit on their own data (a child changing minutes); 404 for anyone else's. */
+export function denied(viewer: Viewer, learnerId: string) {
+  const own = viewer.id === learnerId;
+  return Response.json({ error: own ? 'Cần phụ huynh thay đổi mục này.' : 'Not found' }, { status: own ? 403 : 404, headers: { 'Cache-Control': 'private, no-store' } });
+}
+
 /**
  * Resolves `?learner=` for a request. Without it, the viewer acts on their own data.
- * Returns the learner id, or a 404 Response when the viewer may not act on that learner.
+ * Returns the learner id, or a 403/404 Response (see `denied`) when the viewer may not act on that learner.
  */
 export async function resolveLearner(db: Db, viewer: Viewer, request: Request, action: AccessAction): Promise<string | Response> {
   const requested = new URL(request.url).searchParams.get('learner');
   const learnerId = requested ?? viewer.id;
-  if (!LEARNER_ID.test(learnerId) || !(await canAccessLearner(db, viewer, learnerId, action))) {
-    return Response.json({ error: 'Not found' }, { status: 404, headers: { 'Cache-Control': 'private, no-store' } });
-  }
+  if (!LEARNER_ID.test(learnerId) || !(await canAccessLearner(db, viewer, learnerId, action))) return denied(viewer, learnerId);
   return learnerId;
 }
