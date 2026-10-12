@@ -17,12 +17,24 @@ import { RouteLink, buttonClass } from "./hub/ui";
 import { useDaily } from "./hub/use-daily";
 import { useRoute, type Route } from "./hub/use-route";
 import { useWorkspace, type WorkspaceApi } from "./hub/use-workspace";
+import { useShelf } from "./hub/use-shelf";
+import { NewNotebookDialog } from "./hub/new-notebook";
+import { SubjectView } from "./hub/subject-view";
+import { isTrack, trackInfo } from "./hub/model";
 
 export default function Home({ userEmail, userName, userRole }: { userEmail: string; userName: string; userRole: string }) {
   const isAdmin = userRole === "admin";
   const { route, go } = useRoute();
   const workspace = useWorkspace();
   const daily = useDaily();
+  // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const viewedDaily = useDaily(viewingId, viewingId !== null);
+  const shelf = useShelf(viewingId);
+  const [newNotebook, setNewNotebook] = useState(false);
+  const viewedRole = viewingId ? shelf.learners.find((item) => item.id === viewingId)?.role : shelf.self?.role;
+  // Children study in notebooks a guardian opens for them; adults, guardians and admins may open one.
+  const canOpenNotebook = viewingId === null ? shelf.self?.role !== "child" && !!shelf.self : viewedRole !== undefined;
   const [form, setForm] = useState<FormRequest | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const drafts: Drafts = {
@@ -50,11 +62,12 @@ export default function Home({ userEmail, userName, userRole }: { userEmail: str
 
   useWebMcp(workspace);
   // Time with a notebook open counts as study time; nothing has to be logged by hand.
-  const clock = useStudyClock(route.view === "notebook" ? route.track : null);
+  const clock = useStudyClock(route.view === "notebook" ? route.track : route.view === "subject" && viewingId === null ? route.id : null);
+  const labelFor = (key: string) => (isTrack(key) ? trackInfo(key).title : shelf.subjects?.find((item) => item.id === key)?.title ?? "Sổ khác");
 
   const name = userName.trim() || userEmail.split("@")[0];
   const nav: { route: Route; label: string; icon: typeof House; on: boolean }[] = [
-    { route: { view: "desk" }, label: "Phòng học", icon: House, on: route.view === "desk" || route.view === "notebook" },
+    { route: { view: "desk" }, label: "Phòng học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "subject" },
     { route: { view: "notes" }, label: "Ghi chú", icon: NotebookPen, on: route.view === "notes" },
     ...(isAdmin ? [{ route: { view: "admin" } as Route, label: "Quản trị", icon: ShieldCheck, on: route.view === "admin" }] : []),
   ];
@@ -81,7 +94,7 @@ export default function Home({ userEmail, userName, userRole }: { userEmail: str
           </nav>
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <SaveIndicator workspace={workspace} />
-            <StudyMeter clock={clock} />
+            <StudyMeter clock={clock} labelFor={labelFor} />
             <AuthControls name={name} email={userEmail} />
           </div>
         </div>
@@ -90,7 +103,20 @@ export default function Home({ userEmail, userName, userRole }: { userEmail: str
       </header>
 
       <main className="px-4 pb-32 pt-6 sm:px-6 lg:pb-16 lg:pt-8">
-        {route.view === "desk" && <Desk name={name} isAdmin={isAdmin} go={go} daily={daily} workspace={workspace} />}
+        {route.view === "desk" && (
+          <Desk
+            name={name}
+            isAdmin={isAdmin}
+            go={go}
+            daily={viewingId ? viewedDaily : daily}
+            workspace={workspace}
+            shelf={shelf}
+            viewing={{ learners: shelf.learners, id: viewingId, set: setViewingId }}
+            canOpenNotebook={canOpenNotebook}
+            onNewNotebook={() => setNewNotebook(true)}
+          />
+        )}
+        {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} go={go} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} />}
         {route.view === "notes" && <NotesView workspace={workspace} openForm={setForm} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
@@ -108,6 +134,18 @@ export default function Home({ userEmail, userName, userRole }: { userEmail: str
       </nav>
 
       {form && <JournalForm request={form} workspace={workspace} onClose={closeForm} />}
+      {newNotebook && (
+        <NewNotebookDialog
+          shelf={shelf}
+          forName={viewingId ? shelf.learners.find((item) => item.id === viewingId)?.name ?? null : null}
+          onClose={() => setNewNotebook(false)}
+          onCreated={(subject) => {
+            setNewNotebook(false);
+            if (viewingId) return;
+            go(subject.legacyTrack ? { view: "notebook", track: subject.legacyTrack, tab: "bai" } : { view: "subject", id: subject.id });
+          }}
+        />
+      )}
     </div>
   );
 }

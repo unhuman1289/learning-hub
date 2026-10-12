@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useState } from "react";
 import type { DailyLesson, DailyView } from "../../lib/daily-types";
 
-/** Assigned lessons from D1. Each save is confirmed by the server before the page shows it. */
-export function useDaily() {
+/**
+ * Assigned lessons from D1. Each save is confirmed by the server before the page shows it.
+ * With `learner`, a guardian or admin reads another learner's lessons (read-only); `enabled`
+ * false skips loading entirely.
+ */
+export function useDaily(learner: string | null = null, enabled = true) {
   const [data, setData] = useState<DailyView | null>(null);
   const [error, setError] = useState("");
   const [busyId, setBusyId] = useState("");
@@ -12,18 +16,19 @@ export function useDaily() {
   const load = useCallback(async () => {
     setError("");
     try {
-      const response = await fetch("/api/daily", { cache: "no-store" });
+      const response = await fetch(learner ? `/api/daily?learner=${encodeURIComponent(learner)}` : "/api/daily", { cache: "no-store" });
       const result = await response.json() as DailyView & { error?: string };
       if (!response.ok) throw Error(result.error || "Chưa tải được bài học.");
       setData(result);
     } catch (cause) {
       setError((cause as Error).message);
     }
-  }, []);
+  }, [learner]);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+    if (!enabled) return;
+    void Promise.resolve().then(() => { setData(null); return load(); });
+  }, [load, enabled]);
 
   const save = useCallback(async (lesson: DailyLesson, response: string, completed: boolean) => {
     setBusyId(lesson.id);

@@ -8,7 +8,18 @@ export const MAX_TARGET_MINUTES = 720;
 export const MAX_REPORT_SECONDS = 120;
 const MAX_DAY_SECONDS = 24 * 60 * 60;
 
-export type StudyDay = {day: string; targetMinutes: number; seconds: Partial<Record<LearningTrack, number>>};
+/** A notebook key: a legacy track name, or the id of a notebook opened since 0007 (`sub_…`). */
+export type StudyKey = LearningTrack | `sub_${string}`;
+export type StudyDay = {day: string; targetMinutes: number; seconds: Partial<Record<StudyKey, number>>};
+const SUBJECT_KEY = /^sub_[0-9a-f]{20}$/;
+
+export function isSubjectKey(value: unknown): value is `sub_${string}` {
+  return typeof value === 'string' && SUBJECT_KEY.test(value);
+}
+
+export function isStudyKey(value: unknown): value is StudyKey {
+  return isStudyTrack(value) || isSubjectKey(value);
+}
 
 export function isStudyTrack(value: unknown): value is LearningTrack {
   return typeof value === 'string' && (learningTracks as readonly string[]).includes(value);
@@ -34,6 +45,6 @@ export const readTargetSql = 'SELECT daily_target_minutes AS target FROM learner
 
 export function toStudyDay(day: string, rows: {track: string; seconds: number}[], target: number | null | undefined): StudyDay {
   const seconds: StudyDay['seconds'] = {};
-  for (const row of rows) if (isStudyTrack(row.track)) seconds[row.track] = Number(row.seconds) || 0;
+  for (const row of rows) if (isStudyKey(row.track)) seconds[row.track] = Number(row.seconds) || 0;
   return {day, targetMinutes: target ?? DEFAULT_TARGET_MINUTES, seconds};
 }

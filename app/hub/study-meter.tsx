@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Hourglass } from "lucide-react";
 import { cx } from "../../components/notebook/paper";
-import { trackInfo } from "./model";
 import { buttonClass } from "./ui";
 import type { StudyClock } from "./use-study-clock";
 
@@ -13,7 +12,7 @@ const presets = [30, 60, 90, 120, 240];
  * Minutes studied today as a small ruler in the top bar. Counted automatically while a notebook
  * is open. Hover or focus shows the breakdown; pressing it lets the learner change the daily target.
  */
-export function StudyMeter({ clock }: { clock: StudyClock }) {
+export function StudyMeter({ clock, labelFor }: { clock: StudyClock; labelFor: (key: string) => string }) {
   const { seconds, minutes, byTrack, targetMinutes, counting } = clock;
   const [editing, setEditing] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
@@ -65,7 +64,7 @@ export function StudyMeter({ clock }: { clock: StudyClock }) {
           {byTrack.length ? (
             <ul className="mt-1.5 grid gap-0.5 font-hand text-base leading-5">
               {byTrack.map((item) => (
-                <li key={item.track} className="flex justify-between gap-3"><span>{trackInfo(item.track).title}</span><span className="tabular-nums">{item.minutes} phút</span></li>
+                <li key={item.track} className="flex justify-between gap-3"><span>{labelFor(item.track)}</span><span className="tabular-nums">{item.minutes} phút</span></li>
               ))}
             </ul>
           ) : <p className="mt-1 font-hand text-base leading-5 opacity-80">Chưa mở cuốn sổ nào hôm nay.</p>}

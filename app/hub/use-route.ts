@@ -9,7 +9,8 @@ export type Route =
   | { view: "desk" }
   | { view: "notes" }
   | { view: "admin" }
-  | { view: "notebook"; track: TrackId; tab: NotebookTab; page?: string };
+  | { view: "notebook"; track: TrackId; tab: NotebookTab; page?: string }
+  | { view: "subject"; id: string };
 
 const tabs: NotebookTab[] = ["bai", "muc-luc", "muc-tieu", "ghi-chu", "tai-lieu"];
 
@@ -25,6 +26,8 @@ export function parseRoute(search: string): Route {
     const tab = params.get("tab") as NotebookTab | null;
     return { view: "notebook", track, tab: tab && tabs.includes(tab) ? tab : "bai", page: params.get("bai") ?? undefined };
   }
+  const subject = params.get("sach");
+  if (subject && /^sub_[0-9a-f]{20}$/.test(subject)) return { view: "subject", id: subject };
   const page = params.get("trang");
   if (page === "ghi-chu") return { view: "notes" };
   if (page === "quan-tri") return { view: "admin" };
@@ -35,6 +38,7 @@ export function routeHref(route: Route) {
   const params = new URLSearchParams();
   if (route.view === "notes") params.set("trang", "ghi-chu");
   if (route.view === "admin") params.set("trang", "quan-tri");
+  if (route.view === "subject") params.set("sach", route.id);
   if (route.view === "notebook") {
     params.set("so", route.track);
     if (route.tab !== "bai") params.set("tab", route.tab);

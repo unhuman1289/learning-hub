@@ -40,9 +40,9 @@ export async function createSubject(db: Db, learnerId: string, createdBy: string
   const stamp = now.toISOString();
   try {
     await db.prepare(insertSubjectSql).bind(id, learnerId, input.title, input.template, input.sensitivity, input.goal, input.level, input.curriculum,
-      JSON.stringify(input.limits), input.weight, 'setup', createdBy, stamp, stamp).run();
+      JSON.stringify(input.limits), input.weight, input.legacyTrack ? 'active' : 'setup', input.legacyTrack ?? null, createdBy, stamp, stamp).run();
   } catch (error) {
-    if (String(error).includes('UNIQUE')) throw new ApiError(409, 'Đã có sổ cùng tên.');
+    if (String(error).includes('UNIQUE')) throw new ApiError(409, input.legacyTrack ? 'Sổ này đã có trên kệ.' : 'Đã có sổ cùng tên.');
     throw error;
   }
   return toView(await getSubject(db, learnerId, id));

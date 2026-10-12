@@ -32,6 +32,6 @@ export const listSubjectsSql = `SELECT * FROM subjects WHERE learner_id = ? AND 
 export const readSubjectSql = 'SELECT * FROM subjects WHERE id = ? AND learner_id = ?';
 export const insertSubjectSql = `INSERT INTO subjects
  (id, learner_id, title, template, sensitivity, goal, level, curriculum, limits, weight, status, ai_enabled, legacy_track, created_by, created_at, updated_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?, ?)`;
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`;
 export const readGuardianSql = 'SELECT 1 AS ok FROM guardians WHERE guardian_id = ? AND learner_id = ?';
 export const listWardsSql = 'SELECT learner_id FROM guardians WHERE guardian_id = ? ORDER BY learner_id';
