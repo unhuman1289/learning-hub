@@ -1,6 +1,7 @@
 import { getHubUser } from '../../../lib/auth/session';
 import {apiFailure} from '../../../lib/api-error';
 import { storage } from '../../../db/storage';
+import { resolveLearner } from '../../../lib/access';
 function validData(d:unknown):boolean {
  if(!d||typeof d!=='object')return false;const x=d as Record<string,unknown>;
  const isRecord=(v:unknown):v is Record<string,unknown>=>!!v&&typeof v==='object';
@@ -10,25 +11,29 @@ function validData(d:unknown):boolean {
  if(!x.logs.every((l:unknown)=>isRecord(l)&&isText(l.id)&&isText(l.kind)&&isText(l.track)&&isText(l.body)&&isText(l.date)&&Number.isFinite(Date.parse(l.date))&&(!l.due||typeof l.due==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(l.due))&&(l.minutes===undefined||typeof l.minutes==='number'&&Number.isInteger(l.minutes)&&l.minutes>0&&l.minutes<=1440)))return false;
  return true;
 }
-// The existing shared household learning workspace is retained until P1.1 adds per-user progress.
-const SHARED_KEY='__shared_family_workspace__';
-async function sharedStorage(){
- const db=storage();
- // Preserve existing owner records on the first shared-workspace read. DML only.
- await db.prepare('INSERT OR IGNORE INTO learning_workspace (owner,payload,revision,updated) SELECT ?,payload,revision,updated FROM learning_workspace WHERE owner != ? ORDER BY updated ASC, owner ASC LIMIT 1').bind(SHARED_KEY,SHARED_KEY).run();
- await db.prepare('INSERT OR IGNORE INTO learning_workspace (owner,payload,revision,updated) VALUES (?,?,0,?)').bind(SHARED_KEY,'null',new Date().toISOString()).run();
- return db;
+// Each account has its own workspace (docs/hub2 D15). Guardians and admins may read a learner's
+// workspace with ?learner=; only the learner writes it.
+async function ensureWorkspace(db:ReturnType<typeof storage>,owner:string){
+ await db.prepare('INSERT OR IGNORE INTO learning_workspace (owner,payload,revision,updated) VALUES (?,?,0,?)').bind(owner,'null',new Date().toISOString()).run();
 }
-export async function GET() {
+export async function GET(req:Request) {
  const u=await getHubUser(); if(!u) return Response.json({error:'Sign in required'},{status:401});
- try { const row=await (await sharedStorage()).prepare('SELECT payload, revision FROM learning_workspace WHERE owner = ?').bind(SHARED_KEY).first<{payload:string,revision:number}>(); return Response.json(row?{data:JSON.parse(row.payload),revision:row.revision}:{data:null,revision:0},{headers:{'Cache-Control':'no-store'}}); } catch(e) { console.error('load workspace',e);return Response.json({error:'Không tải được dữ liệu. Hãy thử lại.'},{status:503}); }
+ try {
+  const db=storage();
+  const owner=await resolveLearner(db,u,req,'read_work');
+  if(owner instanceof Response)return owner;
+  if(owner===u.id)await ensureWorkspace(db,owner);
+  const row=await db.prepare('SELECT payload, revision FROM learning_workspace WHERE owner = ?').bind(owner).first<{payload:string,revision:number}>();
+  return Response.json(row?{data:JSON.parse(row.payload),revision:row.revision}:{data:null,revision:0},{headers:{'Cache-Control':'private, no-store'}});
+ } catch(e){return apiFailure(e,'Không tải được ghi chú. Hãy thử lại.');}
 }
 export async function PUT(req:Request) {
  const u=await getHubUser(); if(!u)return Response.json({error:'Sign in required'},{status:401});
  if(req.headers.get('origin')!==new URL(req.url).origin)return Response.json({error:'Origin rejected'},{status:403});
  try {const body=await req.json() as {revision:number,data:{notes:unknown[],logs:unknown[],done:unknown[]}};if(!body||typeof body!=='object'||!Number.isInteger(body.revision)||body.revision<0||!validData(body.data)||JSON.stringify(body.data).length>500000)return Response.json({error:'Dữ liệu không hợp lệ hoặc quá lớn.'},{status:400});
- const db=await sharedStorage();
- const result=await db.prepare('UPDATE learning_workspace SET payload = ?, revision = revision + 1, updated = ? WHERE owner = ? AND revision = ?').bind(JSON.stringify(body.data),new Date().toISOString(),SHARED_KEY,body.revision).run();
+ const db=storage();
+ await ensureWorkspace(db,u.id);
+ const result=await db.prepare('UPDATE learning_workspace SET payload = ?, revision = revision + 1, updated = ? WHERE owner = ? AND revision = ?').bind(JSON.stringify(body.data),new Date().toISOString(),u.id,body.revision).run();
  if(!result.meta.changes)return Response.json({error:'Dữ liệu đã thay đổi trên thiết bị khác. Xuất bản nháp trước khi tải lại.'},{status:409});return Response.json({revision:body.revision+1});
  }catch(e){return apiFailure(e,'Chưa lưu được. Bản nháp vẫn ở trang này.');}
 }
