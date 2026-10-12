@@ -4,7 +4,7 @@ import { buildAutomationContext } from './context.ts';
 import type { AutomationResultInput, StartRunInput } from './schema.ts';
 import { decideReplacement } from './replacement.ts';
 import { issueStatement, noActionStatement, replacementStatements } from './sql.ts';
-import { containsContactDetails, containsExplicitIdentifier, containsPossibleClinicalIdentifier, redactContactDetails } from './privacy.ts';
+import { containsContactDetails, containsExplicitIdentifier, containsPossibleClinicalIdentifier, lessonTextFields, redactContactDetails } from './privacy.ts';
 
 type RunRow = { id: string; client_id: string; status: 'created' | 'context_served' | 'finished' | 'failed' | 'expired'; created_at: string; expires_at: string; context_hash: string | null; context_json: string | null; result_hash: string | null; result_json: string | null; error: string | null; request_hash: string };
 type TargetRow = { target_id: string; user_id: string; track: string; current_lesson_id: string | null; eligible: number; eligibility: string; context_json: string };
@@ -117,7 +117,7 @@ export async function acceptAutomationResult(db: JournalDb, runId: string, clien
       throw new AutomationError(400, 'invalid_payload', 'Result reason contains identifying information.');
     }
     if (item.action === 'assign') {
-      const content = JSON.stringify(item.lesson);
+      const content = lessonTextFields(item.lesson);
       if (containsPossibleClinicalIdentifier(content, target.track as import('../daily-policy.ts').LearningTrack) || containsContactDetails(content)) {
         throw new AutomationError(400, 'invalid_payload', 'Lesson content may contain identifiable clinical or contact information.');
       }
