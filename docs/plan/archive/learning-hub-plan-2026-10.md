@@ -1,4 +1,4 @@
-> **Đã thay thế ngày 07/10/2026** bởi [`learning-hub-plan-v2-cloudflare.md`](../learning-hub-plan-v2-cloudflare.md). Giữ lại để tra cứu; các mục 0.2–0.6 đã triển khai trong commit `9e279ba`.
+> **Đã thay thế ngày 07/10/2026** bởi [`learning-hub-plan-v2-cloudflare.md`](learning-hub-plan-v2-cloudflare.md). Giữ lại để tra cứu; các mục 0.2–0.6 đã triển khai trong commit `9e279ba`.
 
 # Kế hoạch sửa Learning Hub — giai đoạn 0–3
 
@@ -120,7 +120,7 @@ Mục tiêu: biết chắc tác vụ 03:00 có chạy hay không, đã làm gì,
 
 **Ghi nhận triển khai 07/10:** mục 0.3–0.6 xong trong source/local và có test, **chưa publish live** vì kết nối Sites không tìm thấy project. Mục 0.7 đã tải và restore đủ 7 bảng local, nhắc tuần trên Hub đã có; nhắc cloud chờ prompt live. Mục 0.8 mới chuẩn bị prompt, chưa bật Email. Mục 0.2 đã kiểm chứng PR đỏ đúng do test sai trên GitHub; test kiểm chứng tạm đã bỏ. Mục 0.1 chưa đến thời điểm chạy thật.
 
-Sau migration 0002, dùng `runs`/`run_items` để kiểm chứng mục 0.1, thay nhật ký `learning_runs` ghi theo ngày; bảng cũ vẫn giữ nguyên dữ liệu export. Xem [vận hành phase 0](../PHASE-0-OPERATIONS.md).
+Sau migration 0002, dùng `runs`/`run_items` để kiểm chứng mục 0.1, thay nhật ký `learning_runs` ghi theo ngày; bảng cũ vẫn giữ nguyên dữ liệu export. Xem [vận hành phase 0](../../PHASE-0-OPERATIONS.md).
 
 **Chuyển giai đoạn khi:** bản mới đã publish, 3 đêm liên tiếp có nhật ký đầy đủ, và đã có một bản sao lưu khôi phục thử thành công. Chưa qua cổng; không bắt đầu giai đoạn 1.
 

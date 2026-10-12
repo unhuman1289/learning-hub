@@ -1,6 +1,6 @@
 # Learning Hub — kiến trúc
 
-Cập nhật 10/10/2026. Tính năng người dùng ở [FEATURES.md](FEATURES.md). Hướng tiếp theo (Learning Hub 2.0) ở [hub2/](hub2/README.md); thứ tự triển khai ở [plan v3](plan/learning-hub-plan-v3-hub2.md).
+Cập nhật 10/10/2026. Tính năng người dùng ở [FEATURES.md](FEATURES.md). Hướng tiếp theo (Learning Hub 2.0) ở [hub2/](hub2/README.md); thứ tự triển khai ở [docs/plan/PLAN.md](plan/PLAN.md).
 
 > **Đọc trước:** production hiện chạy `main` (`bd4cddc`) **cộng với các thay đổi Phase 1 chưa commit** trong working tree của checkout chính: learner scope, automation API v1, Access, Sites bridge, migration `0004`–`0006`. Tài liệu này mô tả hệ thống đang chạy. Mỗi phần chỉ có trong working tree được đánh dấu **(chưa commit)**. Xem §10 về việc đưa Git về khớp với production.
 

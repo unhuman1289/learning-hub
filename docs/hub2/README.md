@@ -8,7 +8,7 @@ Bản thiết kế để review, cập nhật 12/10/2026. **Chưa có code.** D�
 | [LESSON-DESIGN.md](LESSON-DESIGN.md) | **Hướng xây dựng bài học**: nguyên tắc, planner chọn gì, cấu trúc bài, viết câu hỏi, chấm và lời phê, hướng theo từng sổ |
 | [DATA-MODEL.md](DATA-MODEL.md) | Bảng D1, luật thành thạo, lịch ôn, mẫu lỗi, bất biến, quyền, chuyển dữ liệu cũ |
 | [AI-API.md](AI-API.md) | Hai lượt AI, API job cho runner bên ngoài, hợp đồng JSON, ngân sách, chấm lại, Worker chấm bài |
-| [../plan/learning-hub-plan-v3-hub2.md](../plan/learning-hub-plan-v3-hub2.md) | **Plan triển khai** H0–H9: lịch, task, migration, test, nghiệm thu, cảnh báo, bảo mật, pilot, đề xuất sửa AGENTS.md |
+| [../plan/PLAN.md](../plan/PLAN.md) | **Plan triển khai** H0–H9: lịch, task, migration, test, nghiệm thu, cảnh báo, bảo mật, pilot, đề xuất sửa AGENTS.md |
 
 ## 1. Quyết định đã chốt
 

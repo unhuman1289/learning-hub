@@ -1,6 +1,6 @@
 # Vận hành tác vụ 03:00
 
-Nguồn hướng dẫn triển khai là [kế hoạch v2](plan/learning-hub-plan-v2-cloudflare.md) (hạ tầng Cloudflare độc lập trước, Automation API v1 sau). Luồng Sites mô tả bên dưới chỉ còn giá trị lịch sử cho đến cutover; không mở rộng thêm.
+Nguồn hướng dẫn triển khai là [kế hoạch v2 (đã lưu trữ)](plan/archive/learning-hub-plan-v2-cloudflare.md); plan hiện hành là [PLAN.md](plan/PLAN.md) (hạ tầng Cloudflare độc lập trước, Automation API v1 sau). Luồng Sites mô tả bên dưới chỉ còn giá trị lịch sử cho đến cutover; không mở rộng thêm.
 
 ## Hiện tại
 

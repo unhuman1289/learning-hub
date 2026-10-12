@@ -1,9 +1,9 @@
-# Learning Hub — Plan v3: Learning Hub 2.0
+# Learning Hub — Plan triển khai
 
-Cập nhật 12/10/2026. Trạng thái: **chờ duyệt, chưa code.**
+Cập nhật 12/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). Chưa bắt đầu code.
 
 - **Thiết kế:** [docs/hub2/](../hub2/README.md): quyết định D1–D18, [hướng xây dựng bài học](../hub2/LESSON-DESIGN.md), [mô hình dữ liệu](../hub2/DATA-MODEL.md), [API AI](../hub2/AI-API.md).
-- **Quan hệ với plan v2:** plan v2 ([learning-hub-plan-v2-cloudflare.md](learning-hub-plan-v2-cloudflare.md)) vẫn là nguồn cho Phase 0–1. Plan này **thay Phase 2** của v2, và thay các task P1.6, P1.9, P1.12 (xem §18).
+- **Plan cũ đã lưu trữ:** [plan v2](archive/learning-hub-plan-v2-cloudflare.md) (Phase 0–1, Cloudflare và cutover) và [plan 2026-10](archive/learning-hub-plan-2026-10.md). Phần còn dở của v2 nằm ở H0 (commit Phase 1, sửa B1–B2) và H7 (bật automation trên production); Phase 2 và các task P1.6, P1.9, P1.12 được thay bằng plan này (xem §18). Chỉ đọc plan cũ để tra lịch sử.
 
 ## 0. Tóm tắt
 
@@ -187,7 +187,7 @@ Theo AGENTS.md:
 #### H0.4 AGENTS.md và chỉ dẫn plan
 - **Thay đổi:**
   - Áp các sửa đổi AGENTS.md đã duyệt (§19).
-  - Plan v2 §5 Phase 2: ghi "được thay bằng plan v3". Để phiên Phase 1 làm khi commit plan v2 (file đang được sửa ở checkout chính), tránh xung đột.
+  - Gộp plan: plan v2 chuyển vào `archive/`, plan này thành `docs/plan/PLAN.md` (12/10/2026).
   - README: thêm liên kết.
 - **Chấp nhận khi:** bạn duyệt nội dung. **Phụ thuộc:** duyệt thiết kế. **Cỡ:** S.
 - **Trạng thái:** AGENTS.md đã duyệt và áp ngày 12/10/2026 (PR #3).
@@ -1007,7 +1007,7 @@ Mỗi tuần dành 30 phút: xem trang Lượt AI và chỉ số chấm, đọc 
 
 ## 18. Ánh xạ từ plan v2
 
-| Plan v2 | Plan v3 |
+| Plan v2 | Plan này |
 | --- | --- |
 | P1.6 tách instructions/goals khỏi code (`track_goals`) | H1.1 (`subjects.goal`, `level`, `curriculum`), H7.4 (prompt trong repo) |
 | P1.9 admin API, run status đọc bảng mới | H5.8 |
@@ -1027,7 +1027,7 @@ Mỗi tuần dành 30 phút: xem trang Lượt AI và chỉ số chấm, đọc 
 | Hiện tại | Đề xuất |
 | --- | --- |
 | "Everyone can study every track; do not split navigation into Vũ/Ly/Gia đình." | Mỗi người có kệ và sổ riêng; mỗi người chỉ thấy tiến độ và bài làm của mình; admin thấy tất cả; phụ huynh thấy của con. |
-| "Follow `docs/plan/learning-hub-plan-v2-cloudflare.md` in order…" | Plan v2 cho Phase 0–1; plan v3 cho Learning Hub 2.0, theo thứ tự §6 và các cổng A–D. |
+| "Follow `docs/plan/learning-hub-plan-v2-cloudflare.md` in order…" | Làm theo `docs/plan/PLAN.md` (plan duy nhất), thứ tự §6 và các cổng A–D. |
 | "Sites keeps v5 until cutover…", "`/api/learning-run` currently relies on the Sites access boundary." | Bỏ (cutover xong 10/10/2026; route trả 410). |
 | "Do not introduce model API dependencies or keys unless the user requests immediate AI inside the app." | Chủ dự án đã yêu cầu chấm ngay khi nộp (12/10/2026). Key model chỉ nằm trong Worker `learning-hub-assessor`; Hub không chứa key và không gọi model trực tiếp. Lịch đêm dùng thuê bao ChatGPT. |
 | Phần "Content quality" | Rút gọn thành liên kết tới `docs/hub2/LESSON-DESIGN.md`, nguồn duy nhất cho cách soạn và chấm bài. Giữ các câu cấm (nguồn bịa, chép bản quyền, dữ liệu bệnh nhân, hứa IQ hay chiều cao). |
