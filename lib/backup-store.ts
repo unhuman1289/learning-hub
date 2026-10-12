@@ -2,7 +2,7 @@ import { backupColumns } from './backup-contract.mjs';
 import type { JournalDb } from './run-journal.ts';
 
 export type LearningBackup = {
-  format: 3;
+  format: 4;
   deploymentId: string;
   exportedAt: string;
   backupId: string;
@@ -27,7 +27,7 @@ async function readConsistentSnapshot(
   }
 
   return {
-    format: 3,
+    format: 4,
     deploymentId,
     exportedAt: now.toISOString(),
     backupId,
@@ -54,7 +54,7 @@ export async function createBackup(
   }
 
   return {
-    format: 3,
+    format: 4,
     deploymentId,
     exportedAt: createdAt,
     backupId,
