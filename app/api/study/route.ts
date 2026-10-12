@@ -2,11 +2,13 @@ import { getHubUser } from '../../../lib/auth/session';
 import { apiFailure } from '../../../lib/api-error';
 import { berlinDay } from '../../../lib/daily-policy';
 import { storage } from '../../../db/storage';
+import { resolveLearner } from '../../../lib/access';
 import {
   addSecondsSql, isStudyTrack, readDaySql, readTargetSql, setTargetSql, toStudyDay, validReportSeconds, validTargetMinutes,
 } from '../../../lib/study-sql';
 
-// Study time of the signed-in account for today (Europe/Berlin). Each account only reads and writes its own rows.
+// Study time for today (Europe/Berlin). Only the learner adds seconds; guardians and admins may read it,
+// and set the daily target when lib/access allows (children cannot change their own target).
 async function today(userId: string) {
   const db = storage();
   const day = berlinDay();
@@ -21,11 +23,13 @@ function sameOrigin(req: Request) {
   return req.headers.get('origin') === new URL(req.url).origin;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   const user = await getHubUser();
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401 });
   try {
-    return Response.json(await today(user.id), { headers: { 'Cache-Control': 'no-store' } });
+    const learnerId = await resolveLearner(storage(), user, req, 'read_progress');
+    if (learnerId instanceof Response) return learnerId;
+    return Response.json(await today(learnerId), { headers: { 'Cache-Control': 'no-store' } });
   } catch (error) {
     return apiFailure(error, 'Chưa tải được thời gian học.');
   }
@@ -52,10 +56,12 @@ export async function PUT(req: Request) {
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401 });
   if (!sameOrigin(req)) return Response.json({ error: 'Origin rejected' }, { status: 403 });
   try {
+    const learnerId = await resolveLearner(storage(), user, req, 'edit_settings');
+    if (learnerId instanceof Response) return learnerId;
     const body = await req.json().catch(() => null) as { targetMinutes?: unknown } | null;
     if (!body || !validTargetMinutes(body.targetMinutes)) return Response.json({ error: 'Mục tiêu cần từ 5 đến 720 phút.' }, { status: 400 });
-    await storage().prepare(setTargetSql).bind(user.id, body.targetMinutes, new Date().toISOString()).run();
-    return Response.json(await today(user.id));
+    await storage().prepare(setTargetSql).bind(learnerId, body.targetMinutes, new Date().toISOString()).run();
+    return Response.json(await today(learnerId));
   } catch (error) {
     return apiFailure(error, 'Chưa lưu được mục tiêu.');
   }
