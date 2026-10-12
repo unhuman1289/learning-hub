@@ -1,9 +1,10 @@
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { backupColumns } from '../lib/backup-contract.mjs';
+import { backupColumns, columnsForSnapshotTable, restoreTargetTable } from '../lib/backup-contract.mjs';
 
 const wrangler = 'node_modules/wrangler/bin/wrangler.js';
 const authTables = ['user', 'account', 'session', 'verification', 'rate_limit'];
+export const sharedWorkspaceOwner = '__shared_family_workspace__';
 export const applicationTables = [...Object.keys(backupColumns), ...authTables];
 
 function jsonPayload(output) {
@@ -87,42 +88,87 @@ export function countRows(environment, database) {
   return Object.fromEntries(applicationTables.map((table) => [table, Number(rows[0][table] ?? 0)]));
 }
 
+export function readActiveAdminId(environment, database) {
+  const rows = parseWranglerRows(runRemoteD1(environment, database, [
+    '--command', `SELECT id FROM "user" WHERE role = 'admin' AND status = 'active' AND email_verified = 1 ORDER BY created_at, id LIMIT 2`,
+  ]));
+  if (rows.length !== 1 || typeof rows[0].id !== 'string' || !rows[0].id) {
+    throw new Error('Import requires exactly one active, verified admin account in the target D1. No data was changed.');
+  }
+  return rows[0].id;
+}
+
+/** Read only metadata to recognize the empty row created by the first authenticated workspace GET. */
+export function readSharedWorkspacePlaceholder(environment, database) {
+  const rows = parseWranglerRows(runRemoteD1(environment, database, [
+    '--command', `SELECT COUNT(*) AS total,
+      SUM(CASE WHEN owner = '${sharedWorkspaceOwner}' AND payload = 'null' AND revision = 0 THEN 1 ELSE 0 END) AS empty_shared,
+      MAX(CASE WHEN owner = '${sharedWorkspaceOwner}' THEN updated END) AS updated
+      FROM learning_workspace`,
+  ]));
+  if (rows.length !== 1) throw new Error('D1 workspace metadata query returned an unexpected result.');
+  return {
+    total: Number(rows[0].total ?? 0),
+    emptyShared: Number(rows[0].empty_shared ?? 0),
+    updated: typeof rows[0].updated === 'string' ? rows[0].updated : null,
+  };
+}
+
+export function canImportWithEmptyWorkspacePlaceholder(snapshot, counts, placeholder) {
+  const workspace = snapshot.tables?.learning_workspace;
+  const snapshotIsEmpty = Array.isArray(workspace) && workspace.length === 1
+    && workspace[0]?.payload === 'null' && Number(workspace[0]?.revision) === 0;
+  const otherLearningTables = [
+    'learning_lessons', 'learning_slots', 'learning_runs', 'runs', 'legacy_run_items',
+    'run_items', 'automation_runs', 'run_targets', 'run_events', 'study_time', 'learner_settings',
+  ];
+  return snapshotIsEmpty && placeholder.total === 1 && placeholder.emptyShared === 1
+    && typeof placeholder.updated === 'string' && counts.learning_workspace === 1
+    && otherLearningTables.every((table) => Number(counts[table] ?? 0) === 0);
+}
+
 export function readRemoteTable(environment, database, table) {
   if (!Object.hasOwn(backupColumns, table)) throw new Error('Unsupported import table.');
   return parseWranglerRows(runRemoteD1(environment, database, ['--command', `SELECT * FROM "${table}" ORDER BY rowid`]));
 }
 
-function canonicalRow(table, row) {
-  return JSON.stringify(backupColumns[table].map((column) => row[column] ?? null));
+function canonicalRow(columns, table, row, legacyOwnerId) {
+  return JSON.stringify(columns.map((column) => {
+    if (column === 'user_id' && !Object.hasOwn(row, column) && ['learning_lessons', 'learning_slots'].includes(table)) return legacyOwnerId;
+    return row[column] ?? null;
+  }));
 }
 
-export function compareSnapshotTables(snapshot, actualByTable) {
+export function compareSnapshotTables(snapshot, actualByTable, { legacyOwnerId } = {}) {
   const results = [];
   for (const [table, expectedRows] of Object.entries(snapshot.tables)) {
-    if (!Object.hasOwn(backupColumns, table) || !Array.isArray(expectedRows)) {
+    const targetTable = restoreTargetTable(snapshot, table);
+    const columns = columnsForSnapshotTable(snapshot, table);
+    if (!columns || !Array.isArray(expectedRows)) {
       results.push({ table, ok: false, reason: 'invalid snapshot table' });
       continue;
     }
     const expected = new Map();
     const actual = new Map();
     for (const row of expectedRows) {
-      const key = canonicalRow(table, row);
+      const key = canonicalRow(columns, targetTable, row, legacyOwnerId);
       expected.set(key, (expected.get(key) ?? 0) + 1);
     }
-    for (const row of actualByTable[table] ?? []) {
-      const key = canonicalRow(table, row);
+    for (const row of actualByTable[targetTable] ?? []) {
+      const key = canonicalRow(columns, targetTable, row, legacyOwnerId);
       actual.set(key, (actual.get(key) ?? 0) + 1);
     }
     const matches = [...expected].every(([key, count]) => actual.get(key) === count)
       && [...actual].every(([key, count]) => expected.get(key) === count);
-    results.push({ table, ok: matches, expected: expectedRows.length, actual: (actualByTable[table] ?? []).length });
+    results.push({ table, ok: matches, expected: expectedRows.length, actual: (actualByTable[targetTable] ?? []).length });
   }
   return results;
 }
 
-export function readAndCompareSnapshot(environment, database, snapshot) {
-  const actual = Object.fromEntries(Object.keys(snapshot.tables).map((table) => [table, readRemoteTable(environment, database, table)]));
-  return compareSnapshotTables(snapshot, actual);
+export function readAndCompareSnapshot(environment, database, snapshot, options) {
+  const targetTables = [...new Set(Object.keys(snapshot.tables).map((table) => restoreTargetTable(snapshot, table)))];
+  const actual = Object.fromEntries(targetTables.map((table) => [table, readRemoteTable(environment, database, table)]));
+  return compareSnapshotTables(snapshot, actual, options);
 }
 
 export function readMarker(environment, database, importId) {

@@ -9,7 +9,7 @@ import {
 
 function database() {
   const db = new DatabaseSync(':memory:');
-  db.exec(readFileSync(new URL('../drizzle/0004_study_time.sql', import.meta.url), 'utf8').replaceAll('--> statement-breakpoint', ''));
+  db.exec(readFileSync(new URL('../drizzle/0006_study_time.sql', import.meta.url), 'utf8').replaceAll('--> statement-breakpoint', ''));
   return db;
 }
 

@@ -28,7 +28,7 @@ async function postAuth(path: string, body: Record<string, string>) {
       throw new Error("Dịch vụ đang gặp lỗi. Hãy thử lại sau; nếu vẫn lỗi, báo quản trị viên.");
     }
     if (response.status === 401 && path === "sign-in/email") {
-      throw new Error("Chưa đăng nhập được. Kiểm tra email và mật khẩu; nếu mới đăng ký, hãy xác minh email và chờ admin duyệt tài khoản.");
+      throw new Error("Chưa đăng nhập được. Kiểm tra email và mật khẩu; nếu mới đăng ký, hãy xác minh email. Tài khoản thường cần admin duyệt.");
     }
     throw new Error("Yêu cầu chưa hoàn tất. Kiểm tra email và thử lại.");
   }
@@ -55,7 +55,7 @@ export default function AccountForm({ mode, emailVerified = false }: { mode: Acc
       } else if (mode === "register") {
         if (password !== passwordAgain) throw new Error("Hai mật khẩu chưa khớp.");
         await postAuth("sign-up/email", { email, password, name, callbackURL: "/login?verified=1" });
-        setMessage("Đã nhận yêu cầu đăng ký. Hãy xác minh email trong thư gửi đến (kiểm tra cả Spam). Sau khi xác minh, admin cần duyệt tài khoản trước lần đăng nhập đầu tiên.");
+        setMessage("Đã nhận yêu cầu đăng ký. Hãy xác minh email trong thư gửi đến (kiểm tra cả Spam). Tài khoản admin khởi tạo được kích hoạt sau xác minh; tài khoản khác cần admin duyệt.");
       } else if (mode === "forgot") {
         await postAuth("request-password-reset", { email, redirectTo: "/reset-password" });
         setMessage("Nếu tài khoản này tồn tại, email đặt lại mật khẩu đã được yêu cầu. Hãy kiểm tra Inbox và Spam; nếu chưa đăng ký, hãy chọn Tạo tài khoản.");
@@ -94,9 +94,9 @@ export default function AccountForm({ mode, emailVerified = false }: { mode: Acc
           <h1 className="mt-5 font-print text-2xl font-medium">{copy[mode].title}</h1>
           <p className="mt-2 text-sm leading-6 text-label-muted">
             {mode === "register"
-              ? "Ai cũng có thể tạo tài khoản bằng email và mật khẩu. Sau khi xác minh email, tài khoản chờ admin duyệt rồi mới đăng nhập được. Mật khẩu cần ít nhất 12 ký tự."
+              ? "Ai cũng có thể tạo tài khoản bằng email và mật khẩu. Tài khoản admin khởi tạo được kích hoạt sau khi xác minh email; tài khoản khác chờ admin duyệt. Mật khẩu cần ít nhất 12 ký tự."
               : mode === "login"
-                ? "Dùng email và mật khẩu Learning Hub. Tài khoản mới cần xác minh email và được admin duyệt trước khi đăng nhập."
+                ? "Dùng email và mật khẩu Learning Hub. Tài khoản thường cần xác minh email và được admin duyệt; admin khởi tạo chỉ cần xác minh email."
                 : mode === "forgot"
                   ? "Nhập email đã đăng ký. Vì lý do bảo mật, trang luôn xác nhận chung; thư chỉ được gửi nếu tài khoản tồn tại. Hãy kiểm tra cả Spam."
                   : "Chọn mật khẩu mới có ít nhất 12 ký tự."}
@@ -120,7 +120,7 @@ export default function AccountForm({ mode, emailVerified = false }: { mode: Acc
               {busy ? "Đang xử lý…" : copy[mode].submit}
             </button>
           </form>
-          {mode === "login" && emailVerified && <p className={`${note} mt-4 bg-[#eeeef2] text-label-ink`} role="status">Email đã được xác minh. Nếu tài khoản mới, admin cần duyệt trước khi bạn đăng nhập được.</p>}
+          {mode === "login" && emailVerified && <p className={`${note} mt-4 bg-[#eeeef2] text-label-ink`} role="status">Email đã được xác minh. Tài khoản thường cần admin duyệt trước khi đăng nhập được.</p>}
           <div className="mt-4 flex flex-wrap justify-between gap-1 text-sm" role="navigation" aria-label="Liên kết tài khoản">
             {mode !== "login" && <a href="/login" className="inline-flex min-h-11 items-center px-1 text-label-accent underline underline-offset-2 focus-visible:outline-label-accent">Đăng nhập</a>}
             {mode !== "register" && <a href="/register" className="inline-flex min-h-11 items-center px-1 text-label-accent underline underline-offset-2 focus-visible:outline-label-accent">Tạo tài khoản</a>}

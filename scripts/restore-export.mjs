@@ -7,7 +7,10 @@ import {runLocalD1} from './local-db.mjs';
 // remote mode and keeps generated SQL under the ignored private-data directory.
 const file=resolve(process.argv[2]??'private-data/sites-export.json');
 const snapshot=JSON.parse(readFileSync(file,'utf8'));
-const sql=buildRestoreSql(snapshot);
+const args=Object.fromEntries(process.argv.slice(3).reduce((pairs,value,index,list)=>{if(value.startsWith('--'))pairs.push([value.slice(2),list[index+1]]);return pairs},[]));
+const needsLegacyOwner=[...(snapshot.tables.learning_lessons??[]),...(snapshot.tables.learning_slots??[])].some(row=>!Object.hasOwn(row,'user_id'));
+if(needsLegacyOwner&&!args['legacy-owner'])throw new Error('This legacy snapshot needs an existing local learner ID. Pass --legacy-owner <user-id>.');
+const sql=buildRestoreSql(snapshot,{legacyOwnerId:args['legacy-owner']});
 mkdirSync('private-data',{recursive:true});
 const target=resolve('private-data/restore-local.sql');
 writeFileSync(target,sql);
