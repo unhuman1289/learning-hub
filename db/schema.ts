@@ -2,12 +2,21 @@ import { sqliteTable, text, integer, primaryKey, uniqueIndex, foreignKey } from 
 export * from './auth-schema';
 export const workspace = sqliteTable('learning_workspace', { owner: text('owner').primaryKey(), payload: text('payload').notNull(), revision: integer('revision').notNull().default(0), updated: text('updated').notNull() });
 export const dailyLessons = sqliteTable('learning_lessons', {
- id:text('id').primaryKey(), userId:text('user_id').notNull(), track:text('track').notNull(), payload:text('payload').notNull(),
+ id:text('id').primaryKey(), userId:text('user_id').notNull(), track:text('track'), payload:text('payload').notNull(),
  assignedDate:text('assigned_date').notNull(), completedAt:text('completed_at'), response:text('response').notNull().default(''), updated:text('updated').notNull(), automationReviewedAt:text('automation_reviewed_at'),
+ subjectId:text('subject_id'), packageVersion:text('package_version').notNull().default('1'), template:text('template'), kind:text('kind').notNull().default('legacy'),
+ slot:text('slot').notNull().default('primary'), reason:text('reason').notNull().default(''), reasonRefs:text('reason_refs').notNull().default('[]'), estMinutes:integer('est_minutes'),
+ draft:text('draft').notNull().default('{}'), draftRevision:integer('draft_revision').notNull().default(0), support:text('support').notNull().default('{}'),
+ snoozedUntil:text('snoozed_until'), originJobId:text('origin_job_id'),
 }, table => [
- uniqueIndex('learning_lessons_user_track_date_unique').on(table.userId, table.track, table.assignedDate),
  uniqueIndex('learning_lessons_user_id_unique').on(table.userId, table.id),
 ]);
+export const lessonItems = sqliteTable('lesson_items', {
+ lessonId:text('lesson_id').notNull(), itemId:text('item_id').notNull(), learnerId:text('learner_id').notNull(), subjectId:text('subject_id').notNull(),
+ stage:text('stage').notNull(), activity:text('activity').notNull(), inputKind:text('input_kind').notNull(), skillIds:text('skill_ids').notNull(),
+ difficulty:integer('difficulty').notNull(), autoGradable:integer('auto_gradable').notNull(), promptHash:text('prompt_hash').notNull(),
+ origin:text('origin').notNull().default('plan'), payload:text('payload').notNull(), flag:text('flag'), createdAt:text('created_at').notNull(),
+}, table => [primaryKey({columns:[table.lessonId, table.itemId]})]);
 export const dailySlots = sqliteTable('learning_slots', {
  userId:text('user_id').notNull(), track:text('track').notNull(), lessonId:text('lesson_id').notNull(), revision:integer('revision').notNull().default(0),
 }, table => [

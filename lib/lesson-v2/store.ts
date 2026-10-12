@@ -1,0 +1,97 @@
+import { ApiError } from '../api-error.ts';
+import type { LessonItem, LessonPackageV2 } from '../contracts/lesson-package-v2.ts';
+import type { Db } from '../subjects/service.ts';
+
+export type LessonSlot = 'primary' | 'review' | 'extra';
+export type NewLessonV2 = {
+  id?: string; learnerId: string; subjectId: string; day: string; lesson: LessonPackageV2;
+  reason?: string; originJobId?: string | null; now?: Date;
+};
+
+const slotFor = (kind: LessonPackageV2['kind']): LessonSlot => (kind === 'review' ? 'review' : kind === 'exploration' ? 'extra' : 'primary');
+
+/** "  Sửa câu:  Lena KANN … " and "sửa câu: lena kann …" hash the same; used to refuse repeated prompts (H5.5). */
+export async function promptHash(prompt: string) {
+  const normalized = prompt.normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(normalized));
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+export function newLessonId() {
+  const bytes = crypto.getRandomValues(new Uint8Array(10));
+  return 'les_' + Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+/**
+ * Stores a validated lesson and its items in one batch. Invariants such as "one primary lesson per
+ * notebook per day" are enforced by the partial unique index; a clash answers 409.
+ */
+export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Promise<unknown> }, input: NewLessonV2) {
+  const { lesson, learnerId, subjectId, day } = input;
+  const id = input.id ?? newLessonId();
+  const now = (input.now ?? new Date()).toISOString();
+  const stageOf = new Map(lesson.stages.flatMap((stage) => stage.itemIds.map((itemId) => [itemId, stage.stage] as const)));
+  const hashes = await Promise.all(lesson.items.map((item) => promptHash(item.prompt)));
+  const statements = [
+    db.prepare(`INSERT INTO learning_lessons (id, user_id, track, payload, assigned_date, completed_at, response, updated, subject_id,
+        package_version, template, kind, slot, reason, reason_refs, est_minutes, origin_job_id)
+      VALUES (?, ?, NULL, ?, ?, NULL, '', ?, ?, '2', ?, ?, ?, ?, ?, ?, ?)`)
+      .bind(id, learnerId, JSON.stringify(lesson), day, now, subjectId, lesson.template, lesson.kind, slotFor(lesson.kind),
+        (input.reason ?? lesson.why).slice(0, 400), JSON.stringify(lesson.reasonRefs), lesson.estMinutes, input.originJobId ?? null),
+    ...lesson.items.map((item, index) => db.prepare(`INSERT INTO lesson_items (lesson_id, item_id, learner_id, subject_id, stage, activity, input_kind,
+        skill_ids, difficulty, auto_gradable, prompt_hash, origin, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plan', ?, ?)`)
+      .bind(id, item.id, learnerId, subjectId, stageOf.get(item.id), item.activity, item.input, JSON.stringify(item.skills), item.difficulty,
+        item.key ? 1 : 0, hashes[index], JSON.stringify(item), now)),
+  ];
+  try {
+    await db.batch(statements);
+  } catch (error) {
+    if (String(error).includes('UNIQUE')) throw new ApiError(409, 'Sổ này đã có bài cùng loại hôm nay.');
+    throw error;
+  }
+  return id;
+}
+
+/** What a learner may see of an item before revealing hints or the solution, or before it is graded. */
+export type ItemView = Omit<LessonItem, 'key' | 'hints' | 'solution' | 'explanation'> & {
+  stage: string; hintCount: number; revealed: { hints: string[]; solution?: string; explanation?: string }; flag: string | null;
+};
+export type Support = Record<string, 'hint1' | 'hint2' | 'solution'>;
+
+export function itemView(item: LessonItem, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
+  const { key: _key, hints, solution, explanation, ...visible } = item;
+  void _key;
+  const level = graded ? 'solution' : support;
+  const shownHints = level === 'solution' ? hints : level === 'hint2' ? hints.slice(0, 2) : level === 'hint1' ? hints.slice(0, 1) : [];
+  return {
+    ...visible, stage, hintCount: hints.length, flag,
+    revealed: { hints: shownHints, ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },
+  };
+}
+
+type LessonRow = {
+  id: string; subject_id: string; payload: string; assigned_date: string; completed_at: string | null; updated: string; template: string;
+  kind: string; slot: string; reason: string; est_minutes: number | null; draft: string; draft_revision: number; support: string; snoozed_until: string | null;
+};
+type ItemRow = { item_id: string; stage: string; payload: string; flag: string | null };
+
+/** A v2 lesson as the learner sees it: secrets stripped unless revealed (support) or graded. */
+export async function readLessonV2(db: Db, learnerId: string, lessonId: string, gradedItemIds: ReadonlySet<string> = new Set()) {
+  const row = await db.prepare(`SELECT id, subject_id, payload, assigned_date, completed_at, updated, template, kind, slot, reason, est_minutes,
+      draft, draft_revision, support, snoozed_until FROM learning_lessons WHERE id = ? AND user_id = ? AND package_version = '2'`)
+    .bind(lessonId, learnerId).first<LessonRow>();
+  if (!row) throw new ApiError(404, 'Không tìm thấy bài.');
+  const { results: items = [] } = await db.prepare('SELECT item_id, stage, payload, flag FROM lesson_items WHERE lesson_id = ? ORDER BY rowid').bind(lessonId).all<ItemRow>();
+  const lesson = JSON.parse(row.payload) as LessonPackageV2;
+  const support = JSON.parse(row.support) as Support;
+  return {
+    id: row.id, subjectId: row.subject_id, assignedDate: row.assigned_date, completedAt: row.completed_at, updated: row.updated,
+    kind: row.kind, slot: row.slot, template: row.template, reason: row.reason, estMinutes: row.est_minutes, snoozedUntil: row.snoozed_until,
+    title: lesson.title, objective: lesson.objective, why: lesson.why, level: lesson.level, sheet: lesson.sheet, sections: lesson.sections,
+    diagram: lesson.diagram, output: lesson.output, sources: lesson.sources, nextTopic: lesson.nextTopic,
+    stages: lesson.stages.map((stage) => ({ stage: stage.stage, title: stage.title, itemIds: stage.itemIds })),
+    items: items.map((item) => itemView(JSON.parse(item.payload) as LessonItem, item.stage, support[item.item_id], gradedItemIds.has(item.item_id), item.flag)),
+    draft: JSON.parse(row.draft) as Record<string, { answer: string; attachmentIds?: string[] }>,
+    draftRevision: row.draft_revision,
+  };
+}

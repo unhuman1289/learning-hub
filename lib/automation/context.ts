@@ -74,7 +74,7 @@ export async function buildAutomationContext(db: JournalDb, runId: string, now =
   const day = berlinDay(now);
   const cutoff = cutoffFor(day);
   const users = (await db.prepare("SELECT id FROM user WHERE status='active' ORDER BY created_at,id").all<UserRow>()).results;
-  const lessons = (await db.prepare('SELECT id,user_id,track,payload,assigned_date,completed_at,response,updated,automation_reviewed_at FROM learning_lessons ORDER BY assigned_date DESC,updated DESC,id DESC').all<LessonRow>()).results;
+  const lessons = (await db.prepare('SELECT id,user_id,track,payload,assigned_date,completed_at,response,updated,automation_reviewed_at FROM learning_lessons WHERE package_version=\'1\' ORDER BY assigned_date DESC,updated DESC,id DESC').all<LessonRow>()).results;
   const slots = (await db.prepare('SELECT user_id,track,lesson_id,revision FROM learning_slots ORDER BY user_id,track').all<SlotRow>()).results;
   const lessonById = new Map(lessons.map((lesson) => [lesson.id, lesson]));
   const slotByKey = new Map(slots.map((slot) => [`${slot.user_id}\u0000${slot.track}`, slot]));

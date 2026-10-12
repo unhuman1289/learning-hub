@@ -64,6 +64,13 @@
       "when": 1791838800000,
       "tag": "0008_workspace_per_user",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791842400000,
+      "tag": "0009_lessons_v2",
+      "breakpoints": true
     }
   ]
 }

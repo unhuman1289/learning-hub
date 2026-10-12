@@ -65,7 +65,7 @@ test('all assignment and journal writes rollback together on database failure',a
 test('backup restores every table and Unicode/quotes into empty migrated SQLite; rejects missing relationships',async()=>{
  const db=memoryDb();seed(db);const id=await startRun(db,'manual',now);await commitRun(db,input(id),learner,now);
  db.sqlite.prepare('INSERT INTO learning_workspace VALUES(?,?,2,?)').run('__shared_family_workspace__',JSON.stringify({notes:["Ghi chú ' tiếng Việt"]}),now.toISOString());
- const backup=await createBackup(db,'user-private',now);assert.equal(backup.format,3);
+ const backup=await createBackup(db,'user-private',now);assert.equal(backup.format,4);
  const copy=memoryDb();copy.sqlite.exec(buildRestoreSql(backup));
  for(const [table,expected]of Object.entries(backup.tables))assert.deepEqual(copy.sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),expected,table);
  assert.throws(()=>copy.sqlite.exec(buildRestoreSql(backup)),/UNIQUE/);

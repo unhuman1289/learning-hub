@@ -10,7 +10,7 @@ const hiddenOperations={runs:[],health:{lastSuccessfulAt:null,stale:false,stalle
 export async function readDailyFor(db:JournalDb,userId:string,includeAdminOperations=false){
  if(!userId)throw new Error('A verified learner ID is required.');
  const active=await db.prepare('SELECT l.* FROM learning_lessons l JOIN learning_slots s ON s.user_id=l.user_id AND s.lesson_id=l.id WHERE l.user_id=? ORDER BY l.track').bind(userId).all<Row>();
- const history=await db.prepare('SELECT l.* FROM learning_lessons l WHERE l.user_id=? AND NOT EXISTS (SELECT 1 FROM learning_slots s WHERE s.user_id=l.user_id AND s.lesson_id=l.id) ORDER BY l.assigned_date DESC,l.track LIMIT 100').bind(userId).all<Row>();
+ const history=await db.prepare('SELECT l.* FROM learning_lessons l WHERE l.user_id=? AND l.package_version=\'1\' AND NOT EXISTS (SELECT 1 FROM learning_slots s WHERE s.user_id=l.user_id AND s.lesson_id=l.id) ORDER BY l.assigned_date DESC,l.track LIMIT 100').bind(userId).all<Row>();
  const run=includeAdminOperations?await db.prepare('SELECT day,payload,updated FROM learning_runs ORDER BY day DESC LIMIT 1').first<{day:string,payload:string,updated:string}>():null;
  const operations=includeAdminOperations?await readRunJournal(db):hiddenOperations;
  return {
