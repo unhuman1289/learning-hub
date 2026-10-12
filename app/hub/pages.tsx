@@ -6,6 +6,7 @@ import { OakDesk, WoodFrame } from "../../components/notebook/house";
 import { RuledPage, cx } from "../../components/notebook/paper";
 import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
+import { FamilyAdmin } from "./family-admin";
 import { JournalList, journalKinds, type FormRequest } from "./journal";
 import { trackIds, trackInfo, type TrackId } from "./model";
 import { buttonClass } from "./ui";
@@ -71,6 +72,11 @@ export function AdminView({ daily, workspace }: { daily: DailyApi; workspace: Wo
     <div className="mx-auto grid w-full max-w-4xl gap-6">
       <h1 className="font-print text-[2rem] font-medium">Quản trị</h1>
       <WoodFrame label="Duyệt tài khoản"><PendingApprovals isAdmin /></WoodFrame>
+      <WoodFrame label="Gia đình">
+        <h2 className="font-print text-2xl font-medium">Gia đình</h2>
+        <p className="mb-4 mt-2 text-sm text-muted">Đặt trẻ em, biệt danh dùng trong bài và lời phê, và phụ huynh của từng người.</p>
+        <FamilyAdmin />
+      </WoodFrame>
       <WoodFrame label="Cập nhật bài và sao lưu">
         <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>
         {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}
