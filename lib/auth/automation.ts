@@ -14,6 +14,7 @@ export type AutomationBindings = {
   ACCESS_TEAM_DOMAIN?: string;
   AUTOMATION_ACCESS_AUD?: string;
   AUTOMATION_CLIENTS?: string;
+  ASSESSOR_CLIENT?: string;
   APP_ENV?: string;
   ENVIRONMENT?: string;
 };
@@ -61,6 +62,18 @@ function parseClients(value: string | undefined): AutomationClient[] | null {
   } catch {
     return null;
   }
+}
+
+/** Separate assessor credential: never overwrite the existing planner client list. */
+export function configuredAutomationClients(bindings:AutomationBindings):AutomationClient[]|null {
+ const base=parseClients(bindings.AUTOMATION_CLIENTS ?? (bindings.ASSESSOR_CLIENT ? '[]' : undefined));
+ if(!base)return null;
+ if(!bindings.ASSESSOR_CLIENT)return base;
+ const extra=parseClients('['+bindings.ASSESSOR_CLIENT+']');
+ if(!extra||extra.length!==1)return null;
+ const client=extra[0];
+ if(client.scopes.some(s=>!['jobs:assess','attachments:read'].includes(s))||!client.scopes.includes('jobs:assess')||client.learnerIds?.length!==1||!client.purposes?.length||client.purposes.some(p=>!['submission','recheck'].includes(p))||base.some(c=>c.id===client.id)||base.length>=32)return null;
+ return [...base,client];
 }
 
 function equalHash(expected: string, actual: string): boolean {
@@ -122,7 +135,7 @@ export async function authorizeAutomation(
 ): Promise<AutomationAuthorization> {
   const issuer = parseIssuer(bindings.ACCESS_TEAM_DOMAIN);
   const audience = bindings.AUTOMATION_ACCESS_AUD?.trim();
-  const clients = parseClients(bindings.AUTOMATION_CLIENTS);
+  const clients = configuredAutomationClients(bindings);
   const local = scope.startsWith('jobs:') && bindings.APP_ENV === 'local' && bindings.ENVIRONMENT === 'local' && new URL(request.url).hostname === 'localhost';
   if ((!local && (!issuer || !audience)) || !clients) return { response: failure(503, 'Automation authorization is not configured.') };
 

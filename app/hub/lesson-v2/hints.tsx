@@ -5,7 +5,9 @@ export function Hints({
   item,
   disabled,
   onReveal,
+  formatText = (text:string)=>text,
 }: {
+  formatText?:(text:string)=>string;
   item: ItemView;
   disabled: boolean;
   onReveal: (level: "hint1" | "hint2" | "solution") => void;
@@ -35,13 +37,13 @@ export function Hints({
       </div>
       {item.revealed.hints.map((hint, i) => (
         <p key={i} className="rounded bg-rose-soft p-3">
-          {hint}
+          {formatText(hint)}
         </p>
       ))}
       {item.revealed.solution && (
         <div className="border border-line p-4">
-          <p className="whitespace-pre-wrap">{item.revealed.solution}</p>
-          <p>{item.revealed.explanation}</p>
+          <p className="whitespace-pre-wrap">{formatText(item.revealed.solution)}</p>
+          <p>{item.revealed.explanation&&formatText(item.revealed.explanation)}</p>
         </div>
       )}
     </div>

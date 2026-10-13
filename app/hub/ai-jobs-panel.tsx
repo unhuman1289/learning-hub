@@ -85,7 +85,7 @@ export function AiJobsPanel() {
     <section aria-label="Lượt soạn và chấm" className="grid gap-4">
       <h2 className="font-print text-2xl">Lượt soạn và chấm</h2>
       <p className="text-sm text-muted">
-        Hàng đợi và kết quả đã lưu. Runner AI thật chưa kết nối trong đợt H5; kiểm thử bằng runner giả chỉ dùng tài khoản thử.
+        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. Soạn bài qua ChatGPT và chấm câu mở là hai kết nối riêng.
       </p>
       <div className="flex flex-wrap gap-3">
         <label>

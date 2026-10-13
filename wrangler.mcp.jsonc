@@ -42,6 +42,25 @@
         }
       ],
       "preview_urls": false
+    },
+    "production": {
+      "name": "learning-hub-mcp-prod",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "APP_ORIGIN": "https://learning-hub-mcp-prod.tranvu-812.workers.dev",
+        "MCP_ENABLED": "false",
+        "HUB2_ENABLED": "false"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "learning-hub-prod",
+          "database_id": "545cedea-a4a5-4bdb-b370-8d447fe0833c",
+          "migrations_dir": "drizzle"
+        }
+      ]
     }
   },
   "preview_urls": false

@@ -63,3 +63,14 @@ test('automation credentials require both the scoped bearer key and matching Acc
   const unconfigured = await authorizeAutomation(request(), { ...env, AUTOMATION_CLIENTS: undefined }, 'runs:create', keyResolver);
   assert.equal('response' in unconfigured && unconfigured.response.status, 503);
 });
+
+import {configuredAutomationClients} from '../lib/auth/automation.ts';
+test('separate assessor client preserves planner permissions and cannot broaden its scope',()=>{
+ const planner={id:'planner',keySha256:'a'.repeat(64),accessClientId:'token-1234.access',scopes:['jobs:plan']};
+ const assessor={id:'assessor',keySha256:'b'.repeat(64),accessClientId:'token-1234.access',scopes:['jobs:assess','attachments:read'],learnerIds:['unhuman-id'],purposes:['submission','recheck']};
+ const bindings={AUTOMATION_CLIENTS:JSON.stringify([planner]),ASSESSOR_CLIENT:JSON.stringify(assessor)};
+ assert.deepEqual(configuredAutomationClients(bindings)[0].scopes,['jobs:plan']);assert.equal(configuredAutomationClients(bindings).length,2);
+ assert.equal(configuredAutomationClients({...bindings,ASSESSOR_CLIENT:JSON.stringify({...assessor,scopes:['jobs:plan']})}),null);
+ assert.equal(configuredAutomationClients({...bindings,ASSESSOR_CLIENT:JSON.stringify({...assessor,learnerIds:undefined})}),null);
+ assert.equal(configuredAutomationClients({...bindings,ASSESSOR_CLIENT:JSON.stringify({...assessor,id:'planner'})}),null);
+});

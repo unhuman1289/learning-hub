@@ -4,6 +4,10 @@ Source riêng tư: https://github.com/unhuman1289/learning-hub
 
 Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc)**: mỗi chủ đề là một cuốn sổ trên tủ sách; mở sổ để đọc bài, làm bài tập, lưu bài làm và theo dõi thời gian học. Bài được giao theo từng tài khoản; ghi chú và mốc dự án hiện còn dùng chung.
 
+## Pilot unhuman — H7/H8 (14/10/2026)
+
+Deutsch unhuman là pilot. Một bài luyện thêm thật đã lưu qua MCP staging; hạn mức không còn cộng bài nền v1. Cardio của unhuman đã xóa riêng trên staging/production. Assessor đã nối Queue/Hub staging nhưng model vẫn tắt, cần API key và nghiệm thu. Production chưa bật Hub2. Xem [vận hành AI](docs/ops/AI-RUNNERS.md), [lộ trình Deutsch](docs/curricula/deutsch-unhuman.md) và [phần H8 còn lại](docs/curricula/h8-expansion.md).
+
 ## MCP trực tiếp — staging (13/10/2026)
 
 ChatGPT có thể kết nối OAuth tới Worker riêng, dùng D1 staging, không qua Sites. Client QA đã kiểm tra OAuth, lưu/đọc lại bài và thu hồi quyền. Còn cần kết nối app và nghiệm thu công cụ ghi bằng tài khoản ChatGPT thật; chưa đặt lịch, chưa đổi production. Xem [hướng dẫn kết nối](docs/ops/DIRECT-MCP.md).

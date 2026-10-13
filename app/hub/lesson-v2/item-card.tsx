@@ -11,7 +11,9 @@ export function ItemCard({
   readOnly,
   onChange,
   onReveal,
+  formatText = (text:string)=>text,
 }: {
+  formatText?:(text:string)=>string;
   item: ItemView;
   value: DraftAnswers[string];
   disabled: boolean;
@@ -30,9 +32,9 @@ export function ItemCard({
   return (
     <article className="space-y-3 rounded border border-line p-4 sm:p-6">
       <h3 id={"prompt-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
-        {item.id}. {item.prompt}
+        {item.id}. {formatText(item.prompt)}
       </h3>
-      {item.instructions && <p>{item.instructions}</p>}
+      {item.instructions && <p>{formatText(item.instructions)}</p>}
       {item.input === "choice" ? (
         <fieldset aria-labelledby={"prompt-" + item.id}>
           <legend className="sr-only">Chọn đáp án</legend>
@@ -49,7 +51,7 @@ export function ItemCard({
                   })
                 }
               />
-              <span>{choice.text}</span>
+              <span>{formatText(choice.text)}</span>
             </label>
           ))}
         </fieldset>
@@ -121,7 +123,8 @@ export function ItemCard({
           ))}
         </div>
       )}
-      <Hints item={item} disabled={readOnly || disabled || uploading} onReveal={onReveal} />
+      {value.answer && formatText(value.answer)!==value.answer && <p className="text-sm text-muted">Công thức: {formatText(value.answer)}</p>}
+      <Hints formatText={formatText} item={item} disabled={readOnly || disabled || uploading} onReveal={onReveal} />
     </article>
   );
 }

@@ -1,3 +1,4 @@
+import {isChemicalFormula,plainChemicalText} from '../chemistry.ts';
 import type { AnswerKey } from '../contracts/lesson-package-v2.ts';
 import { parseNumericAnswer } from '../lesson-v2/numeric.ts';
 export type AutoGrade = { result: 'correct' | 'incorrect'; score: number; feedback: string };
@@ -33,11 +34,13 @@ export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
       Math.abs(actual.value - expected.value) <= key.tolerance + Number.EPSILON * Math.max(1, Math.abs(expected.value)) * 4 &&
       (!actual.unit || actual.unit.normalize('NFC') === unit.normalize('NFC'));
   } else {
-    const value = normalizeText(answer);
+    const chemistry=key.caseSensitive&&key.accepted.some(c=>isChemicalFormula(plainChemicalText(c)));
+    const normalize=(text:string)=>normalizeText(chemistry?plainChemicalText(text):text);
+    const value = normalize(answer);
     correct = key.accepted.some((candidate) =>
       key.caseSensitive
-        ? normalizeText(candidate) === value
-        : normalizeText(candidate).toLocaleLowerCase('de-DE') === value.toLocaleLowerCase('de-DE'),
+        ? normalize(candidate) === value
+        : normalize(candidate).toLocaleLowerCase('de-DE') === value.toLocaleLowerCase('de-DE'),
     );
   }
   return {

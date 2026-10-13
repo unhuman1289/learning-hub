@@ -1,11 +1,12 @@
 import { lessonPackageV2, type LessonItem, type LessonPackageV2 } from '../contracts/lesson-package-v2.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
+import {isChemicalFormula,isChemistryNotebook} from '../chemistry.ts';
 import { parseNumericAnswer } from './numeric.ts';
 
 /** One problem with a lesson package; codes match docs/hub2/AI-API.md §4. */
 export type LessonIssue = { path: string; code: string; message: string };
-export type ValidateOptions = { maxDifficulty?: number; sensitivity?: SubjectSensitivity };
+export type ValidateOptions = { maxDifficulty?: number; sensitivity?: SubjectSensitivity; subjectTitle?:string };
 
 const MAX_BYTES = 96 * 1024;
 const stagesFor = {
@@ -83,6 +84,10 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
     if (!lesson.sources.length) issue('/sources', 'schema', 'A reading lesson needs opened sources.');
   }
 
+  if(isChemistryNotebook(options.subjectTitle??''))lesson.items.forEach((item,index)=>{
+    if(item.key?.type==='text'&&item.key.accepted.some(isChemicalFormula)&&!item.key.caseSensitive)
+      issue(`/items/${index}/key/caseSensitive`,'chemistry_case','Đáp án công thức phải phân biệt hoa/thường (Co khác CO).');
+  });
   lesson.items.forEach((item, index) => issues.push(...itemIssues(item, `/items/${index}`, maxDifficulty)));
 
   const learnerText = [

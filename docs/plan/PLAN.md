@@ -23,7 +23,7 @@ Cập nhật 13/10/2026. **Đây là plan triển khai duy nhất của Learning
 | H5.9 | Mỗi lượt soạn bài chỉ một sổ, context nhắm 32 KB, gộp truy vấn. Đo bằng `scripts/benchmark-cpu-local.mjs` (sổ Deutsch 14 ngày, bài 15 KB): mỗi bước ≤ 3 ms CPU trên Node và ≤ 33 truy vấn D1. Cron chia giờ 03 (xếp job), 04–05 (tính lại ≤ 10 kỹ năng), 06 (cảnh báo). Chưa đo lại bằng Wrangler tail trên staging. |
 | H6.1–H6.5 | Phản đối và chấm lại, yêu cầu "Hỏi thêm"/"Xin thêm bài", bài khám phá (sổ "Khám phá" do server tạo, `ai_enabled = 0` để không có job hằng đêm), Sổ liên lạc, chỉ số chấm, "Chấm sai cần xem". Migration 0014. |
 | Cổng B | Chưa xét: cần AI chấm thật (H7.3) để có dữ liệu phản đối thật. |
-| H7.1 | MCP trực tiếp trên Worker staging đã triển khai theo yêu cầu 13/10. OAuth + ghi/đọc lại bằng client QA đạt; còn nghiệm thu app ChatGPT thật và scheduled task. Sites giữ nguyên. |
+| H7.1 | App thật đã đọc/ghi qua MCP: no_action được lưu và bài luyện thêm Deutsch thật có ID đọc lại. Còn scheduled task cloud/3 đêm. Sites giữ nguyên. |
 
 Nghiệm thu và phiên bản staging: [VALIDATION.md](../VALIDATION.md). Cách giao bài và dùng thử: [hub2-pilot.md](../ops/hub2-pilot.md). Câu mở chưa được AI chấm; job/runner ở H5/H7. Fixture Toán/Hóa là bài nhập thử tự soạn, chưa chứng minh bao phủ hay phù hợp toàn bộ GDPT 2018.
 
@@ -673,11 +673,13 @@ Theo AGENTS.md:
 - **Chấp nhận khi:** 3/3 đêm `succeeded`; không vi phạm bất biến; lời phê dùng được (phụ huynh đọc thử).
 - **Phụ thuộc:** H7.4, H7.5. **Cỡ:** S, cộng 3 ngày.
 
-#### H7.7 Pilot Ếch × Deutsch (3 tuần)
-- **Việc:** chỉ bật `ai_enabled` cho sổ Deutsch của Ếch trên production. Mỗi tuần: phụ huynh soát 20 câu đã chấm, đọc chỉ số, ghi 3 câu hỏi cảm nhận. Sửa prompt hay luật nếu cần, mỗi lần sửa là một PR.
+#### H7.7 Pilot Deutsch của unhuman (3 tuần)
+- **Việc:** chỉ bật `ai_enabled` cho sổ Deutsch của unhuman trên production sau các cổng nghiệm thu. Mỗi tuần: unhuman soát 20 câu đã chấm, đọc chỉ số, ghi 3 câu hỏi cảm nhận. Sửa prompt hay luật nếu cần, mỗi lần sửa là một PR.
 - **Chấp nhận khi:** **Cổng C** (§15). **Cỡ:** 3 tuần.
 
 ### H8 — Mở rộng và dọn dẹp
+
+Quyết định 14/10/2026: Deutsch unhuman (H8.3) làm pilot trước Toán/Hóa của Ếch. Cardio loại khỏi unhuman; không xóa Cardio của người khác. Các cổng chất lượng/dùng thật vẫn áp dụng, không dùng test giả thay nghiệm thu.
 
 Mỗi bước mở rộng chạy ít nhất 1 tuần và đọc lại chỉ số pilot trước bước sau.
 
@@ -1066,3 +1068,21 @@ H4 backend and H5 result writer are grouped for one staging release because evid
 Theo yêu cầu trực tiếp của chủ dự án: bổ sung Worker `learning-hub-mcp-staging`, OAuth/PKCE và migration 0015 trên D1 staging. Đường mới: ChatGPT → MCP Worker → các hàm job v2 → D1 staging; không thông qua Sites, không dùng quyền service token chung. Quyền chỉ soạn bài của chính tài khoản đã duyệt và cấp consent; không chấm/admin. API khóa khi MCP/HUB2 tắt. Có trang thu hồi kết nối.
 
 OAuth, MCP, lưu bài giả/đọc lại, refresh và thu hồi đã đạt trên HTTPS staging. Chưa nghiệm thu kết nối/ghi của tài khoản ChatGPT thật, chưa đặt lịch cloud, chưa bật production MCP hoặc H4/H5 production. Cầu nối Sites và DNS giữ nguyên. Các cổng nghiệm thu còn lại không được coi là hoàn tất bởi phép thử QA. Hướng dẫn và giới hạn: [DIRECT-MCP](../ops/DIRECT-MCP.md).
+
+## Đợt H7–H8 unhuman — 14/10/2026
+
+| Phần | Đã làm / giới hạn nghiệm thu |
+|---|---|
+| H7.1 | OAuth MCP trực tiếp; lưu và đọc lại bài thực `les_6e79984e6d82480cc66a` trong sổ unhuman/Deutsch, không thay primary. Scheduled task chưa được đăng ký. |
+| H7.2 | Queue Free tạo được, consumer chờ HTTP 130.026 giây qua service binding đạt; Worker probe/Queue tạm dọn sau đo. Chưa chứng minh latency API model thật. |
+| H7.3 | Worker assessor staging, Queue thật + cron dự phòng, quyền riêng jobs:assess/attachments cho unhuman, kết nối Hub qua Access đạt. Model tắt; thiếu API key/hạn mức và bài nộp thật để thử chấm. |
+| H7.4 | Prompt soạn/chấm; 25 bài chuẩn dự thảo, 5 thử injection, 5 ảnh tự soạn. Đáp án chưa được người duyệt; không tuyên bố 90% chất lượng. |
+| H7.5 | Config production MCP/assessor flags false; drill 0009–0015 giữ nguyên 4 bài production hiện tại. Chưa áp migration/deploy production; cổng dùng thật chưa đạt. |
+| H7.6–H7.7 | Runbook, receipt report và công cụ nghiệm thu; chưa có 3 đêm hoặc một tuần/3 tuần học thật. Pilot đổi sang unhuman. |
+| H8.1 | Fixture/lớp reader nhập được từ H2; chuẩn bị nội dung theo bộ sách còn thiếu tên sách/tiến độ và chấm ảnh thật. Không bật AI cho trẻ. |
+| H8.2 | Hiển thị công thức chỉ trong sổ Hóa, giữ raw answer; server bắt key công thức phân biệt hoa/thường. Giáo trình và dùng thử một tuần chưa đạt. |
+| H8.3 | Lộ trình A2→B2 và bài thực 20 phút; sửa placeholder A1 thành A2 tự báo trên staging, không nâng mastery. Chưa nghiệm thu 20 lời phê/một tuần. |
+| H8.4–H8.5 | Phạm vi/content runbook chuẩn bị; chưa tạo giáo trình đầy đủ, chưa có 5 bài được người học duyệt hoặc hai tuần học thật. |
+| H8.6 | R2 backup format4 tải lại đúng hash/restore 29 bảng trên database mới; Cardio unhuman xóa trên cả hai môi trường với backup. Chưa gỡ v1/Sites/drop learning_slots vì production vẫn dùng v1. |
+
+Chi tiết: [AI-RUNNERS](../ops/AI-RUNNERS.md), [Deutsch curriculum](../curricula/deutsch-unhuman.md), [H8 scope](../curricula/h8-expansion.md), [VALIDATION](../VALIDATION.md). Không có model call trả phí hoặc task ChatGPT cloud nào được tạo trong đợt này.

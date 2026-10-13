@@ -1,3 +1,4 @@
+import {openWorkMinutesSql} from '../open-work.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { planContext, type PlanContext } from '../../contracts/ai-common.ts';
@@ -19,7 +20,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     .all<{ day: string; minutes: number }>();
   const open = await db
     .prepare(
-      "SELECT coalesce(sum(coalesce(est_minutes,json_extract(payload,'$.minutes'),0)),0) AS minutes FROM learning_lessons WHERE user_id=? AND completed_at IS NULL",
+      openWorkMinutesSql,
     )
     .bind(job.learner_id)
     .first<{ minutes: number }>();
