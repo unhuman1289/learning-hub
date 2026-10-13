@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
 import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-jobs/queue.ts';
 import { refreshSkills } from '../lib/learner-model/nightly.ts';
+import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
@@ -660,5 +661,82 @@ test('nightly refresh keeps an AI review date while evidence is unchanged and st
   assert.equal(state.review_source, 'ai');
   assert.equal(state.updated_at, later.toISOString());
   assert.deepEqual(await refreshSkills(db, later, 1), { refreshed: 0, failed: 0 }, 'a skill is refreshed once a day');
+  db.sqlite.close();
+});
+
+async function gradedWrong() {
+  const ctx = await assigned();
+  await saveDraft(ctx.db, learner, ctx.lesson, { revision: 0, answers: { i1: { answer: '["a"]' } } }, now);
+  const sub = await submitLesson(ctx.db, learner, ctx.lesson, { clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'retrieval', itemIds: ['i1'] }, now);
+  return { ...ctx, attempt: sub.attempts[0] };
+}
+const disputeInput = { reason: 'answer_correct', message: 'Mình nghĩ đáp án a cũng đúng.', recheck: true };
+
+test('a dispute takes the answer out of the rules at once and cannot be opened twice', async () => {
+  const { db, attempt } = await gradedWrong();
+  const before = db.sqlite.prepare('SELECT attempts_total FROM skill_states').get().attempts_total;
+  const dispute = await createDispute(db, {}, learner, learner, attempt.id, { ...disputeInput, recheck: false }, now);
+  assert.equal(dispute.status, 'open');
+  assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'disputed');
+  assert.equal(db.sqlite.prepare('SELECT attempts_total FROM skill_states').get().attempts_total, before - 1);
+  await assert.rejects(createDispute(db, {}, learner, learner, attempt.id, disputeInput, now), (e) => e.status === 409);
+  await assert.rejects(createDispute(db, {}, 'someone-else', 'someone-else', attempt.id, disputeInput, now), (e) => e.status === 404);
+  db.sqlite.close();
+});
+
+test('AI recheck overturning an automatic grade supersedes it, flags the key and recomputes', async () => {
+  const { db, attempt } = await gradedWrong();
+  const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+  assert.equal(dispute.status, 'rechecking');
+  const [lease] = await leaseJobs(db, { ...client }, { ...input, kinds: ['assess'] }, 'test', now);
+  const job = await readJob(db, lease.jobId);
+  assert.equal(job.purpose, 'recheck');
+  const context = JSON.parse(job.context_snapshot);
+  assert.deepEqual(context.attempts.map((a) => a.attemptId), [attempt.id]);
+  const result = {
+    contract: 'assess-result/1',
+    contextHash: context.contextHash,
+    summary: 'Chấm lại',
+    grades: [{ attemptId: attempt.id, result: 'correct', score: 1, rubricScores: [], feedback: 'Đáp án a cũng đúng.', correction: '', errors: [], checkItem: null }],
+    diagnosis: [],
+    masteryProposals: [],
+    errorPatternUpdates: [],
+    reviewProposals: [],
+    recheckDecision: { decision: 'overturned', explanation: 'Đáp án gốc thiếu lựa chọn a.' },
+    usage: { model: 'none', inputTokens: 0, outputTokens: 0, ms: 0 },
+  };
+  const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+  assert.equal(applied.status, 200);
+  const row = db.sqlite.prepare('SELECT a.status, g.grader, g.result FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?').get(attempt.id);
+  assert.deepEqual({ ...row }, { status: 'graded', grader: 'ai', result: 'correct' });
+  assert.equal(db.sqlite.prepare('SELECT superseded_by FROM grades WHERE id=?').get(attempt.current_grade_id ?? db.sqlite.prepare('SELECT grade_id FROM disputes').get().grade_id).superseded_by, applied.outcome.gradeIds[0]);
+  assert.equal(db.sqlite.prepare("SELECT flag FROM lesson_items WHERE item_id='i1'").get().flag, 'key_issue');
+  assert.equal(db.sqlite.prepare('SELECT status FROM disputes').get().status, 'overturned');
+  // One AI recheck per answer: the next dispute goes to a person.
+  const again = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+  assert.equal(again.status, 'needs_human');
+  db.sqlite.close();
+});
+
+test('without recheck budget the dispute waits for a person; a guardian grade is final', async () => {
+  const { db, attempt } = await gradedWrong();
+  db.sqlite.prepare('UPDATE learner_settings SET ai_budget=? WHERE user_id=?').run(JSON.stringify({ recheckPerDay: 0 }), learner);
+  const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+  assert.equal(dispute.status, 'needs_human');
+  const resolved = await resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'set', result: 'correct', score: 1, feedback: 'Bố mẹ xem lại: đúng.', note: '' }, now);
+  assert.equal(resolved.status, 'overturned');
+  const row = db.sqlite.prepare('SELECT a.status, g.grader FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?').get(attempt.id);
+  assert.deepEqual({ ...row }, { status: 'graded', grader: 'guardian' });
+  await assert.rejects(resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'keep', note: '' }, now), (e) => e.status === 409);
+  db.sqlite.close();
+});
+
+test('voiding an item removes it from evidence', async () => {
+  const { db, attempt } = await gradedWrong();
+  const dispute = await createDispute(db, {}, learner, learner, attempt.id, { ...disputeInput, reason: 'item_wrong', recheck: false }, now);
+  await escalateDispute(db, learner, dispute.id);
+  await resolveDispute(db, learner, dispute.id, { id: 'admin', asAdmin: true }, { decision: 'void', note: 'Đề sai.' }, now);
+  assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'void');
+  assert.equal(db.sqlite.prepare("SELECT flag FROM lesson_items WHERE item_id='i1'").get().flag, 'item_void');
   db.sqlite.close();
 });

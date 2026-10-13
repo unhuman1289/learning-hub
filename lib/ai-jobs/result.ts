@@ -7,6 +7,8 @@ import { canonical } from './context/common.ts';
 import { leasedJob, readJob } from './lease.ts';
 import { preparePlan } from './apply/plan.ts';
 import { prepareAssess } from './apply/assess.ts';
+import { prepareRecheck } from './apply/recheck.ts';
+import { recomputeSkill } from '../learner-model/recompute.ts';
 
 export async function applyResult(
   db: EvidenceDb,
@@ -31,7 +33,9 @@ export async function applyResult(
   const prepared = parsed.success
     ? job.kind === 'plan'
       ? await preparePlan(db, job, JSON.parse(job.context_snapshot!) as PlanContext, parsed.data as typeof planResult._output, token, now)
-      : await prepareAssess(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
+      : job.purpose === 'recheck'
+        ? await prepareRecheck(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
+        : await prepareAssess(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
     : null;
   if (prepared) issues = prepared.errors;
   if (issues.length) {
@@ -138,5 +142,11 @@ export async function applyResult(
   const saved = await readJob(db, id);
   if (saved?.status !== 'succeeded' || saved.result_hash !== hash)
     throw new ApiError(409, 'Lease hoặc dữ liệu vừa thay đổi; đọc lại job trước khi thử.');
+  // A recheck changes which grade counts; skills follow the committed result.
+  if (job.purpose === 'recheck' && 'skillIds' in prepared)
+    for (const skillId of prepared.skillIds)
+      await recomputeSkill(db, job.learner_id, skillId, now).catch((error) =>
+        console.error('Skill not recomputed after recheck:', error instanceof Error ? error.message : error),
+      );
   return { status: 200, outcome: JSON.parse(saved.outcome!), replayed: false };
 }

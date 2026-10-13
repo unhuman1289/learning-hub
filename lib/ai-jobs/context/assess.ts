@@ -24,9 +24,10 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
   const lesson = JSON.parse(String(sub.payload));
   const { results: attempts = [] } = await db
     .prepare(
-      `SELECT a.*,i.stage,i.payload,g.result,g.grader,g.feedback FROM attempts a JOIN lesson_items i ON i.lesson_id=a.lesson_id AND i.item_id=a.item_id LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.submission_id=? AND a.learner_id=? ORDER BY a.item_id`,
+      `SELECT a.*,i.stage,i.payload,g.result,g.grader,g.feedback FROM attempts a JOIN lesson_items i ON i.lesson_id=a.lesson_id AND i.item_id=a.item_id LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.submission_id=? AND a.learner_id=? ${dispute ? 'AND a.id=?' : ''} ORDER BY a.item_id`,
     )
-    .bind(sub.id, job.learner_id)
+    // A recheck looks only at the disputed answer, graded by the grade under dispute.
+    .bind(sub.id, job.learner_id, ...(dispute ? [dispute.attempt_id] : []))
     .all<Record<string, unknown>>();
   const items = [];
   let imageCount = 0;
