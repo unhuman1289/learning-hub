@@ -1,4 +1,4 @@
-import {z} from 'zod';
+import {z} from 'zod/v3';
 import {learningTracks} from './daily-policy.ts';
 const text=z.string().trim().min(1).max(18000);
 const source=z.object({title:text,url:z.string().url().refine(v=>v.startsWith('https://')),readScope:text,retrievedAt:z.string().datetime(),publishedAt:z.string().max(100).nullable()});

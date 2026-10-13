@@ -23,7 +23,7 @@ Cập nhật 13/10/2026. **Đây là plan triển khai duy nhất của Learning
 | H5.9 | Mỗi lượt soạn bài chỉ một sổ, context nhắm 32 KB, gộp truy vấn. Đo bằng `scripts/benchmark-cpu-local.mjs` (sổ Deutsch 14 ngày, bài 15 KB): mỗi bước ≤ 3 ms CPU trên Node và ≤ 33 truy vấn D1. Cron chia giờ 03 (xếp job), 04–05 (tính lại ≤ 10 kỹ năng), 06 (cảnh báo). Chưa đo lại bằng Wrangler tail trên staging. |
 | H6.1–H6.5 | Phản đối và chấm lại, yêu cầu "Hỏi thêm"/"Xin thêm bài", bài khám phá (sổ "Khám phá" do server tạo, `ai_enabled = 0` để không có job hằng đêm), Sổ liên lạc, chỉ số chấm, "Chấm sai cần xem". Migration 0014. |
 | Cổng B | Chưa xét: cần AI chấm thật (H7.3) để có dữ liệu phản đối thật. |
-| H7.1 | Chưa làm: cầu nối ChatGPT cần thêm công cụ ghi v2; việc mở rộng quyền ghi này chờ chủ dự án duyệt. |
+| H7.1 | MCP trực tiếp trên Worker staging đã triển khai theo yêu cầu 13/10. OAuth + ghi/đọc lại bằng client QA đạt; còn nghiệm thu app ChatGPT thật và scheduled task. Sites giữ nguyên. |
 
 Nghiệm thu và phiên bản staging: [VALIDATION.md](../VALIDATION.md). Cách giao bài và dùng thử: [hub2-pilot.md](../ops/hub2-pilot.md). Câu mở chưa được AI chấm; job/runner ở H5/H7. Fixture Toán/Hóa là bài nhập thử tự soạn, chưa chứng minh bao phủ hay phù hợp toàn bộ GDPT 2018.
 
@@ -1060,3 +1060,9 @@ Mỗi tuần dành 30 phút: xem trang Lượt AI và chỉ số chấm, đọc 
 ## H4–H5 integration status — 13/10/2026
 
 H4 backend and H5 result writer are grouped for one staging release because evidence diagnoses, grade/state writes and migrations 0012/0013 must be deployed together. H4 rules have independent tests. Local and staging fake-runner E2E pass; 210 tests, typecheck, lint, schemas and build pass. H5.9 measured large payloads and recorded a concrete Free-budget proposal; staging UI width and cross-account permissions passed. QA learning data was cleaned up. Worst-case CPU has no Free safety margin, so production AI needs the bounded-workload follow-up described in VALIDATION. Real runner/ChatGPT scheduling remains H7; unhuman acceptance precedes production. Details: [VALIDATION](../VALIDATION.md), [operations](../ops/h5-staging.md).
+
+## H7.1: đầu nối ChatGPT trực tiếp — 13/10/2026
+
+Theo yêu cầu trực tiếp của chủ dự án: bổ sung Worker `learning-hub-mcp-staging`, OAuth/PKCE và migration 0015 trên D1 staging. Đường mới: ChatGPT → MCP Worker → các hàm job v2 → D1 staging; không thông qua Sites, không dùng quyền service token chung. Quyền chỉ soạn bài của chính tài khoản đã duyệt và cấp consent; không chấm/admin. API khóa khi MCP/HUB2 tắt. Có trang thu hồi kết nối.
+
+OAuth, MCP, lưu bài giả/đọc lại, refresh và thu hồi đã đạt trên HTTPS staging. Chưa nghiệm thu kết nối/ghi của tài khoản ChatGPT thật, chưa đặt lịch cloud, chưa bật production MCP hoặc H4/H5 production. Cầu nối Sites và DNS giữ nguyên. Các cổng nghiệm thu còn lại không được coi là hoàn tất bởi phép thử QA. Hướng dẫn và giới hạn: [DIRECT-MCP](../ops/DIRECT-MCP.md).

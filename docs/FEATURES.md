@@ -83,3 +83,9 @@ Cột **Trạng thái**:
 - Một ô trả lời cho cả bài; chưa lưu câu trả lời theo từng câu hỏi, chưa chấm điểm.
 - Google Docs chỉ là liên kết; chưa đồng bộ.
 - `npm run dev` lỗi do hai bản `zod`; xem bản build bằng `wrangler dev` (ARCHITECTURE §9).
+
+## MCP trực tiếp — trạng thái
+
+Theo yêu cầu trực tiếp của chủ dự án: bổ sung Worker `learning-hub-mcp-staging`, OAuth/PKCE và migration 0015 trên D1 staging. Đường mới: ChatGPT → MCP Worker → các hàm job v2 → D1 staging; không thông qua Sites, không dùng quyền service token chung. Quyền chỉ soạn bài của chính tài khoản đã duyệt và cấp consent; không chấm/admin. API khóa khi MCP/HUB2 tắt. Có trang thu hồi kết nối.
+
+OAuth, MCP, lưu bài giả/đọc lại, refresh và thu hồi đã đạt trên HTTPS staging. Chưa nghiệm thu kết nối/ghi của tài khoản ChatGPT thật, chưa đặt lịch cloud, chưa bật production MCP hoặc H4/H5 production. Cầu nối Sites và DNS giữ nguyên. Các cổng nghiệm thu còn lại không được coi là hoàn tất bởi phép thử QA. Hướng dẫn và giới hạn: [DIRECT-MCP](ops/DIRECT-MCP.md).

@@ -150,3 +150,15 @@ Final staging code deployment: `f64cc4d2-ce38-452d-96de-6b3c2a6db96a`. Real unhu
 - H6 local acceptance in the browser (child + parent test accounts, local only): dispute with recheck shows "Đang chấm lại"; dispute without recheck → "Nhờ phụ huynh xem" → parent sets a grade in Sổ liên lạc; "Hỏi thêm" request shows "Đang chờ soạn"; quality table shows 2 disputes, 1 overturned, 1 key issue; admin "Chấm sai cần xem" empty after resolution; 375 px without horizontal overflow.
 - 222 tests, typecheck, lint, contracts and build pass.
 - Staging: 0014 applied; Worker version `f996b84e-69fd-4879-ad88-948d4f5271f4`, `APP_VERSION=hub2-h6-2026-10-13`, cron `0 1-5 * * *`. Anonymous and forged `oai-authenticated-user-*` probes of the new request, dispute and quality routes return 401. Production unchanged.
+
+## Direct MCP staging — 13/10/2026
+
+- Dedicated Worker `learning-hub-mcp-staging`, version `6d0cfd3f-80b7-4744-868e-b90329d85654`. Endpoint `/mcp`; no production/DNS/Sites deployment. Main Hub config unchanged.
+- Additive migration 0015 applied to staging after private SQL export and SQLite drill: exact cells in 35 pre-existing tables unchanged, foreign keys pass.
+- HTTPS E2E PASS: missing bearer 401/discovery, DCR, signed login continuation, consent, PKCE/resource token, MCP initialize and 7 tools, own learner context, check/save/readback of a synthetic lesson, refresh, revocation denying an already issued JWT (403).
+- QA job `job_643649b681ee633cde7d` saved lesson `les_901112ec4d516bacf21c`; QA fixtures subsequently removed, QA identities blocked and their grants/tokens revoked. No real content generation claimed.
+- Real learner preservation after cleanup PASS: 8 lessons, 7 subjects, 3 skills, 18 lesson items, 5 submissions, 10 attempts, 8 grades; exact cell digests match pre-migration export for these seven learning tables.
+- 237/237 tests pass; typecheck, lint, schema check and main Vinext build pass. No secrets displayed or committed. Existing auth/automation v1 schema behavior retained via `zod/v3` compatibility after OAuth peer dependency upgrade.
+- Public oversized registration body is rejected (413); spoofed Sites identity headers cannot authenticate MCP (401). Bodies are bounded while streaming, including requests without Content-Length.
+- Remaining acceptance: actual ChatGPT account connects via OAuth, sees/calls write tools, creates a real Deutsch lesson and verifies its ID in Hub; scheduled cloud task availability and a real scheduled run. This does not satisfy production H4/H5 gates or all Free CPU limits.
+- Operations and setup: [DIRECT-MCP](ops/DIRECT-MCP.md).

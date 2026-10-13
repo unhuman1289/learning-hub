@@ -1,0 +1,48 @@
+{
+  "name": "learning-hub-mcp-local",
+  "main": "build/direct-mcp-worker.ts",
+  "compatibility_date": "2026-05-15",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "vars": {
+    "ENVIRONMENT": "local",
+    "APP_ORIGIN": "http://localhost:8874",
+    "MCP_ENABLED": "true",
+    "HUB2_ENABLED": "true"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "learning-hub",
+      "database_id": "00000000-0000-4000-8000-000000000000",
+      "migrations_dir": "drizzle"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "env": {
+    "staging": {
+      "name": "learning-hub-mcp-staging",
+      "workers_dev": true,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "APP_ORIGIN": "https://learning-hub-mcp-staging.tranvu-812.workers.dev",
+        "MCP_ENABLED": "true",
+        "HUB2_ENABLED": "true"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "learning-hub-staging",
+          "database_id": "6f2f1df1-1dcd-4810-8812-1c6e4d7ef1d5",
+          "migrations_dir": "drizzle"
+        }
+      ],
+      "preview_urls": false
+    }
+  },
+  "preview_urls": false
+}
