@@ -1,3 +1,5 @@
+import {env} from 'cloudflare:workers';
+import {readCurrentV2} from '../../../lib/lesson-v2/daily';
 import {getHubUser} from '../../../lib/auth/session';
 import {readDaily} from '../../../lib/daily-store';
 import {apiFailure} from '../../../lib/api-error';
@@ -12,7 +14,7 @@ export async function GET(req:Request){
  try{
   const learnerId=await resolveLearner(storage(),user,req,'read_work');
   if(learnerId instanceof Response)return learnerId;
-  return Response.json(await readDaily(learnerId,user.role==='admin'&&learnerId===user.id),{headers});
+  const daily=await readDaily(learnerId,user.role==='admin'&&learnerId===user.id);return Response.json({...daily,...(env.HUB2_ENABLED==='true'?{v2Active:await readCurrentV2(storage(),learnerId)}:{})},{headers});
  }catch(e){console.error(e);return Response.json({error:'Không tải được bài học. Hãy thử lại.'},{status:503,headers});}
 }
 export async function POST(req:Request){

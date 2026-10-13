@@ -6,6 +6,7 @@ import { OakDesk, WoodFrame } from "../../components/notebook/house";
 import { RuledPage, cx } from "../../components/notebook/paper";
 import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
+import {ImportPanel} from "./lesson-v2/import-panel";
 import { FamilyAdmin } from "./family-admin";
 import { JournalList, journalKinds, type FormRequest } from "./journal";
 import { trackIds, trackInfo, type TrackId } from "./model";
@@ -75,6 +76,7 @@ export function AdminView({ daily, workspace }: { daily: DailyApi; workspace: Wo
       <WoodFrame label="Gia đình">
         <h2 className="font-print text-2xl font-medium">Gia đình</h2>
         <p className="mb-4 mt-2 text-sm text-muted">Đặt trẻ em, biệt danh dùng trong bài và lời phê, và phụ huynh của từng người.</p>
+        <ImportPanel/>
         <FamilyAdmin />
       </WoodFrame>
       <WoodFrame label="Cập nhật bài và sao lưu">

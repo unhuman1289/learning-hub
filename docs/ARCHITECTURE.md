@@ -210,3 +210,16 @@ Cần làm: commit Phase 1 vào `main`. Trong cùng commit đó, xoá `drizzle/0
 - `docs/ops/ACCESS.md` ghi mã lỗi khác với code.
 - `AGENTS.md` vẫn ghi Sites giữ v5 tới cutover và `/api/learning-run` còn hoạt động.
 - `docs/DEPLOYMENT.md`, `docs/PHASE-0-OPERATIONS.md`, `LEARNING-UPDATES.md` mô tả thời Sites; đã gắn nhãn lịch sử.
+
+
+## H2/H3 — đợt tích hợp 13/10/2026 (staging, chưa production)
+
+- Giao diện v2 dùng `HUB2_ENABLED=true` ở local/staging; đọc bài từ D1, không lấy local draft làm dữ liệu chính.
+- `GET /api/lessons/{id}`: strip key/ẩn gợi ý, kèm submission gần nhất; `PUT .../draft` dùng revision; `POST .../items/{itemId}/reveal` ghi support trước khi trả.
+- `POST .../submissions`: body chỉ chứa client UUID, revision và danh sách câu/giai đoạn. Server lấy đáp án đã lưu và mức hỗ trợ của server. Một D1 batch tạo submission, attempts, grades; replay cùng mã trả lại kết quả cũ. Không nhận điểm/support do client gửi.
+- `GET /api/submissions/{id}`: chủ bài, admin hoặc guardian được phép đọc; người học khác 404. Ghi bài của người khác không được phép, kể cả admin/guardian.
+- `PUT .../completion`: CAS timestamp, hoàn thành độc lập với điểm. Import admin kiểm cutoff 03:00 Berlin; không ghi đè bài cũ, đáp án hay lịch sử.
+- `POST /api/admin/lessons/import`: active admin + cùng Origin + contract/privacy validation; lỗi có path. Giao bài và item/skill refs cùng batch.
+- `0011_evidence.sql`: submissions → attempts → grades, thêm disputes cho H6 (chưa có luồng phản đối). Backup format 4 giữ cả bảng mới, điểm thập phân và retry links; ảnh R2 vẫn có vòng đời riêng 30 ngày.
+- Câu mở `pending`, submission `deferred`. Chưa có assessor hoặc scheduled planner; trạng thái này không được trình bày như đã chấm.
+- UI nháp giữ trong bộ nhớ khi đổi bài/mất mạng; chưa lưu bền vững offline qua đóng/tải lại tab. Lỗi nộp không rõ kết quả giữ nguyên UUID; không tạo lượt mới mù quáng.

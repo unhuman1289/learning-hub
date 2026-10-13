@@ -1,6 +1,7 @@
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { apiFailure } from '../../../../lib/api-error';
+import {readSubmission} from '../../../../lib/evidence/submit';
 import { readLessonV2 } from '../../../../lib/lesson-v2/store';
 import { lessonTarget, privateHeaders } from '../../../../lib/lesson-v2/route-helpers';
 
@@ -16,7 +17,9 @@ export async function GET(req: Request, context: Context) {
     const db = storage();
     const learnerId = await lessonTarget(db, user, req, id, 'read_work');
     if (learnerId instanceof Response) return learnerId;
-    return Response.json({ lesson: await readLessonV2(db, learnerId, id) }, { headers: privateHeaders });
+    const lesson=await readLessonV2(db,learnerId,id);
+    const latest=await db.prepare('SELECT id FROM submissions WHERE lesson_id=? AND learner_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').bind(id,learnerId).first<{id:string}>();
+    return Response.json({lesson:{...lesson,lastSubmission:latest?await readSubmission(db,learnerId,latest.id):null}},{headers:privateHeaders});
   } catch (error) {
     return apiFailure(error, 'Chưa mở được bài.', privateHeaders);
   }

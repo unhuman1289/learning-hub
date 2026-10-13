@@ -1,0 +1,212 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "Modalverb: tự viết câu đúng",
+  "objective": "Tự viết câu với können, möchten, müssen mà không chia động từ ở cuối câu.",
+  "why": "Luyện vị trí động từ và cách tự viết câu trong tiếng Đức A2; chưa có đánh giá đầu vào.",
+  "reasonRefs": [
+    "key:modalverb-infinitiv"
+  ],
+  "estMinutes": 25,
+  "level": "A1–A2",
+  "targetSkills": [
+    "key:modalverb-infinitiv"
+  ],
+  "sheet": {
+    "rules": [
+      "Modalverb chia theo chủ ngữ và đứng ở vị trí thứ 2.",
+      "Động từ chính để nguyên mẫu và đứng cuối câu."
+    ],
+    "explanation": "Câu có Modalverb giống một cái khung: Modalverb chia ở vị trí 2, động từ chính nguyên mẫu đóng khung ở cuối.",
+    "examples": [
+      {
+        "text": "Ich kann heute kochen.",
+        "correct": true
+      },
+      {
+        "text": "Ich kann heute kocht.",
+        "correct": false,
+        "note": "kocht → kochen"
+      }
+    ],
+    "mistakes": [
+      "Chia động từ chính ở cuối câu."
+    ],
+    "tips": [
+      "Modalverb nhận phần chia; động từ cuối câu thì nghỉ."
+    ],
+    "checklist": [
+      "Modalverb đã chia theo chủ ngữ?",
+      "Động từ cuối câu là nguyên mẫu?"
+    ]
+  },
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    {
+      "stage": "retrieval",
+      "itemIds": [
+        "i1",
+        "i2"
+      ]
+    },
+    {
+      "stage": "sheet",
+      "itemIds": []
+    },
+    {
+      "stage": "guided",
+      "itemIds": [
+        "i3",
+        "i4"
+      ]
+    },
+    {
+      "stage": "independent",
+      "itemIds": [
+        "i5"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 1,
+      "prompt": "Câu nào đúng?",
+      "choices": [
+        {
+          "id": "a",
+          "text": "Ich kann heute kocht.",
+          "errorLabel": "Chia động từ chính ở cuối câu sau Modalverb"
+        },
+        {
+          "id": "b",
+          "text": "Ich kann heute kochen."
+        }
+      ],
+      "key": {
+        "type": "choice",
+        "correct": [
+          "b"
+        ]
+      },
+      "hints": [],
+      "solution": "b: Ich kann heute kochen.",
+      "explanation": "kann đã chia theo ich; kochen giữ nguyên mẫu.",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "correct",
+      "input": "short",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 2,
+      "prompt": "Sửa câu: Lena kann heute Suppe kocht.",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "Lena kann heute Suppe kochen."
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Sau Modalverb, động từ cuối câu ở dạng nào?"
+      ],
+      "solution": "Lena kann heute Suppe kochen.",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "transform",
+      "input": "short",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 2,
+      "prompt": "Thêm möchten vào câu: Paul kauft einen Kuchen.",
+      "rubric": [
+        {
+          "criterion": "möchte chia đúng theo Paul",
+          "points": 1,
+          "skill": "key:modalverb-infinitiv"
+        },
+        {
+          "criterion": "kaufen nguyên mẫu ở cuối câu",
+          "points": 1,
+          "skill": "key:modalverb-infinitiv"
+        }
+      ],
+      "hints": [
+        "möchten với er/sie/es là dạng nào?",
+        "möchte ở vị trí 2, kaufen ra cuối câu."
+      ],
+      "solution": "Paul möchte einen Kuchen kaufen.",
+      "attachment": "none"
+    },
+    {
+      "id": "i4",
+      "activity": "transform",
+      "input": "short",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 3,
+      "prompt": "Đổi câu vừa viết thành câu hỏi Có/Không.",
+      "rubric": [
+        {
+          "criterion": "Modalverb đứng đầu câu",
+          "points": 1
+        },
+        {
+          "criterion": "kaufen nguyên mẫu ở cuối câu",
+          "points": 1
+        }
+      ],
+      "hints": [
+        "Câu hỏi Có/Không bắt đầu bằng động từ đã chia."
+      ],
+      "solution": "Möchte Paul einen Kuchen kaufen?",
+      "attachment": "none"
+    },
+    {
+      "id": "i5",
+      "activity": "create",
+      "input": "long",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 3,
+      "prompt": "Viết 3 câu về cuối tuần: một câu với können, một với möchten, một với müssen.",
+      "rubric": [
+        {
+          "criterion": "Modalverb chia đúng theo chủ ngữ",
+          "points": 1
+        },
+        {
+          "criterion": "Động từ chính nguyên mẫu ở cuối câu",
+          "points": 2
+        },
+        {
+          "criterion": "Câu đúng yêu cầu đề",
+          "points": 1
+        }
+      ],
+      "hints": [
+        "Bắt đầu bằng: Am Samstag …"
+      ],
+      "solution": "Ví dụ: Am Samstag kann ich lange schlafen. Ich möchte Fußball spielen. Am Sonntag muss ich Hausaufgaben machen.",
+      "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "W-Fragen với Modalverb"
+}

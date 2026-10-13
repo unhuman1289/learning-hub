@@ -1,9 +1,21 @@
 # Learning Hub — Plan triển khai
 
-Cập nhật 12/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). Chưa bắt đầu code.
+Cập nhật 12/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). H0–H2.4 đã có trong main; H2.5–H3.4 được triển khai cùng một đợt tích hợp trên nhánh `codex/hub2-h2-h3`, vì reader mới cần bảng submission và điểm. Chưa triển khai đợt này lên production.
 
 - **Thiết kế:** [docs/hub2/](../hub2/README.md): quyết định D1–D18, [hướng xây dựng bài học](../hub2/LESSON-DESIGN.md), [mô hình dữ liệu](../hub2/DATA-MODEL.md), [API AI](../hub2/AI-API.md).
 - **Plan cũ đã lưu trữ:** [plan v2](archive/learning-hub-plan-v2-cloudflare.md) (Phase 0–1, Cloudflare và cutover) và [plan 2026-10](archive/learning-hub-plan-2026-10.md). Phần còn dở của v2 nằm ở H0 (commit Phase 1, sửa B1–B2) và H7 (bật automation trên production); Phase 2 và các task P1.6, P1.9, P1.12 được thay bằng plan này (xem §18). Chỉ đọc plan cũ để tra lịch sử.
+
+## Hiện trạng H2.5–H3 (13/10/2026)
+
+| Task | Bằng chứng / phần còn lại |
+| --- | --- |
+| H2.5 | Reader skill, từng câu trên điện thoại, nháp có revision, gợi ý/lời giải được ghi server. |
+| H2.6 | Reader reading: sections, nguồn đã đọc, phân tích và đầu ra. Fixture D1 đọc từ tài liệu Cloudflare, tách ví dụ tự soạn. |
+| H2.7 | Admin nhập JSON đã duyệt, kiểm contract và giữ bài chưa xong. Seed local có 3 sổ cho demo Ếch, 4 bài Deutsch, Toán/Hóa mẫu và một bài reading cho người lớn. |
+| H3.1–H3.4 | Migration 0011; chấm câu đóng; nộp nguyên tử; UUID chống trùng; lịch sử làm lại; câu mở chờ chấm; hoàn thành/bỏ dấu riêng với điểm. |
+| H3.5 / Cổng A | **Chưa đạt:** cần phụ huynh duyệt bài và Ếch dùng thật ít nhất 3 bài trên điện thoại/máy tính trong một tuần. Test bằng tài khoản demo không thay cho mốc này. |
+
+Nghiệm thu và phiên bản staging: [VALIDATION.md](../VALIDATION.md). Cách giao bài và dùng thử: [hub2-pilot.md](../ops/hub2-pilot.md). Câu mở chưa được AI chấm; job/runner ở H5/H7. Fixture Toán/Hóa là bài nhập thử tự soạn, chưa chứng minh bao phủ hay phù hợp toàn bộ GDPT 2018.
 
 ## 0. Tóm tắt
 

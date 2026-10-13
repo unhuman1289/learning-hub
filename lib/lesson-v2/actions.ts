@@ -91,3 +91,12 @@ export async function snooze(db: Db, learnerId: string, lessonId: string, now = 
   await db.prepare('UPDATE learning_lessons SET snoozed_until = ? WHERE id = ? AND user_id = ?').bind(tomorrow, lessonId, learnerId).run();
   return { snoozedUntil: tomorrow };
 }
+
+/** Completion is a learner action, independent of grades; uses the current server timestamp. */
+export async function completeLesson(db:Db,learnerId:string,id:string,completed:boolean,expectedUpdated:string,now=new Date()){
+ const stamp=now.toISOString();
+ const result=await db.prepare("UPDATE learning_lessons SET completed_at=CASE WHEN ?=1 THEN COALESCE(completed_at,?) ELSE NULL END,updated=? WHERE id=? AND user_id=? AND package_version='2' AND updated=?").bind(completed?1:0,stamp,stamp,id,learnerId,expectedUpdated).run();
+ if(!result.meta.changes)throw new ApiError(409,'Bài đã đổi. Tải lại trước khi đánh dấu.');
+ const row=await db.prepare('SELECT completed_at,updated FROM learning_lessons WHERE id=? AND user_id=?').bind(id,learnerId).first<{completed_at:string|null;updated:string}>();
+ return {completedAt:row!.completed_at,updated:row!.updated,completed};
+}

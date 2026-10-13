@@ -10,6 +10,7 @@ declare namespace Cloudflare {
     DEPLOYMENT_ID?: string;
     ENVIRONMENT?: string;
     STAGING_SPIKE_LOCKDOWN?: string;
+    HUB2_ENABLED?:string;
     BETTER_AUTH_SECRET?: string;
     BOOTSTRAP_ADMIN_EMAIL?: string;
     RESEND_API_KEY?: string;

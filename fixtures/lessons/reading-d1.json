@@ -1,0 +1,139 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "reading",
+  "title": "D1: nơi lưu bài làm",
+  "objective": "Phân biệt code ứng dụng với dữ liệu được lưu, và giải thích vì sao đổi thiết bị vẫn đọc được bài làm.",
+  "why": "Bài đọc mẫu để kiểm tra khuôn reading; chưa suy ra trình độ người học.",
+  "reasonRefs": [],
+  "estMinutes": 15,
+  "level": "Nhập môn",
+  "targetSkills": [
+    "key:storage-state"
+  ],
+  "sheet": null,
+  "sections": [
+    {
+      "heading": "Đọc có giới hạn",
+      "text": "D1 là cơ sở dữ liệu do Cloudflare quản lý, dùng ngữ nghĩa SQL của SQLite và truy cập được từ Worker. Nguồn đã đọc chỉ là trang tổng quan; bài này không kiểm chứng riêng cơ chế đồng bộ hay toàn bộ giới hạn dịch vụ."
+    },
+    {
+      "heading": "Ví dụ tự soạn",
+      "text": "Trong Hub, mã giao diện nằm trong Git; câu trả lời nằm trong D1. Khi dùng máy khác, người học đăng nhập rồi ứng dụng đọc dữ liệu của đúng tài khoản. Việc commit code không thay thế sao lưu dữ liệu."
+    }
+  ],
+  "diagram": "Người học → ứng dụng Worker → D1\nGit → mã ứng dụng\nSao lưu riêng → khả năng phục hồi",
+  "stages": [
+    {
+      "stage": "read",
+      "title": "Đọc",
+      "itemIds": []
+    },
+    {
+      "stage": "analyze",
+      "title": "Phân tích",
+      "itemIds": [
+        "i1",
+        "i2"
+      ]
+    },
+    {
+      "stage": "output",
+      "title": "Đầu ra",
+      "itemIds": [
+        "i3"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "explain",
+      "input": "long",
+      "skills": [
+        "key:storage-state"
+      ],
+      "difficulty": 1,
+      "prompt": "Vì sao commit code không giữ hộ bài làm?",
+      "rubric": [
+        {
+          "criterion": "Phân biệt mã và dữ liệu",
+          "points": 2,
+          "skill": "key:storage-state"
+        },
+        {
+          "criterion": "Nêu hành động phù hợp",
+          "points": 2
+        }
+      ],
+      "hints": [
+        "Xét vai trò của Git và D1."
+      ],
+      "solution": "Git lưu mã. D1 lưu bài làm. Máy khác cần đăng nhập và đọc dữ liệu của tài khoản. Sao lưu dữ liệu tách khỏi commit code.",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "explain",
+      "input": "long",
+      "skills": [
+        "key:storage-state"
+      ],
+      "difficulty": 1,
+      "prompt": "Giải thích đường đi khi đăng nhập trên máy khác.",
+      "rubric": [
+        {
+          "criterion": "Phân biệt mã và dữ liệu",
+          "points": 2,
+          "skill": "key:storage-state"
+        },
+        {
+          "criterion": "Nêu hành động phù hợp",
+          "points": 2
+        }
+      ],
+      "hints": [
+        "Xét vai trò của Git và D1."
+      ],
+      "solution": "Git lưu mã. D1 lưu bài làm. Máy khác cần đăng nhập và đọc dữ liệu của tài khoản. Sao lưu dữ liệu tách khỏi commit code.",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "create",
+      "input": "long",
+      "skills": [
+        "key:storage-state"
+      ],
+      "difficulty": 1,
+      "prompt": "Viết đoạn hướng dẫn sao lưu code và dữ liệu riêng biệt.",
+      "rubric": [
+        {
+          "criterion": "Phân biệt mã và dữ liệu",
+          "points": 2,
+          "skill": "key:storage-state"
+        },
+        {
+          "criterion": "Nêu hành động phù hợp",
+          "points": 2
+        }
+      ],
+      "hints": [
+        "Xét vai trò của Git và D1."
+      ],
+      "solution": "Git lưu mã. D1 lưu bài làm. Máy khác cần đăng nhập và đọc dữ liệu của tài khoản. Sao lưu dữ liệu tách khỏi commit code.",
+      "attachment": "none"
+    }
+  ],
+  "output": "Viết 3 câu mô tả dữ liệu được lưu ở đâu và cần sao lưu gì.",
+  "sources": [
+    {
+      "title": "Cloudflare D1 — Overview",
+      "url": "https://developers.cloudflare.com/d1/",
+      "readScope": "Trang tổng quan: giới thiệu D1 và cách truy cập từ Worker; không chỉ abstract. Ví dụ Hub do tác giả tự soạn.",
+      "retrievedAt": "2026-10-13T08:56:35.312500Z",
+      "publishedAt": "2026-04-30 (ngày cập nhật trang)"
+    }
+  ],
+  "nextTopic": "Truy vấn và quyền truy cập dữ liệu."
+}

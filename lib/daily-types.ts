@@ -7,7 +7,8 @@ export type DailyContent = {
  nextTopic:string;
 };
 export type DailyLesson = {id:string,track:LearningTrack,assignedDate:string,completedAt:string|null,response:string,updated:string,content:DailyContent};
-export type DailyView = {active:DailyLesson[],history:DailyLesson[],lastRun:{day:string,updated:string,summary:unknown}|null,runs:RunEntry[],health:RunHealth,backup:{lastCreatedAt:string|null,due:boolean}};
+export type DailyView = {
+ v2Active?: {id:string;title:string;subjectTitle:string;subjectId:string;assignedDate:string;minutes:number|null}[];active:DailyLesson[],history:DailyLesson[],lastRun:{day:string,updated:string,summary:unknown}|null,runs:RunEntry[],health:RunHealth,backup:{lastCreatedAt:string|null,due:boolean}};
 
 export type RunItem={userId:string,track:LearningTrack,outcome:'updated'|'kept'|'skipped'|'error',reason:string,previousLessonId:string|null,lessonId:string|null,sources:DailyContent['sources']};
 export type RunEntry={id:string,day:string,status:'started'|'finished'|'failed',startedAt:string,finishedAt:string|null,summary:string,error:string|null,origin:string,items:RunItem[]};

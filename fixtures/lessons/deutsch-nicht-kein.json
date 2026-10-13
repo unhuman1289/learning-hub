@@ -1,0 +1,114 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "Nicht và kein: phủ định",
+  "objective": "Giải thích quy tắc và tự làm ba câu ngắn.",
+  "why": "Bài soạn tay để thử luồng học; cần phụ huynh duyệt trước khi giao.",
+  "reasonRefs": [],
+  "estMinutes": 15,
+  "level": "A2",
+  "targetSkills": [
+    "key:deutsch-basics"
+  ],
+  "sheet": {
+    "rules": [
+      "kein phủ định danh từ với ein hoặc không có mạo từ.",
+      "nicht phủ định động từ, tính từ hoặc phần khác."
+    ],
+    "explanation": "kein phủ định danh từ với ein hoặc không có mạo từ.\nnicht phủ định động từ, tính từ hoặc phần khác.",
+    "examples": [],
+    "mistakes": [],
+    "tips": [],
+    "checklist": [
+      "Có giải thích được cách làm bằng lời của mình?"
+    ]
+  },
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    {
+      "stage": "sheet",
+      "itemIds": []
+    },
+    {
+      "stage": "independent",
+      "itemIds": [
+        "i1",
+        "i2",
+        "i3"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:deutsch-basics"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền từ phủ định: Ich habe ___ Auto.",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "kein"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "kein",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:deutsch-basics"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền từ phủ định: Das ist ___ teuer.",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "nicht"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "nicht",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:deutsch-basics"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền từ phủ định: Ich komme heute ___.",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "nicht"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "nicht",
+      "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "Giải thích vì sao câu trả lời đúng."
+}

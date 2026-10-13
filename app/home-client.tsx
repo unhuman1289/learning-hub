@@ -19,10 +19,12 @@ import { useRoute, type Route } from "./hub/use-route";
 import { useWorkspace, type WorkspaceApi } from "./hub/use-workspace";
 import { useShelf } from "./hub/use-shelf";
 import { NewNotebookDialog } from "./hub/new-notebook";
+import {LessonReader} from "./hub/lesson-v2/reader";
+import {LessonList} from "./hub/lesson-v2/list";
 import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
-export default function Home({ userEmail, userName, userRole }: { userEmail: string; userName: string; userRole: string }) {
+export default function Home({ userEmail, userName, userRole,hub2Enabled=false }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean }) {
   const isAdmin = userRole === "admin";
   const { route, go } = useRoute();
   const workspace = useWorkspace();
@@ -62,12 +64,14 @@ export default function Home({ userEmail, userName, userRole }: { userEmail: str
 
   useWebMcp(workspace);
   // Time with a notebook open counts as study time; nothing has to be logged by hand.
-  const clock = useStudyClock(route.view === "notebook" ? route.track : route.view === "subject" && viewingId === null ? route.id : null);
+  const [lessonClock,setLessonClock]=useState<{id:string;subjectId:string}|null>(null);
+  const onLessonLoaded=useCallback((id:string,subjectId:string)=>setLessonClock({id,subjectId}),[]);
+  const clock = useStudyClock(viewingId===null&&route.view==='lesson'&&lessonClock?.id===route.id?lessonClock.subjectId:(route.view === "notebook" ? route.track : route.view === "subject" && viewingId === null ? route.id : null));
   const labelFor = (key: string) => (isTrack(key) ? trackInfo(key).title : shelf.subjects?.find((item) => item.id === key)?.title ?? "Sổ khác");
 
   const name = userName.trim() || userEmail.split("@")[0];
   const nav: { route: Route; label: string; icon: typeof House; on: boolean }[] = [
-    { route: { view: "desk" }, label: "Phòng học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "subject" },
+    { route: { view: "desk" }, label: "Phòng học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "subject" || route.view === "lesson" },
     { route: { view: "notes" }, label: "Ghi chú", icon: NotebookPen, on: route.view === "notes" },
     ...(isAdmin ? [{ route: { view: "admin" } as Route, label: "Quản trị", icon: ShieldCheck, on: route.view === "admin" }] : []),
   ];
@@ -116,6 +120,8 @@ export default function Home({ userEmail, userName, userRole }: { userEmail: str
             onNewNotebook={() => setNewNotebook(true)}
           />
         )}
+        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
+        {hub2Enabled&&(route.view==="subject"||route.view==="notebook")&&<LessonList subjectId={route.view==="subject"?route.id:shelf.subjects?.find(s=>s.legacyTrack===route.track)?.id??null} learner={viewingId} go={go}/>}
         {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} go={go} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} />}
         {route.view === "notes" && <NotesView workspace={workspace} openForm={setForm} />}

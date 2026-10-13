@@ -4,6 +4,12 @@ Source riêng tư: https://github.com/unhuman1289/learning-hub
 
 Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc)**: mỗi chủ đề là một cuốn sổ trên tủ sách; mở sổ để đọc bài, làm bài tập, lưu bài làm và theo dõi thời gian học. Bài được giao theo từng tài khoản; ghi chú và mốc dự án hiện còn dùng chung.
 
+## Đợt H2/H3 (13/10/2026)
+
+Bài theo từng câu, reader skill/reading, nhập bài đã duyệt, nộp/chấm câu đóng và lịch sử sửa được triển khai trong nhánh `codex/hub2-h2-h3`, chỉ local/staging. Production chưa nhận đợt này. Câu mở chờ chấm; soạn bài đêm/AI không thuộc phần đã hoàn tất.
+
+Thử local: `npm run seed:hub2` (chỉ database local), build/start rồi `node scripts/hub2-local-smoke.mjs http://localhost:8871`. Tài khoản demo và mật khẩu chỉ dành cho local được in bởi seed; không dùng chúng trên cloud. Xem [cách dùng thử](docs/ops/hub2-pilot.md) và [bằng chứng](docs/VALIDATION.md).
+
 ## Tài liệu
 
 | Đọc khi | Tài liệu |

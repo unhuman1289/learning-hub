@@ -1,0 +1,114 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "KHTN 7: nguyên tử",
+  "objective": "Giải thích quy tắc và tự làm ba câu ngắn.",
+  "why": "Bài soạn tay để thử luồng học; cần phụ huynh duyệt trước khi giao.",
+  "reasonRefs": [],
+  "estMinutes": 15,
+  "level": "Lớp 7",
+  "targetSkills": [
+    "key:chem7-nguyen-tu"
+  ],
+  "sheet": {
+    "rules": [
+      "Nguyên tử có hạt nhân và lớp vỏ electron.",
+      "Nguyên tử trung hòa có số proton bằng số electron."
+    ],
+    "explanation": "Nguyên tử có hạt nhân và lớp vỏ electron.\nNguyên tử trung hòa có số proton bằng số electron.",
+    "examples": [],
+    "mistakes": [],
+    "tips": [],
+    "checklist": [
+      "Có giải thích được cách làm bằng lời của mình?"
+    ]
+  },
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    {
+      "stage": "sheet",
+      "itemIds": []
+    },
+    {
+      "stage": "independent",
+      "itemIds": [
+        "i1",
+        "i2",
+        "i3"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:chem7-nguyen-tu"
+      ],
+      "difficulty": 1,
+      "prompt": "Hạt mang điện âm trong nguyên tử gọi là gì?",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "electron"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "electron",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:chem7-nguyen-tu"
+      ],
+      "difficulty": 1,
+      "prompt": "Nguyên tử trung hòa có 6 proton, có bao nhiêu electron?",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "6"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "6",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:chem7-nguyen-tu"
+      ],
+      "difficulty": 1,
+      "prompt": "Hạt mang điện dương trong hạt nhân gọi là gì?",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "proton"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "proton",
+      "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "Giải thích vì sao câu trả lời đúng."
+}
