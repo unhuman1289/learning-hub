@@ -1,5 +1,6 @@
 "use client";
 import type { ItemView } from "../../../lib/lesson-v2/store";
+import { DisputeControl, type DisputeState } from "./dispute-dialog";
 function answerLabel(answer: string, item?: ItemView) {
   if (item?.input !== "choice") return answer;
   try {
@@ -23,9 +24,20 @@ export type SubmissionView = {
     correction: string | null;
     attempt_no: number;
     support: string;
+    dispute?: DisputeState;
   }[];
 };
-export function Feedback({ submission, items = [] }: { submission: SubmissionView | null; items?: ItemView[] }) {
+export function Feedback({
+  submission,
+  items = [],
+  readOnly = false,
+  onRefresh,
+}: {
+  submission: SubmissionView | null;
+  items?: ItemView[];
+  readOnly?: boolean;
+  onRefresh?: () => void;
+}) {
   if (!submission) return null;
   return (
     <section aria-label="Lời phê" className="space-y-3">
@@ -46,6 +58,7 @@ export function Feedback({ submission, items = [] }: { submission: SubmissionVie
           {a.feedback && <p className="text-red-800 dark:text-red-300">{a.feedback}</p>}
           {a.correction && <p className="whitespace-pre-wrap">Lời giải: {a.correction}</p>}
           {!a.result && <p className="text-sm text-muted">Câu trả lời đã lưu, đang chờ nhận lời phê.</p>}
+          {a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} onChanged={onRefresh} />}
         </div>
       ))}
     </section>

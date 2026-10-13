@@ -1,6 +1,7 @@
 "use client";
 
 import {SkillProgress} from "./skill-progress";
+import { NotebookRequests } from "./requests-panel";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { RuledPage } from "../../components/notebook/paper";
@@ -31,7 +32,9 @@ export function SubjectView({ id, shelf, canEdit, go }: { id: string; shelf: She
         <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
         <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
         {canEdit ? <SubjectForm subject={subject} shelf={shelf} /> : <SubjectFacts subject={subject} />}
-        <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canEdit}/><div className="mt-7">
+        <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canEdit}/>
+        {(subject.status === "active" || subject.status === "setup") && <NotebookRequests subjectId={id} learner={shelf.learner} />}
+        <div className="mt-7">
           <PageLabel>Lộ trình</PageLabel>
           <HandNote>
             {subject.skillCount > 0

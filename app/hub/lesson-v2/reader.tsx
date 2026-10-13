@@ -363,7 +363,17 @@ export function LessonReader({
               </button>
             </div>
           )}
-          <Feedback submission={submission} items={lesson.items} />
+          <Feedback
+            submission={submission}
+            items={lesson.items}
+            readOnly={readonly}
+            onRefresh={() => {
+              if (!submission) return;
+              void json<{ submission: SubmissionView }>(`/api/submissions/${submission.id}${suffix}`)
+                .then((value) => setSubmission(value.submission))
+                .catch((e: Error) => setError(e.message));
+            }}
+          />
           <p className="leading-7">Tiếp theo: {lesson.nextTopic}</p>
           <p className="text-sm text-muted">Hoàn thành do bạn đánh dấu, không phụ thuộc điểm. Bài tiếp chỉ được giao theo mốc 03:00 Berlin.</p>
         </>

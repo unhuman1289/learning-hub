@@ -8,6 +8,7 @@ import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
 import {ImportPanel} from "./lesson-v2/import-panel";
 import {AiJobsPanel} from "./ai-jobs-panel";
+import { AdminDisputes } from "./admin-disputes";
 import { FamilyAdmin } from "./family-admin";
 import { JournalList, journalKinds, type FormRequest } from "./journal";
 import { trackIds, trackInfo, type TrackId } from "./model";
@@ -80,6 +81,7 @@ export function AdminView({ daily, workspace }: { daily: DailyApi; workspace: Wo
         <ImportPanel/>
         <FamilyAdmin />
       </WoodFrame>
+      <WoodFrame label="Chấm sai cần xem"><AdminDisputes /></WoodFrame>
       <WoodFrame label="Lượt soạn và chấm"><AiJobsPanel/></WoodFrame>
       <WoodFrame label="Cập nhật bài và sao lưu">
         <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>

@@ -54,7 +54,9 @@ export async function readSubmission(db: Db, learnerId: string, id: string) {
   const { results = [] } = await db
     .prepare(
       `SELECT a.id,a.item_id,a.answer,a.attachment_ids,a.attempt_no,a.retry_of,a.support,a.status,
- g.result,g.score,g.feedback,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.submission_id=? AND a.learner_id=? ORDER BY a.rowid`,
+ g.result,g.score,g.feedback,g.correction,
+ (SELECT json_object('id',d.id,'status',d.status,'note',d.resolution_note) FROM disputes d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1) AS dispute
+ FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.submission_id=? AND a.learner_id=? ORDER BY a.rowid`,
     )
     .bind(id, learnerId)
     .all<Record<string, unknown>>();
@@ -64,6 +66,7 @@ export async function readSubmission(db: Db, learnerId: string, id: string) {
     attempts: results.map((a) => ({
       ...a,
       attachmentIds: JSON.parse(a.attachment_ids as string),
+      dispute: a.dispute ? (JSON.parse(a.dispute as string) as { id: string; status: string; note: string | null }) : null,
       strength: a.result ? evidenceStrength(a.result as 'correct', a.support as 'none', a.attempt_no as number) : null,
     })),
   };

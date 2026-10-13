@@ -76,13 +76,20 @@ export async function prepareExplorations(db: EvidenceDb, job: Job, context: Pla
 
     // Skills: a known notebook resolves its own; "Khám phá" creates up to 3 skills from `key:` references.
     const skillIds = new Map<string, string>();
-    if (known) for (const sk of known.skills) skillIds.set(sk.skillId, sk.skillId), skillIds.set('key:' + sk.key, sk.skillId);
+    if (known)
+      for (const sk of known.skills) {
+        skillIds.set(sk.skillId, sk.skillId);
+        skillIds.set('key:' + sk.key, sk.skillId);
+      }
     else {
       const { results = [] } = await db
         .prepare('SELECT id,key FROM skills WHERE subject_id=? AND learner_id=?')
         .bind(targetId, job.learner_id)
         .all<{ id: string; key: string }>();
-      for (const sk of results) skillIds.set(sk.id, sk.id), skillIds.set('key:' + sk.key, sk.id);
+      for (const sk of results) {
+        skillIds.set(sk.id, sk.id);
+        skillIds.set('key:' + sk.key, sk.id);
+      }
     }
     const refs = [...new Set(lesson.items.flatMap((i) => i.skills).concat(lesson.targetSkills))];
     const created: { id: string; key: string }[] = [];

@@ -1,6 +1,7 @@
 "use client";
 
 import {TodayBoard} from "./today-board";
+import { ContactBook } from "./guardian/contact-book";
 import {AdminAlertBanner} from "./ai-jobs-panel";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
@@ -170,6 +171,8 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
           {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
+      {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
+      {readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
   );
 }
