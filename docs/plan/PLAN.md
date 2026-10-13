@@ -1,6 +1,6 @@
 # Learning Hub — Plan triển khai
 
-Cập nhật 12/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). H0–H2.4 đã có trong main; H2.5–H3.4 được triển khai cùng một đợt tích hợp trên nhánh `codex/hub2-h2-h3`, vì reader mới cần bảng submission và điểm. Chưa triển khai đợt này lên production.
+Cập nhật 13/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). H0–H2.4 đã có trong main; H2.5–H3.4 được triển khai cùng một đợt tích hợp trên nhánh `codex/hub2-h2-h3`, vì reader mới cần bảng submission và điểm. Chưa triển khai đợt này lên production.
 
 - **Thiết kế:** [docs/hub2/](../hub2/README.md): quyết định D1–D18, [hướng xây dựng bài học](../hub2/LESSON-DESIGN.md), [mô hình dữ liệu](../hub2/DATA-MODEL.md), [API AI](../hub2/AI-API.md).
 - **Plan cũ đã lưu trữ:** [plan v2](archive/learning-hub-plan-v2-cloudflare.md) (Phase 0–1, Cloudflare và cutover) và [plan 2026-10](archive/learning-hub-plan-2026-10.md). Phần còn dở của v2 nằm ở H0 (commit Phase 1, sửa B1–B2) và H7 (bật automation trên production); Phase 2 và các task P1.6, P1.9, P1.12 được thay bằng plan này (xem §18). Chỉ đọc plan cũ để tra lịch sử.
@@ -14,6 +14,16 @@ Cập nhật 12/10/2026. **Đây là plan triển khai duy nhất của Learning
 | H2.7 | Admin nhập JSON đã duyệt, kiểm contract và giữ bài chưa xong. Seed local có 3 sổ cho demo Ếch, 4 bài Deutsch, Toán/Hóa mẫu và một bài reading cho người lớn. Ngày 13/10: admin thật đã nhập bài Deutsch người lớn cho unhuman trên staging; đọc lại D1/reader đạt. |
 | H3.1–H3.4 | Migration 0011; chấm câu đóng; nộp nguyên tử; UUID chống trùng; lịch sử làm lại; câu mở chờ chấm; hoàn thành/bỏ dấu riêng với điểm. |
 | H3.5 / Cổng A | **Chưa đạt:** đã đổi sang unhuman/Deutsch theo yêu cầu 13/10; cho phép H4–H5 local/staging ngay, cần nghiệm thu dùng thật trước production. Test bằng tài khoản demo không thay cho mốc này. |
+
+## Hiện trạng H4–H6 (13/10/2026)
+
+| Task | Bằng chứng / phần còn lại |
+| --- | --- |
+| H4–H5 | Learner model, job plan/assess có lease, runner giả chạy cả vòng trên staging (PR #91). Bản review 13/10 đã sửa: chuỗi việc đêm, đề xuất AI bị ghi đè, nộp lại, làm lại sau lời giải, ngân sách theo người. |
+| H5.9 | Mỗi lượt soạn bài chỉ một sổ, context nhắm 32 KB, gộp truy vấn. Đo bằng `scripts/benchmark-cpu-local.mjs` (sổ Deutsch 14 ngày, bài 15 KB): mỗi bước ≤ 3 ms CPU trên Node và ≤ 33 truy vấn D1. Cron chia giờ 03 (xếp job), 04–05 (tính lại ≤ 10 kỹ năng), 06 (cảnh báo). Chưa đo lại bằng Wrangler tail trên staging. |
+| H6.1–H6.5 | Phản đối và chấm lại, yêu cầu "Hỏi thêm"/"Xin thêm bài", bài khám phá (sổ "Khám phá" do server tạo, `ai_enabled = 0` để không có job hằng đêm), Sổ liên lạc, chỉ số chấm, "Chấm sai cần xem". Migration 0014. |
+| Cổng B | Chưa xét: cần AI chấm thật (H7.3) để có dữ liệu phản đối thật. |
+| H7.1 | Chưa làm: cầu nối ChatGPT cần thêm công cụ ghi v2; việc mở rộng quyền ghi này chờ chủ dự án duyệt. |
 
 Nghiệm thu và phiên bản staging: [VALIDATION.md](../VALIDATION.md). Cách giao bài và dùng thử: [hub2-pilot.md](../ops/hub2-pilot.md). Câu mở chưa được AI chấm; job/runner ở H5/H7. Fixture Toán/Hóa là bài nhập thử tự soạn, chưa chứng minh bao phủ hay phù hợp toàn bộ GDPT 2018.
 
