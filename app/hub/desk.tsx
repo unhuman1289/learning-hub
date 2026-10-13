@@ -32,7 +32,7 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook }: {
+export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
   name: string;
   isAdmin: boolean;
   go: (route: Route) => void;
@@ -42,6 +42,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   viewing: Viewing;
   canOpenNotebook: boolean;
   onNewNotebook: () => void;
+  hub2?: boolean;
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
@@ -91,8 +92,8 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <OakDesk drawers className="min-w-0">
           <h2 className="px-1 pb-4 font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
-          {isAdmin&&<AdminAlertBanner/>}
-          <TodayBoard learner={viewing.id} go={go}/>
+          {hub2 && isAdmin && <AdminAlertBanner />}
+          {hub2 && <TodayBoard learner={viewing.id} go={go} />}
 
           {lessons.length + v2Lessons.length + reviews.length > 0 ? (
             <ul className="grid gap-x-5 gap-y-7 px-1 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -172,7 +173,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
         </Bookcase>
       </div>
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
-      {readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
+      {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
   );
 }

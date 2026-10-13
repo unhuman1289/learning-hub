@@ -21,7 +21,7 @@ const statusText: Record<ShelfSubject["status"], string> = {
  * A notebook opened since Learning Hub 2.0. Until its skill map and first lessons exist, this page
  * shows the notebook's goal and lets the learner (adult) or a guardian adjust it.
  */
-export function SubjectView({ id, shelf, canEdit, go }: { id: string; shelf: ShelfApi; canEdit: boolean; go: (route: Route) => void }) {
+export function SubjectView({ id, shelf, canEdit, go, hub2 = false }: { id: string; shelf: ShelfApi; canEdit: boolean; go: (route: Route) => void; hub2?: boolean }) {
   const subject = shelf.subjects?.find((item) => item.id === id) ?? null;
   if (!shelf.subjects) return <p className="mx-auto max-w-4xl text-muted">{shelf.error || "Đang mở sổ…"}</p>;
   if (!subject) return <p className="mx-auto max-w-4xl text-muted">Không tìm thấy sổ này trên kệ.</p>;
@@ -31,9 +31,9 @@ export function SubjectView({ id, shelf, canEdit, go }: { id: string; shelf: She
       <RuledPage>
         <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
         <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
-        {canEdit ? <SubjectForm subject={subject} shelf={shelf} /> : <SubjectFacts subject={subject} />}
-        <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canEdit}/>
-        {(subject.status === "active" || subject.status === "setup") && <NotebookRequests subjectId={id} learner={shelf.learner} />}
+        {canEdit ? <SubjectForm subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
+        {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canEdit} />}
+        {hub2 && (subject.status === "active" || subject.status === "setup") && <NotebookRequests subjectId={id} learner={shelf.learner} />}
         <div className="mt-7">
           <PageLabel>Lộ trình</PageLabel>
           <HandNote>
@@ -61,7 +61,7 @@ export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
   );
 }
 
-export function SubjectForm({ subject, shelf }: { subject: ShelfSubject; shelf: ShelfApi }) {
+export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSubject; shelf: ShelfApi; hub2?: boolean }) {
   const [goal, setGoal] = useState(subject.goal);
   const [level, setLevel] = useState(subject.level);
   const [curriculum, setCurriculum] = useState(subject.curriculum);
@@ -93,7 +93,7 @@ export function SubjectForm({ subject, shelf }: { subject: ShelfSubject; shelf: 
       <label className={labelClass}>Chương trình
         <input value={curriculum} maxLength={500} onChange={(event) => { setCurriculum(event.target.value); setState("idle"); }} className={fieldClass} />
       </label>
-<label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Cho phép chuẩn bị bài mới lúc 03:00. Lượt tạo bài được lưu vào hàng đợi; chỉ có nội dung mới khi runner xử lý và server xác nhận.</label>
+{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Cho phép chuẩn bị bài mới lúc 03:00. Lượt tạo bài được lưu vào hàng đợi; chỉ có nội dung mới khi runner xử lý và server xác nhận.</label>}
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>

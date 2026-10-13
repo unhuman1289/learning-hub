@@ -1,3 +1,13 @@
+/** Hub 2 APIs answer only where Hub 2 is switched on; elsewhere they do not exist. */
+const hub2Prefixes = ["/api/lessons", "/api/submissions", "/api/attempts", "/api/disputes", "/api/requests", "/api/quality", "/api/skills", "/api/today", "/api/uploads", "/api/admin/ai-jobs", "/api/admin/alerts", "/api/admin/lessons", "/api/admin/quality"];
+
+export function hub2Guard(request: Request, env: { HUB2_ENABLED?: string }): Response | null {
+  if (env.HUB2_ENABLED === "true") return null;
+  const { pathname } = new URL(request.url);
+  if (!hub2Prefixes.some((prefix) => pathname === prefix || pathname.startsWith(prefix + "/"))) return null;
+  return Response.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
+}
+
 export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.Env, "ENVIRONMENT" | "STAGING_SPIKE_LOCKDOWN">): Response | null {
   const { pathname } = new URL(request.url);
 
