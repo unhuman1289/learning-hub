@@ -10,7 +10,7 @@ Deutsch unhuman là pilot. Một bài luyện thêm thật đã lưu qua MCP sta
 
 ## MCP trực tiếp — staging (13/10/2026)
 
-ChatGPT có thể kết nối OAuth tới Worker riêng, dùng D1 staging, không qua Sites. Client QA đã kiểm tra OAuth, lưu/đọc lại bài và thu hồi quyền. Còn cần kết nối app và nghiệm thu công cụ ghi bằng tài khoản ChatGPT thật; chưa đặt lịch, chưa đổi production. Xem [hướng dẫn kết nối](docs/ops/DIRECT-MCP.md).
+ChatGPT có thể kết nối OAuth tới Worker riêng, dùng D1 staging, không qua Sites. Client QA đã kiểm tra OAuth, lưu/đọc lại bài và thu hồi quyền. App thật đã gọi công cụ ghi và đọc lại ID bài luyện thêm. Còn scheduled task cloud/dùng thử; chưa đặt lịch, chưa đổi code production. Xem [hướng dẫn kết nối](docs/ops/DIRECT-MCP.md).
 
 ## Đợt H4/H5 staging (13/10/2026)
 
