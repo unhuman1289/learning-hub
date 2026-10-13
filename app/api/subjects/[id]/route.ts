@@ -1,3 +1,5 @@
+import {readSubjectSkills} from '../../../../lib/learner-model/recompute';
+import {learnerFacts} from '../../../../lib/access';
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { apiFailure } from '../../../../lib/api-error';
@@ -19,7 +21,10 @@ export async function GET(req: Request, context: Context) {
     const db = storage();
     const learnerId = await resolveLearner(db, user, req, 'read_progress');
     if (learnerId instanceof Response) return learnerId;
-    return Response.json({ subject: toView(await getSubject(db, learnerId, id)) }, { headers });
+    const details=await readSubjectSkills(db,learnerId,id);
+    const facts=await learnerFacts(db,user,learnerId);
+    if(user.id===learnerId&&facts.learnerRole==='child')details.errors=details.errors.filter(e=>e.confidence==='confirmed');
+    return Response.json({ subject: toView(await getSubject(db, learnerId, id)), ...details }, { headers });
   } catch (error) {
     return apiFailure(error, 'Chưa tải được sổ.', headers);
   }

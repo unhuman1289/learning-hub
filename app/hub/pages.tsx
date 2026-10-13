@@ -7,6 +7,7 @@ import { RuledPage, cx } from "../../components/notebook/paper";
 import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
 import {ImportPanel} from "./lesson-v2/import-panel";
+import {AiJobsPanel} from "./ai-jobs-panel";
 import { FamilyAdmin } from "./family-admin";
 import { JournalList, journalKinds, type FormRequest } from "./journal";
 import { trackIds, trackInfo, type TrackId } from "./model";
@@ -79,6 +80,7 @@ export function AdminView({ daily, workspace }: { daily: DailyApi; workspace: Wo
         <ImportPanel/>
         <FamilyAdmin />
       </WoodFrame>
+      <WoodFrame label="Lượt soạn và chấm"><AiJobsPanel/></WoodFrame>
       <WoodFrame label="Cập nhật bài và sao lưu">
         <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>
         {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}

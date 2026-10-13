@@ -123,7 +123,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false }
         {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
         {hub2Enabled&&(route.view==="subject"||route.view==="notebook")&&<LessonList subjectId={route.view==="subject"?route.id:shelf.subjects?.find(s=>s.legacyTrack===route.track)?.id??null} learner={viewingId} go={go}/>}
         {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} go={go} />}
-        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} />}
+        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} />}
         {route.view === "notes" && <NotesView workspace={workspace} openForm={setForm} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>

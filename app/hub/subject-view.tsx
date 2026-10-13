@@ -1,5 +1,6 @@
 "use client";
 
+import {SkillProgress} from "./skill-progress";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { RuledPage } from "../../components/notebook/paper";
@@ -30,7 +31,7 @@ export function SubjectView({ id, shelf, canEdit, go }: { id: string; shelf: She
         <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
         <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
         {canEdit ? <SubjectForm subject={subject} shelf={shelf} /> : <SubjectFacts subject={subject} />}
-        <div className="mt-7">
+        <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canEdit}/><div className="mt-7">
           <PageLabel>Lộ trình</PageLabel>
           <HandNote>
             {subject.skillCount > 0
@@ -43,7 +44,7 @@ export function SubjectView({ id, shelf, canEdit, go }: { id: string; shelf: She
   );
 }
 
-function SubjectFacts({ subject }: { subject: ShelfSubject }) {
+export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
   const rows: [string, string][] = [["Mục tiêu", subject.goal], ["Trình độ", subject.level], ["Chương trình", subject.curriculum]];
   return (
     <dl className="mt-4 grid gap-1">
@@ -57,19 +58,20 @@ function SubjectFacts({ subject }: { subject: ShelfSubject }) {
   );
 }
 
-function SubjectForm({ subject, shelf }: { subject: ShelfSubject; shelf: ShelfApi }) {
+export function SubjectForm({ subject, shelf }: { subject: ShelfSubject; shelf: ShelfApi }) {
   const [goal, setGoal] = useState(subject.goal);
   const [level, setLevel] = useState(subject.level);
   const [curriculum, setCurriculum] = useState(subject.curriculum);
+  const [aiEnabled,setAiEnabled]=useState(subject.aiEnabled);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState("");
-  const changed = goal !== subject.goal || level !== subject.level || curriculum !== subject.curriculum;
+  const changed = goal !== subject.goal || level !== subject.level || curriculum !== subject.curriculum || aiEnabled!==subject.aiEnabled;
 
   async function save() {
     setState("saving");
     setError("");
     try {
-      await shelf.update(subject.id, { revision: subject.revision, goal, level, curriculum });
+      await shelf.update(subject.id, { revision: subject.revision, goal, level, curriculum, aiEnabled });
       setState("saved");
     } catch (cause) {
       setError((cause as Error).message);
@@ -88,6 +90,7 @@ function SubjectForm({ subject, shelf }: { subject: ShelfSubject; shelf: ShelfAp
       <label className={labelClass}>Chương trình
         <input value={curriculum} maxLength={500} onChange={(event) => { setCurriculum(event.target.value); setState("idle"); }} className={fieldClass} />
       </label>
+<label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Cho phép chuẩn bị bài mới lúc 03:00. Lượt tạo bài được lưu vào hàng đợi; chỉ có nội dung mới khi runner xử lý và server xác nhận.</label>
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>

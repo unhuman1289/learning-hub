@@ -3,7 +3,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { lessonPackageV2 } from '../lib/contracts/lesson-package-v2.ts';
 
-const contracts = { 'lesson-package-v2': lessonPackageV2 };
+import {planContext,planResult,assessContext,assessResult} from '../lib/contracts/ai-common.ts';
+const contracts = { 'lesson-package-v2': lessonPackageV2, 'plan-context-v1':planContext, 'plan-result-v1':planResult, 'assess-context-v1':assessContext, 'assess-result-v1':assessResult };
 const check = process.argv.includes('--check');
 const dir = new URL('../contracts/', import.meta.url);
 mkdirSync(dir, { recursive: true });

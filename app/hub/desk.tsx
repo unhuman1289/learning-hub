@@ -1,5 +1,7 @@
 "use client";
 
+import {TodayBoard} from "./today-board";
+import {AdminAlertBanner} from "./ai-jobs-panel";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
@@ -51,7 +53,8 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
   const v2Lessons=daily.data?.v2Active??[];
-  const finished = trackIds.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt);
+  const activeV2Subjects=new Set(v2Lessons.map(l=>l.subjectId));
+  const finished = trackIds.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt && !shelf.subjects?.some(s=>s.legacyTrack===track&&activeV2Subjects.has(s.id)));
   const reviews = readOnly ? [] : workspace.data.logs
     .filter((log) => log.due && log.due <= today && !workspace.data.done.includes(log.id))
     .sort((x, y) => (x.due ?? "").localeCompare(y.due ?? ""));
@@ -87,6 +90,8 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <OakDesk drawers className="min-w-0">
           <h2 className="px-1 pb-4 font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
+          {isAdmin&&<AdminAlertBanner/>}
+          <TodayBoard learner={viewing.id} go={go}/>
 
           {lessons.length + v2Lessons.length + reviews.length > 0 ? (
             <ul className="grid gap-x-5 gap-y-7 px-1 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
@@ -109,7 +114,6 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
                   </PostIt>
                 );
               })}
-              {v2Lessons.map((lesson,index)=><PostIt key={lesson.id} color="bg-postit-yellow" index={lessons.length+index}><p className="font-hand text-base">{lesson.subjectTitle} · {lesson.minutes??'—'} phút</p><RouteLink route={{view:'lesson',id:lesson.id}} go={go} className="pencil-underline mt-2 font-hand text-[22px] leading-7">{lesson.title}</RouteLink><RouteLink route={{view:'lesson',id:lesson.id}} go={go} className={buttonClass('primary','mt-auto self-start')}>Học tiếp</RouteLink></PostIt>)}
               {reviews.map((log, index) => (
                 <ReviewNote key={log.id} log={log} index={lessons.length + index} today={today} go={go} onReviewed={() => void workspace.toggleDone(log.id)} />
               ))}

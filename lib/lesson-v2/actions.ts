@@ -1,3 +1,4 @@
+import {addDays} from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { berlinDay } from '../daily-policy.ts';
 import type { LessonItem } from '../contracts/lesson-package-v2.ts';
@@ -87,7 +88,7 @@ export async function reveal(db: Db, learnerId: string, lessonId: string, itemId
 /** "Để mai": hides the lesson from today's desk until the next Berlin day. */
 export async function snooze(db: Db, learnerId: string, lessonId: string, now = new Date()) {
   await lessonRow(db, learnerId, lessonId);
-  const tomorrow = berlinDay(new Date(now.getTime() + 24 * 3600 * 1000));
+  const tomorrow = addDays(berlinDay(now),1);
   await db.prepare('UPDATE learning_lessons SET snoozed_until = ? WHERE id = ? AND user_id = ?').bind(tomorrow, lessonId, learnerId).run();
   return { snoozedUntil: tomorrow };
 }
