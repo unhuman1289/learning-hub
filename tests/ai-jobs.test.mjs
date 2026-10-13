@@ -5,6 +5,7 @@ import { memoryDb } from './d1-adapter.mjs';
 import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-jobs/queue.ts';
 import { refreshSkills } from '../lib/learner-model/nightly.ts';
 import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
+import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
@@ -738,5 +739,47 @@ test('voiding an item removes it from evidence', async () => {
   await resolveDispute(db, learner, dispute.id, { id: 'admin', asAdmin: true }, { decision: 'void', note: 'Đề sai.' }, now);
   assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'void');
   assert.equal(db.sqlite.prepare("SELECT flag FROM lesson_items WHERE item_id='i1'").get().flag, 'item_void');
+  db.sqlite.close();
+});
+
+test('a question goes to its own plan job and becomes an exploration lesson in "Khám phá"', async () => {
+  const db = seed();
+  const request = await createRequest(db, {}, learner, learner, parseRequest({ kind: 'explore', text: 'Warum steht das Verb am Ende?', urgency: 'tonight' }), now);
+  assert.equal(request.status, 'in_job');
+  const [lease] = await leaseJobs(db, client, { ...input, kinds: ['plan'] }, 'test', now);
+  const job = await readJob(db, lease.jobId);
+  assert.deepEqual([job.purpose, job.trigger], ['request', 'deferred']);
+  const context = JSON.parse(job.context_snapshot);
+  assert.equal(context.explorations[0].requestId, request.id);
+  const lesson = { ...structuredClone(fixture), kind: 'exploration' };
+  const result = { ...plan(context), subjects: [], explorations: [{ requestId: request.id, action: 'assign', subjectId: null, lesson, reason: 'Câu hỏi hay.' }] };
+  const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+  assert.equal(applied.status, 200, JSON.stringify(applied.errors));
+  const saved = db.sqlite.prepare("SELECT l.slot, l.kind, s.title, s.system_kind FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id").get();
+  assert.deepEqual({ ...saved }, { slot: 'extra', kind: 'exploration', title: 'Khám phá', system_kind: 'explore' });
+  const done = db.sqlite.prepare('SELECT status, result_lesson_id FROM learner_requests WHERE id=?').get(request.id);
+  assert.equal(done.status, 'done');
+  assert(done.result_lesson_id);
+  db.sqlite.close();
+});
+
+test('a declined request keeps the reason for the asker; requests are rate limited', async () => {
+  const db = seed();
+  const request = await createRequest(db, {}, learner, learner, parseRequest({ kind: 'extra_practice', subjectId: subject, text: 'Thêm bài Modalverb', urgency: 'now' }), now);
+  const [lease] = await leaseJobs(db, client, { ...input, kinds: ['plan'] }, 'test', now);
+  const job = await readJob(db, lease.jobId);
+  assert.deepEqual([job.purpose, job.trigger], ['request', 'on_demand']);
+  const context = JSON.parse(job.context_snapshot);
+  const result = {
+    ...plan(context, null),
+    explorations: [{ requestId: request.id, action: 'decline', subjectId: subject, lesson: null, reason: 'Hôm nay đã đủ bài; mai làm tiếp.' }],
+  };
+  result.subjects[0].action = 'no_action';
+  assert.equal((await applyResult(db, client, job.id, lease.leaseToken, result, false, now)).status, 200);
+  const row = db.sqlite.prepare('SELECT status, response_note FROM learner_requests WHERE id=?').get(request.id);
+  assert.deepEqual({ ...row }, { status: 'declined', response_note: 'Hôm nay đã đủ bài; mai làm tiếp.' });
+  for (let n = 1; n < 10; n++) await createRequest(db, {}, learner, learner, parseRequest({ kind: 'school_topic', subjectId: subject, text: 'Tuần này: Perfekt' }), now);
+  await assert.rejects(createRequest(db, {}, learner, learner, parseRequest({ kind: 'note', subjectId: subject, text: 'Ít bài viết hơn' }), now), (e) => e.status === 429);
+  assert.throws(() => parseRequest({ kind: 'note', text: 'Không có sổ' }), (e) => e.status === 400);
   db.sqlite.close();
 });

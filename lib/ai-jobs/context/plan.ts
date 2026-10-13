@@ -149,6 +149,19 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     });
   }
   context.subjects = list;
+  // A request job carries one "Hỏi thêm" / "Xin thêm bài" request.
+  if (job.purpose === 'request' && job.ref_id) {
+    const request = await db
+      .prepare(
+        "SELECT id,kind,subject_id,text,urgency FROM learner_requests WHERE id=? AND learner_id=? AND kind IN ('explore','extra_practice') AND status IN ('queued','in_job')",
+      )
+      .bind(job.ref_id, job.learner_id)
+      .first<{ id: string; kind: 'explore' | 'extra_practice'; subject_id: string | null; text: string; urgency: string }>();
+    if (request)
+      context.explorations = [
+        { requestId: request.id, kind: request.kind, subjectId: request.subject_id, text: safeText(request.text), urgency: request.urgency },
+      ];
+  }
   // Prevent IDs/contact data from leaking in user-controlled strings, including preferences.
   const clean = (value: unknown): unknown =>
     Array.isArray(value)

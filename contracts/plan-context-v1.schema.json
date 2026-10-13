@@ -702,6 +702,13 @@
           "requestId": {
             "type": "string"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "explore",
+              "extra_practice"
+            ]
+          },
           "subjectId": {
             "anyOf": [
               {
@@ -723,6 +730,7 @@
         },
         "required": [
           "requestId",
+          "kind",
           "subjectId",
           "text",
           "urgency"

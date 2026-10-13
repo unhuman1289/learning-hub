@@ -261,7 +261,17 @@ export const planContext = z
       .strict(),
     subjects: z.array(subject).max(30),
     explorations: z
-      .array(z.object({ requestId: z.string(), subjectId: z.string().nullable(), text: text(3000), urgency: text(20) }).strict())
+      .array(
+        z
+          .object({
+            requestId: z.string(),
+            kind: z.enum(['explore', 'extra_practice']),
+            subjectId: z.string().nullable(),
+            text: text(3000),
+            urgency: text(20),
+          })
+          .strict(),
+      )
       .max(20),
     truncated: z.array(text(300)),
   })

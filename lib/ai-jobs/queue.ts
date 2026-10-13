@@ -48,6 +48,8 @@ export async function enqueue(
     purpose: 'daily' | 'initial' | 'request' | 'submission' | 'recheck';
     subjectId?: string | null;
     refId?: string | null;
+    /** Wait for the nightly runner instead of asking for an answer now. */
+    tonight?: boolean;
   },
   now = new Date(),
 ) {
@@ -74,7 +76,7 @@ export async function enqueue(
     budget = JSON.parse(setting?.ai_budget ?? '{}');
   const cap = Number(bindings.AI_JOBS_DAILY_CAP ?? 300);
   if (!Number.isInteger(cap) || cap < 1 || cap > 10000) throw new Error('Invalid job daily cap.');
-  let trigger = input.purpose === 'daily' ? 'scheduled' : 'on_demand';
+  let trigger = input.purpose === 'daily' ? 'scheduled' : input.tonight ? 'deferred' : 'on_demand';
   let priority =
     input.purpose === 'recheck' ? 90 : input.purpose === 'submission' ? 80 : input.purpose === 'request' ? 60 : input.purpose === 'initial' ? 50 : 40;
   const used = await db

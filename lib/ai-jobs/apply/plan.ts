@@ -7,6 +7,7 @@ import { addDays, clampMastery } from '../../learner-model/rules.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
 import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
+import { prepareExplorations } from './explorations.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
 export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date) {
   const errors: ValidationIssue[] = [],
@@ -17,10 +18,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     expected = context.subjects.map((s) => s.subjectId);
   if (ids.length !== new Set(ids).size || ids.length !== expected.length || expected.some((id) => !ids.includes(id)))
     issue('/subjects', 'unknown_reference', 'Mỗi sổ trong ngữ cảnh phải xuất hiện đúng một lần.');
-  if (result.explorations.length)
-    issue('/explorations', 'unknown_reference', 'Yêu cầu khám phá phải nằm trong ngữ cảnh đã cấp; API yêu cầu được mở ở H6.');
-  let newMinutes = 0;
-  const savedIds: string[] = [];
+  const extra = await prepareExplorations(db, job, context, result, token, now, issue);
+  let newMinutes = extra.minutes;
+  const savedIds: string[] = [...extra.savedIds];
+  statements.push(...extra.statements);
   for (const [index, s] of result.subjects.entries()) {
     const path = '/subjects/' + index,
       c = context.subjects.find((x) => x.subjectId === s.subjectId);
