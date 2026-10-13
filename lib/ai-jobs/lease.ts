@@ -1,52 +1,120 @@
-import type {EvidenceDb} from '../evidence/submit.ts';
-import {berlinDay} from '../daily-policy.ts';
-import {ApiError} from '../api-error.ts';
-import {sha256Hex,type AutomationClient} from '../auth/automation.ts';
-import {buildPlanContext} from './context/plan.ts';
-import {buildAssessContext} from './context/assess.ts';
-import type {Job} from './context/common.ts';
-export async function readJob(db:EvidenceDb,id:string){return db.prepare('SELECT * FROM ai_jobs WHERE id=?').bind(id).first<Job>();}
-export function permits(client:AutomationClient,job:Pick<Job,'kind'|'purpose'|'trigger'|'learner_id'>){return client.scopes.includes(job.kind==='plan'?'jobs:plan':'jobs:assess')&&!!client.purposes?.includes(job.purpose)&&!!client.triggers?.includes(job.trigger)&&(!client.learnerIds||client.learnerIds.includes(job.learner_id));}
-export async function maintainJobs(db:EvidenceDb,now=new Date()){
- const stamp=now.toISOString();
- await db.batch([
- db.prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=?").bind(stamp,stamp,stamp),
- db.prepare("UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,error='Lease hết hạn',finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL,updated_at=? WHERE status='leased' AND lease_expires_at<=?").bind(stamp,stamp,stamp),
- db.prepare("UPDATE ai_jobs SET trigger='deferred',priority=20,updated_at=? WHERE status='queued' AND trigger='on_demand' AND created_at<?").bind(stamp,new Date(now.getTime()-15*60000).toISOString())]);
+import type { EvidenceDb } from '../evidence/submit.ts';
+import { berlinDay } from '../daily-policy.ts';
+import { ApiError } from '../api-error.ts';
+import { sha256Hex, type AutomationClient } from '../auth/automation.ts';
+import { buildPlanContext } from './context/plan.ts';
+import { buildAssessContext } from './context/assess.ts';
+import type { Job } from './context/common.ts';
+export async function readJob(db: EvidenceDb, id: string) {
+  return db.prepare('SELECT * FROM ai_jobs WHERE id=?').bind(id).first<Job>();
 }
-export async function leaseJobs(db:EvidenceDb,client:AutomationClient,input:{kinds:string[];purposes?:string[];triggers?:string[];max:number;runner:{name:string;version:string;model:string}},environment:string,now=new Date()){
- await maintainJobs(db,now);
- const kinds=input.kinds.filter(k=>client.scopes.includes(k==='plan'?'jobs:plan':'jobs:assess'));
- const purposes=(client.purposes??[]).filter(x=>!input.purposes||input.purposes.includes(x));
- const triggers=(client.triggers??[]).filter(x=>!input.triggers||input.triggers.includes(x));
- if(!kinds.length||!purposes.length||!triggers.length)throw new ApiError(403,'Client không được lease loại công việc này.');
- const jobs=[];const placeholders=(x:unknown[])=>x.map(()=>'?').join(',');
- for(let n=0;n<input.max;n++){
-  const token=crypto.randomUUID()+crypto.randomUUID(),hash=await sha256Hex(token),stamp=now.toISOString();
-  const job=await db.prepare(`UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? ${client.learnerIds?'AND learner_id IN ('+placeholders(client.learnerIds)+')':''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`).bind(berlinDay(now),client.id,hash,stamp,JSON.stringify(input.runner),stamp,...kinds,...purposes,...triggers,stamp,...(client.learnerIds??[])).first<Job>();
-  if(!job)break;
-  try{
-   const context=job.kind==='plan'?await buildPlanContext(db,job,environment):await buildAssessContext(db,job,environment,now);
-   const changed=await db.prepare("UPDATE ai_jobs SET context_snapshot=?,context_hash=? WHERE id=? AND status='leased' AND lease_token_sha256=?").bind(JSON.stringify(context),context.contextHash,job.id,hash).run();
-   if(!changed.meta.changes)throw new ApiError(409,'Lease đã thay đổi khi dựng ngữ cảnh.');
-   jobs.push({jobId:job.id,kind:job.kind,purpose:job.purpose,trigger:job.trigger,leaseToken:token,leaseExpiresAt:job.lease_expires_at,contextUrl:`/api/automation/v2/jobs/${job.id}/context`});
-  }catch(error){await db.prepare("UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,lease_token_sha256=NULL,lease_expires_at=NULL,error='Không dựng được ngữ cảnh an toàn' WHERE id=? AND lease_token_sha256=?").bind(job.id,hash).run();throw error;}
- }
- return jobs;
+export function permits(client: AutomationClient, job: Pick<Job, 'kind' | 'purpose' | 'trigger' | 'learner_id'>) {
+  return (
+    client.scopes.includes(job.kind === 'plan' ? 'jobs:plan' : 'jobs:assess') &&
+    !!client.purposes?.includes(job.purpose) &&
+    !!client.triggers?.includes(job.trigger) &&
+    (!client.learnerIds || client.learnerIds.includes(job.learner_id))
+  );
 }
-export async function leasedJob(db:EvidenceDb,client:AutomationClient,id:string,token:string|null,now=new Date(),allowFinished=false){
- const job=await readJob(db,id);
- if(!job||job.lease_client_id!==client.id||!permits(client,job))throw new ApiError(404,'Không tìm thấy công việc.');
- if(!token||await sha256Hex(token)!==job.lease_token_sha256)throw new ApiError(401,'Lease token không hợp lệ.');
- if(allowFinished&&job.status==='succeeded')return job;
- if(job.status!=='leased'||!job.lease_expires_at||job.lease_expires_at<=now.toISOString()||job.expires_at<=now.toISOString())throw new ApiError(410,'Lease đã hết hạn. Đọc lại trạng thái công việc.');
- return job;
+export async function maintainJobs(db: EvidenceDb, now = new Date()) {
+  const stamp = now.toISOString();
+  await db.batch([
+    db
+      .prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=?")
+      .bind(stamp, stamp, stamp),
+    db
+      .prepare(
+        "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,error='Lease hết hạn',finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL,updated_at=? WHERE status='leased' AND lease_expires_at<=?",
+      )
+      .bind(stamp, stamp, stamp),
+    db
+      .prepare("UPDATE ai_jobs SET trigger='deferred',priority=20,updated_at=? WHERE status='queued' AND trigger='on_demand' AND created_at<?")
+      .bind(stamp, new Date(now.getTime() - 15 * 60000).toISOString()),
+  ]);
 }
-export async function heartbeat(db:EvidenceDb,client:AutomationClient,id:string,token:string|null,now=new Date()){
- const job=await leasedJob(db,client,id,token,now);
- const contextTime=await db.prepare('SELECT updated_at FROM ai_jobs WHERE id=?').bind(id).first<{updated_at:string}>();
- // Heartbeats may not extend past the original lease's bound or the job expiry.
- const cap=new Date(Date.parse(contextTime!.updated_at)+(job.kind==='plan'?120:30)*60000).getTime();
- const expires=new Date(Math.min(cap,Date.parse(job.expires_at),now.getTime()+(job.kind==='plan'?60:10)*60000)).toISOString();
- await db.prepare("UPDATE ai_jobs SET lease_expires_at=? WHERE id=? AND status='leased' AND lease_token_sha256=?").bind(expires,id,job.lease_token_sha256).run();return {leaseExpiresAt:expires};
+export async function leaseJobs(
+  db: EvidenceDb,
+  client: AutomationClient,
+  input: { kinds: string[]; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string } },
+  environment: string,
+  now = new Date(),
+) {
+  await maintainJobs(db, now);
+  const kinds = input.kinds.filter((k) => client.scopes.includes(k === 'plan' ? 'jobs:plan' : 'jobs:assess'));
+  const purposes = (client.purposes ?? []).filter((x) => !input.purposes || input.purposes.includes(x));
+  const triggers = (client.triggers ?? []).filter((x) => !input.triggers || input.triggers.includes(x));
+  if (!kinds.length || !purposes.length || !triggers.length) throw new ApiError(403, 'Client không được lease loại công việc này.');
+  const jobs = [];
+  const placeholders = (x: unknown[]) => x.map(() => '?').join(',');
+  for (let n = 0; n < input.max; n++) {
+    const token = crypto.randomUUID() + crypto.randomUUID(),
+      hash = await sha256Hex(token),
+      stamp = now.toISOString();
+    const job = await db
+      .prepare(
+        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
+      )
+      .bind(
+        berlinDay(now),
+        client.id,
+        hash,
+        stamp,
+        JSON.stringify(input.runner),
+        stamp,
+        ...kinds,
+        ...purposes,
+        ...triggers,
+        stamp,
+        ...(client.learnerIds ?? []),
+      )
+      .first<Job>();
+    if (!job) break;
+    try {
+      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment) : await buildAssessContext(db, job, environment, now);
+      const changed = await db
+        .prepare("UPDATE ai_jobs SET context_snapshot=?,context_hash=? WHERE id=? AND status='leased' AND lease_token_sha256=?")
+        .bind(JSON.stringify(context), context.contextHash, job.id, hash)
+        .run();
+      if (!changed.meta.changes) throw new ApiError(409, 'Lease đã thay đổi khi dựng ngữ cảnh.');
+      jobs.push({
+        jobId: job.id,
+        kind: job.kind,
+        purpose: job.purpose,
+        trigger: job.trigger,
+        leaseToken: token,
+        leaseExpiresAt: job.lease_expires_at,
+        contextUrl: `/api/automation/v2/jobs/${job.id}/context`,
+      });
+    } catch (error) {
+      await db
+        .prepare(
+          "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,lease_token_sha256=NULL,lease_expires_at=NULL,error='Không dựng được ngữ cảnh an toàn' WHERE id=? AND lease_token_sha256=?",
+        )
+        .bind(job.id, hash)
+        .run();
+      throw error;
+    }
+  }
+  return jobs;
+}
+export async function leasedJob(db: EvidenceDb, client: AutomationClient, id: string, token: string | null, now = new Date(), allowFinished = false) {
+  const job = await readJob(db, id);
+  if (!job || job.lease_client_id !== client.id || !permits(client, job)) throw new ApiError(404, 'Không tìm thấy công việc.');
+  if (!token || (await sha256Hex(token)) !== job.lease_token_sha256) throw new ApiError(401, 'Lease token không hợp lệ.');
+  if (allowFinished && job.status === 'succeeded') return job;
+  if (job.status !== 'leased' || !job.lease_expires_at || job.lease_expires_at <= now.toISOString() || job.expires_at <= now.toISOString())
+    throw new ApiError(410, 'Lease đã hết hạn. Đọc lại trạng thái công việc.');
+  return job;
+}
+export async function heartbeat(db: EvidenceDb, client: AutomationClient, id: string, token: string | null, now = new Date()) {
+  const job = await leasedJob(db, client, id, token, now);
+  const contextTime = await db.prepare('SELECT updated_at FROM ai_jobs WHERE id=?').bind(id).first<{ updated_at: string }>();
+  // Heartbeats may not extend past the original lease's bound or the job expiry.
+  const cap = new Date(Date.parse(contextTime!.updated_at) + (job.kind === 'plan' ? 120 : 30) * 60000).getTime();
+  const expires = new Date(Math.min(cap, Date.parse(job.expires_at), now.getTime() + (job.kind === 'plan' ? 60 : 10) * 60000)).toISOString();
+  await db
+    .prepare("UPDATE ai_jobs SET lease_expires_at=? WHERE id=? AND status='leased' AND lease_token_sha256=?")
+    .bind(expires, id, job.lease_token_sha256)
+    .run();
+  return { leaseExpiresAt: expires };
 }

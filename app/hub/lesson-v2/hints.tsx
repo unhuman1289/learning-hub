@@ -1,4 +1,49 @@
 "use client";
-import type {ItemView} from '../../../lib/lesson-v2/store';
-import {buttonClass} from '../ui';
-export function Hints({item,disabled,onReveal}:{item:ItemView;disabled:boolean;onReveal:(level:'hint1'|'hint2'|'solution')=>void}){return <div className="mt-4 space-y-3"><div className="flex flex-wrap gap-2">{item.hintCount>=1&&<button disabled={disabled} className={buttonClass('ghost')} onClick={()=>onReveal('hint1')}>Gợi ý 1</button>}{item.hintCount>=2&&<button disabled={disabled} className={buttonClass('ghost')} onClick={()=>onReveal('hint2')}>Gợi ý 2</button>}<button disabled={disabled} className={buttonClass('ghost')} onClick={()=>{if(window.confirm('Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?'))onReveal('solution');}}>Xem lời giải</button></div>{item.revealed.hints.map((hint,i)=><p key={i} className="rounded bg-rose-soft p-3">{hint}</p>)}{item.revealed.solution&&<div className="border border-line p-4"><p className="whitespace-pre-wrap">{item.revealed.solution}</p><p>{item.revealed.explanation}</p></div>}</div>;}
+import type { ItemView } from "../../../lib/lesson-v2/store";
+import { buttonClass } from "../ui";
+export function Hints({
+  item,
+  disabled,
+  onReveal,
+}: {
+  item: ItemView;
+  disabled: boolean;
+  onReveal: (level: "hint1" | "hint2" | "solution") => void;
+}) {
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex flex-wrap gap-2">
+        {item.hintCount >= 1 && (
+          <button disabled={disabled} className={buttonClass("ghost")} onClick={() => onReveal("hint1")}>
+            Gợi ý 1
+          </button>
+        )}
+        {item.hintCount >= 2 && (
+          <button disabled={disabled} className={buttonClass("ghost")} onClick={() => onReveal("hint2")}>
+            Gợi ý 2
+          </button>
+        )}
+        <button
+          disabled={disabled}
+          className={buttonClass("ghost")}
+          onClick={() => {
+            if (window.confirm("Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?")) onReveal("solution");
+          }}
+        >
+          Xem lời giải
+        </button>
+      </div>
+      {item.revealed.hints.map((hint, i) => (
+        <p key={i} className="rounded bg-rose-soft p-3">
+          {hint}
+        </p>
+      ))}
+      {item.revealed.solution && (
+        <div className="border border-line p-4">
+          <p className="whitespace-pre-wrap">{item.revealed.solution}</p>
+          <p>{item.revealed.explanation}</p>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -36,7 +36,11 @@ test('every standalone API route is authenticated or explicitly public/disabled'
       continue;
     }
     if (serviceRoutes.has(name)) {
-      if(name.startsWith('automation/v2/')){assert.match(source,/authorizeAutomation\(req,env,'jobs:plan'\)/);assert.match(source,/leasedJob\(db,client,id,token\)/);continue;}
+      if (name.startsWith('automation/v2/')) {
+        assert.match(source, /authorizeAutomation\(req,\s*env,\s*'jobs:plan'\)/);
+        assert.match(source, /leasedJob\(db,\s*client,\s*id,\s*token\)/);
+        continue;
+      }
       assert.match(source, /requireAutomation\(request, '(runs:create|context:read|result:write)'\)/, `${name} must require scoped service authorization`);
       continue;
     }
