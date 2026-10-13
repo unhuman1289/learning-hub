@@ -97,7 +97,8 @@
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "APP_VERSION": "production-admin-bootstrap",
+        "APP_VERSION": "hub2-schema-2026-10-13",
+        "HUB2_ENABLED": "false",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",
