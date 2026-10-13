@@ -3,6 +3,8 @@ declare namespace Cloudflare {
     ASSETS?: Fetcher;
     DB?: D1Database;
     BUCKET?: R2Bucket;
+    /** Learners' photos of handwritten work; objects expire after 30 days (bucket lifecycle). */
+    UPLOADS?: R2Bucket;
     APP_ORIGIN?: string;
     APP_VERSION?: string;
     DEPLOYMENT_ID?: string;

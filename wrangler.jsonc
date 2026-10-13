@@ -20,6 +20,12 @@
       "migrations_dir": "drizzle"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "UPLOADS",
+      "bucket_name": "learning-hub-uploads-local"
+    }
+  ],
   "observability": {
     "enabled": true
   },
@@ -53,6 +59,10 @@
         {
           "binding": "BUCKET",
           "bucket_name": "learning-hub-backups-staging"
+        },
+        {
+          "binding": "UPLOADS",
+          "bucket_name": "learning-hub-uploads-staging"
         }
       ],
       "triggers": {
@@ -94,6 +104,10 @@
         {
           "binding": "BUCKET",
           "bucket_name": "learning-hub-backups-production"
+        },
+        {
+          "binding": "UPLOADS",
+          "bucket_name": "learning-hub-uploads-production"
         }
       ],
       "triggers": {
