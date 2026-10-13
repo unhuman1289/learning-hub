@@ -11,7 +11,7 @@
     "build": "node scripts/run-framework.mjs build",
     "start": "node --import ./scripts/wrangler-env.mjs ./node_modules/wrangler/bin/wrangler.js dev --config wrangler.jsonc --local --persist-to .wrangler/state --ip 127.0.0.1 --inspector-port 0",
     "deploy:staging": "node --import ./scripts/wrangler-env.mjs ./node_modules/@vinext/cloudflare/dist/cli.js deploy --env staging",
-    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .claude/worktrees/**",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .claude/worktrees/** --ignore-pattern '.wrangler/**'",
     "db:generate": "drizzle-kit generate",
     "test": "node --experimental-strip-types --test tests/*.test.mjs",
     "typecheck": "tsc --noEmit",
@@ -23,11 +23,15 @@
     "db:restore:drill": "node scripts/restore-drill.mjs",
     "contracts:schema": "node --experimental-strip-types scripts/contracts-schema.mjs",
     "contracts:check": "node --experimental-strip-types scripts/contracts-schema.mjs --check",
-    "seed:hub2": "node --experimental-strip-types scripts/seed-hub2.mjs"
+    "seed:hub2": "node --experimental-strip-types scripts/seed-hub2.mjs",
+    "deploy:mcp:staging": "node --import ./scripts/wrangler-env.mjs ./node_modules/wrangler/bin/wrangler.js deploy --config wrangler.mcp.jsonc --env staging"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
+    "@better-auth/mcp": "1.7.7",
+    "@better-auth/oauth-provider": "1.7.7",
     "@hookform/resolvers": "^5.7.1",
+    "@modelcontextprotocol/server": "2.3.1",
     "@shadcn/react": "^0.3.0",
     "better-auth": "1.7.7",
     "class-variance-authority": "0.7.1",
@@ -51,7 +55,7 @@
     "sonner": "^2.0.8",
     "tailwind-merge": "3.6.0",
     "vaul": "^1.1.2",
-    "zod": "^3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",

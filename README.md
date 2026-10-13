@@ -4,6 +4,10 @@ Source riêng tư: https://github.com/unhuman1289/learning-hub
 
 Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc)**: mỗi chủ đề là một cuốn sổ trên tủ sách; mở sổ để đọc bài, làm bài tập, lưu bài làm và theo dõi thời gian học. Bài được giao theo từng tài khoản; ghi chú và mốc dự án hiện còn dùng chung.
 
+## MCP trực tiếp — staging (13/10/2026)
+
+ChatGPT có thể kết nối OAuth tới Worker riêng, dùng D1 staging, không qua Sites. Client QA đã kiểm tra OAuth, lưu/đọc lại bài và thu hồi quyền. Còn cần kết nối app và nghiệm thu công cụ ghi bằng tài khoản ChatGPT thật; chưa đặt lịch, chưa đổi production. Xem [hướng dẫn kết nối](docs/ops/DIRECT-MCP.md).
+
 ## Đợt H4/H5 staging (13/10/2026)
 
 Learner model, hàng đợi hôm nay, job API v2, quản trị và cảnh báo đã đưa lên staging. E2E dùng runner giả đạt; chưa có AI thật/tác vụ ChatGPT. Phép đo gói lớn vượt ngân sách CPU Free; xem [VALIDATION](docs/VALIDATION.md) và [hướng vận hành](docs/ops/h5-staging.md). Production chưa nhận đợt này.

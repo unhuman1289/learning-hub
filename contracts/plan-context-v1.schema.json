@@ -210,13 +210,9 @@
             "type": "object",
             "properties": {
               "openPrimaryLessonId": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "type": [
+                  "string",
+                  "null"
                 ]
               },
               "eligibleForPrimary": {
@@ -227,13 +223,9 @@
                 "maxLength": 80
               },
               "openReviewSetId": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
+                "type": [
+                  "string",
+                  "null"
                 ]
               },
               "eligibleForReview": {
@@ -522,13 +514,9 @@
                         "type": "string"
                       },
                       "attemptId": {
-                        "anyOf": [
-                          {
-                            "type": "string"
-                          },
-                          {
-                            "type": "null"
-                          }
+                        "type": [
+                          "string",
+                          "null"
                         ]
                       },
                       "activity": {
@@ -710,13 +698,9 @@
             ]
           },
           "subjectId": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
+            "type": [
+              "string",
+              "null"
             ]
           },
           "text": {
