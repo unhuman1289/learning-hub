@@ -71,6 +71,13 @@
       "when": 1791842400000,
       "tag": "0009_lessons_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791846000000,
+      "tag": "0010_attachments",
+      "breakpoints": true
     }
   ]
 }
