@@ -1,5 +1,8 @@
 import { z } from 'zod/v4';
 
+// Workers disallow runtime code generation. Keep schema validation on Zod's interpreter.
+z.config({ jitless: true });
+
 /**
  * lesson-package/2: one lesson with individually graded items (docs/hub2/AI-API.md §6.1).
  * The schema checks shape and sizes; lib/lesson-v2/validate.ts checks rules across fields.

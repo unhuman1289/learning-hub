@@ -78,3 +78,12 @@ This proves a manual non-AI MCP-to-staging round trip. Fresh scheduled cloud tas
 - Full staging pre-migration SQL stored in R2 `learning-hub-backups-staging/h3/2026-10-13-before-0011.sql`; downloaded readback matches original bytes.
 - Only pending staging migration was 0011; applied successfully. No production migration/deploy or DNS changes. Existing uploads staging lifecycle: `uploads/` expires after 30 days.
 - H3.5/Gate A remains open: parent review and real Ếch one-week use of at least three lessons on phone/desktop required. Demo tests do not satisfy this. No AI grading, disputes workflow, learner-model updates or daily content runner in this release.
+
+### Staging acceptance H2/H3
+
+- Source code `acecb84`, deployed staging version `eee8376d-07d4-416a-9a86-8ef79d3f1b45`; HUB2_ENABLED true. No staging migrations pending. Secret names checked only; values never read or displayed.
+- Anonymous/forged-identity smoke: health/D1 200, login/register/reset pages and CSS/JS available, anonymous home 307, retired Sites endpoint 410, all 16 protected probes 401 (including new lesson/submission/import routes).
+- Authenticated real staging (`hub2-staging-smoke.mjs`): generated learner fixtures only. Login, D1 draft, correct auto grade, open-item pending, server hint support, UUID replay, retry link, other learner 404, wrong origin 403, non-admin import 403, completion/undo and logout/login persistence pass. Signup/Resend not retested in this release. Test users blocked, sessions expired, subject archived afterwards; real learner rows untouched.
+- Post-migration learning backup: 2 submissions, 4 attempts, 3 grades restored and compared cell-for-cell in fresh SQLite along with all other learning tables. Format-4 snapshot uploaded to R2 and download compared byte-for-byte; no existing database overwritten. SQL export including auth kept private separately.
+- Local positive admin import HTTP probe passes: valid 201, invalid package 422 with paths, unfinished lesson 409; non-admin 403. Wrangler local proxy was observed aborting a subsequent POST after a denied large-body request when switching test identities. Negative authorization probe is isolated at the end of the local harness; this preview-transport issue is not evidence of data loss and is retained here as a QA limitation. Live staging positive admin import remains a manual review check (no test admin added).
+- Production read-only health 200, `production-admin-bootstrap`, D1 connected. This H2/H3 release has not been deployed there.

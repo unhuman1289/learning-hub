@@ -4,7 +4,7 @@ Phạm vi: local/staging. H3.5 và Cổng A chỉ đạt sau dùng thật; khôn
 
 ## Chuẩn bị của phụ huynh/admin
 
-1. Đăng nhập staging, mở **Quản trị → Giao bài đã duyệt**.
+1. Nếu staging chưa có tài khoản Ếch: hoàn thành đăng ký/xác minh/duyệt, đặt vai trò trẻ em và gắn phụ huynh trong Quản trị trước. Các tài khoản demo chỉ dành cho local. Sau đó đăng nhập admin staging, mở **Quản trị → Giao bài đã duyệt**.
 2. Chọn một fixture `fixtures/lessons/deutsch-modalverb.json`, `deutsch-w-fragen.json`, `deutsch-nicht-kein.json`; đọc và chỉnh mục tiêu, nội dung, đáp án trước khi giao. Đây là bài gốc tự soạn để thử, không phải giáo trình đầy đủ.
 3. Lấy ID thật của người học từ `GET /api/learners` và ID sổ từ `GET /api/subjects?learner=<ID>` trong phiên admin. Kiểm tra sổ thuộc đúng người, đang active, template skill và aiEnabled vẫn false.
 4. Dán JSON dạng dưới vào ô, thay placeholders bằng ID và nguyên gói lesson. Đánh dấu đã duyệt rồi **Giao bài**. Chỉ coi thành công khi server trả lessonId.
