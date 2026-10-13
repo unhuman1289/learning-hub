@@ -8,7 +8,7 @@ import { recomputeSkill } from './recompute.ts';
  * refresh only touches skills whose state can change with time alone: a review coming due, or exposure
  * leaving the 14-day window. Submissions and AI jobs already recompute the skills they touch.
  */
-export const NIGHTLY_SKILL_LIMIT = 6;
+export const NIGHTLY_SKILL_LIMIT = 10;
 
 export async function refreshSkills(db: EvidenceDb, now: Date, limit = NIGHTLY_SKILL_LIMIT) {
   const today = berlinDay(now);

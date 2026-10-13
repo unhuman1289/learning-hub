@@ -40,18 +40,18 @@ export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: 
 
 /** Read revision before evidence; a newer computation wins. Pattern writes use a unique batch token. */
 export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId: string, now = new Date()) {
-  const skill = await db
-    .prepare('SELECT subject_id FROM skills WHERE id=? AND learner_id=?')
-    .bind(skillId, learnerId)
-    .first<{ subject_id: string }>();
-  if (!skill) throw new ApiError(404, 'Không tìm thấy kỹ năng.');
   for (let retry = 0; retry < 3; retry++) {
-    const old = await db
+    // Skill and current state in one query; a request on Workers Free may make only ~50 D1 queries.
+    const row = await db
       .prepare(
-        'SELECT revision,evidence_hash,mastery,mastery_source,mastery_reason,review_source,next_review_day,review_kind,mastery_ceiling,dim_retention,recent_exposure,stuck_on FROM skill_states WHERE skill_id=?',
+        `SELECT sk.subject_id,st.skill_id AS state_skill,st.revision,st.evidence_hash,st.mastery,st.mastery_source,st.mastery_reason,st.review_source,
+           st.next_review_day,st.review_kind,st.mastery_ceiling,st.dim_retention,st.recent_exposure,st.stuck_on
+         FROM skills sk LEFT JOIN skill_states st ON st.skill_id=sk.id WHERE sk.id=? AND sk.learner_id=?`,
       )
-      .bind(skillId)
+      .bind(skillId, learnerId)
       .first<{
+        subject_id: string;
+        state_skill: string | null;
         revision: number;
         evidence_hash: string;
         mastery: Mastery;
@@ -65,6 +65,9 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
         recent_exposure: string;
         stuck_on: string | null;
       }>();
+    if (!row) throw new ApiError(404, 'Không tìm thấy kỹ năng.');
+    const skill = { subject_id: row.subject_id },
+      old = row.state_skill ? row : null;
     const rows = await skillEvidence(db, learnerId, skillId),
       state = computeSkillState(rows, now),
       hash = await sha256Hex(evidenceFingerprint(rows));
@@ -198,9 +201,9 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
           ),
       );
     }
-    await db.batch(statements);
-    const saved = await db.prepare('SELECT recompute_token FROM skill_states WHERE skill_id=?').bind(skillId).first<{ recompute_token: string }>();
-    if (saved?.recompute_token === token) return state;
+    statements.push(db.prepare('SELECT recompute_token FROM skill_states WHERE skill_id=?').bind(skillId));
+    const results = (await db.batch(statements)) as { results?: { recompute_token: string }[] }[];
+    if (results.at(-1)?.results?.[0]?.recompute_token === token) return state;
   }
   throw new ApiError(409, 'Tiến độ vừa thay đổi. Tính lại từ dữ liệu mới.');
 }

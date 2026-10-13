@@ -629,7 +629,7 @@ test('per-learner AI budget from settings limits on-demand assess jobs', async (
   db.sqlite.close();
 });
 
-test('daily queueing continues past one learner whose job cannot be created', async () => {
+test('daily queueing continues past one notebook whose job cannot be created', async () => {
   const db = seed();
   const other = 'second-learner-id';
   db.sqlite
@@ -641,7 +641,7 @@ test('daily queueing continues past one learner whose job cannot be created', as
     )
     .run(other, other);
   const summary = await queueDaily(db, { AI_JOBS_DAILY_CAP: '1' }, now);
-  assert.deepEqual(summary, { learners: 2, failed: 1 });
+  assert.deepEqual(summary, { subjects: 2, failed: 1 });
   assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily'").get().n, 1);
   db.sqlite.close();
 });

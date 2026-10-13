@@ -10,12 +10,12 @@ export async function collectAlerts(db: EvidenceDb, bindings: AlertBindings, now
   if (hour >= '06') {
     const rows = await db
       .prepare(
-        "SELECT count(*) AS n FROM user u WHERE u.status='active' AND EXISTS(SELECT 1 FROM subjects s WHERE s.learner_id=u.id AND s.status='active' AND s.ai_enabled=1) AND NOT EXISTS(SELECT 1 FROM ai_jobs j WHERE j.learner_id=u.id AND j.learning_day=? AND j.kind='plan' AND j.purpose='daily' AND j.status='succeeded')",
+        "SELECT count(*) AS n FROM subjects s JOIN user u ON u.id=s.learner_id WHERE u.status='active' AND s.status='active' AND s.ai_enabled=1 AND NOT EXISTS(SELECT 1 FROM ai_jobs j WHERE j.learner_id=s.learner_id AND (j.subject_id=s.id OR j.subject_id IS NULL) AND j.learning_day=? AND j.kind='plan' AND j.purpose='daily' AND j.status='succeeded')",
       )
       .bind(day)
       .first<{ n: number }>();
     if (rows?.n)
-      conditions.push({ code: 'nightly-plan-missing', message: 'Có ' + rows.n + ' lượt soạn bài đêm chưa hoàn tất. Bài đang học được giữ nguyên.' });
+      conditions.push({ code: 'nightly-plan-missing', message: 'Có ' + rows.n + ' sổ chưa được soạn bài đêm qua. Bài đang học được giữ nguyên.' });
   }
   const failed = await db.prepare("SELECT count(*) AS n FROM ai_jobs WHERE learning_day=? AND status='failed'").bind(day).first<{ n: number }>();
   if (failed?.n) conditions.push({ code: 'job-failed', message: 'Có ' + failed.n + ' công việc xử lý thất bại. Xem nhật ký để kiểm tra.' });

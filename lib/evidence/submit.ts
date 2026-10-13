@@ -136,6 +136,14 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         since,
       ),
   ];
+  // Latest attempt of every selected item in one query (Free allows ~50 D1 queries per request).
+  const { results: latest = [] } = await db
+    .prepare(
+      `SELECT a.item_id,a.id,a.attempt_no,g.result FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+       WHERE a.lesson_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
+    )
+    .bind(lessonId)
+    .all<{ item_id: string; id: string; attempt_no: number; result: string | null }>();
   let pending = false;
   for (const row of selected) {
     const item = JSON.parse(row.payload) as LessonItem,
@@ -153,12 +161,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         .first();
       if (!image) throw new ApiError(400, 'Ảnh không thuộc người học hoặc đã hết hạn.');
     }
-    const previous = await db
-      .prepare(
-        'SELECT a.id,a.attempt_no,g.result FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=? AND a.item_id=? ORDER BY a.attempt_no DESC LIMIT 1',
-      )
-      .bind(lessonId, row.item_id)
-      .first<{ id: string; attempt_no: number; result: string | null }>();
+    const previous = latest.find((attempt) => attempt.item_id === row.item_id);
     // A graded wrong answer shows the solution, so the retry after it counts as worked with the solution (E0).
     const itemSupport = previous?.result && previous.result !== 'correct' ? 'solution' : (support[row.item_id] ?? 'none');
     const attemptId = makeId('att_'),

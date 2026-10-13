@@ -54,7 +54,13 @@ export async function enqueue(
   const day = berlinDay(now),
     stamp = now.toISOString(),
     dedupe =
-      input.kind + ':' + input.purpose + ':' + input.learnerId + ':' + (input.purpose === 'daily' ? day : (input.refId ?? input.subjectId ?? day));
+      input.kind +
+      ':' +
+      input.purpose +
+      ':' +
+      input.learnerId +
+      ':' +
+      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + day : (input.refId ?? input.subjectId ?? day));
   const existing = await db
     .prepare('SELECT id,status,trigger,kind,purpose,priority FROM ai_jobs WHERE dedupe_key=?')
     .bind(dedupe)
@@ -146,20 +152,21 @@ export async function queueSubmission(db: EvidenceDb, bindings: QueueBindings, l
   return job;
 }
 export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: Date) {
+  // One plan job per notebook keeps each lease, context and apply within the Free CPU and D1 query budget.
   const { results = [] } = await db
     .prepare(
-      "SELECT DISTINCT s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active'",
+      "SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' ORDER BY s.learner_id, s.weight DESC, s.id",
     )
-    .all<{ learner_id: string }>();
-  // One learner's failure (daily cap, D1 hiccup) must not stop the others.
+    .all<{ id: string; learner_id: string }>();
+  // One notebook's failure (daily cap, D1 hiccup) must not stop the others.
   let failed = 0;
   for (const r of results) {
     try {
-      await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily' }, now);
+      await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily', subjectId: r.id }, now);
     } catch (error) {
       failed++;
       console.error('Daily plan job not queued:', error instanceof Error ? error.message : error);
     }
   }
-  return { learners: results.length, failed };
+  return { subjects: results.length, failed };
 }

@@ -86,14 +86,21 @@ export async function skillContext(db: EvidenceDb, learnerId: string, subjectId:
       reviewKind: s.review_kind ?? null,
       maintained: s.maintained === 1,
     })),
-    errors: await Promise.all(
-      data.errors.map(async (e) => {
-        const ids = JSON.parse(e.example_attempt_ids as string) as string[];
-        const examples = [];
-        for (const id of ids) {
-          const r = await db.prepare('SELECT answer FROM attempts WHERE id=? AND learner_id=?').bind(id, learnerId).first<{ answer: string }>();
-          if (r) examples.push(safeText(r.answer));
-        }
+    errors: await (async () => {
+      // Example answers for every pattern in one query.
+      const ids = [...new Set(data.errors.flatMap((e) => JSON.parse(e.example_attempt_ids as string) as string[]))];
+      const answers = new Map<string, string>();
+      // D1 binds at most 100 parameters per query.
+      for (let start = 0; start < ids.length; start += 90) {
+        const chunk = ids.slice(start, start + 90);
+        const { results = [] } = await db
+          .prepare(`SELECT id, answer FROM attempts WHERE learner_id=? AND id IN (${chunk.map(() => '?').join(',')})`)
+          .bind(learnerId, ...chunk)
+          .all<{ id: string; answer: string }>();
+        for (const r of results) answers.set(r.id, r.answer);
+      }
+      return data.errors.map((e) => {
+        const examples = (JSON.parse(e.example_attempt_ids as string) as string[]).flatMap((id) => (answers.has(id) ? [safeText(answers.get(id))] : []));
         return {
           patternId: String(e.id),
           skillId: String(e.skill_id),
@@ -106,8 +113,8 @@ export async function skillContext(db: EvidenceDb, learnerId: string, subjectId:
           examples,
           intervention: safeText(e.intervention),
         };
-      }),
-    ),
+      });
+    })(),
   };
 }
 export async function slots(db: EvidenceDb, learner: string, subject: string, day: string) {

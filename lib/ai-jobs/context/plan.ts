@@ -6,9 +6,11 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
   const learner = await learnerContext(db, job.learner_id, environment);
   const { results: subjects = [] } = await db
     .prepare(
-      `SELECT * FROM subjects WHERE learner_id=? AND ( (?='daily' AND status='active' AND ai_enabled=1) OR (?<>'daily' AND id=? AND status IN ('setup','active'))) ORDER BY weight DESC,id LIMIT 30`,
+      // Daily jobs carry one notebook; jobs queued before that change still cover every active notebook.
+      `SELECT * FROM subjects WHERE learner_id=? AND (?='daily' AND status='active' AND ai_enabled=1 AND (? IS NULL OR id=?)
+         OR ?<>'daily' AND id=? AND status IN ('setup','active')) ORDER BY weight DESC,id LIMIT 30`,
     )
-    .bind(job.learner_id, job.purpose, job.purpose, job.subject_id)
+    .bind(job.learner_id, job.purpose, job.subject_id, job.subject_id, job.purpose, job.subject_id)
     .all<Record<string, unknown>>();
   const from = addDays(job.learning_day, -13);
   const { results: study = [] } = await db
@@ -67,21 +69,24 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       data = await skillContext(db, job.learner_id, id);
     const { results: lessons = [] } = await db
       .prepare(
-        'SELECT id,payload,assigned_date,kind,completed_at FROM learning_lessons WHERE user_id=? AND subject_id=? AND assigned_date>=? ORDER BY assigned_date,id',
+        "SELECT id,json_object('title',json_extract(payload,'$.title')) AS payload,assigned_date,kind,completed_at FROM learning_lessons WHERE user_id=? AND subject_id=? AND assigned_date>=? ORDER BY assigned_date,id",
+      )
+      .bind(job.learner_id, id, from)
+      .all<Record<string, unknown>>();
+    // All items of the recent lessons in one query: a Free invocation allows only ~50 D1 queries.
+    const { results: allItems = [] } = await db
+      .prepare(
+        `SELECT i.lesson_id,i.item_id,i.activity,i.skill_ids,json_extract(i.payload,'$.prompt') AS prompt,i.flag,a.id AS attempt_id,a.attempt_no,a.support,g.result,g.errors
+    FROM lesson_items i JOIN learning_lessons l ON l.id=i.lesson_id
+    LEFT JOIN attempts a ON a.id=(SELECT id FROM attempts WHERE lesson_id=i.lesson_id AND item_id=i.item_id ORDER BY attempt_no DESC LIMIT 1)
+    LEFT JOIN grades g ON g.id=a.current_grade_id WHERE l.user_id=? AND l.subject_id=? AND l.assigned_date>=? ORDER BY i.lesson_id,i.item_id`,
       )
       .bind(job.learner_id, id, from)
       .all<Record<string, unknown>>();
     const recent = [];
     for (const l of lessons) {
       const p = JSON.parse(String(l.payload));
-      const { results: items = [] } = await db
-        .prepare(
-          `SELECT i.item_id,i.activity,i.skill_ids,i.payload,i.flag,a.id AS attempt_id,a.attempt_no,a.support,g.result,g.errors FROM lesson_items i
-    LEFT JOIN attempts a ON a.id=(SELECT id FROM attempts WHERE lesson_id=i.lesson_id AND item_id=i.item_id ORDER BY attempt_no DESC LIMIT 1)
-    LEFT JOIN grades g ON g.id=a.current_grade_id WHERE i.lesson_id=? ORDER BY i.item_id`,
-        )
-        .bind(l.id)
-        .all<Record<string, unknown>>();
+      const items = allItems.filter((i) => i.lesson_id === l.id);
       recent.push({
         lessonId: l.id,
         assignedDay: l.assigned_date,
@@ -93,7 +98,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
           attemptId: i.attempt_id ?? null,
           activity: i.activity,
           skills: JSON.parse(String(i.skill_ids)),
-          prompt: safeText(JSON.parse(String(i.payload)).prompt, sensitivity).slice(0, 160),
+          prompt: safeText(i.prompt, sensitivity).slice(0, 160),
           result: i.result ?? null,
           support: i.support ?? 'none',
           attemptNo: i.attempt_no ?? 0,
@@ -158,7 +163,9 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     safeSubjects = safe.subjects as typeof list;
   const bytesOf = (v: unknown) => new TextEncoder().encode(JSON.stringify(v)).length;
   let size = bytesOf(safe);
-  const cap = 128 * 1024,
+  // Aim for 32 KB (CPU on Workers Free); the 128 KB protocol limit stays the hard ceiling.
+  const cap = 32 * 1024,
+    hardCap = 128 * 1024,
     marks = new Set<string>();
   const mark = (value: string) => {
     if (marks.has(value)) return;
@@ -212,7 +219,18 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       mark('skill:' + sk.skillId);
     }
   }
-  if (bytesOf(safe) > cap) throw new Error('Plan context exceeds safe size after documented truncation.');
+  if (size > cap)
+    for (const s of safeSubjects) {
+      // Oldest finished lessons go last; the open lesson and the latest work stay.
+      const lessons = s.recentLessons as { lessonId: string; completed: boolean }[];
+      for (let i = 0; i < lessons.length - 3 && size > cap; )
+        if (lessons[i].completed) {
+          const [l] = lessons.splice(i, 1);
+          size -= bytesOf(l) + 1;
+          mark('lesson:' + l.lessonId);
+        } else i++;
+    }
+  if (bytesOf(safe) > hardCap) throw new Error('Plan context exceeds safe size after documented truncation.');
   safe.contextHash = await contextHash({ ...safe, contextHash: undefined });
   return planContext.parse(safe);
 }
