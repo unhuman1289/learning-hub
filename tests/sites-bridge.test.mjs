@@ -26,3 +26,35 @@ test('uncertain POST is not retried and retains recovery IDs',async()=>{
 test('POST uses two independent auth layers and stable idempotency',async()=>{
  const r=await bridgeCall('hub_start_run',{idempotencyKey:'bridge-test-20261010'},env,async(url,opts)=>{assert.equal(opts.headers.Authorization,'Bearer fixture-bearer');assert.equal(opts.headers['CF-Access-Client-Secret'],'fixture-secret');assert.equal(opts.headers['Idempotency-Key'],'bridge-test-20261010');assert.equal(JSON.parse(opts.body).trigger,'manual');return Response.json({runId},{status:201})});assert.equal(r.ok,true);
 });
+
+test('Hub 2 tools reach only the v2 job API with the lease token as a header', async () => {
+  const jobId = 'job_0123456789abcdef0123', token = crypto.randomUUID() + crypto.randomUUID();
+  const calls = [];
+  const fetcher = async (url, opts) => { calls.push({ url, opts }); return Response.json({ ok: true }); };
+  await bridgeCall('hub2_lease_plan', {}, env, fetcher);
+  await bridgeCall('hub2_context', { jobId, leaseToken: token }, env, fetcher);
+  await bridgeCall('hub2_check_result', { jobId, leaseToken: token, result: { contract: 'plan-result/1' } }, env, fetcher);
+  await bridgeCall('hub2_submit_result', { jobId, leaseToken: token, result: { contract: 'plan-result/1' } }, env, fetcher);
+  await bridgeCall('hub2_job', { jobId }, env, fetcher);
+  assert.deepEqual(calls.map((c) => [c.opts.method, c.url.replace(stagingOrigin, '')]), [
+    ['POST', '/api/automation/v2/jobs/lease'],
+    ['GET', `/api/automation/v2/jobs/${jobId}/context`],
+    ['POST', `/api/automation/v2/jobs/${jobId}/result?dryRun=1`],
+    ['POST', `/api/automation/v2/jobs/${jobId}/result`],
+    ['GET', `/api/automation/v2/jobs/${jobId}`],
+  ]);
+  assert.equal(calls[1].opts.headers['X-Lease-Token'], token);
+  assert.deepEqual(JSON.parse(calls[0].opts.body).kinds, ['plan']);
+  await assert.rejects(bridgeCall('hub2_context', { jobId: '../admin', leaseToken: token }, env, fetcher));
+  await assert.rejects(bridgeCall('hub2_job', { jobId, extra: 1 }, env, fetcher));
+  await assert.rejects(bridgeCall('hub2_context', { jobId, leaseToken: 'x' }, env, fetcher));
+});
+
+test('an uncertain Hub 2 write points to the job readback, never a retry', async () => {
+  const jobId = 'job_0123456789abcdef0123', token = crypto.randomUUID() + crypto.randomUUID();
+  let calls = 0;
+  const r = await bridgeCall('hub2_submit_result', { jobId, leaseToken: token, result: {} }, env, async () => { calls++; throw Error('lost'); });
+  assert.equal(calls, 1);
+  assert.equal(r.error, 'uncertain_write_read_hub2_job');
+  assert.equal(r.jobId, jobId);
+});
