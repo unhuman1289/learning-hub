@@ -23,7 +23,11 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       throw new ApiError(400, 'Dữ liệu nộp không phải JSON hợp lệ.');
     }
     const submission = await submitLesson(db, learner, id, parseSubmission(body));
-    const job = await queueSubmission(db, env, learner, String(submission.id));
+    // The submission is saved; a full AI queue only delays feedback and must not look like a failed save.
+    const job = await queueSubmission(db, env, learner, String(submission.id)).catch((error) => {
+      console.error('Assess job not queued:', error instanceof Error ? error.message : error);
+      return null;
+    });
     return Response.json({ submission, aiPending: !!job, eta: job?.trigger === 'deferred' ? 'tomorrow' : 'soon' }, { headers: privateHeaders });
   } catch (e) {
     return apiFailure(e, 'Chưa xác nhận nộp bài. Giữ mã lượt nộp và kiểm tra lại.', privateHeaders);

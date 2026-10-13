@@ -28,6 +28,20 @@ const leaseBody = z
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
   })
   .strict();
+// Building JSON Schema costs real CPU; do it once per isolate.
+let schemas: Record<string, unknown> | undefined;
+function contractSchemas() {
+  schemas ??= Object.fromEntries(
+    Object.entries({
+      'lesson-package/2': lessonPackageV2,
+      'plan-context/1': planContext,
+      'plan-result/1': planResult,
+      'assess-context/1': assessContext,
+      'assess-result/1': assessResult,
+    }).map(([k, schema]) => [k, z.toJSONSchema(schema)]),
+  );
+  return schemas;
+}
 async function route(req: Request, context: { params: Promise<{ path: string[] }> }) {
   if (env.HUB2_ENABLED !== 'true') return Response.json({ error: 'Not found' }, { status: 404, headers });
   try {
@@ -48,21 +62,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         throw new ApiError(400, 'JSON không hợp lệ.');
       }
     }
-    if (path.join('/') === 'schema' && req.method === 'GET')
-      return Response.json(
-        {
-          contracts: Object.fromEntries(
-            Object.entries({
-              'lesson-package/2': lessonPackageV2,
-              'plan-context/1': planContext,
-              'plan-result/1': planResult,
-              'assess-context/1': assessContext,
-              'assess-result/1': assessResult,
-            }).map(([k, schema]) => [k, z.toJSONSchema(schema)]),
-          ),
-        },
-        { headers },
-      );
+    if (path.join('/') === 'schema' && req.method === 'GET') return Response.json({ contracts: contractSchemas() }, { headers });
     if (path.join('/') === 'jobs/lease' && req.method === 'POST') {
       const input = leaseBody.safeParse(body);
       if (!input.success) throw new ApiError(400, 'Lease request không hợp lệ.');
@@ -95,7 +95,8 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         new Date(),
         env.AI_PRICE_TABLE,
       );
-      if (result.status === 422) await sendAlertDigest(db, env).catch(() => {});
+      // Email only when the third failed check ends the job; the 06:00 digest covers the rest.
+      if (result.status === 422 && (await readJob(db, id))?.status === 'failed') await sendAlertDigest(db, env).catch(() => {});
       return Response.json(result, { status: result.status, headers });
     }
     if (action === 'heartbeat' && req.method === 'POST') return Response.json(await heartbeat(db, client, id, token), { headers });
@@ -111,9 +112,9 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       // Keep runner text out of the learner UI and logs: it may contain answers or credentials.
       const changed = await db
         .prepare(
-          "UPDATE ai_jobs SET status=?,error='Runner báo thất bại',updated_at=?,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL WHERE id=? AND status='leased' AND lease_token_sha256=?",
+          "UPDATE ai_jobs SET status=?,error='Runner báo thất bại',updated_at=?,finished_at=CASE WHEN ?='failed' THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL WHERE id=? AND status='leased' AND lease_token_sha256=?",
         )
-        .bind(status, new Date().toISOString(), id, job.lease_token_sha256)
+        .bind(status, new Date().toISOString(), status, new Date().toISOString(), id, job.lease_token_sha256)
         .run();
       if (!changed.meta.changes) throw new ApiError(409, 'Lease vừa thay đổi.');
       if (status === 'failed') await sendAlertDigest(db, env).catch(() => {});

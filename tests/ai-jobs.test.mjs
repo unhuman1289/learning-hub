@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
-import { enqueue, queueSubmission, dispatchJob } from '../lib/ai-jobs/queue.ts';
+import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-jobs/queue.ts';
+import { refreshSkills } from '../lib/learner-model/nightly.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
@@ -255,7 +256,9 @@ for (const [code, mutate] of [
 test('three validation failures finish a job without any assignments', async () => {
   const db = seed(),
     { lease } = await leasePlan(db);
-  for (let n = 0; n < 3; n++) assert.equal((await applyResult(db, client, lease.jobId, lease.leaseToken, {}, true, now)).status, 422);
+  for (let n = 0; n < 5; n++) assert.equal((await applyResult(db, client, lease.jobId, lease.leaseToken, {}, true, now)).status, 422);
+  assert.equal((await readJob(db, lease.jobId)).status, 'leased', 'dry runs do not count');
+  for (let n = 0; n < 3; n++) assert.equal((await applyResult(db, client, lease.jobId, lease.leaseToken, {}, false, now)).status, 422);
   assert.equal((await readJob(db, lease.jobId)).status, 'failed');
   db.sqlite.close();
 });
@@ -596,5 +599,66 @@ test('large plan context is deterministically truncated below 128KB and preserve
   assert.equal(context.subjects.length, 3);
   assert(context.subjects.every((s) => s.skills.some((sk) => sk.status === 'active')));
   assert(!JSON.stringify(context).includes(learner));
+  db.sqlite.close();
+});
+
+test('replaying a graded submission keeps it graded and reuses its diagnosis job', async () => {
+  const { db, lesson } = await assigned();
+  await saveDraft(db, learner, lesson, { revision: 0, answers: { i1: { answer: '["a"]' }, i2: { answer: 'falsch' } } }, now);
+  const request = { clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'retrieval', itemIds: ['i1', 'i2'] };
+  const sub = await submitLesson(db, learner, lesson, request, now);
+  assert.equal(sub.status, 'graded');
+  const first = await queueSubmission(db, {}, learner, sub.id, now);
+  assert(first.id);
+  const replay = await submitLesson(db, learner, lesson, request, now);
+  assert.equal(replay.id, sub.id);
+  const again = await queueSubmission(db, {}, learner, replay.id, now);
+  assert.equal(again.id, first.id);
+  const row = db.sqlite.prepare('SELECT status, ai_job_id FROM submissions WHERE id=?').get(sub.id);
+  assert.deepEqual({ ...row }, { status: 'graded', ai_job_id: first.id });
+  db.sqlite.close();
+});
+
+test('per-learner AI budget from settings limits on-demand assess jobs', async () => {
+  const db = seed();
+  db.sqlite.prepare('UPDATE learner_settings SET ai_budget=? WHERE user_id=?').run(JSON.stringify({ assessPerDay: 1 }), learner);
+  const a = await enqueue(db, {}, { learnerId: learner, kind: 'assess', purpose: 'submission', refId: 'subm-1' }, now);
+  const b = await enqueue(db, {}, { learnerId: learner, kind: 'assess', purpose: 'submission', refId: 'subm-2' }, now);
+  assert.equal(a.trigger, 'on_demand');
+  assert.equal(b.trigger, 'deferred');
+  db.sqlite.close();
+});
+
+test('daily queueing continues past one learner whose job cannot be created', async () => {
+  const db = seed();
+  const other = 'second-learner-id';
+  db.sqlite
+    .prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'Other','other@example.test',1,1,1,'learner','active')")
+    .run(other);
+  db.sqlite
+    .prepare(
+      "INSERT INTO subjects(id,learner_id,title,template,status,ai_enabled,created_by,created_at,updated_at) VALUES('sub_cccccccccccccccccccc',?,'Toán','skill','active',1,?,'t','t')",
+    )
+    .run(other, other);
+  const summary = await queueDaily(db, { AI_JOBS_DAILY_CAP: '1' }, now);
+  assert.deepEqual(summary, { learners: 2, failed: 1 });
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily'").get().n, 1);
+  db.sqlite.close();
+});
+
+test('nightly refresh keeps an AI review date while evidence is unchanged and stays bounded', async () => {
+  const { db, lesson } = await assigned();
+  await saveDraft(db, learner, lesson, { revision: 0, answers: { i1: { answer: '["b"]' } } }, now);
+  await submitLesson(db, learner, lesson, { clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'retrieval', itemIds: ['i1'] }, now);
+  const skill = db.sqlite.prepare('SELECT skill_id FROM skill_states').get().skill_id;
+  db.sqlite.prepare("UPDATE skill_states SET next_review_day='2026-10-15', review_source='ai', updated_at='2026-10-13T00:00:00Z'").run();
+  const later = new Date('2026-10-16T02:00:00Z');
+  const result = await refreshSkills(db, later, 1);
+  assert.deepEqual(result, { refreshed: 1, failed: 0 });
+  const state = db.sqlite.prepare('SELECT next_review_day, review_source, updated_at FROM skill_states WHERE skill_id=?').get(skill);
+  assert.equal(state.next_review_day, '2026-10-15');
+  assert.equal(state.review_source, 'ai');
+  assert.equal(state.updated_at, later.toISOString());
+  assert.deepEqual(await refreshSkills(db, later, 1), { refreshed: 0, failed: 0 }, 'a skill is refreshed once a day');
   db.sqlite.close();
 });

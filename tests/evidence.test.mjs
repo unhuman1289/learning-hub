@@ -78,6 +78,18 @@ test('submission auto-grades closed items, leaves open pending, preserves retrie
   assert.equal(next.attempts[0].strength, 'E2');
   db.sqlite.close();
 });
+test('a retry after a wrong graded answer counts as worked with the solution', async () => {
+  const { db, id } = await seed();
+  await saveDraft(db, 'learner', id, { revision: 0, answers: { i1: { answer: '["a"]' } } });
+  const wrong = await submitLesson(db, 'learner', id, input(1, ['i1']));
+  assert.equal(wrong.attempts[0].result, 'incorrect');
+  await saveDraft(db, 'learner', id, { revision: 1, answers: { i1: { answer: '["b"]' } } });
+  const retry = await submitLesson(db, 'learner', id, input(2, ['i1']));
+  assert.equal(retry.attempts[0].result, 'correct');
+  assert.equal(retry.attempts[0].support, 'solution');
+  assert.equal(retry.attempts[0].strength, 'E0');
+  db.sqlite.close();
+});
 test('ownership, stage, stale draft and photo ownership failures write nothing', async () => {
   const { db, id } = await seed();
   await saveDraft(db, 'learner', id, { revision: 0, answers: { i1: { answer: '["b"]' } } });

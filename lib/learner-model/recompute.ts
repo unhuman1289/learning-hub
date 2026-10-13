@@ -1,7 +1,7 @@
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { ApiError } from '../api-error.ts';
 import { sha256Hex } from '../auth/automation.ts';
-import { computeSkillState, evidenceFingerprint, type Evidence, type ErrorCategory } from './rules.ts';
+import { clampMastery, computeSkillState, evidenceFingerprint, type Evidence, type ErrorCategory, type Mastery } from './rules.ts';
 
 export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: string) {
   const { results = [] } = await db
@@ -30,9 +30,10 @@ export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: 
         skillId?: string;
         label: string;
         category: ErrorCategory;
+        unverified?: boolean;
       }[]
     )
-      .filter((e) => !e.skillId || e.skillId === skillId)
+      .filter((e) => !e.unverified && (!e.skillId || e.skillId === skillId))
       .map((e) => ({ label: e.label, category: e.category })),
   })) as Evidence[];
 }
@@ -46,13 +47,46 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
   if (!skill) throw new ApiError(404, 'Không tìm thấy kỹ năng.');
   for (let retry = 0; retry < 3; retry++) {
     const old = await db
-      .prepare('SELECT revision,evidence_hash,mastery,mastery_source,mastery_reason FROM skill_states WHERE skill_id=?')
+      .prepare(
+        'SELECT revision,evidence_hash,mastery,mastery_source,mastery_reason,review_source,next_review_day,review_kind,mastery_ceiling,dim_retention,recent_exposure,stuck_on FROM skill_states WHERE skill_id=?',
+      )
       .bind(skillId)
-      .first<{ revision: number; evidence_hash: string; mastery: string; mastery_source: string; mastery_reason: string }>();
+      .first<{
+        revision: number;
+        evidence_hash: string;
+        mastery: Mastery;
+        mastery_source: string;
+        mastery_reason: string;
+        review_source: string;
+        next_review_day: string | null;
+        review_kind: string | null;
+        mastery_ceiling: string;
+        dim_retention: number;
+        recent_exposure: string;
+        stuck_on: string | null;
+      }>();
     const rows = await skillEvidence(db, learnerId, skillId),
       state = computeSkillState(rows, now),
       hash = await sha256Hex(evidenceFingerprint(rows));
-    const preserve = old && old.evidence_hash === hash && old.mastery_source !== 'rules';
+    // With no new evidence, AI decisions stand: mastery while within the rules ceiling, the review
+    // date it proposed, and the error patterns it resolved. New evidence recomputes everything.
+    const unchanged = !!old && old.evidence_hash === hash;
+    const preserve = unchanged && old.mastery_source !== 'rules' && !clampMastery(old.mastery, state.masteryCeiling).clipped;
+    const keepReview = unchanged && old.review_source === 'ai';
+    // The nightly refresh only matters when time moved a value (overdue review, 14-day exposure); skip no-op writes.
+    if (
+      unchanged &&
+      (preserve ? old.mastery : state.mastery) === old.mastery &&
+      state.masteryCeiling === old.mastery_ceiling &&
+      state.dimensions.retention === old.dim_retention &&
+      JSON.stringify(state.recentExposure) === old.recent_exposure &&
+      (state.stuckOn ?? null) === old.stuck_on &&
+      (keepReview || state.review.nextReviewDay === old.next_review_day)
+    ) {
+      // Mark it checked so the nightly refresh moves on to other skills.
+      await db.prepare('UPDATE skill_states SET updated_at=? WHERE skill_id=? AND revision=?').bind(now.toISOString(), skillId, old.revision).run();
+      return state;
+    }
     const token = crypto.randomUUID(),
       stamp = now.toISOString(),
       revision = old?.revision ?? -1;
@@ -79,6 +113,7 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
       'review_kind',
       'review_step_day',
       'maintained',
+      'review_source',
       'evidence_hash',
       'recompute_token',
       'updated_at',
@@ -103,10 +138,11 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
       state.lastAttemptAt,
       state.lastIndependentAt,
       state.review.intervalDays,
-      state.review.nextReviewDay,
-      state.review.kind,
+      keepReview ? old.next_review_day : state.review.nextReviewDay,
+      keepReview ? old.review_kind : state.review.kind,
       state.review.stepDay,
       state.review.maintained ? 1 : 0,
+      keepReview ? 'ai' : 'rules',
       hash,
       token,
       stamp,
@@ -128,9 +164,12 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
           'UPDATE subjects SET revision=revision+1 WHERE id=? AND learner_id=? AND EXISTS(SELECT 1 FROM skill_states WHERE skill_id=? AND recompute_token=?)',
         )
         .bind(skill.subject_id, learnerId, skillId, token),
-      db.prepare(`UPDATE error_patterns SET status='resolved',resolved_at=? WHERE skill_id=? AND ${gate}`).bind(stamp, skillId, skillId, token),
     ];
-    for (const p of state.errors) {
+    if (!unchanged)
+      statements.push(
+        db.prepare(`UPDATE error_patterns SET status='resolved',resolved_at=? WHERE skill_id=? AND ${gate}`).bind(stamp, skillId, skillId, token),
+      );
+    for (const p of unchanged ? [] : state.errors) {
       const id = 'err_' + (await sha256Hex(skillId + ':' + p.labelNorm)).slice(0, 20);
       statements.push(
         db

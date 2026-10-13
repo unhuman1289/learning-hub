@@ -77,11 +77,11 @@ export async function enqueue(
     .first<{ n: number }>();
   const limit =
     input.purpose === 'submission'
-      ? Number(budget.assessOnDemand ?? (adult ? 20 : 15))
+      ? Number(budget.assessPerDay ?? (adult ? 20 : 15))
       : input.purpose === 'recheck'
-        ? Number(budget.recheck ?? (adult ? 10 : 5))
+        ? Number(budget.recheckPerDay ?? (adult ? 10 : 5))
         : input.purpose === 'request'
-          ? Number(budget.requestOnDemand ?? (adult ? 3 : 2))
+          ? Number(budget.requestNowPerDay ?? (adult ? 3 : 2))
           : Infinity;
   if ((used?.n ?? 0) >= limit) {
     if (input.purpose === 'recheck') return { id: null, status: 'needs_human', trigger: 'deferred', created: false };
@@ -141,7 +141,8 @@ export async function queueSubmission(db: EvidenceDb, bindings: QueueBindings, l
     .first<{ subject_id: string; ai_job_id: string | null }>();
   if (!sub) return null;
   const job = await enqueue(db, bindings, { learnerId, kind: 'assess', purpose: 'submission', subjectId: sub.subject_id, refId: id }, now);
-  await db.prepare("UPDATE submissions SET ai_job_id=?,status='deferred' WHERE id=? AND learner_id=?").bind(job.id, id, learnerId).run();
+  // Only link the job; never move a graded submission back to waiting (a replay returns the same job).
+  await db.prepare('UPDATE submissions SET ai_job_id=? WHERE id=? AND learner_id=? AND ai_job_id IS NULL').bind(job.id, id, learnerId).run();
   return job;
 }
 export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: Date) {
@@ -150,5 +151,15 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
       "SELECT DISTINCT s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active'",
     )
     .all<{ learner_id: string }>();
-  for (const r of results) await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily' }, now);
+  // One learner's failure (daily cap, D1 hiccup) must not stop the others.
+  let failed = 0;
+  for (const r of results) {
+    try {
+      await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily' }, now);
+    } catch (error) {
+      failed++;
+      console.error('Daily plan job not queued:', error instanceof Error ? error.message : error);
+    }
+  }
+  return { learners: results.length, failed };
 }

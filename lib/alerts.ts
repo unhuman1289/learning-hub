@@ -47,8 +47,9 @@ export async function sendAlertDigest(db: EvidenceDb, bindings: AlertBindings, n
     .prepare("SELECT email FROM user WHERE role='admin' AND status='active' ORDER BY created_at LIMIT 1")
     .first<{ email: string }>();
   if (!admin) return { sent: false };
-  // The 06:00 missing-plan warning has its own once-per-day delivery claim.
-  // Other alerts share a digest. Claim before sending; uncertain delivery is not retried.
+  // The 06:00 missing-plan warning has its own delivery claim; other alerts share a digest.
+  // Each alert code is emailed at most once a day, so a failure later in the day still gets its own email.
+  // Claim before sending; after an uncertain delivery nothing more is sent that day.
   let sent = false;
   for (const urgent of [true, false]) {
     const selected = alerts.filter((a) => (a.code === 'nightly-plan-missing') === urgent);
@@ -56,7 +57,7 @@ export async function sendAlertDigest(db: EvidenceDb, bindings: AlertBindings, n
     const condition = urgent ? "code='nightly-plan-missing'" : "code<>'nightly-plan-missing'";
     const changed = await db
       .prepare(
-        `UPDATE alert_events SET email_state='sending' WHERE learning_day=? AND email_state='pending' AND ${condition} AND NOT EXISTS(SELECT 1 FROM alert_events WHERE learning_day=? AND ${condition} AND email_state IN ('sending','sent','failed'))`,
+        `UPDATE alert_events SET email_state='sending' WHERE learning_day=? AND email_state='pending' AND ${condition} AND NOT EXISTS(SELECT 1 FROM alert_events WHERE learning_day=? AND ${condition} AND email_state IN ('sending','failed'))`,
       )
       .bind(day, day)
       .run();

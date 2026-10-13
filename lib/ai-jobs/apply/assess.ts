@@ -104,7 +104,8 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
           JSON.stringify(g.rubricScores),
           g.feedback,
           g.correction,
-          JSON.stringify(g.errors),
+          // An error quoted from a photo cannot be checked against the text, so it stays in the feedback but never builds an error pattern.
+          JSON.stringify(g.errors.map((e) => (current.answer.includes(e.evidence) ? e : { ...e, unverified: true }))),
           now.toISOString(),
           job.id,
           token,

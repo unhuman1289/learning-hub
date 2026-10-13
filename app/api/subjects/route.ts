@@ -34,8 +34,13 @@ export async function POST(req: Request) {
     const learnerId = await resolveLearner(db, user, req, 'edit_goals');
     if (learnerId instanceof Response) return learnerId;
     const input = parseSubjectInput(await req.json());
-    const subject=await createSubject(db,learnerId,user.id,input);
-    if(subject.status==='setup'&&env.HUB2_ENABLED==='true')await enqueue(db,env,{learnerId,kind:'plan',purpose:'initial',subjectId:subject.id});
+    const subject = await createSubject(db, learnerId, user.id, input);
+    // The notebook is saved; if the initial plan job cannot be queued, an adult can still activate it by hand.
+    if (subject.status === 'setup' && env.HUB2_ENABLED === 'true') {
+      await enqueue(db, env, { learnerId, kind: 'plan', purpose: 'initial', subjectId: subject.id }).catch((error) =>
+        console.error('Initial plan job not queued:', error instanceof Error ? error.message : error),
+      );
+    }
     return Response.json({ subject }, { status: 201, headers });
   } catch (error) {
     return apiFailure(error, 'Chưa mở được sổ mới.', headers);

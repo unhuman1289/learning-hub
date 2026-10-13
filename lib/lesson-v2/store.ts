@@ -67,6 +67,8 @@ export function itemView(item: LessonItem, stage: string, support: Support[strin
   void _key;
   const level = graded ? 'solution' : support;
   const shownHints = level === 'solution' ? hints : level === 'hint2' ? hints.slice(0, 2) : level === 'hint1' ? hints.slice(0, 1) : [];
+  // A distractor's error label tells which choices are wrong; it is shown only once the item is graded.
+  if (!graded && visible.choices) visible.choices = visible.choices.map(({ errorLabel: _label, ...choice }) => (void _label, choice));
   return {
     ...visible, stage, hintCount: hints.length, flag,
     revealed: { hints: shownHints, ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },

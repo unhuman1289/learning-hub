@@ -39,9 +39,9 @@ export async function prepareJobStates(db: EvidenceDb, job: Job, context: Assess
       const a = context.attempts.find((a) => a.attemptId === g.attemptId);
       if (!a?.skills.includes(id)) continue;
       const row = await db
-        .prepare('SELECT created_at,submission_id,context,status FROM attempts WHERE id=? AND learner_id=?')
+        .prepare('SELECT created_at,submission_id,context,status,answer FROM attempts WHERE id=? AND learner_id=?')
         .bind(a.attemptId, job.learner_id)
-        .first<{ created_at: string; submission_id: string; context: Evidence['context']; status: string }>();
+        .first<{ created_at: string; submission_id: string; context: Evidence['context']; status: string; answer: string }>();
       if (!row) continue;
       byId.set(a.attemptId, {
         id: a.attemptId,
@@ -54,7 +54,9 @@ export async function prepareJobStates(db: EvidenceDb, job: Job, context: Assess
         status: 'graded',
         context: row.context,
         stage: a.stage,
-        errors: g.errors.filter((e) => e.skillId === id).map((e) => ({ label: e.label, category: e.category })),
+        errors: g.errors
+          .filter((e) => e.skillId === id && row.answer.includes(e.evidence))
+          .map((e) => ({ label: e.label, category: e.category })),
       });
     }
     for (const d of result.diagnosis) {
@@ -106,6 +108,7 @@ export async function prepareJobStates(db: EvidenceDb, job: Job, context: Assess
       'review_kind',
       'review_step_day',
       'maintained',
+      'review_source',
       'evidence_hash',
       'recompute_token',
       'updated_at',
@@ -134,6 +137,7 @@ export async function prepareJobStates(db: EvidenceDb, job: Job, context: Assess
       kind,
       state.review.stepDay,
       state.review.maintained ? 1 : 0,
+      review && next !== state.review.nextReviewDay ? 'ai' : 'rules',
       await sha256Hex(evidenceFingerprint(evidence)),
       token,
       now.toISOString(),

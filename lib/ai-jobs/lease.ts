@@ -88,11 +88,14 @@ export async function leaseJobs(
     } catch (error) {
       await db
         .prepare(
-          "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,lease_token_sha256=NULL,lease_expires_at=NULL,error='Không dựng được ngữ cảnh an toàn' WHERE id=? AND lease_token_sha256=?",
+          "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,error='Không dựng được ngữ cảnh an toàn',updated_at=? WHERE id=? AND lease_token_sha256=?",
         )
-        .bind(job.id, hash)
+        .bind(stamp, stamp, job.id, hash)
         .run();
-      throw error;
+      // Jobs already leased in this call must reach the runner, or they sit locked until the lease expires.
+      if (!jobs.length) throw error;
+      console.error('Lease stopped after a context failure:', error instanceof Error ? error.message : error);
+      break;
     }
   }
   return jobs;

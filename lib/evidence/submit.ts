@@ -154,9 +154,13 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       if (!image) throw new ApiError(400, 'Ảnh không thuộc người học hoặc đã hết hạn.');
     }
     const previous = await db
-      .prepare('SELECT id,attempt_no FROM attempts WHERE lesson_id=? AND item_id=? ORDER BY attempt_no DESC LIMIT 1')
+      .prepare(
+        'SELECT a.id,a.attempt_no,g.result FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=? AND a.item_id=? ORDER BY a.attempt_no DESC LIMIT 1',
+      )
       .bind(lessonId, row.item_id)
-      .first<{ id: string; attempt_no: number }>();
+      .first<{ id: string; attempt_no: number; result: string | null }>();
+    // A graded wrong answer shows the solution, so the retry after it counts as worked with the solution (E0).
+    const itemSupport = previous?.result && previous.result !== 'correct' ? 'solution' : (support[row.item_id] ?? 'none');
     const attemptId = makeId('att_'),
       gradeId = makeId('gr_'),
       number = (previous?.attempt_no ?? 0) + 1;
@@ -181,7 +185,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
           previous?.id ?? null,
           answer,
           JSON.stringify(photos),
-          support[row.item_id] ?? 'none',
+          itemSupport,
           lesson.kind === 'review' ? 'review' : 'lesson',
           grade ? 'graded' : 'pending',
           grade ? gradeId : null,

@@ -35,6 +35,8 @@ export async function applyResult(
     : null;
   if (prepared) issues = prepared.errors;
   if (issues.length) {
+    // A dry run is how a runner checks its draft; only real submissions count toward the 3-strike limit.
+    if (dryRun) return { status: 422, errors: issues };
     await db
       .prepare(
         "UPDATE ai_jobs SET validation_failures=validation_failures+1,status=CASE WHEN validation_failures>=2 THEN 'failed' ELSE status END,error='Kết quả chưa qua kiểm tra',finished_at=CASE WHEN validation_failures>=2 THEN ? ELSE finished_at END WHERE id=? AND status='leased' AND lease_token_sha256=?",
