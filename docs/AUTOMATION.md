@@ -4,7 +4,7 @@ This is the standalone Worker contract for content-preparation runners. It is pr
 
 ## Current deployment status
 
-The v1 API and D1 state machine are implemented in the local source tree. They are not deployed to staging. The staging database still needs migrations `0004_learner_scope.sql` and `0005_automation.sql`; the configured Cloudflare Access Service Auth application and automation secrets are also pending. Do not use these endpoints until those prerequisites are deployed and tested.
+Verified 2026-10-13: the Learning Hub plugin schema responds through the Sites bridge pinned to staging, using Automation API v1. Staging has migrations through `0011_evidence.sql`; manual v1 bridge acceptance is recorded in `docs/VALIDATION.md`. This does not prove a scheduled cloud task or a production bridge. The bridge starts manual runs and cannot accept `lesson-package/2`. For adult Deutsch content preparation and the reviewed v2 admin import path, see `docs/automation/DEUTSCH-PILOT.md`. H5/H7 v2 context, writer and cloud runner remain planned; this v1 contract is retained for compatibility.
 
 ## Authentication
 

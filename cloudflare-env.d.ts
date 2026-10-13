@@ -1,5 +1,12 @@
 declare namespace Cloudflare {
   interface Env {
+    APP_ENV?:string;
+    AI_JOBS_DAILY_CAP?:string;
+    AI_DISPATCH_URL?:string;
+    AI_DISPATCH_SECRET?:string;
+    AI_COST_ALERT_USD?:string;
+    AI_PRICE_TABLE?:string;
+    AI_QUEUE?:Queue;
     ASSETS?: Fetcher;
     DB?: D1Database;
     BUCKET?: R2Bucket;

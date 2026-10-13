@@ -223,3 +223,9 @@ Cần làm: commit Phase 1 vào `main`. Trong cùng commit đó, xoá `drizzle/0
 - `0011_evidence.sql`: submissions → attempts → grades, thêm disputes cho H6 (chưa có luồng phản đối). Backup format 4 giữ cả bảng mới, điểm thập phân và retry links; ảnh R2 vẫn có vòng đời riêng 30 ngày.
 - Câu mở `pending`, submission `deferred`. Chưa có assessor hoặc scheduled planner; trạng thái này không được trình bày như đã chấm.
 - UI nháp giữ trong bộ nhớ khi đổi bài/mất mạng; chưa lưu bền vững offline qua đóng/tải lại tab. Lỗi nộp không rõ kết quả giữ nguyên UUID; không tạo lượt mới mù quáng.
+
+## H4–H5 staging — 13/10/2026
+
+D1 thêm skill_states/error_patterns, ai_jobs/attempt_diagnoses/alert_events. Submission và grade tạo bằng chứng; pure rules suy ra bốn chiều, mức trần, lịch ôn và mẫu lỗi. Grade + state + job outcome ghi trong một batch có revision/lease guards. API v2 kiểm Access JWT, bearer scopes/purposes/triggers và lease token; ảnh chỉ đọc khi thuộc snapshot còn hiệu lực. Context 14 ngày được lọc định danh, chụp và hash trước khi runner đọc. Queue producer chỉ báo metadata; chưa có consumer AI thật. Cron staging chạy đúng 03:00/06:00 Berlin qua hai trigger UTC.
+
+Production vẫn bản cũ. E2E staging dùng tài khoản QA, runner giả, không đại diện chất lượng giảng dạy. CPU khi áp ba gói gần 96KB là 192ms: chưa có biên an toàn Workers Free cho trường hợp cực đại. Xem số đo và đề xuất trong VALIDATION; không đổi gói Cloudflare tự động.

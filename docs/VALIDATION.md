@@ -99,3 +99,45 @@ This proves a manual non-AI MCP-to-staging round trip. Fresh scheduled cloud tas
 - Final staging version: `6beaf3c9-14ce-44da-9a3c-5008ca6a1f0e`. Both final GitHub CI checks passed (141 tests, typecheck, lint, contracts, build).
 - Repeated anonymous/forged-header smoke and authenticated synthetic-learner acceptance on this version: all listed checks passed again; generated QA accounts blocked and sessions expired afterwards. No pending staging migrations.
 - Still pending: positive import using the real staging admin, parent-reviewed content and the one-week Ếch pilot. H3.5/Cổng A remains open. No production deployment or DNS changes in this task.
+
+## Deutsch người lớn — unhuman, 13/10/2026
+
+- Nội dung mới, không đổi Worker/runtime: `deutsch-adult-01-termin.json`, 40 phút, 8 câu, nguồn Goethe HTML thực sự mở; prompt chuẩn bị/tutor/lịch prepare-only. Không triển khai H5/H7 hoặc production.
+- Real staging admin dùng panel Giao bài đã duyệt, server trả `les_8b52eae6ba6b4eee8fb4`. Reload dashboard thấy bài; reader mở đủ 4 phần, chưa trả lời/nộp/đánh dấu hoàn thành thay người học. Đây là positive admin import thực đầu tiên của đợt H2/H3.
+- Read-only D1 đối chiếu: bài mới package 2, 8 lesson_items, completed_at NULL, response rỗng. Bài v1 07/10 vẫn có completed_at 09/10 và response dài 48 ký tự như trước. Không đọc nội dung câu trả lời hoặc ghi SQL.
+- 141 tests, typecheck, contracts:check đạt; gói bài kiểm validator với maxDifficulty 3. Không build/deploy mới vì chỉ đổi tài liệu/nội dung nhập qua API đã deploy.
+- Câu mở chưa được AI chấm; plugin vẫn chỉ v1 staging. Goal/level trong D1 của sổ Deutsch còn trống, khác mục tiêu hiển thị tĩnh ở UI; profile hiện nằm trong prompt/bài đã duyệt, cần đưa vào context v2 ở H5. Dashboard còn thông báo hoàn thành Deutsch từ bài v1 bên cạnh bài v2 chưa xong; reader/bài v2 là trạng thái đúng, cần sửa thông báo ở đợt UI sau.
+- Cổng A vẫn cần phụ huynh duyệt bài và pilot Ếch một tuần. Positive import của người lớn không thay thế điều kiện đó.
+
+## H4–H5 implementation and staging — 13/10/2026
+
+- User changed Gate A to unhuman/Deutsch and authorized H4–H5 local/staging immediately; real-user acceptance remains required before production.
+- Local D1: all 14 migrations applied; full build passed (owner terminal and agent rebuild). 210 tests pass; typecheck, ESLint and contract schema check pass.
+- Staging D1 0012/0013 applied after a SQL export and in-memory migration drill: all cells in 29 previous tables unchanged, foreign key check passed. Private export is outside Git.
+- Staging Worker version `0e370c2b-2aa8-45f3-aad9-38123991cb01`, `APP_VERSION=hub2-h4-h5-2026-10-13`. Queue producer `learning-hub-ai-staging` attached; no model API/consumer or subscription task configured.
+- Local and HTTPS staging E2E PASS: sign in → plan dry-run/write/readback → save draft → submit → fake assess → skill application state → completion/undo → sign out/in → saved answer and incomplete state preserved. Synthetic QA only, scoped service client; no real learner answer was graded or completed.
+- Staging QA E2E lesson `les_2997e7cc081752b29418`, submission `subm_f05ce769bbd09d3ff91c`. These are temporary test artifacts, not authored content for unhuman.
+- Alerts distinguish a once-per-day general digest from the urgent 06:00 missing-plan warning; missing cron jobs are detected. Uncertain email delivery is not retried. Tests use fake Resend; actual overnight delivery not yet witnessed.
+- H5.9 measurements completed with a concrete cost/performance proposal below; QA cleanup was executed after tests. H6 recheck decisions/explorations are deliberately rejected until their writers and user workflows exist.
+- Production code/config/DNS and real staging lessons remain unchanged. No ChatGPT task or real AI grading is implied by a succeeded fake job.
+
+### H5.9 CPU measurements and remaining risk
+
+Actual Wrangler tail CPU values (single/few synthetic invocations, not p95):
+
+| Work | Payload | CPU ms | Result |
+| --- | --- | ---: | --- |
+| Small plan lease | ordinary fixture | 6 | 200 |
+| Large context before fix | 3 × 120 skills | 1557 | 200 |
+| Large context after incremental truncation | 130654 bytes, 81 truncation markers | 122 cold / 48 warm | 200 |
+| Read large context | 130654 bytes | 6 warm | 200 |
+| Validate plan (dry run) | 3 × 97792-byte lessons | 186 | 200 |
+| Apply plan | 3 subjects / 42 items | 192 | 200; all 3 persisted |
+
+Cloudflare's [published Free limit](https://developers.cloudflare.com/workers/platform/limits/) is 10ms, with occasional overrun flexibility. Successful responses above 10ms do not establish a reliable Free operating envelope. No billing-plan change was made; the actual account plan was not checked. H5.9 has measurements and a specific proposal, not a claim that maximal workloads fit Free.
+
+Proposed next step before production AI: use one subject per plan job, cap working context to 32KB and ordinary lesson payload to 12KB, precompute/cache learner summaries, and measure these bounded cases with realistic Deutsch content. Keep the 96/128KB protocol caps for compatibility but reject/route heavy workloads deliberately; do not rely on overrun flexibility. Changing the job scope/body policy requires a reviewed follow-up. Paid Workers is an alternative only after reviewing those measurements and user approval; no model API dependency is needed.
+
+R2 backup after the migrations restored into fresh in-memory SQLite with exact cell comparison in all 29 learning/operation tables, including skill_states, ai_jobs and private context snapshots. Staging unauthenticated APIs return 401; another QA learner cannot read the lesson/subject; non-admin cannot read admin jobs; unsigned automation is denied. At 375px the loaded room has document width 375px (no horizontal overflow); the existing unfinished/finished learner state was preserved.
+
+Final staging code deployment: `f64cc4d2-ce38-452d-96de-6b3c2a6db96a`. Real unhuman Deutsch completion observed in D1 (13/10 10:32 UTC); this was not created by QA scripts and does not alone satisfy the three-lesson acceptance gate.

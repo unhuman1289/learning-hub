@@ -4,6 +4,10 @@ Source riêng tư: https://github.com/unhuman1289/learning-hub
 
 Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc)**: mỗi chủ đề là một cuốn sổ trên tủ sách; mở sổ để đọc bài, làm bài tập, lưu bài làm và theo dõi thời gian học. Bài được giao theo từng tài khoản; ghi chú và mốc dự án hiện còn dùng chung.
 
+## Đợt H4/H5 staging (13/10/2026)
+
+Learner model, hàng đợi hôm nay, job API v2, quản trị và cảnh báo đã đưa lên staging. E2E dùng runner giả đạt; chưa có AI thật/tác vụ ChatGPT. Phép đo gói lớn vượt ngân sách CPU Free; xem [VALIDATION](docs/VALIDATION.md) và [hướng vận hành](docs/ops/h5-staging.md). Production chưa nhận đợt này.
+
 ## Đợt H2/H3 (13/10/2026)
 
 Bài theo từng câu, reader skill/reading, nhập bài đã duyệt, nộp/chấm câu đóng và lịch sử sửa được triển khai trong nhánh `codex/hub2-h2-h3`, chỉ local/staging. Production chưa nhận đợt này. Câu mở chờ chấm; soạn bài đêm/AI không thuộc phần đã hoàn tất.

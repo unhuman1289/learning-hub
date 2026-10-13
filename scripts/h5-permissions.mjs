@@ -1,0 +1,10 @@
+import {readFileSync} from 'node:fs';import assert from 'node:assert/strict';
+const [file,lessonId]=process.argv.slice(2),m=JSON.parse(readFileSync(file,'utf8'));
+if(m.environment!=='staging'||m.origin!=='https://learning-hub-staging.tranvu-812.workers.dev'||!/^qa-h5-[a-f0-9]{20}$/.test(m.learnerId)||!/^les_[a-f0-9]{20}$/.test(lessonId))throw Error('Staging synthetic QA only.');
+const request=(path,method='GET',body,cookie='')=>fetch(m.origin+path,{method,headers:{Origin:m.origin,'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},body:body===undefined?undefined:JSON.stringify(body)});
+for(const path of ['/api/today','/api/subjects','/api/lessons/'+lessonId,'/api/admin/ai-jobs','/api/admin/alerts'])assert.equal((await request(path)).status,401);
+const login=await request('/api/auth/sign-in/email','POST',{email:m.otherEmail,password:m.password});assert.equal(login.status,200);const cookie=login.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');
+for(const path of ['/api/lessons/'+lessonId,'/api/subjects/'+m.subjectId])assert([403,404].includes((await request(path,'GET',undefined,cookie)).status));
+assert.equal((await request('/api/admin/ai-jobs','GET',undefined,cookie)).status,403);
+assert([401,403].includes((await request('/api/automation/v2/schema')).status));
+console.log(JSON.stringify({result:'PASS',unauthenticatedApi:'denied',crossLearner:'denied',nonAdmin:'denied',unsignedService:'denied'}));

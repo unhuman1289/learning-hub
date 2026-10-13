@@ -1,3 +1,5 @@
+import {env} from 'cloudflare:workers';
+import {enqueue} from '../../../lib/ai-jobs/queue';
 import { getHubUser } from '../../../lib/auth/session';
 import { storage } from '../../../db/storage';
 import { apiFailure } from '../../../lib/api-error';
@@ -32,7 +34,9 @@ export async function POST(req: Request) {
     const learnerId = await resolveLearner(db, user, req, 'edit_goals');
     if (learnerId instanceof Response) return learnerId;
     const input = parseSubjectInput(await req.json());
-    return Response.json({ subject: await createSubject(db, learnerId, user.id, input) }, { status: 201, headers });
+    const subject=await createSubject(db,learnerId,user.id,input);
+    if(subject.status==='setup'&&env.HUB2_ENABLED==='true')await enqueue(db,env,{learnerId,kind:'plan',purpose:'initial',subjectId:subject.id});
+    return Response.json({ subject }, { status: 201, headers });
   } catch (error) {
     return apiFailure(error, 'Chưa mở được sổ mới.', headers);
   }
