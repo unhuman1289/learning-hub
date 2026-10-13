@@ -93,3 +93,9 @@ This proves a manual non-AI MCP-to-staging round trip. Fresh scheduled cloud tas
 - Interpreter-only v2 schema validation avoids runtime code generation in Workers. Expanded privacy validation covers instructions, explanations, rubric text, knowledge-sheet notes/checklists and source descriptions as well as prompts. Six identifying-data mutation cases are blocked; ordinary fixture remains valid.
 - Reader now shows the concrete output in independent work and the next topic. 141 tests, typecheck, lint, contracts and build pass for this patch; prior staging authenticated acceptance remains recorded above.
 - Staging version `1abed8ed-404d-4b05-8e4c-4e41dd633bb4` corresponds to source `b388f4f`; anonymous/forged-header smoke passed again. Subsequent deployment of this patch is staging-only. PR #90 holds the reviewed source and CI evidence.
+
+### H2/H3 staging final acceptance — source 649b2f9
+
+- Final staging version: `6beaf3c9-14ce-44da-9a3c-5008ca6a1f0e`. Both final GitHub CI checks passed (141 tests, typecheck, lint, contracts, build).
+- Repeated anonymous/forged-header smoke and authenticated synthetic-learner acceptance on this version: all listed checks passed again; generated QA accounts blocked and sessions expired afterwards. No pending staging migrations.
+- Still pending: positive import using the real staging admin, parent-reviewed content and the one-week Ếch pilot. H3.5/Cổng A remains open. No production deployment or DNS changes in this task.
