@@ -98,3 +98,10 @@ test('support or draft race while nộp writes neither attempts nor grades',asyn
  assert.equal(await status(submitLesson(db,'learner',id,input())),409);
  for(const table of ['submissions','attempts','grades'])assert.equal(db.sqlite.prepare(`SELECT COUNT(*) n FROM ${table}`).get().n,0);db.sqlite.close();
 });
+
+test('import privacy scans instructions, rubric, knowledge sheet notes and source descriptions',async()=>{
+ const {validateLessonPackage}=await import('../lib/lesson-v2/validate.ts');
+ const mutations=[x=>x.items[0].instructions='Patient ID: 448812',x=>x.items[0].explanation='Contact person@hospital.example',x=>x.items[2].rubric[0].description='Fall-Nr. 448812',x=>x.sheet.examples[0].note='Patient: Max Mustermann',x=>x.sheet.checklist.push('Patient ID: 448812'),x=>x.sources.push({title:'Record',url:'https://example.com/paper',readScope:'Fall-Nr. 448812',retrievedAt:'2026-10-13T10:00:00Z',publishedAt:null})];
+ for(const change of mutations){const x=structuredClone(fixture);change(x);assert.ok(validateLessonPackage(x,{sensitivity:'clinical'}).issues.some(i=>i.code==='privacy'));}
+ assert.equal(validateLessonPackage(fixture,{sensitivity:'clinical'}).lesson!==null,true);
+});

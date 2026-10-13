@@ -88,8 +88,9 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
   const learnerText = [
     lesson.title, lesson.objective, lesson.why, lesson.level, lesson.diagram ?? '', lesson.output ?? '', lesson.nextTopic,
     ...lesson.sections.flatMap((section) => [section.heading, section.text]),
-    ...(lesson.sheet ? [lesson.sheet.explanation, ...lesson.sheet.rules, ...lesson.sheet.examples.map((example) => example.text)] : []),
-    ...lesson.items.flatMap((item) => [item.prompt, item.solution, ...item.hints, ...(item.choices ?? []).map((choice) => choice.text)]),
+    ...(lesson.sheet ? [lesson.sheet.explanation, ...lesson.sheet.rules, ...lesson.sheet.examples.flatMap((example) => [example.text, example.note ?? ""]), ...lesson.sheet.mistakes, ...lesson.sheet.tips, ...lesson.sheet.checklist] : []),
+    ...lesson.items.flatMap((item) => [item.prompt, item.instructions ?? '', item.explanation ?? '', item.solution, ...item.hints, ...(item.choices ?? []).flatMap((choice) => [choice.text, choice.errorLabel ?? '']), ...(item.rubric ?? []).flatMap((criterion) => [criterion.criterion, criterion.description ?? ''])]),
+    ...lesson.sources.flatMap((source) => [source.title, source.readScope]),
   ].join('\n');
   if (containsContactDetails(learnerText) || containsPossibleClinicalIdentifier(learnerText, options.sensitivity ?? 'normal')) {
     issue('', 'privacy', 'Lesson text may contain identifying contact or clinical details.');
