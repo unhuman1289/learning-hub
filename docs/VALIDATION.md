@@ -198,3 +198,7 @@ Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; ch�
 - Callback chỉ hai origin provider cố định; public DNS và no redirect. Chưa có socket DNS pinning; không cho arbitrary callback. Nếu callback thật khác allowlist thì fail closed, cần kiểm chứng origin trước thêm.
 - iCloud là tài khoản ChatGPT Work Cloud theo xác nhận người dùng, không phải thay account Hub/unhuman. Không đưa email ChatGPT vào source/config hay chuyển dữ liệu.
 - Chưa nghiệm thu: ChatGPT events/subscribe và callback thật, event webhook2xx, WorkCloud run và saved outcome. Không tạo subscription giả, không coi cron deployed là tự động đã hoạt động. Lỗi export10000 lần đầu; quyền migrations đọc được, backup thử lại đã thành công trước remote migration.
+
+### Events discovery follow-up — 14/10/2026
+
+Work screenshot reports no event registration capability, while manual MCP processed a plan. Staging readback0subscriptions/0deliveries; no automatic subscription or delivery accepted. Rescan/plugin event catalog is the next check; cause remains unconfirmed. Fixed unsubscribe to documented event-name/arguments/callback identity, idempotent and owner-scoped;258tests/typecheck/lint/contracts/build pass. MCP staging version33ec1f40-9c66-44cd-a21f-b05a10a3b3c1. No remote migration, production, learner answers or job result writes in this follow-up.

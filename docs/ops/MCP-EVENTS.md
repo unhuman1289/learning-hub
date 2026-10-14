@@ -26,3 +26,9 @@ Live account/client/consent, trạng thái notebook và expiry được kiểm t
 Không gọi “tự động đã hoạt động” chỉ vì events/list hoặc webhook 2xx. Còn cần ChatGPT đăng ký callback thật, nhận event và lưu kết quả. Nếu Work Cloud không hiện event subscription hoặc policy cấm thì giữ luồng thủ công, không giả lập receipt.
 
 Nguồn: https://developers.openai.com/plugins/build/mcp-events (mở ngày 14/10/2026). Đây là draft integration, cần kiểm callback/UI thật. Tắt MCP_EVENTS_ENABLED trên staging và deploy riêng MCP để rollback, giữ hai bảng và history; production không khai báo cron hay bật flag này.
+
+## Khi Work báo thiếu công cụ đăng ký
+
+Không đồng nhất hub2_lease_plan thủ công với subscription. Kiểm tra plugin page đã có Events learning.job.queued sau rescan MCP, rồi dùng Work+Cloud đúng app. events/list/subscribe là protocol lifecycle, không cần thêm tool giả để người dùng tự điền callback/secret. Nếu Events không hiện sau rescan, giữ trạng thái blocked tại discovery; nếu hiện nhưng không subscribe được, kiểm lỗi Work/policy hoặc callback thật. Không lặp lại cùng prompt để thay việc rescan.
+
+Ngày14/10: ảnh phiên Work báo thiếu công cụ đăng ký; readback staging0subscription/0delivery. Chưa xác định client không rescan hay policy/transport; không coi nguyên nhân là đã chứng minh. Sửa độc lập events/unsubscribe theo name/arguments/delivery đúng tài liệu; không có subscription cũ cần chuyển.

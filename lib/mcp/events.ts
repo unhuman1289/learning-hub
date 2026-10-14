@@ -10,7 +10,8 @@ export type EventBindings={DB:EvidenceDb;BETTER_AUTH_SECRET?:string;MCP_EVENTS_E
 export const eventName='learning.job.queued';
 const args=z.object({kind:z.enum(['plan','assess'])}).strict();
 export const subscribeSchema=z.object({name:z.literal(eventName),arguments:args,delivery:z.object({mode:z.literal('webhook'),url:z.string().url().max(2048),secret:z.string().max(200)}).strict(),cursor:z.null().optional(),ttlMs:z.number().int().min(60000).max(604800000).nullable().optional()}).strict();
-export const unsubscribeSchema=z.object({id:z.string().regex(/^evsub_[a-f0-9]{40}$/)}).strict();
+export const unsubscribeSchema=z.object({name:z.literal(eventName),arguments:args,delivery:z.object({mode:z.literal('webhook'),url:z.string().url().max(2048)}).strict()}).strict();
+export async function subscriptionId(userId:string,clientId:string,url:string,kind:string){return 'evsub_'+(await sha256Hex(userId+':'+clientId+':'+callbackUrl(url)+':'+kind)).slice(0,40);}
 const encoder=new TextEncoder();
 const origins=new Set(['https://chatgpt.com','https://api.openai.com']);
 export function callbackUrl(value:string){const url=new URL(value);if(!origins.has(url.origin)||url.username||url.password||url.hash||url.port||url.pathname==='/'||url.hostname.endsWith('.'))throw new ApiError(400,'Callback phải thuộc origin OpenAI đã xác minh.');return url.href;}
@@ -42,7 +43,7 @@ export async function subscribe(env:EventBindings,client:AutomationClient,userId
  const p=subscribeSchema.parse(input);if(!eventsEnabled(env)||!await pilot(env.DB,client)||!client.scopes.includes(p.arguments.kind==='plan'?'jobs:plan':'jobs:assess'))throw new ApiError(403,'Không có quyền sự kiện này.');
  if(!env.BETTER_AUTH_SECRET)throw new ApiError(503,'Event storage chưa cấu hình.');
  const url=callbackUrl(p.delivery.url);signingBytes(p.delivery.secret);
- const id='evsub_'+(await sha256Hex(userId+':'+clientId+':'+url+':'+p.arguments.kind)).slice(0,40);
+ const id=await subscriptionId(userId,clientId,url,p.arguments.kind);
  const count=await env.DB.prepare('SELECT count(*) AS n FROM mcp_event_subscriptions WHERE user_id=? AND active=1 AND expires_at>? AND id<>?').bind(userId,now.toISOString(),id).first<{n:number}>();
  if((count?.n??0)>=4)throw new ApiError(429,'Pilot tối đa bốn subscription.');
  const existing=await env.DB.prepare('SELECT secret_cipher,verified_at FROM mcp_event_subscriptions WHERE id=? AND active=1 AND expires_at>?').bind(id,now.toISOString()).first<{secret_cipher:string;verified_at:string}>();
@@ -61,7 +62,7 @@ export async function subscribe(env:EventBindings,client:AutomationClient,userId
  await env.DB.prepare(`INSERT INTO mcp_event_subscriptions(id,user_id,client_id,kind,callback_url,secret_cipher,created_at,verified_at,expires_at,active) VALUES(?,?,?,?,?,?,?,?,?,1) ON CONFLICT(id) DO UPDATE SET secret_cipher=excluded.secret_cipher,expires_at=excluded.expires_at,verified_at=excluded.verified_at,active=1`).bind(id,userId,clientId,p.arguments.kind,url,encrypted,now.toISOString(),cached?existing!.verified_at:now.toISOString(),expires).run();
  return {id,refreshBefore:expires,cursor:null,truncated:false};
 }
-export async function unsubscribe(db:EvidenceDb,userId:string,clientId:string,input:unknown){const {id}=unsubscribeSchema.parse(input);await db.prepare('UPDATE mcp_event_subscriptions SET active=0 WHERE id=? AND user_id=? AND client_id=?').bind(id,userId,clientId).run();return {};}
+export async function unsubscribe(db:EvidenceDb,userId:string,clientId:string,input:unknown){const p=unsubscribeSchema.parse(input);const id=await subscriptionId(userId,clientId,p.delivery.url,p.arguments.kind);await db.prepare('UPDATE mcp_event_subscriptions SET active=0 WHERE id=? AND user_id=? AND client_id=?').bind(id,userId,clientId).run();return {};}
 export async function deliverEvents(env:EventBindings,now=new Date(),fetcher:typeof fetch=fetch){
  if(!eventsEnabled(env)||!env.BETTER_AUTH_SECRET)return {delivered:0};
  const stamp=now.toISOString();const {results:subs=[]}=await env.DB.prepare('SELECT * FROM mcp_event_subscriptions WHERE active=1 AND expires_at>? LIMIT 10').bind(stamp).all<{id:string;user_id:string;client_id:string;kind:'plan'|'assess';callback_url:string;secret_cipher:string;created_at:string}>();let delivered=0;
