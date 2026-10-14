@@ -19,10 +19,10 @@ export async function mcpRequest(request:Request,env:HubAuthBindings){
   claims=(await jwtVerify(raw.slice(7),createLocalJWKSet(jwks),{issuer:origin+'/api/auth',audience:origin+'/mcp',algorithms:['EdDSA']})).payload;
   if(claims.cnf)throw Error('Sender-bound token not supported by this endpoint');
  }catch{return Response.json({error:'Invalid OAuth token'},{status:401,headers:challenge});}
- if(typeof claims.scope!=='string'||!claims.scope.split(' ').includes('hub:plan'))return Response.json({error:'Insufficient scope'},{status:403,headers:{...challenge,'WWW-Authenticate':'Bearer error="insufficient_scope", scope="hub:plan"'}});
+ if(typeof claims.scope!=='string'||!claims.scope.split(' ').some(s=>['hub:plan','hub:assess'].includes(s)))return Response.json({error:'Insufficient scope'},{status:403,headers:{...challenge,'WWW-Authenticate':'Bearer error="insufficient_scope", scope="hub:plan"'}});
  const req=request;
   if(typeof claims.sub!=='string'||typeof claims.client_id!=='string')return Response.json({error:'OAuth identity required'},{status:403});
-  let principal;try{principal=await plannerPrincipal(env.DB,claims.sub,claims.client_id);}catch{return Response.json({error:'Quyền kết nối không còn hiệu lực.'},{status:403});}
+  let principal;try{principal=await plannerPrincipal(env.DB,claims.sub,claims.client_id,claims.scope.split(' '));}catch{return Response.json({error:'Quyền kết nối không còn hiệu lực.'},{status:403});}
   if(req.method==='POST'&&await readBoundedText(req.clone(),512*1024)===null)return Response.json({error:'Payload too large'},{status:413});
   const handler=createMcpHandler(()=>{
    const server=new McpServer({name:'Learning Hub — Cloudflare',version:'1.0.0'});

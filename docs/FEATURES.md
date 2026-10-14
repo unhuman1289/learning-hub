@@ -95,3 +95,7 @@ OAuth, MCP, lưu bài giả/đọc lại, refresh và thu hồi đã đạt trê
 Đã lưu bài thực qua MCP trên staging, có receipt/ID đọc lại. Hạn mức bài chỉ tính v2 đang hoạt động; daily vẫn giữ cutoff và bài chưa xong. Cardio unhuman đã xóa riêng trên hai môi trường; không xóa của người khác. Assessor riêng gọi API Hub qua Access/bearer, nối Queue hiện có và cron dự phòng; model đang tắt vì thiếu key. Không có model key trong Hub. Production chưa nhận code mới/Hub2; config production chuẩn bị với flags false.
 
 Lộ trình Deutsch, scope H8, bộ eval dự thảo và runbook đã có. Chưa nghiệm thu API chấm thật, scheduled task cloud, 3 đêm, tuần học/feedback hoặc các giáo trình mới. Backup R2 format4 restore trên database mới đạt; auth/JWKS dùng private SQL backup riêng. Xem [AI-RUNNERS](ops/AI-RUNNERS.md) và [VALIDATION](VALIDATION.md).
+
+## Quyết định 14/10/2026: chỉ dùng thuê bao
+
+Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; chấm chuyển sang direct MCP với scope riêng hub:assess. Cần cấp lại OAuth và nghiệm thu bài nộp thật. Không cam kết chấm tức thì hoặc task cloud khi chưa kiểm thật. Toán 7/KHTN 7 theo Kết nối tri thức từ 2026–2027; chưa bật AI cho trẻ. Production không đổi.

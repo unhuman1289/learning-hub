@@ -27,7 +27,6 @@
     "deploy:mcp:staging": "node --import ./scripts/wrangler-env.mjs ./node_modules/wrangler/bin/wrangler.js deploy --config wrangler.mcp.jsonc --env staging"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "0.133.0",
     "@base-ui/react": "^1.7.0",
     "@better-auth/mcp": "1.7.7",
     "@better-auth/oauth-provider": "1.7.7",

@@ -176,3 +176,14 @@ Final staging code deployment: `f64cc4d2-ce38-452d-96de-6b3c2a6db96a`. Real unhu
 - Pending gates: API key/account spend limit, live assessment/latency/quality eval, ChatGPT task registration and real 3-night receipts, user learning and feedback, school curriculum, production cutover. H8 code/preparation is not completion of week-based acceptance.
 
 Final staging versions for this release: Hub `5bfdf691-b2e8-4936-967e-d3ede55d9940`, MCP `26e0d462-325b-4790-bc28-4594fb766df2`, assessor `4a4e927f-31e2-4691-aeb6-8c475e3d562f`. Final HTTPS smoke: login/register/reset assets load, unauthenticated home redirects, forged identity rejected across 16 API checks. Restored real Deutsch lesson renders through current reader with 5 items. Curriculum is stored in the D1 subject for cloud MCP access, not just a local file.
+
+## Quyết định 14/10/2026: chỉ dùng thuê bao
+
+Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; chấm chuyển sang direct MCP với scope riêng hub:assess. Cần cấp lại OAuth và nghiệm thu bài nộp thật. Không cam kết chấm tức thì hoặc task cloud khi chưa kiểm thật. Toán 7/KHTN 7 theo Kết nối tri thức từ 2026–2027; chưa bật AI cho trẻ. Production không đổi.
+
+### Chuyển sang grading bằng thuê bao — 14/10/2026
+
+- 249/249 test đạt; typecheck, lint, contracts:check và build đạt. Test MCP synthetic đi qua context/check/save/read gradeIds, giữ completion; job có ảnh không bị claim. Token hub:plan không được tự nâng quyền khi consent mở rộng.
+- Deploy riêng MCP staging: `981086fb-ad2d-463a-a216-c5467cbde72b`. Discovery 200, scopes openid/offline_access/hub:plan/hub:assess; MCP anonymous 401. App ChatGPT thật gọi hub2_schema đọc được assess-context/1 và assess-result/1.
+- Đã gỡ consumer assessor khỏi learning-hub-ai-staging, xóa Worker learning-hub-assessor-staging và secret ASSESSOR_CLIENT staging. Queue, D1, jobs và lịch sử giữ nguyên; AUTOMATION_CLIENTS không bị thay. Không deploy code production, không đổi DNS.
+- Chưa nghiệm thu: OAuth cấp mới hub:assess từ tài khoản thật, chấm bài thật và đọc grade IDs, task cloud gọi được app, 3 đêm và pilot dài hạn. Không báo H7/H8 hoàn tất. Giáo trình Toán/KHTN đã chọn bộ chính thức, chưa xác minh tiến độ lớp hay duyệt bộ chuẩn.

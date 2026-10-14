@@ -106,3 +106,7 @@ Giải thích chính bằng tiếng Việt, giữ thuật ngữ Anh/Đức; bài
 - **`private-data/` trên máy**: snapshot phục hồi; không vào Git.
 
 QUEST/SWARM là dự án riêng; repo Hub không chứa source hay dữ liệu bệnh nhân của hai dự án.
+
+## Quyết định 14/10/2026: chỉ dùng thuê bao
+
+Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; chấm chuyển sang direct MCP với scope riêng hub:assess. Cần cấp lại OAuth và nghiệm thu bài nộp thật. Không cam kết chấm tức thì hoặc task cloud khi chưa kiểm thật. Toán 7/KHTN 7 theo Kết nối tri thức từ 2026–2027; chưa bật AI cho trẻ. Production không đổi.
