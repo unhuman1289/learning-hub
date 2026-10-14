@@ -186,4 +186,15 @@ Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; ch�
 - 249/249 test đạt; typecheck, lint, contracts:check và build đạt. Test MCP synthetic đi qua context/check/save/read gradeIds, giữ completion; job có ảnh không bị claim. Token hub:plan không được tự nâng quyền khi consent mở rộng.
 - Deploy riêng MCP staging: `981086fb-ad2d-463a-a216-c5467cbde72b`. Discovery 200, scopes openid/offline_access/hub:plan/hub:assess; MCP anonymous 401. App ChatGPT thật gọi hub2_schema đọc được assess-context/1 và assess-result/1.
 - Đã gỡ consumer assessor khỏi learning-hub-ai-staging, xóa Worker learning-hub-assessor-staging và secret ASSESSOR_CLIENT staging. Queue, D1, jobs và lịch sử giữ nguyên; AUTOMATION_CLIENTS không bị thay. Không deploy code production, không đổi DNS.
-- Chưa nghiệm thu: OAuth cấp mới hub:assess từ tài khoản thật, chấm bài thật và đọc grade IDs, task cloud gọi được app, 3 đêm và pilot dài hạn. Không báo H7/H8 hoàn tất. Giáo trình Toán/KHTN đã chọn bộ chính thức, chưa xác minh tiến độ lớp hay duyệt bộ chuẩn.
+- Đã nghiệm thu luồng thủ công: OAuth hub:assess được cấp; ngày 14/10 app ChatGPT mới xử lý 4 lượt nộp trên staging. Codex đọc lại từng job qua MCP: 4/4 succeeded, mỗi lượt có một gradeId đúng receipt người dùng báo. Không ghi lại bài làm hay grade IDs vào tài liệu/Git.
+- Người dùng báo check → lưu một lần → đọc lại và lần lease cuối jobs: []; Codex chỉ xác minh receipts, không lease mới để kiểm hàng đợi. Điểm auto của i3 được giữ theo receipts; không gửi lại kết quả hay tự hoàn thành bài.
+- Đây là nghiệm thu kỹ thuật bằng lượt nộp có nội dung thử, chưa nghiệm thu chất lượng sư phạm hoặc năng lực Deutsch. Còn task cloud gọi được app, 3 đêm, bộ chuẩn được duyệt, bài học/feedback thật và pilot dài hạn. Không báo H7/H8 hoàn tất; production không đổi.
+
+### MCP Events staging — 14/10/2026
+
+- 257 test đạt; typecheck/lint/contracts/build đạt. Native SDK MCP2 server/discover và events/list có resultType complete; legacy tools giữ nguyên factory/auth. Test challenge mismatch/private DNS/unauthorized/revoke/410 và receipt không làm thay job.
+- Snapshot SQL staging mới lưu riêng tư quyền0600. Migration0016 trên bản sao giữ nguyên toàn bộ cell của 43 bảng cũ, foreign_key_check đạt; sau đó áp riêng staging.
+- MCP Worker staging version `97709ece-8df0-44d7-bb11-4599f21a12f0`, Events enabled với cron mỗi phút. Worker Hub chính/DNS/production không đổi.
+- Callback chỉ hai origin provider cố định; public DNS và no redirect. Chưa có socket DNS pinning; không cho arbitrary callback. Nếu callback thật khác allowlist thì fail closed, cần kiểm chứng origin trước thêm.
+- iCloud là tài khoản ChatGPT Work Cloud theo xác nhận người dùng, không phải thay account Hub/unhuman. Không đưa email ChatGPT vào source/config hay chuyển dữ liệu.
+- Chưa nghiệm thu: ChatGPT events/subscribe và callback thật, event webhook2xx, WorkCloud run và saved outcome. Không tạo subscription giả, không coi cron deployed là tự động đã hoạt động. Lỗi export10000 lần đầu; quyền migrations đọc được, backup thử lại đã thành công trước remote migration.

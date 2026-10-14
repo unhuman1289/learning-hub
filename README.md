@@ -6,7 +6,7 @@ Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc
 
 ## Pilot unhuman — H7/H8 (14/10/2026)
 
-Deutsch unhuman là pilot. Một bài luyện thêm thật đã lưu qua MCP staging; hạn mức không còn cộng bài nền v1. Cardio của unhuman đã xóa riêng trên staging/production. Assessor đã nối Queue/Hub staging nhưng model vẫn tắt, cần API key và nghiệm thu. Production chưa bật Hub2. Xem [vận hành AI](docs/ops/AI-RUNNERS.md), [lộ trình Deutsch](docs/curricula/deutsch-unhuman.md) và [phần H8 còn lại](docs/curricula/h8-expansion.md).
+Deutsch unhuman là pilot. Một bài luyện thêm thật đã lưu qua MCP staging; hạn mức không còn cộng bài nền v1. Cardio của unhuman đã xóa riêng trên staging/production. ChatGPT thuê bao đã chấm và đọc lại 4 lượt qua MCP; không dùng API key. MCP Events đang thử trên staging, chưa có callback thật/nghiệm thu tự động. Production chưa bật Hub2. Xem [vận hành AI](docs/ops/AI-RUNNERS.md), [lộ trình Deutsch](docs/curricula/deutsch-unhuman.md) và [phần H8 còn lại](docs/curricula/h8-expansion.md).
 
 ## MCP trực tiếp — staging (13/10/2026)
 

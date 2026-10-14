@@ -3,6 +3,7 @@ import {createLocalJWKSet,jwtVerify} from 'jose';
 import {createHubAuth,type HubAuthBindings} from '../auth/create';
 import {plannerPrincipal,callPlannerTool,toolSchemas,toolDescriptions} from './service';
 import {ApiError} from '../api-error';
+import {registerEvents} from './events-register';
 import {readBoundedText} from './body';
 
 export async function mcpRequest(request:Request,env:HubAuthBindings){
@@ -25,7 +26,8 @@ export async function mcpRequest(request:Request,env:HubAuthBindings){
   let principal;try{principal=await plannerPrincipal(env.DB,claims.sub,claims.client_id,claims.scope.split(' '));}catch{return Response.json({error:'Quyền kết nối không còn hiệu lực.'},{status:403});}
   if(req.method==='POST'&&await readBoundedText(req.clone(),512*1024)===null)return Response.json({error:'Payload too large'},{status:413});
   const handler=createMcpHandler(()=>{
-   const server=new McpServer({name:'Learning Hub — Cloudflare',version:'1.0.0'});
+   const server=new McpServer({name:'Learning Hub — Cloudflare',version:'1.1.0'});
+   registerEvents(server,env,principal,claims.sub as string,claims.client_id as string);
    for(const name of Object.keys(toolSchemas) as (keyof typeof toolSchemas)[]){
     const read=['hub2_schema','hub2_context','hub2_job'].includes(name);
     server.registerTool(name,{description:toolDescriptions[name],inputSchema:toolSchemas[name],annotations:{readOnlyHint:read,destructiveHint:false,idempotentHint:read,openWorldHint:false}},async(args:unknown)=>{

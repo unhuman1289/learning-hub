@@ -31,7 +31,8 @@
         "ENVIRONMENT": "staging",
         "APP_ORIGIN": "https://learning-hub-mcp-staging.tranvu-812.workers.dev",
         "MCP_ENABLED": "true",
-        "HUB2_ENABLED": "true"
+        "HUB2_ENABLED": "true",
+        "MCP_EVENTS_ENABLED": "true"
       },
       "d1_databases": [
         {
@@ -41,7 +42,12 @@
           "migrations_dir": "drizzle"
         }
       ],
-      "preview_urls": false
+      "preview_urls": false,
+      "triggers": {
+        "crons": [
+          "* * * * *"
+        ]
+      }
     },
     "production": {
       "name": "learning-hub-mcp-prod",

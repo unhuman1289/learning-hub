@@ -986,7 +986,7 @@ Mỗi tuần dành 30 phút: xem trang Lượt AI và chỉ số chấm, đọc 
 | Để Ếch đăng ký bằng email riêng; duyệt tài khoản | H1.8 |
 | Cho biết trình độ tiếng Đức hiện tại và mục tiêu phút của Ếch | H1.8 |
 | Duyệt nội dung 5–6 bài soạn tay trước khi giao cho Ếch | H2.7 |
-| Tạo API key Anthropic cho Worker chấm bài; đặt giới hạn chi tiêu trong Console | H7.3 |
+| Cấp consent MCP plan/assess; đăng ký sự kiện trong Work Cloud nếu dùng Events | H7.3 |
 | Tạo hai service token Access (hoặc cấp quyền để agent hướng dẫn từng bước) | H7.1, H7.5 |
 | Tạo tác vụ định kỳ ChatGPT và dán hướng dẫn cùng credential | H7.1 |
 | Chấm tay 25 câu mẫu làm chuẩn | H7.4 |
@@ -1064,11 +1064,11 @@ OAuth, MCP, lưu bài giả/đọc lại, refresh và thu hồi đã đạt trê
 |---|---|
 | H7.1 | OAuth MCP trực tiếp; lưu và đọc lại bài thực `les_6e79984e6d82480cc66a` trong sổ unhuman/Deutsch, không thay primary. Scheduled task chưa được đăng ký. |
 | H7.2 | Queue Free tạo được, consumer chờ HTTP 130.026 giây qua service binding đạt; Worker probe/Queue tạm dọn sau đo. Chưa chứng minh latency API model thật. |
-| H7.3 | Worker assessor staging, Queue thật + cron dự phòng, quyền riêng jobs:assess/attachments cho unhuman, kết nối Hub qua Access đạt. Hướng API đã bị thay thế bởi quyết định 14/10; cần consent hub:assess và bài nộp thật để nghiệm thu. |
+| H7.3 | ChatGPT thuê bao qua direct MCP; consent hub:assess, 4 receipts succeeded với grade IDs đọc lại. Assessor API đã gỡ. Chưa đạt chất lượng sư phạm/pilot. |
 | H7.4 | Prompt soạn/chấm; 25 bài chuẩn dự thảo, 5 thử injection, 5 ảnh tự soạn. Đáp án chưa được người duyệt; không tuyên bố 90% chất lượng. |
-| H7.5 | Config production MCP/assessor flags false; drill 0009–0015 giữ nguyên 4 bài production hiện tại. Chưa áp migration/deploy production; cổng dùng thật chưa đạt. |
+| H7.5 | Config production MCP tắt; drill 0009–0015 giữ nguyên 4 bài production hiện tại. Chưa áp migration/deploy production; cổng dùng thật chưa đạt. |
 | H7.6–H7.7 | Runbook, receipt report và công cụ nghiệm thu; chưa có 3 đêm hoặc một tuần/3 tuần học thật. Pilot đổi sang unhuman. |
-| H8.1 | Fixture/lớp reader nhập được từ H2; chuẩn bị nội dung theo bộ sách còn thiếu tên sách/tiến độ và chấm ảnh thật. Không bật AI cho trẻ. |
+| H8.1 | Fixture/lớp reader nhập được từ H2; bộ sách Kết nối tri thức đã chọn; còn thiếu tiến độ lớp và chấm ảnh thật. Không bật AI cho trẻ. |
 | H8.2 | Hiển thị công thức chỉ trong sổ Hóa, giữ raw answer; server bắt key công thức phân biệt hoa/thường. Giáo trình và dùng thử một tuần chưa đạt. |
 | H8.3 | Lộ trình A2→B2 và bài thực 20 phút; sửa placeholder A1 thành A2 tự báo trên staging, không nâng mastery. Chưa nghiệm thu 20 lời phê/một tuần. |
 | H8.4–H8.5 | Phạm vi/content runbook chuẩn bị; chưa tạo giáo trình đầy đủ, chưa có 5 bài được người học duyệt hoặc hai tuần học thật. |
@@ -1079,3 +1079,11 @@ Chi tiết: [AI-RUNNERS](../ops/AI-RUNNERS.md), [Deutsch curriculum](../curricul
 ## Điều chỉnh H7–H8 ngày 14/10/2026
 
 Quyết định mới thay mọi yêu cầu model API/key/chi phí API và SLA chấm tức thì ở các mô tả cũ. Soạn và chấm dùng thuê bao ChatGPT qua direct MCP. Pilot vẫn Deutsch unhuman; Cardio đã gỡ khỏi unhuman, không gỡ khỏi người khác. Toán 7/KHTN 7 theo **Kết nối tri thức với cuộc sống**, bộ thống nhất từ năm học 2026–2027 theo Quyết định 3588/QĐ-BGDĐT (26/12/2025). Chưa có tiến độ lớp hay gold phụ huynh duyệt; chưa bật AI cho trẻ.
+
+### Readback chấm qua MCP — 14/10/2026
+
+Direct MCP có consent hub:assess; 4 lượt nộp staging được ChatGPT xử lý và Codex đọc lại 4/4 succeeded với grade IDs khớp receipts. H7.3 đạt phần luồng thủ công lưu/đọc; chưa đạt chất lượng chấm, task cloud, 3 đêm hoặc pilot. Không thay bài làm, completion, production hay DNS. Xem VALIDATION.md.
+
+### MCP Events staging — 14/10/2026
+
+Chủ dự án xác nhận dùng Work Cloud bằng iCloud; Hub vẫn là unhuman hiện tại. Migration0016 thêm subscriptions/receipts, code MCP2 discovery/events, cron staging mỗi phút quét job queued mới. Các nguyên tắc completion/cutoff/lease/result giữ nguyên. Không cần scheduled task riêng khi subscription thật hoạt động; không coi manual OAuth hay webhook2xx là bằng chứng tự động. Còn events/subscribe, challenge, event và saved outcome từ Work Cloud thật; production không bật. Runbook: docs/ops/MCP-EVENTS.md.
