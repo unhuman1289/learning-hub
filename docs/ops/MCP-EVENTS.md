@@ -32,3 +32,11 @@ Nguồn: https://developers.openai.com/plugins/build/mcp-events (mở ngày 14/1
 Không đồng nhất hub2_lease_plan thủ công với subscription. Kiểm tra plugin page đã có Events learning.job.queued sau rescan MCP, rồi dùng Work+Cloud đúng app. events/list/subscribe là protocol lifecycle, không cần thêm tool giả để người dùng tự điền callback/secret. Nếu Events không hiện sau rescan, giữ trạng thái blocked tại discovery; nếu hiện nhưng không subscribe được, kiểm lỗi Work/policy hoặc callback thật. Không lặp lại cùng prompt để thay việc rescan.
 
 Ngày14/10: ảnh phiên Work báo thiếu công cụ đăng ký; readback staging0subscription/0delivery. Chưa xác định client không rescan hay policy/transport; không coi nguyên nhân là đã chứng minh. Sửa độc lập events/unsubscribe theo name/arguments/delivery đúng tài liệu; không có subscription cũ cần chuyển.
+
+## Phân biệt phiên chạy — chẩn đoán 14/10
+
+Ảnh plugin mới xác nhận catalog đã hiển thị Events learning.job.queued; không tiếp tục yêu cầu rescan. Đọc metadata và lịch sử chat “Theo dõi lượt Deutsch mới” xác nhận kind codex, hostId local, cwd Learning Hub và đúng thông báo thiếu công cụ đăng ký. Đây là local coding chat, không phải Work Cloud; thủ công lease/submit được nhưng không có native event subscription controller. Dùng Work trên chatgpt.com bằng tài khoản ChatGPT đã xác nhận, chọn plugin hiện có Events, đăng ký tại đó. Nếu actual WorkCloud cũng thiếu controller thì cần kiểm availability/policy riêng; không kết luận Plus luôn hỗ trợ từ việc plugin gọi được. Không chuyển chat local bằng công cụ handoff vì công cụ đó không hỗ trợ cloud. Không tạo polling thay thế; giữ yêu cầu events-only.
+
+## WorkCloud tạo automation lỗi
+
+Chat “Theo dõi Learning Hub” ngày14/10 là chat ChatGPT (không có cwd local), phản hồi cuối báo dùng Learning Hub/Automations và hai lần tạo lỗi. Công cụ đọc lịch sử chỉ trả user/final message, không có raw lỗi Automations; cần lấy mã lỗi trong UI. Readback vẫn0subscription/0delivery; chưa chứng minh yêu cầu chưa tới server hay callback thất bại. MCP staging bổ sung log component=mcp-events, operation, phase và category cố định, không callback URL/token/bài làm. authenticated_request thấy phương thức MCP2; handler_started/stored/failed phân biệt validation và storage. Dùng đúng một lần thử kind plan sau khi xác nhận automation chưa lưu; không tự đổi sang polling.

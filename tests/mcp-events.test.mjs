@@ -28,3 +28,12 @@ test('native MCP 2.0 discovery and event methods work without breaking legacy to
 });
 
 test('unsubscribe uses the documented name/arguments/delivery identity and is idempotent',async()=>{const env=seed(),client=await plannerPrincipal(env.DB,'owner','chatgpt-events'),r=receiver();await subscribe(env,client,'owner','chatgpt-events',request,now,r.fetcher);const stop={name:request.name,arguments:request.arguments,delivery:{mode:'webhook',url:callback}};await unsubscribe(env.DB,'owner','chatgpt-events',stop);await unsubscribe(env.DB,'owner','chatgpt-events',stop);assert.equal(env.DB.sqlite.prepare('SELECT active FROM mcp_event_subscriptions').get().active,0);env.DB.sqlite.close();});
+
+import {checked} from '../lib/mcp/events-register.ts';
+import {ApiError} from '../lib/api-error.ts';
+test('subscribe diagnostics contain only fixed categories and no callback credentials',async()=>{
+ const messages=[],original=console.info;console.info=x=>messages.push(x);
+ try{await assert.rejects(checked(async()=>{throw new ApiError(400,'Private callback whsec_DO_NOT_LOG');}),e=>e.code===-32602);}
+ finally{console.info=original;}
+ assert.equal(messages.length,2);assert(messages.every(x=>!x.includes('whsec_')&&!x.includes('Private callback')));assert.equal(JSON.parse(messages[1]).category,'invalid_callback_or_secret');
+});

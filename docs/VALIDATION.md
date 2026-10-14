@@ -202,3 +202,11 @@ Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; ch�
 ### Events discovery follow-up — 14/10/2026
 
 Work screenshot reports no event registration capability, while manual MCP processed a plan. Staging readback0subscriptions/0deliveries; no automatic subscription or delivery accepted. Rescan/plugin event catalog is the next check; cause remains unconfirmed. Fixed unsubscribe to documented event-name/arguments/callback identity, idempotent and owner-scoped;258tests/typecheck/lint/contracts/build pass. MCP staging version33ec1f40-9c66-44cd-a21f-b05a10a3b3c1. No remote migration, production, learner answers or job result writes in this follow-up.
+
+### Events catalog có, phiên thử local — 14/10/2026
+
+Ảnh mới xác nhận Events được khám phá. Metadata và lịch sử chat “Theo dõi lượt Deutsch mới” khớp nội dung người dùng gửi, xác nhận Codex/local và cwd Learning Hub. Vì vậy lần thử này chưa chạy Work Cloud; thiếu cơ chế tạo subscription trong phiên đó, không còn là lỗi catalog cần rescan. Chỉ kiểm tra đọc; không gửi prompt sang chat khác, tạo polling, thay bài hoặc đổi production. Cần đăng ký bằng actual WorkCloud rồi xác minh callback/outcome.
+
+### Automations creation failure diagnostics — 14/10/2026
+
+ChatGPT chat “Theo dõi Learning Hub” reports two automation-create failures and no saved automation; catalog has correct event/filter. Readback D1 has no subscriptions/deliveries. Chat retrieval does not expose raw automation error, so cause is not assigned to OpenAI or callback/auth. Added fixed-category diagnostic logs without callback credentials or answers.259tests/typecheck/lint/contracts/build pass; MCP staging version957a8bae-eab6-4239-9411-5fae8287376a. No new automation, subscription, polling task, learning write, migration or production change. Need raw UI error or a controlled single plan subscription attempt to correlate logs.

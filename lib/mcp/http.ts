@@ -4,6 +4,7 @@ import {createHubAuth,type HubAuthBindings} from '../auth/create';
 import {plannerPrincipal,callPlannerTool,toolSchemas,toolDescriptions} from './service';
 import {ApiError} from '../api-error';
 import {registerEvents} from './events-register';
+import {eventsEnabled} from './events';
 import {readBoundedText} from './body';
 
 export async function mcpRequest(request:Request,env:HubAuthBindings){
@@ -25,6 +26,8 @@ export async function mcpRequest(request:Request,env:HubAuthBindings){
   if(typeof claims.sub!=='string'||typeof claims.client_id!=='string')return Response.json({error:'OAuth identity required'},{status:403});
   let principal;try{principal=await plannerPrincipal(env.DB,claims.sub,claims.client_id,claims.scope.split(' '));}catch{return Response.json({error:'Quyền kết nối không còn hiệu lực.'},{status:403});}
   if(req.method==='POST'&&await readBoundedText(req.clone(),512*1024)===null)return Response.json({error:'Payload too large'},{status:413});
+  const method=req.headers.get('Mcp-Method');
+  if(eventsEnabled(env)&&method&&['server/discover','events/list','events/subscribe','events/unsubscribe'].includes(method))console.info(JSON.stringify({component:'mcp-events',operation:method,phase:'authenticated_request'}));
   const handler=createMcpHandler(()=>{
    const server=new McpServer({name:'Learning Hub — Cloudflare',version:'1.1.0'});
    registerEvents(server,env,principal,claims.sub as string,claims.client_id as string);
