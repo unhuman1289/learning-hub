@@ -9,7 +9,7 @@ import {ApiError} from '../api-error.ts';
 export type EventBindings={DB:EvidenceDb;BETTER_AUTH_SECRET?:string;MCP_EVENTS_ENABLED?:string;ENVIRONMENT?:string};
 export const eventName='learning.job.queued';
 const args=z.object({kind:z.enum(['plan','assess'])}).strict();
-export const subscribeSchema=z.object({name:z.literal(eventName),arguments:args,delivery:z.object({mode:z.literal('webhook'),url:z.string().url().max(2048),secret:z.string().max(200)}).strict(),cursor:z.null().optional(),ttlMs:z.number().int().min(60000).max(604800000).nullable().optional()}).strict();
+export const subscribeSchema=z.object({name:z.literal(eventName),arguments:args,delivery:z.object({mode:z.literal('webhook'),url:z.string().url().max(2048),secret:z.string().max(200)}).strict(),cursor:z.null().optional(),ttlMs:z.number().int().min(1).max(Number.MAX_SAFE_INTEGER).nullable().optional()}).strict();
 export const unsubscribeSchema=z.object({name:z.literal(eventName),arguments:args,delivery:z.object({mode:z.literal('webhook'),url:z.string().url().max(2048)}).strict()}).strict();
 export async function subscriptionId(userId:string,clientId:string,url:string,kind:string){return 'evsub_'+(await sha256Hex(userId+':'+clientId+':'+callbackUrl(url)+':'+kind)).slice(0,40);}
 const encoder=new TextEncoder();

@@ -37,3 +37,12 @@ test('subscribe diagnostics contain only fixed categories and no callback creden
  finally{console.info=original;}
  assert.equal(messages.length,2);assert(messages.every(x=>!x.includes('whsec_')&&!x.includes('Private callback')));assert.equal(JSON.parse(messages[1]).category,'invalid_callback_or_secret');
 });
+
+test('requested lifetime can exceed server cap; subscription grants at most requested duration or seven days',async()=>{
+ const env=seed(),client=await plannerPrincipal(env.DB,'owner','chatgpt-events'),r=receiver();
+ for(const ttlMs of [1000,30*86400000]){
+ const result=await subscribe(env,client,'owner','chatgpt-events',{...request,ttlMs},now,r.fetcher);
+ assert.equal(Date.parse(result.refreshBefore)-now.getTime(),Math.min(ttlMs,604800000));
+ }
+ env.DB.sqlite.close();
+});

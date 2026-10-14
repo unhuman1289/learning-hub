@@ -210,3 +210,7 @@ Work screenshot reports no event registration capability, while manual MCP proce
 ### Automations creation failure diagnostics — 14/10/2026
 
 ChatGPT chat “Theo dõi Learning Hub” reports two automation-create failures and no saved automation; catalog has correct event/filter. Readback D1 has no subscriptions/deliveries. Chat retrieval does not expose raw automation error, so cause is not assigned to OpenAI or callback/auth. Added fixed-category diagnostic logs without callback credentials or answers.259tests/typecheck/lint/contracts/build pass; MCP staging version957a8bae-eab6-4239-9411-5fae8287376a. No new automation, subscription, polling task, learning write, migration or production change. Need raw UI error or a controlled single plan subscription attempt to correlate logs.
+
+### TTL protocol compatibility — 14/10/2026
+
+User-provided expansion still contains final summaries, not raw Automation failure. Corrected subscribe lifetime validation: accept finite positive requested ttlMs, then grant at most seven days; no longer reject30-day requests before handler.260tests/typecheck/lint/contracts/build pass; staging MCP version89936c01-9f6d-40b5-9376-4ba345eea72f. This independently fixes a compatibility gap, not a proven cause of actual create failure. No automation retry, subscription created, migration or production change. Next controlled test: only kind plan, return actual task/subscription ID or tool error.

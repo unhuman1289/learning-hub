@@ -40,3 +40,7 @@ Ngày14/10: ảnh phiên Work báo thiếu công cụ đăng ký; readback stagi
 ## WorkCloud tạo automation lỗi
 
 Chat “Theo dõi Learning Hub” ngày14/10 là chat ChatGPT (không có cwd local), phản hồi cuối báo dùng Learning Hub/Automations và hai lần tạo lỗi. Công cụ đọc lịch sử chỉ trả user/final message, không có raw lỗi Automations; cần lấy mã lỗi trong UI. Readback vẫn0subscription/0delivery; chưa chứng minh yêu cầu chưa tới server hay callback thất bại. MCP staging bổ sung log component=mcp-events, operation, phase và category cố định, không callback URL/token/bài làm. authenticated_request thấy phương thức MCP2; handler_started/stored/failed phân biệt validation và storage. Dùng đúng một lần thử kind plan sau khi xác nhận automation chưa lưu; không tự đổi sang polling.
+
+## Thử tối giản sau lỗi tổng quát
+
+Thông tin UI chỉ có lời tổng kết, không raw lỗi Automations. Không yêu cầu người dùng tìm cùng panel mãi. Sửa tương thích TTL: chấp nhận requested lifetime dài hơn cap rồi grant min(requested,7ngày), thay vì từ chối schema; thời hạn mặc định/null hữu hạn24h. Test requested1giây/30ngày, không khẳng định đây là nguyên nhân lỗi thật. Dùng một lần đăng ký kind plan trong WorkCloud, không lease/submit bài để kiểm kết nối; báo subscription/task ID hoặc lỗi công cụ gốc nếu có. Giữ events-only, không bật polling.
