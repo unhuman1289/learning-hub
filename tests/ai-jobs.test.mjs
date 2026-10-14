@@ -755,6 +755,7 @@ test('a question goes to its own plan job and becomes an exploration lesson in "
   const result = { ...plan(context), subjects: [], explorations: [{ requestId: request.id, action: 'assign', subjectId: null, lesson, reason: 'Câu hỏi hay.' }] };
   const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(applied.status, 200, JSON.stringify(applied.errors));
+  assert.equal(applied.outcome.extraLessonIds.length,1);
   const saved = db.sqlite.prepare("SELECT l.slot, l.kind, s.title, s.system_kind FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id").get();
   assert.deepEqual({ ...saved }, { slot: 'extra', kind: 'exploration', title: 'Khám phá', system_kind: 'explore' });
   const done = db.sqlite.prepare('SELECT status, result_lesson_id FROM learner_requests WHERE id=?').get(request.id);

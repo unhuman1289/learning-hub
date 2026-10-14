@@ -67,6 +67,7 @@ export async function prepareExplorations(db: EvidenceDb, job: Job, context: Pla
     const checked = validateLessonPackage(e.lesson, {
       maxDifficulty: known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
       sensitivity: known?.sensitivity ?? 'normal',
+      subjectTitle:known?.title,
     });
     for (const problem of checked.issues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
     if (!checked.lesson) continue;

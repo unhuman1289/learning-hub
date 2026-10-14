@@ -32,7 +32,9 @@ export function Feedback({
   items = [],
   readOnly = false,
   onRefresh,
+  formatText = (text:string)=>text,
 }: {
+  formatText?:(text:string)=>string;
   submission: SubmissionView | null;
   items?: ItemView[];
   readOnly?: boolean;
@@ -50,13 +52,13 @@ export function Feedback({
           </h3>
           <p className="whitespace-pre-wrap">
             Bài đã nộp:{" "}
-            {answerLabel(
+            {formatText(answerLabel(
               a.answer,
               items.find((i) => i.id === a.item_id),
-            )}
+            ))}
           </p>
-          {a.feedback && <p className="text-red-800 dark:text-red-300">{a.feedback}</p>}
-          {a.correction && <p className="whitespace-pre-wrap">Lời giải: {a.correction}</p>}
+          {a.feedback && <p className="text-red-800 dark:text-red-300">{formatText(a.feedback)}</p>}
+          {a.correction && <p className="whitespace-pre-wrap">Lời giải: {formatText(a.correction)}</p>}
           {!a.result && <p className="text-sm text-muted">Câu trả lời đã lưu, đang chờ nhận lời phê.</p>}
           {a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} onChanged={onRefresh} />}
         </div>

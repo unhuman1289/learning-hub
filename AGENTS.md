@@ -9,7 +9,7 @@ Follow `docs/plan/PLAN.md`, the single implementation plan, in the order of its 
 ## Architecture and cost
 
 - Start with Workers Free and D1; measure real CPU/usage before recommending a paid plan.
-- Use existing ChatGPT/Claude subscriptions for scheduled content preparation (nightly plan jobs). The user requested immediate grading on submission (12/10/2026): a model API key may exist only in the separate Worker `learning-hub-assessor`. The Hub itself holds no model key and never calls a model directly; AI reaches it only through the job API v2 (`docs/hub2/AI-API.md`).
+- Use existing ChatGPT/Claude subscriptions for content preparation and grading. User decision 14/10/2026 forbids Anthropic/OpenAI model API dependencies and keys. ChatGPT reaches the Hub through direct OAuth MCP/job API v2. MCP Events is a staging experiment; do not claim automatic operation until a real subscription, verified callback and saved job outcome are observed.
 - Git owns source/configuration; D1 owns learning state; Docs owns editable long-form materials. Do not use Docs as the transactional progress database.
 - Preserve the exported Sites identity in `.openai/hosting.json`. This is provenance, not permission to create a replacement Site or deploy changes when asked to export/local-only.
 - This checkout retains Sites auth and connector infrastructure. Before independent/public hosting, replace the platform trust boundary with validated app authentication and service authorization. Never trust client-supplied `oai-authenticated-user-*` headers on a standalone Worker.

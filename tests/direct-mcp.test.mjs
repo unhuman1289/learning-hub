@@ -18,7 +18,7 @@ test('direct MCP OAuth principal only leases its own plan jobs',async()=>{const 
  await enqueue(db,{}, {learnerId:'other',kind:'plan',purpose:'daily'},at);assert.deepEqual((await callPlannerTool(db,principal,'hub2_lease_plan',{},'staging',at)).jobs,[]);
  db.sqlite.close();});
 test('a subject without consent cannot use another user grant',async()=>{const db=seed();await assert.rejects(plannerPrincipal(db,'other','chatgpt-qa'),e=>e.status===403);db.sqlite.close();});
-test('direct MCP tools reject supplied learner IDs and expose no assess/admin tools',()=>{assert.equal(Object.keys(toolSchemas).length,7);assert(!toolSchemas.hub2_lease_plan.safeParse({learnerId:'other'}).success);assert(!Object.keys(toolSchemas).some(x=>/assess|admin|complete/.test(x)));});
+test('direct MCP tools reject supplied learner IDs and require separate assessment authorization',()=>{assert.equal(Object.keys(toolSchemas).length,8);assert(!toolSchemas.hub2_lease_plan.safeParse({learnerId:'other'}).success);assert(!Object.keys(toolSchemas).some(x=>/admin|complete/.test(x)));assert(!toolSchemas.hub2_lease_assess.safeParse({learnerId:'other'}).success);});
 test('OAuth migration is additive and protects persisted consent/token ownership with foreign keys',()=>{const db=seed();assert(db.sqlite.prepare("PRAGMA foreign_key_list('oauthConsent')").all().some(r=>r.table==='user'));assert(db.sqlite.prepare("PRAGMA index_list('oauthClient')").all().some(r=>r.unique));db.sqlite.close();});
 
 import {allowedRegistration,isChatGptCallback} from '../lib/mcp/policy.ts';
@@ -41,4 +41,52 @@ test('public request bodies are bounded by bytes even without Content-Length',as
 test('declared oversized request is rejected before reading its body',async()=>{
  const request=new Request('https://example.test',{method:'POST',headers:{'Content-Length':'999'},body:'small'});
  assert.equal(await readBoundedText(request,8),null);assert.equal(request.bodyUsed,false);
+});
+
+test('old plan tokens cannot acquire grading even after consent is expanded',async()=>{const db=seed();db.sqlite.prepare(`UPDATE oauthConsent SET scopes='["hub:plan","hub:assess"]'`).run();const principal=await plannerPrincipal(db,'owner','chatgpt-qa',['hub:plan']);assert.deepEqual(principal.scopes,['jobs:plan']);await assert.rejects(callPlannerTool(db,principal,'hub2_lease_assess',{},'test',at),e=>e.status===403);db.sqlite.close();});
+test('assessment token cannot use a grant that only authorizes planning',async()=>{const db=seed();await assert.rejects(plannerPrincipal(db,'owner','chatgpt-qa',['hub:assess']),e=>e.status===403);db.sqlite.close();});
+test('grading tools do not fall back to other adults or notebooks',async()=>{const db=seed();db.sqlite.prepare(`UPDATE oauthConsent SET scopes='["hub:assess"]'`).run();const principal=await plannerPrincipal(db,'owner','chatgpt-qa',['hub:assess']);assert.deepEqual(principal.scopes,['jobs:assess']);assert.deepEqual((await callPlannerTool(db,principal,'hub2_lease_assess',{},'test',at)).jobs,[]);await assert.rejects(callPlannerTool(db,principal,'hub2_lease_plan',{},'test',at),e=>e.status===403);db.sqlite.close();});
+
+import {readFileSync} from 'node:fs';
+import {fakeResult} from '../scripts/fake-runner.mjs';
+import {saveDraft} from '../lib/lesson-v2/actions.ts';
+import {submitLesson} from '../lib/evidence/submit.ts';
+import {queueSubmission} from '../lib/ai-jobs/queue.ts';
+async function ownAssessment(){
+ const db=seed();const subject='sub_'+'a'.repeat(20);
+ db.sqlite.prepare("UPDATE user SET name='unhuman' WHERE id='owner'").run();
+ db.sqlite.prepare(`UPDATE oauthConsent SET scopes='["hub:plan","hub:assess"]'`).run();
+ db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,ai_enabled,goal,level,created_by,created_at,updated_at) VALUES(?,'owner','Deutsch','skill','active',1,'A2','A2','owner','t','t')").run(subject);
+ const principal=await plannerPrincipal(db,'owner','chatgpt-qa',['hub:plan','hub:assess']);
+ await enqueue(db,{}, {learnerId:'owner',kind:'plan',purpose:'daily'},at);
+ const plan=(await callPlannerTool(db,principal,'hub2_lease_plan',{},'test',at)).jobs[0];
+ const planLease={jobId:plan.jobId,leaseToken:plan.leaseToken};
+ const context=await callPlannerTool(db,principal,'hub2_context',planLease,'test',at);
+ const fixture=JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json',import.meta.url),'utf8'));
+ const applied=await callPlannerTool(db,principal,'hub2_submit_result',{...planLease,result:fakeResult(context,fixture)},'test',at);
+ const lesson=applied.outcome.subjects[0].lessonIds[0];
+ await saveDraft(db,'owner',lesson,{revision:0,answers:{i3:{answer:'Paul möchte einen Kuchen kaufen.'}}},at);
+ const sub=await submitLesson(db,'owner',lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},at);
+ await queueSubmission(db,{},'owner',sub.id,at);
+ return {db,principal,lesson};
+}
+test('MCP subscription grading validates, saves once and reads persistent grade IDs without completing lesson',async()=>{
+ const {db,principal,lesson}=await ownAssessment();
+ const job=(await callPlannerTool(db,principal,'hub2_lease_assess',{},'test',at)).jobs[0];assert(job);
+ const lease={jobId:job.jobId,leaseToken:job.leaseToken};
+ const ctx=await callPlannerTool(db,principal,'hub2_context',lease,'test',at);
+ const result=fakeResult(ctx);result.usage.model='subscription-unmetered';
+ assert.equal((await callPlannerTool(db,principal,'hub2_check_result',{...lease,result},'test',at)).status,200);
+ assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM grades WHERE grader='ai'").get().n,0);
+ await callPlannerTool(db,principal,'hub2_submit_result',{...lease,result},'test',at);
+ const receipt=await callPlannerTool(db,principal,'hub2_job',{jobId:job.jobId},'test',at);
+ assert.equal(receipt.status,'succeeded');assert.equal(receipt.outcome.gradeIds.length,1);
+ assert.equal(db.sqlite.prepare('SELECT completed_at FROM learning_lessons WHERE id=?').get(lesson).completed_at,null);
+ db.sqlite.close();
+});
+test('MCP grading skips queued jobs containing images without claiming or exposing context',async()=>{
+ const {db,principal}=await ownAssessment();
+ db.sqlite.prepare(`UPDATE attempts SET attachment_ids='["img_aaaaaaaaaaaaaaaaaaaa"]'`).run();
+ assert.deepEqual((await callPlannerTool(db,principal,'hub2_lease_assess',{},'test',at)).jobs,[]);
+ assert.equal(db.sqlite.prepare("SELECT status FROM ai_jobs WHERE kind='assess'").get().status,'queued');db.sqlite.close();
 });

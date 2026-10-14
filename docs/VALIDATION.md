@@ -162,3 +162,55 @@ Final staging code deployment: `f64cc4d2-ce38-452d-96de-6b3c2a6db96a`. Real unhu
 - Public oversized registration body is rejected (413); spoofed Sites identity headers cannot authenticate MCP (401). Bodies are bounded while streaming, including requests without Content-Length.
 - Remaining acceptance: actual ChatGPT account connects via OAuth, sees/calls write tools, creates a real Deutsch lesson and verifies its ID in Hub; scheduled cloud task availability and a real scheduled run. This does not satisfy production H4/H5 gates or all Free CPU limits.
 - Operations and setup: [DIRECT-MCP](ops/DIRECT-MCP.md).
+
+## H7–H8 staging — 14/10/2026
+
+- Fixed workload budget: only unfinished v2 lessons in active notebooks count, consistently in context and atomic writer guard; legacy reference lessons and paused notebooks do not block Deutsch. Older unfinished primary remains visible; reasons distinguish same-day assignment from completion after cutoff. Completion remains a manual action independent of grades.
+- Extra lessons contribute to the atomic budget and receipts now include extraLessonIds, including system exploration notebooks.
+- Real app MCP E2E: `job_1e37662741dbfc79dfc1` succeeded; lesson `les_6e79984e6d82480cc66a` saved/read back. The main lesson and saved answers retained. Content authored for unhuman, Goethe A2 description opened with recorded read scope; no audio/source access invented. Subscription token telemetry unavailable; usage zeros documented as placeholders, not measured counts.
+- Cardio removal: one subject/one legacy lesson for unhuman removed in each environment after private SQL backup + SQLite FK/preservation drill. Other users untouched. Fresh production migration drill 0009–0015 preserves exact cells of 4 remaining lessons; remote production migrations were not applied.
+- Queue probe: first public same-zone fetch failed; service-binding HTTP probe passed after 130026 ms. Probe workers/queue subsequently cleaned. No paid plan activated.
+- Assessor staging deployed disabled, dedicated machine credentials scoped to one adult pilot, existing AUTOMATION_CLIENTS unchanged. Access + bearer schema connection verified 200 from the assessor Worker itself. Public connection-check requires credential; model key absent, no paid inference. Uses global_fetch_strictly_public and manual redirects so credentials are never forwarded to redirected hosts.
+- R2 format4 backup `h8-drill-2026-10-14-655a5c3c`: upload/download SHA-256 match; downloaded backup restored with exact rows in 29 learning tables on fresh SQLite. Authentication/JWKS remain separate private SQL backup with matching auth secret.
+- 256 tests, typecheck, lint, contract checks and build pass. Chemistry display preserves raw submission values and letter case; formula keys require case-sensitive grading in chemistry notebooks. 25 synthetic eval cases/5 injection cases/5 original math images prepared; expected grades require human review and no model quality acceptance claimed.
+- Pending gates: API key/account spend limit, live assessment/latency/quality eval, ChatGPT task registration and real 3-night receipts, user learning and feedback, school curriculum, production cutover. H8 code/preparation is not completion of week-based acceptance.
+
+Final staging versions for this release: Hub `5bfdf691-b2e8-4936-967e-d3ede55d9940`, MCP `26e0d462-325b-4790-bc28-4594fb766df2`, assessor `4a4e927f-31e2-4691-aeb6-8c475e3d562f`. Final HTTPS smoke: login/register/reset assets load, unauthenticated home redirects, forged identity rejected across 16 API checks. Restored real Deutsch lesson renders through current reader with 5 items. Curriculum is stored in the D1 subject for cloud MCP access, not just a local file.
+
+## Quyết định 14/10/2026: chỉ dùng thuê bao
+
+Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; chấm chuyển sang direct MCP với scope riêng hub:assess. Cần cấp lại OAuth và nghiệm thu bài nộp thật. Không cam kết chấm tức thì hoặc task cloud khi chưa kiểm thật. Toán 7/KHTN 7 theo Kết nối tri thức từ 2026–2027; chưa bật AI cho trẻ. Production không đổi.
+
+### Chuyển sang grading bằng thuê bao — 14/10/2026
+
+- 249/249 test đạt; typecheck, lint, contracts:check và build đạt. Test MCP synthetic đi qua context/check/save/read gradeIds, giữ completion; job có ảnh không bị claim. Token hub:plan không được tự nâng quyền khi consent mở rộng.
+- Deploy riêng MCP staging: `981086fb-ad2d-463a-a216-c5467cbde72b`. Discovery 200, scopes openid/offline_access/hub:plan/hub:assess; MCP anonymous 401. App ChatGPT thật gọi hub2_schema đọc được assess-context/1 và assess-result/1.
+- Đã gỡ consumer assessor khỏi learning-hub-ai-staging, xóa Worker learning-hub-assessor-staging và secret ASSESSOR_CLIENT staging. Queue, D1, jobs và lịch sử giữ nguyên; AUTOMATION_CLIENTS không bị thay. Không deploy code production, không đổi DNS.
+- Đã nghiệm thu luồng thủ công: OAuth hub:assess được cấp; ngày 14/10 app ChatGPT mới xử lý 4 lượt nộp trên staging. Codex đọc lại từng job qua MCP: 4/4 succeeded, mỗi lượt có một gradeId đúng receipt người dùng báo. Không ghi lại bài làm hay grade IDs vào tài liệu/Git.
+- Người dùng báo check → lưu một lần → đọc lại và lần lease cuối jobs: []; Codex chỉ xác minh receipts, không lease mới để kiểm hàng đợi. Điểm auto của i3 được giữ theo receipts; không gửi lại kết quả hay tự hoàn thành bài.
+- Đây là nghiệm thu kỹ thuật bằng lượt nộp có nội dung thử, chưa nghiệm thu chất lượng sư phạm hoặc năng lực Deutsch. Còn task cloud gọi được app, 3 đêm, bộ chuẩn được duyệt, bài học/feedback thật và pilot dài hạn. Không báo H7/H8 hoàn tất; production không đổi.
+
+### MCP Events staging — 14/10/2026
+
+- 257 test đạt; typecheck/lint/contracts/build đạt. Native SDK MCP2 server/discover và events/list có resultType complete; legacy tools giữ nguyên factory/auth. Test challenge mismatch/private DNS/unauthorized/revoke/410 và receipt không làm thay job.
+- Snapshot SQL staging mới lưu riêng tư quyền0600. Migration0016 trên bản sao giữ nguyên toàn bộ cell của 43 bảng cũ, foreign_key_check đạt; sau đó áp riêng staging.
+- MCP Worker staging version `97709ece-8df0-44d7-bb11-4599f21a12f0`, Events enabled với cron mỗi phút. Worker Hub chính/DNS/production không đổi.
+- Callback chỉ hai origin provider cố định; public DNS và no redirect. Chưa có socket DNS pinning; không cho arbitrary callback. Nếu callback thật khác allowlist thì fail closed, cần kiểm chứng origin trước thêm.
+- iCloud là tài khoản ChatGPT Work Cloud theo xác nhận người dùng, không phải thay account Hub/unhuman. Không đưa email ChatGPT vào source/config hay chuyển dữ liệu.
+- Chưa nghiệm thu: ChatGPT events/subscribe và callback thật, event webhook2xx, WorkCloud run và saved outcome. Không tạo subscription giả, không coi cron deployed là tự động đã hoạt động. Lỗi export10000 lần đầu; quyền migrations đọc được, backup thử lại đã thành công trước remote migration.
+
+### Events discovery follow-up — 14/10/2026
+
+Work screenshot reports no event registration capability, while manual MCP processed a plan. Staging readback0subscriptions/0deliveries; no automatic subscription or delivery accepted. Rescan/plugin event catalog is the next check; cause remains unconfirmed. Fixed unsubscribe to documented event-name/arguments/callback identity, idempotent and owner-scoped;258tests/typecheck/lint/contracts/build pass. MCP staging version33ec1f40-9c66-44cd-a21f-b05a10a3b3c1. No remote migration, production, learner answers or job result writes in this follow-up.
+
+### Events catalog có, phiên thử local — 14/10/2026
+
+Ảnh mới xác nhận Events được khám phá. Metadata và lịch sử chat “Theo dõi lượt Deutsch mới” khớp nội dung người dùng gửi, xác nhận Codex/local và cwd Learning Hub. Vì vậy lần thử này chưa chạy Work Cloud; thiếu cơ chế tạo subscription trong phiên đó, không còn là lỗi catalog cần rescan. Chỉ kiểm tra đọc; không gửi prompt sang chat khác, tạo polling, thay bài hoặc đổi production. Cần đăng ký bằng actual WorkCloud rồi xác minh callback/outcome.
+
+### Automations creation failure diagnostics — 14/10/2026
+
+ChatGPT chat “Theo dõi Learning Hub” reports two automation-create failures and no saved automation; catalog has correct event/filter. Readback D1 has no subscriptions/deliveries. Chat retrieval does not expose raw automation error, so cause is not assigned to OpenAI or callback/auth. Added fixed-category diagnostic logs without callback credentials or answers.259tests/typecheck/lint/contracts/build pass; MCP staging version957a8bae-eab6-4239-9411-5fae8287376a. No new automation, subscription, polling task, learning write, migration or production change. Need raw UI error or a controlled single plan subscription attempt to correlate logs.
+
+### TTL protocol compatibility — 14/10/2026
+
+User-provided expansion still contains final summaries, not raw Automation failure. Corrected subscribe lifetime validation: accept finite positive requested ttlMs, then grant at most seven days; no longer reject30-day requests before handler.260tests/typecheck/lint/contracts/build pass; staging MCP version89936c01-9f6d-40b5-9376-4ba345eea72f. This independently fixes a compatibility gap, not a proven cause of actual create failure. No automation retry, subscription created, migration or production change. Next controlled test: only kind plan, return actual task/subscription ID or tool error.

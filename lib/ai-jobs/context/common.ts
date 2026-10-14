@@ -124,12 +124,12 @@ export async function slots(db: EvidenceDb, learner: string, subject: string, da
     )
     .bind(learner, subject)
     .all<{ id: string; slot: string; assigned_date: string; completed_at: string | null }>();
-  const primary = results.find((r) => r.slot === 'primary'),
+  const primary = results.find((r) => r.slot === 'primary' && !r.completed_at) ?? results.find((r) => r.slot === 'primary'),
     review = results.find((r) => r.slot === 'review');
   return {
     openPrimaryLessonId: primary && !primary.completed_at ? primary.id : null,
     eligibleForPrimary: canAdvance(primary ? { assignedDate: primary.assigned_date, completedAt: primary.completed_at } : undefined, day),
-    reason: !primary ? 'empty' : !primary.completed_at ? 'unfinished' : 'completed_before_cutoff',
+    reason: !primary ? 'empty' : !primary.completed_at ? 'unfinished' : primary.assigned_date===day ? 'already_assigned_today' : canAdvance({assignedDate:primary.assigned_date,completedAt:primary.completed_at},day) ? 'completed_before_cutoff' : 'completed_after_cutoff',
     openReviewSetId: review && !review.completed_at ? review.id : null,
     eligibleForReview: !review || (!!review.completed_at && review.assigned_date !== day),
   };

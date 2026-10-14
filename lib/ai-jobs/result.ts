@@ -1,3 +1,4 @@
+import {openWorkMinutesSql} from './open-work.ts';
 import { estimateCost } from './cost.ts';
 import { planResult, assessResult, type PlanContext, type AssessContext } from '../contracts/ai-common.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
@@ -80,14 +81,12 @@ export async function applyResult(
       );
   if ('outcomes' in prepared) {
     const context = JSON.parse(job.context_snapshot!) as PlanContext;
-    const minutes = (parsed.data as typeof planResult._output).subjects
-      .filter((s) => prepared.outcomes.some((o) => o.subjectId === s.subjectId && o.status === 'applied'))
-      .reduce((n, s) => n + (s.primaryLesson?.estMinutes ?? 0) + (s.reviewSet?.estMinutes ?? 0), 0);
+    const minutes = prepared.newMinutes;
     if (minutes)
       guards.push(
         db
           .prepare(
-            `INSERT INTO ai_apply_guards(token,valid) SELECT ?,CASE WHEN (SELECT coalesce(sum(coalesce(est_minutes,json_extract(payload,'$.minutes'),0)),0) FROM learning_lessons WHERE user_id=? AND completed_at IS NULL)+?<=? THEN 1 ELSE 0 END WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
+            `INSERT INTO ai_apply_guards(token,valid) SELECT ?,CASE WHEN (${openWorkMinutesSql})+?<=? THEN 1 ELSE 0 END WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
           )
           .bind(token + ':budget', job.learner_id, minutes, context.policy.maxOpenMinutes, id, token),
       );
@@ -103,7 +102,7 @@ export async function applyResult(
       () =>
         `json_object('subjectId',?,'status',CASE WHEN ? IN ('stale','rejected') THEN ? WHEN EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND updated_at=? AND revision=?) AND (?='no_action' OR EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=? AND subject_id=?)) THEN ? ELSE 'stale' END,'lessonIds',json(coalesce((SELECT json_group_array(id) FROM learning_lessons WHERE origin_job_id=? AND subject_id=?),'[]')),'reason',?)`,
     );
-    outcomeSql = "json_object('subjects',json('[' || " + (fragments.length ? fragments.join(" || ',' || ") : "''") + " || ']'))";
+    outcomeSql = "json_object('subjects',json('[' || " + (fragments.length ? fragments.join(" || ',' || ") : "''") + " || ']'),'extraLessonIds',json(coalesce((SELECT json_group_array(id) FROM learning_lessons WHERE origin_job_id=? AND slot='extra'),'[]')))";
     outcomeParams = prepared.outcomes.flatMap((o) => [
       o.subjectId,
       o.status,
@@ -120,6 +119,7 @@ export async function applyResult(
       o.subjectId,
       o.reason,
     ]);
+    outcomeParams.push(id);
   } else {
     outcomeSql =
       "json_object('gradeIds',json(coalesce((SELECT json_group_array(id) FROM grades WHERE job_id=?),'[]')),'clipped',json(?),'summary',?)";

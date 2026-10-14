@@ -7,8 +7,8 @@ Ngày 13/10/2026. Đây là đầu nối MCP riêng, không đi qua ChatGPT Site
 1. Trong Settings → Apps (hoặc Plugins), mở mục tạo app/MCP tùy chỉnh mà tài khoản đang có. Đặt tên **Learning Hub Direct — staging** để phân biệt plugin Learning Hub cũ.
 2. MCP server URL: **https://learning-hub-mcp-staging.tranvu-812.workers.dev/mcp**. Chọn **OAuth**, cho phép tự khám phá/đăng ký client nếu UI có lựa chọn. Không chọn API key. Không nhập Resend key, Cloudflare token, `AUTOMATION_CLIENTS` hoặc mật khẩu Hub vào trường cấu hình ChatGPT.
 3. Cửa sổ OAuth mở trang Cloudflare riêng. Đăng nhập bằng **tài khoản của Hub staging** đã xác minh/được duyệt. Đây là mật khẩu Hub, không phải mật khẩu Google hoặc ChatGPT. Tài khoản chỉ tồn tại trên production có thể chưa tồn tại trên staging.
-4. Đọc phạm vi và bấm **Cho phép kết nối**. Quyền chỉ đọc ngữ cảnh và soạn/lưu bài của chính tài khoản đó. Không cấp quyền chấm điểm, duyệt người, xem bài người khác hoặc tự hoàn thành bài.
-5. Mở chat mới, chọn đúng app vừa tạo. Nhờ gọi `hub2_schema`; sau đó kiểm tra thấy 7 công cụ: `hub2_schema`, `hub2_lease_plan`, `hub2_context`, `hub2_check_result`, `hub2_submit_result`, `hub2_job`, `hub2_fail`.
+4. Đọc phạm vi và bấm **Cho phép kết nối**. Quyền chỉ đọc ngữ cảnh và soạn/lưu bài của chính tài khoản đó. Chấm cần scope riêng hub:assess và consent mới; pilot câu chữ Deutsch unhuman. Không cấp quyền duyệt người, xem bài người khác hay tự hoàn thành bài.
+5. Mở chat mới, chọn đúng app vừa tạo. Nhờ gọi `hub2_schema`; sau đó kiểm tra thấy 8 công cụ: `hub2_schema`, `hub2_lease_plan`, `hub2_lease_assess`, `hub2_context`, `hub2_check_result`, `hub2_submit_result`, `hub2_job`, `hub2_fail`.
 
 Nếu UI bắt buộc Client ID/secret thay vì đăng ký tự động, hoặc kết nối chỉ cho phép đọc: dừng ở bước này và ghi lại lỗi/trường UI, không dán khóa vào chat. UI tạo app không tự chứng minh gói tài khoản cho phép công cụ ghi. Tham khảo [OAuth chính thức](https://developers.openai.com/plugins/build/auth) và [Developer mode/MCP](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt).
 
@@ -43,3 +43,5 @@ Access token hết hạn sau 15 phút, refresh token tối đa 30 ngày. Chỉ c
 `npm run test`, `npm run typecheck`, `npm run lint`, `npm run contracts:check`, `npm run build`.
 
 `node scripts/direct-mcp-migration-drill.mjs <private-before.sql>` chỉ bản sao SQLite. `scripts/e2e-direct-mcp.mjs` chỉ nhận manifest QA giả/local hoặc đúng Worker MCP staging, kiểm tra OAuth → lưu bài → đọc lại → refresh → thu hồi. `scripts/reset-direct-mcp-qa.mjs` chỉ thu hồi/dọn đúng ID QA staging trong manifest; không hỗ trợ production. Không đưa manifest/mật khẩu QA vào Git.
+
+Từ 14/10, schema có thêm assess-context/1 và assess-result/1. Các context/check/submit/job/fail dùng chung cho job chấm nhưng kiểm scope và notebook server-side. Token chỉ hub:plan không chấm được. Xem AI-RUNNERS.md và prompt assess.md.

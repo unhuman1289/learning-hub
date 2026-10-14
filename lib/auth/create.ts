@@ -11,6 +11,7 @@ import { escapeHtml, sendAuthEmail } from "./email";
 export type HubAuthBindings = {
   DB: D1Database;
   MCP_ENABLED?: string;
+  MCP_EVENTS_ENABLED?: string;
   HUB2_ENABLED?: string;
   APP_ORIGIN?: string;
   ENVIRONMENT?: string;

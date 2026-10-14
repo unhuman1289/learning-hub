@@ -1,4 +1,5 @@
 "use client";
+import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
@@ -290,7 +291,7 @@ export function LessonReader({
           </nav>
           {stage.stage === "sheet" && (
             <>
-              <Sheet sheet={lesson.sheet} />
+              <Sheet sheet={lesson.sheet} formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined} />
               {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
             </>
           )}
@@ -322,6 +323,7 @@ export function LessonReader({
           )}
           <Stage
             key={stage.stage}
+            formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined}
             items={items}
             answers={answers}
             disabled={busy || pending}
@@ -364,6 +366,7 @@ export function LessonReader({
             </div>
           )}
           <Feedback
+            formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined}
             submission={submission}
             items={lesson.items}
             readOnly={readonly}

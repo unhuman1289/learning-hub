@@ -11,7 +11,9 @@ export function Stage({
   readOnly,
   onChange,
   onReveal,
+  formatText = (text:string)=>text,
 }: {
+  formatText?:(text:string)=>string;
   items: ItemView[];
   answers: DraftAnswers;
   disabled: boolean;
@@ -25,6 +27,7 @@ export function Stage({
       {items.map((item, i) => (
         <div key={item.id} className={i === index ? "" : "hidden md:block"}>
           <ItemCard
+            formatText={formatText}
             item={item}
             value={answers[item.id] ?? { answer: "" }}
             disabled={disabled}

@@ -201,7 +201,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity });
+      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity, subjectTitle:c.title });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       const l = checked.lesson,
@@ -343,5 +343,5 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
   }
   if (newMinutes > 0 && context.policy.openMinutesNow + newMinutes > context.policy.maxOpenMinutes)
     issue('/subjects', 'over_budget', 'Bài đang mở và bài mới vượt 1,5 lần thời gian mục tiêu.');
-  return { errors, statements, outcomes, savedIds };
+  return { errors, statements, outcomes, savedIds, newMinutes };
 }

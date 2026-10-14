@@ -26,5 +26,6 @@ declare namespace Cloudflare {
     ACCESS_TEAM_DOMAIN?: string;
     AUTOMATION_ACCESS_AUD?: string;
     AUTOMATION_CLIENTS?: string;
+    ASSESSOR_CLIENT?: string;
   }
 }

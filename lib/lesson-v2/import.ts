@@ -9,11 +9,11 @@ export async function importLesson(db: EvidenceDb, input: unknown, now = new Dat
   if (typeof x.learnerId !== 'string' || !/^sub_[0-9a-f]{20}$/.test(x.subjectId ?? '') || x.reviewed !== true)
     throw new ApiError(400, 'Chọn người học, sổ và xác nhận đã duyệt nội dung.');
   const subject = await db
-    .prepare('SELECT template,limits,sensitivity,status FROM subjects WHERE id=? AND learner_id=?')
+    .prepare('SELECT title,template,limits,sensitivity,status FROM subjects WHERE id=? AND learner_id=?')
     .bind(x.subjectId, x.learnerId)
-    .first<{ template: string; limits: string; sensitivity: 'normal' | 'clinical' | 'child_dev'; status: string }>();
+    .first<{ title:string; template: string; limits: string; sensitivity: 'normal' | 'clinical' | 'child_dev'; status: string }>();
   if (!subject || subject.status !== 'active') throw new ApiError(404, 'Không tìm thấy sổ đang hoạt động.');
-  const checked = validateLessonPackage(x.lesson, { maxDifficulty: JSON.parse(subject.limits).maxDifficulty, sensitivity: subject.sensitivity });
+  const checked = validateLessonPackage(x.lesson, { maxDifficulty: JSON.parse(subject.limits).maxDifficulty, sensitivity: subject.sensitivity, subjectTitle:subject.title });
   if (!checked.lesson) return { issues: checked.issues };
   if (checked.lesson.template !== subject.template) return { issues: [{ path: '/template', code: 'schema', message: 'Khuôn bài không khớp sổ.' }] };
   const day = berlinDay(now),

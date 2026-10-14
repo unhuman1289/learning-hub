@@ -597,3 +597,7 @@ Cookie Better Auth, kiểm tra origin như `/api/study`, JSON, `no-store`. Quy�
 | `GET` · `PATCH /api/learners/{id}/settings` | Phụ huynh hoặc chính người lớn: phút, biệt danh, ngân sách, sở thích |
 | `GET /api/admin/ai-jobs` · `POST /api/admin/ai-jobs` · `POST /api/admin/ai-jobs/{id}/cancel` | Xem, tạo plan thủ công, huỷ |
 | `GET /api/admin/quality` | Chỉ số chấm theo người và theo sổ |
+
+## Quyết định thay luồng model ngày 14/10/2026
+
+Không dùng Anthropic/OpenAI API. Các mô tả Worker gọi model/key/chi phí/SLA cũ trong tài liệu này là thiết kế đã bị thay thế. Runner là ChatGPT thuê bao qua direct MCP, scope riêng hub:assess; xem docs/ops/AI-RUNNERS.md. Hợp đồng assess-result/1 và server atomic writer vẫn dùng; usage subscription-unmetered không phải telemetry.
