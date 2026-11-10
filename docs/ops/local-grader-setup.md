@@ -8,16 +8,21 @@ Hướng dẫn cho Codex, viết 10/11/2026. Plan: [LOCAL-GRADER.md](../plan/LOC
 **Thư mục làm việc:** `~/Code/Learning Hub/.claude/worktrees/notebook-ui` (gọi tắt là `WT`). Khi không nói gì khác, lệnh chạy trong `WT`. Thư mục `private-data/` nằm ở `~/Code/Learning Hub/private-data/`; từ `WT` đi tới đó bằng `../../../private-data/`.
 
 **Hiện trạng:**
-- Production đang ở bản H1.7: có tài khoản đăng nhập, `HUB2_ENABLED=false`.
+- Kiểm tra 10/11/2026: production đang chạy `hub2-production-2026-10-14`. D1 đã có `0015_direct_mcp_oauth.sql`, `0016_mcp_events.sql` và `0017_learning_feedback.sql`.
 - Staging đã có migration 0015–0016 và code mới (version `525400e7`).
 - `*.workers.dev` bị Cisco Umbrella chặn trên mạng trường, nên mọi thứ dưới đây dùng `learn.unhuman.cc`.
 
 **Kết quả sau khi xong:**
-- Mở `learn.unhuman.cc` thì qua cổng Cloudflare Access (email người nhà, mã một lần), rồi đến màn hình "Ai đang học?".
+- Mở `learn.unhuman.cc` thì nhập một mật khẩu chung cho thiết bị, rồi đến màn hình "Ai đang học?".
+- Chủ nhà vào **Chế độ quản lý → Thêm hồ sơ**, nhập tên và chọn người lớn/trẻ em. Hồ sơ hiện trong danh sách để người học tự chọn; không cần email hay tài khoản riêng.
 - Runner trên Mac chấm bài.
 - ChatGPT soạn bài lúc 03:30.
 
 ---
+
+**Tạm dừng các bước ghi production:** PR #95 qua CI, nhưng thiếu mã đang chạy trên production ở `work/hub2-direct-mcp`. Hai migration runner/hồ sơ trùng số với các migration MCP đã áp. Đã thử hai file SQL trên bản sao D1 production: toàn vẹn, khóa ngoại và số dòng người dùng, sổ, bài, câu trả lời, điểm, lời phê và kết nối đều đạt. Kết quả đó chỉ chứng minh SQL tương thích, chưa chứng minh Worker tương thích.
+
+Hợp nhất vào một nhánh riêng từ bản production đang chạy; giữ MCP trực tiếp, sự kiện, cron, lời phê và bản sao lưu hiện có. Giữ nguyên tên các migration đã áp theo từng môi trường; nếu đổi tên/số của hai migration runner/hồ sơ trong nhánh tích hợp, phải đối chiếu cả staging để tránh chạy lại SQL. Kiểm thử OAuth mới và kết nối đang có với cổng nhà: các endpoint giao thức cần quyền riêng; đăng nhập để cấp quyền MCP vẫn phải xác minh chủ tài khoản, không dùng hồ sơ đang chọn làm bằng chứng danh tính.
 
 ## Bước 1 — Cloudflare Zero Trust (cần điều khiển máy)
 
@@ -38,50 +43,47 @@ Vào https://one.dash.cloudflare.com, team `unhuman-lab`.
 5. Bỏ qua phần identity providers, rồi **Save**.
 6. Mở ứng dụng → **Overview** → chép **Application Audience (AUD) Tag**. Gọi đây là `AUD_AUTOMATION`.
 
-**1c. Ứng dụng Access cho cả nhà (cổng vào)**
-1. **Add an application** → **Self-hosted**.
-2. Name: `Learning Hub – nhà`. Session duration: `1 month`.
-3. Domain: `learn.unhuman.cc`, Path để trống.
-4. Policy: name `Gia đình`, Action **Allow**, Include → **Emails** → email của từng người trong nhà (chủ dự án cung cấp).
-5. Login methods: **One-time PIN**.
-6. **Save**, rồi chép AUD Tag. Gọi đây là `AUD_APP`.
-
-Ứng dụng 1b có path cụ thể hơn, nên `/api/automation/*` vẫn chỉ dùng service token.
+**1c. Cổng gia đình không cần email**
+- Dùng `HOUSEHOLD_GATE=passphrase`: một mật khẩu ngẫu nhiên dài cho cả nhà, lưu trong trình quản lý mật khẩu và chia sẻ riêng.
+- Không tạo Access application cho toàn domain; giữ Service Auth chỉ ở đường dẫn automation. Không cần `APP_ACCESS_AUD`.
+- Sau khi qua cổng, mọi người trong nhà có thể chọn hồ sơ. Chủ nhà có thể đặt PIN quản lý để tránh sửa nhầm.
 
 ## Bước 2 — Merge và sao lưu (terminal)
 
 ```bash
-gh pr merge 95 --merge
+# Chỉ merge PR tích hợp sau khi giữ đủ các chức năng production và CI đạt.
 ```
 
 ```bash
-npx wrangler d1 export learning-hub-prod --env production --remote --output ../../../private-data/prod-pre-local-runner-2026-11-10.sql && chmod 600 ../../../private-data/prod-pre-local-runner-2026-11-10.sql
+umask 077
+backup_dir="$(mktemp -d ../../../private-data/local-grader-cutover.XXXXXX)"
+npx wrangler d1 export learning-hub-prod --env production --remote --output "$backup_dir/production.sql"
 ```
 
 ```bash
 npx wrangler d1 migrations list learning-hub-prod --env production --remote
 ```
 
-Ghi lại danh sách migration chưa áp. Danh sách này phải là các số liên tiếp, kết thúc ở `0016_profiles.sql`.
+Đối chiếu theo **tên migration** trong `d1_migrations` của từng môi trường và danh sách chưa áp của nhánh tích hợp.
 
 ## Bước 3 — Chạy thử migration trên bản sao (terminal)
 
 Thay `NNNN …` bằng đúng các migration của bước 2, theo thứ tự:
 
 ```bash
-rm -f /tmp/lh-prod-rehearse.db && sqlite3 /tmp/lh-prod-rehearse.db < ../../../private-data/prod-pre-local-runner-2026-11-10.sql
+sqlite3 -bail "$backup_dir/rehearsal.sqlite" < "$backup_dir/production.sql"
 ```
 
 ```bash
-for t in user subjects learning_lessons learner_settings study_time; do echo "$t $(sqlite3 /tmp/lh-prod-rehearse.db "SELECT count(*) FROM $t")"; done
+for t in user subjects learning_lessons learner_settings study_time; do echo "$t $(sqlite3 "$backup_dir/rehearsal.sqlite" "SELECT count(*) FROM $t")"; done
 ```
 
 ```bash
-for f in drizzle/NNNN_*.sql; do sqlite3 /tmp/lh-prod-rehearse.db < "$f" || break; done
+for f in drizzle/NNNN_*.sql; do sqlite3 "$backup_dir/rehearsal.sqlite" < "$f" || break; done
 ```
 
 ```bash
-sqlite3 /tmp/lh-prod-rehearse.db "PRAGMA foreign_key_check; PRAGMA integrity_check;"
+sqlite3 "$backup_dir/rehearsal.sqlite" "PRAGMA foreign_key_check; PRAGMA integrity_check;"
 ```
 
 **Đạt khi:**
@@ -89,7 +91,7 @@ sqlite3 /tmp/lh-prod-rehearse.db "PRAGMA foreign_key_check; PRAGMA integrity_che
 - `integrity_check` in `ok` và `foreign_key_check` không in gì;
 - chạy lại lệnh đếm sau migration thì `user`, `subjects`, `learner_settings`, `study_time` giữ nguyên số dòng. `learning_lessons` có thể được dựng lại ở 0009, nhưng không được ít dòng hơn.
 
-Không đạt thì dừng và báo chủ dự án. Xong thì xoá bản sao: `rm /tmp/lh-prod-rehearse.db`.
+Không đạt thì dừng và báo chủ dự án. Xong thì xoá bản sao: `rm "$backup_dir/rehearsal.sqlite"`.
 
 ## Bước 4 — Lấy id hồ sơ (terminal)
 
@@ -101,7 +103,7 @@ npx wrangler d1 execute learning-hub-prod --env production --remote --command "S
 npx wrangler d1 execute learning-hub-prod --env production --remote --command "SELECT id,learner_id,title,status FROM subjects ORDER BY learner_id,title"
 ```
 
-Hỏi chủ dự án những id nào là người trong nhà. Ghi lại:
+Chủ nhà tự tạo hồ sơ mới từ giao diện, không cần gửi tên hay email cho Codex. Xác nhận hai tài khoản đang hoạt động đều thuộc gia đình trước khi bật bộ chọn; giữ nguyên ID cho hồ sơ đã có. Chỉ thu ID cho runner khi cần cấp quyền automation:
 - `PROFILES`: các id đó, cách nhau bởi dấu phẩy;
 - `OWNER`: id của chủ dự án;
 - `DEUTSCH`: id sổ Deutsch của chủ dự án.
@@ -122,13 +124,13 @@ Script tạo các tệp sau, đều quyền 600:
 Trong `wrangler.jsonc`, khối `env.production.vars`:
 - đổi `"HUB2_ENABLED": "false"` thành `"true"`;
 - đổi `APP_VERSION` thành `"hub2-local-runner-2026-11-10"`;
-- thêm `"HOUSEHOLD_GATE": "access"`, `"APP_ACCESS_AUD": "<AUD_APP>"` và `"AUTOMATION_ACCESS_AUD": "<AUD_AUTOMATION>"`.
+- thêm `"HOUSEHOLD_GATE": "passphrase"`; cấu hình `AUTOMATION_ACCESS_AUD` riêng nếu đưa runner lên.
 
-Trong `env.production.triggers.crons`, đặt `["0 1-5 * * *"]`.
+Giữ cron production hiện hành khi bật hồ sơ. Kiểm thử lịch runner trước khi đổi.
 
 Commit lên một nhánh mới (`hub2/prod-local-runner`), mở PR và chờ CI xanh. Không commit tệp nào trong `private-data/`.
 
-Đặt secret cho production:
+Đặt secret cho production sau khi nhánh tích hợp đã được kiểm thử. Khi thêm runner, hợp nhất client mới với các client hiện hành trước khi ghi `AUTOMATION_CLIENTS`:
 
 ```bash
 npx wrangler secret put AUTOMATION_CLIENTS --env production < ../../../private-data/automation-clients-production.json
@@ -140,7 +142,13 @@ openssl rand -base64 48 | npx wrangler secret put PROFILE_COOKIE_SECRET --env pr
 
 ## Bước 7 — Áp migration và deploy (terminal)
 
-Chỉ làm khi bước 1c đã lưu xong. Nếu chưa có ứng dụng Access cho cả nhà, Hub sẽ chặn mọi người (lỗi 503 hoặc 403).
+Chỉ làm khi nhánh tích hợp đã qua kiểm thử và có cả `PROFILE_COOKIE_SECRET` lẫn `HOUSEHOLD_PASSPHRASE_SHA256`. Lưu mật khẩu chung trước, rồi đưa SHA-256 lên Worker mà không hiển thị mật khẩu hoặc hash:
+
+```bash
+python3 -c 'import getpass, hashlib, sys; p = getpass.getpass("Mật khẩu gia đình: "); len(p) >= 24 or sys.exit("Dùng mật khẩu ngẫu nhiên ít nhất 24 ký tự."); print(hashlib.sha256(p.encode()).hexdigest())' > "$backup_dir/household.sha256" &&
+  npx wrangler secret put HOUSEHOLD_PASSPHRASE_SHA256 --env production < "$backup_dir/household.sha256" &&
+  rm "$backup_dir/household.sha256"
+```
 
 ```bash
 npx wrangler d1 migrations apply learning-hub-prod --env production --remote
@@ -151,14 +159,14 @@ npm run deploy:production
 ```
 
 **Kiểm tra trong trình duyệt** (cần điều khiển máy):
-1. Mở `https://learn.unhuman.cc` → hiện trang đăng nhập Cloudflare Access → nhập email chủ dự án → nhập mã gửi qua email.
-2. Phải thấy "Ai đang học?" với các hồ sơ ở bước 4.
+1. Mở `https://learn.unhuman.cc` → nhập mật khẩu gia đình → chọn hồ sơ theo tên.
+2. Phải thấy "Ai đang học?". Tạo một hồ sơ mẫu, kiểm tra tên mới xuất hiện để chọn; sau đó ẩn hồ sơ mẫu.
 3. Chọn hồ sơ chủ dự án: sổ, ghi chú và nhật ký cũ vẫn còn.
 4. Mở `https://learn.unhuman.cc/api/automation/v2/schema` trong trình duyệt: phải là 401 (không có token), không được ra dữ liệu.
 
 Hỏng thì lùi lại:
 - xoá `HOUSEHOLD_GATE` khỏi `wrangler.jsonc` rồi chạy `npm run deploy:production`;
-- dữ liệu lỗi thì restore từ `prod-pre-local-runner-2026-11-10.sql` theo `docs/ops/BACKUP.md`.
+- dữ liệu lỗi thì restore từ `$backup_dir/production.sql` theo `docs/ops/BACKUP.md`.
 
 ## Bước 8 — Runner trên Mac (terminal)
 
@@ -182,7 +190,9 @@ Hỏng thì lùi lại:
 
 ## Bước 9 — Cầu nối ChatGPT (cần điều khiển máy, ChatGPT)
 
-1. Dùng plugin Sites để publish lại `learning.unhuman12.chatgpt.site`:
+**Đường Sites chỉ là phương án dự phòng. Giữ kết nối MCP trực tiếp đang chạy; không publish hoặc chuyển tác vụ sang Sites trong đợt bật hồ sơ.**
+
+1. Nếu đã quyết định dùng phương án dự phòng, dùng plugin Sites để publish lại `learning.unhuman12.chatgpt.site`:
    - lấy file `integrations/sites-bridge/site/` từ `main`;
    - đặt secrets của Site theo `private-data/sites-bridge-production-secrets.json`: `HUB_BRIDGE_ORIGIN`, `HUB_BRIDGE_BEARER`, `HUB_BRIDGE_ACCESS_CLIENT_ID`, `HUB_BRIDGE_ACCESS_CLIENT_SECRET`;
    - giữ nguyên domain.
@@ -214,6 +224,6 @@ Hỏng thì lùi lại:
 
 ## Việc của chủ dự án
 
-- Cung cấp email người nhà (bước 1c) và chọn id hồ sơ (bước 4).
+- Lưu mật khẩu chung ở trình quản lý mật khẩu. Tự tạo tên từng người trong Hub khi luồng hồ sơ đã lên production.
 - Trong Hub: điền mục tiêu, trình độ và "Prompt của sổ" cho sổ Deutsch (dán phần ROLE và CONTEXT của v6.1); điền "Prompt cá nhân".
 - Chấm tay 32 câu trong `fixtures/eval/assess/deutsch.json` (sửa `expected`, `facets`), rồi chạy `node --experimental-strip-types scripts/eval-assess.mjs`. Lần đo đầu Qwen khớp khoảng 75–80%; ngưỡng tin dùng là 90%.

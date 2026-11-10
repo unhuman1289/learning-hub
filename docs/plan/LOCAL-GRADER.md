@@ -123,8 +123,7 @@ flowchart LR
 
 **Cổng nhà:** Hub nằm trên Internet, có dữ liệu của trẻ và tiêu quota ChatGPT. Vì vậy vẫn cần một cổng chung trước khi chọn hồ sơ, nhưng không có tài khoản trong app.
 
-- **Mặc định: Cloudflare Access.** Cloudflare gửi mã một lần tới email của người nhà; mỗi máy nhập một lần, phiên 30 ngày. Gói Free dùng được tới 50 người.
-- **Nếu không muốn cả bước này:** dùng một mật khẩu chung cho cả nhà, lưu trong cookie một năm.
+- **Quyết định 10/11/2026:** dùng một mật khẩu chung cho cả nhà; không thu email hoặc tạo tài khoản riêng. Chủ nhà thêm hồ sơ bằng tên, người học tự chọn. Thiết bị lưu cookie cổng nhà một năm. Cloudflare Access Service Auth vẫn bảo vệ đường dẫn automation riêng.
 
 Không bỏ hẳn cổng.
 
@@ -466,18 +465,9 @@ Quy ước như [PLAN §4](PLAN.md#4-cách-làm-việc): mỗi task là một PR
 ### L5 — Hồ sơ thay tài khoản
 
 #### L5.1 Cổng nhà
-- **Thay đổi:**
-  - Cloudflare Access application cho cả domain app:
-    - chính sách gồm danh sách email người nhà, đăng nhập bằng mã một lần, phiên 30 ngày;
-    - service token của runner vẫn dùng đường `/api/automation/*`.
-  - Worker kiểm JWT Access (`APP_ACCESS_AUD`) trên **mọi** request. Thiếu hoặc sai JWT thì trả 403.
-  - Local dùng `APP_ENV=local`.
-- **Test:**
-  - không có JWT;
-  - JWT sai `aud`;
-  - header giả `oai-authenticated-user-*` vẫn bị bỏ qua;
-  - route automation vẫn đòi đủ hai lớp xác thực.
-- **Cỡ:** S.
+- Worker dùng `HOUSEHOLD_GATE=passphrase` và xác thực mật khẩu chung trước khi hiện bộ chọn hồ sơ. Chỉ lưu hash mật khẩu và khóa ký cookie trong Worker secrets.
+- Runner vẫn dùng Cloudflare Access service token và bearer ở `/api/automation/*`. Giữ xác thực OAuth độc lập cho MCP trực tiếp.
+- Kiểm thử thiếu/sai mật khẩu, cookie sửa tay, header danh tính giả, và việc automation/MCP vẫn yêu cầu quyền riêng. Dùng `APP_ENV=local` khi cần bỏ qua cổng trong bản phát triển chỉ chạy loopback.
 
 #### L5.2 Bảng hồ sơ
 - **Thay đổi:**
@@ -552,7 +542,7 @@ Quy ước như [PLAN §4](PLAN.md#4-cách-làm-việc): mỗi task là một PR
 
 #### L7.1 Cấu hình production
 - **Việc:**
-  - Cloudflare Access cho app (L5.1) và service token `home-runner`.
+  - Cổng mật khẩu chung cho app (L5.1) và service token `home-runner` riêng.
   - `AUTOMATION_CLIENTS` (production) có `home-runner` và client cầu nối.
   - `AUTOMATION_ACCESS_AUD`, `APP_ACCESS_AUD`, `PROFILE_COOKIE_SECRET`.
   - Cron `0 1-5 * * *`.
@@ -589,7 +579,7 @@ Quy ước như [PLAN §4](PLAN.md#4-cách-làm-việc): mỗi task là một PR
 | --- | --- | --- | --- |
 | `AUTOMATION_CLIENTS`: `home-runner`, cầu nối có thêm `jobs:assess` và `status:read` | secret | Hub | L1.2, L6.2, L7.1 |
 | Access service token `home-runner` | Zero Trust | Cloudflare | L1.2 |
-| Access application cho app, `APP_ACCESS_AUD` | Zero Trust, var | Cloudflare, Hub | L5.1 |
+| `HOUSEHOLD_GATE=passphrase`, `HOUSEHOLD_PASSPHRASE_SHA256` | var, secret | Hub | L5.1 |
 | `PROFILE_COOKIE_SECRET` | secret | Hub | L5.3 |
 | `RESEND_API_KEY`, `EMAIL_FROM` | đã có | Hub (cảnh báo) | |
 | `HUB_*`, `QWEN_BASE_URL`, `QWEN_MODEL`, `CODEX_BIN`, `CLAUDE_BIN`, `DRIVE_MIRROR_DIR` | env, quyền 600 | Mac (`~/.config/learning-hub/`) | L1.3, L5.6 |
@@ -622,7 +612,7 @@ CI chạy test của `integrations/home-runner`. CI không gọi model hay CLI t
 
 Mức tối thiểu cho một nhà, nhưng Hub vẫn nằm trên Internet:
 
-- **Cổng nhà** (Cloudflare Access) là ranh giới tin cậy duy nhất của người dùng. Bên trong cổng không có quyền riêng giữa các hồ sơ; đây là lựa chọn có chủ ý (D23).
+- **Cổng nhà** (mật khẩu chung) là ranh giới tin cậy duy nhất của người dùng. Bên trong cổng không có quyền riêng giữa các hồ sơ; đây là lựa chọn có chủ ý (D23).
 - **Route automation** vẫn cần Access service token cộng bearer, scope, `purposes`, `triggers`.
 - **Trên Mac:** LM Studio chỉ nghe trên `127.0.0.1`. `home-runner` chỉ gọi ra ngoài, không mở cổng nào. Credential của Hub không vào prompt hay vào tiến trình Codex và Claude.
 - **Dữ liệu không đáng tin:** câu trả lời, ảnh, lời nhắn phản đối, prompt cá nhân là dữ liệu. Hub vẫn kiểm mọi kết quả.
@@ -654,7 +644,7 @@ Mức tối thiểu cho một nhà, nhưng Hub vẫn nằm trên Internet:
 
 | Việc | Khi nào |
 | --- | --- |
-| Duyệt plan; chọn cổng nhà (Access hay mật khẩu chung) | Trước L0.4 |
+| Cổng nhà: đã chọn mật khẩu chung; chủ nhà tự tạo hồ sơ bằng tên | 10/11/2026 |
 | Cho phép thao tác production (L0.2, L7.1, L7.2) | Tuần 1, 7 |
 | Lưu `AUTOMATION_CLIENTS` staging; publish lại Site | Tuần 1 |
 | Cài LM Studio và tải Qwen (khoảng 20 GB); đăng nhập Codex CLI bằng tài khoản ChatGPT | Tuần 1–2 |
