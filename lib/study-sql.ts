@@ -1,7 +1,7 @@
 import { learningTracks, type LearningTrack } from './daily-policy.ts';
 
 /** Default daily study target for an account that has not chosen one. */
-export const DEFAULT_TARGET_MINUTES = 60;
+export const DEFAULT_TARGET_MINUTES = 45;
 export const MIN_TARGET_MINUTES = 5;
 export const MAX_TARGET_MINUTES = 720;
 /** One client report covers at most two minutes; the client flushes every 30 seconds. */

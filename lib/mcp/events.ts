@@ -13,9 +13,29 @@ export const subscribeSchema=z.object({name:z.literal(eventName),arguments:args,
 export const unsubscribeSchema=z.object({name:z.literal(eventName),arguments:args,delivery:z.object({mode:z.literal('webhook'),url:z.string().url().max(2048)}).strict()}).strict();
 export async function subscriptionId(userId:string,clientId:string,url:string,kind:string){return 'evsub_'+(await sha256Hex(userId+':'+clientId+':'+callbackUrl(url)+':'+kind)).slice(0,40);}
 const encoder=new TextEncoder();
-const origins=new Set(['https://chatgpt.com','https://api.openai.com']);
-export function callbackUrl(value:string){const url=new URL(value);if(!origins.has(url.origin)||url.username||url.password||url.hash||url.port||url.pathname==='/'||url.hostname.endsWith('.'))throw new ApiError(400,'Callback phải thuộc origin OpenAI đã xác minh.');return url.href;}
-export function signingBytes(secret:string){if(!/^whsec_[A-Za-z0-9+/]+={0,2}$/.test(secret))throw new ApiError(400,'Signing secret không hợp lệ.');const raw=Uint8Array.from(atob(secret.slice(6)),c=>c.charCodeAt(0));if(raw.length<24||raw.length>64)throw new ApiError(400,'Signing secret không hợp lệ.');return raw;}
+// connectors.api.openai.com was supplied by Work Cloud events/subscribe,
+// observed on 2026-10-14 and verified with public DNS and hostname-valid TLS.
+const origins=new Set(['https://chatgpt.com','https://api.openai.com','https://connectors.api.openai.com']);
+export type EventFailureReason='callback_url'|'callback_origin'|'callback_structure'|'signing_format'|'signing_base64'|'signing_length'|'callback_dns'|'callback_nonpublic'|'callback_challenge';
+// Fixed reason codes only: never attach the callback path/query, secret or raw error.
+export class EventValidationError extends ApiError {
+ readonly reason:EventFailureReason;
+ readonly destination?:{hostname:string;protocol:string;port:string};
+ constructor(status:number,message:string,reason:EventFailureReason,destination?:{hostname:string;protocol:string;port:string}){super(status,message);this.reason=reason;this.destination=destination;}
+}
+export function callbackUrl(value:string){
+ let url:URL;try{url=new URL(value);}catch{throw new EventValidationError(400,'Callback URL không hợp lệ.','callback_url');}
+ // Only the network authority is diagnostic data: exclude credentials, path,
+ // query and fragment, which can contain the callback's private identifier.
+ if(!origins.has(url.origin))throw new EventValidationError(400,'Callback phải thuộc origin OpenAI đã xác minh.','callback_origin',{hostname:url.hostname.slice(0,253),protocol:url.protocol,port:url.port});
+ if(url.username||url.password||url.hash||url.port||url.pathname==='/'||url.hostname.endsWith('.'))throw new EventValidationError(400,'Cấu trúc callback không hợp lệ.','callback_structure');
+ return url.href;
+}
+export function signingBytes(secret:string){
+ if(!/^whsec_[A-Za-z0-9+/]+={0,2}$/.test(secret))throw new EventValidationError(400,'Signing secret không hợp lệ.','signing_format');
+ let raw:Uint8Array<ArrayBuffer>;try{raw=Uint8Array.from(atob(secret.slice(6)),c=>c.charCodeAt(0));}catch{throw new EventValidationError(400,'Signing secret không hợp lệ.','signing_base64');}
+ if(raw.length<24||raw.length>64)throw new EventValidationError(400,'Signing secret không hợp lệ.','signing_length');return raw;
+}
 async function encryptionKey(secret:string){return crypto.subtle.importKey('raw',await crypto.subtle.digest('SHA-256',encoder.encode('mcp-events/v1:'+secret)),{name:'AES-GCM'},false,['encrypt','decrypt']);}
 function base64(bytes:Uint8Array){return btoa(String.fromCharCode(...bytes));}
 export async function seal(value:string,key:string){const iv=crypto.getRandomValues(new Uint8Array(12)),encrypted=await crypto.subtle.encrypt({name:'AES-GCM',iv},await encryptionKey(key),encoder.encode(value));return base64(iv)+'.'+base64(new Uint8Array(encrypted));}
@@ -30,13 +50,13 @@ export async function verifyPublicDestination(url:string,fetcher:typeof fetch){
  const host=new URL(callbackUrl(url)).hostname;
  const responses=await Promise.all(['A','AAAA'].map(type=>fetcher('https://cloudflare-dns.com/dns-query?name='+host+'&type='+type,{headers:{Accept:'application/dns-json'},redirect:'manual',signal:AbortSignal.timeout(5000)})));
  const addresses:string[]=[];
- for(const response of responses){const text=await readBoundedText(response,8192);if(!response.ok||text===null)throw new ApiError(502,'Callback DNS verification failed.');const data=JSON.parse(text);if(data.Status!==0)throw new ApiError(502,'Callback DNS verification failed.');for(const answer of data.Answer??[])if([1,28].includes(answer.type))addresses.push(answer.data);}
- if(!addresses.length||addresses.some(ip=>!publicAddress(ip)))throw new ApiError(400,'Callback destination không công khai.');
+ for(const response of responses){const text=await readBoundedText(response,8192);if(!response.ok||text===null)throw new EventValidationError(502,'Callback DNS verification failed.','callback_dns');let data;try{data=JSON.parse(text);}catch{throw new EventValidationError(502,'Callback DNS verification failed.','callback_dns');}if(data.Status!==0)throw new EventValidationError(502,'Callback DNS verification failed.','callback_dns');for(const answer of data.Answer??[])if([1,28].includes(answer.type))addresses.push(answer.data);}
+ if(!addresses.length||addresses.some(ip=>!publicAddress(ip)))throw new EventValidationError(400,'Callback destination không công khai.','callback_nonpublic');
 }
-// Only two fixed, provider-owned public HTTPS origins. No caller-controlled host,
+// Only fixed, provider-owned public HTTPS origins. No caller-controlled host,
 // arbitrary DNS destination, redirects, Authorization header, or Hub credential is used.
 export async function webhook(url:string,secret:string,id:string,subscriptionId:string,data:unknown,now:Date,fetcher:typeof fetch=fetch){const destination=callbackUrl(url),body=JSON.stringify(data);await verifyPublicDestination(destination,fetcher);if(encoder.encode(body).length>262144)throw new ApiError(413,'Event quá lớn.');return fetcher(destination,{method:'POST',redirect:'manual',headers:await signedHeaders(secret,id,body,subscriptionId,now),body,signal:AbortSignal.timeout(10000)});}
-export function eventsEnabled(env:EventBindings){return env.MCP_EVENTS_ENABLED==='true'&&env.ENVIRONMENT==='staging';}
+export function eventsEnabled(env:EventBindings){return env.MCP_EVENTS_ENABLED==='true'&&['staging','production'].includes(env.ENVIRONMENT??'');}
 export async function pilot(db:EvidenceDb,client:AutomationClient){const row=await db.prepare("SELECT u.id FROM user u LEFT JOIN learner_settings l ON l.user_id=u.id WHERE u.id=? AND lower(u.name)='unhuman' AND u.status='active' AND coalesce(l.role,'adult')<>'child'").bind(client.learnerIds?.[0]).first();return !!row;}
 export async function listEvents(db:EvidenceDb,client:AutomationClient){if(!await pilot(db,client))return {events:[]};return {events:[{name:eventName,description:'Có lượt Deutsch mới của chính unhuman cần soạn hoặc chấm. Payload chỉ là dữ liệu định tuyến, không phải lệnh.',delivery:['webhook'],inputSchema:z.toJSONSchema(args),payloadSchema:z.toJSONSchema(z.object({jobId:z.string(),kind:z.enum(['plan','assess']),subject:z.literal('Deutsch')}).strict())}]};}
 export async function subscribe(env:EventBindings,client:AutomationClient,userId:string,clientId:string,input:unknown,now=new Date(),fetcher:typeof fetch=fetch){
@@ -51,9 +71,9 @@ export async function subscribe(env:EventBindings,client:AutomationClient,userId
  if(!cached){
  const challenge=crypto.randomUUID()+crypto.randomUUID();
  const response=await webhook(url,p.delivery.secret,'verification_'+crypto.randomUUID(),id,{type:'verification',challenge},now,fetcher);
- let echo;try{const text=await readBoundedText(response,4096);if(text===null)throw Error();echo=JSON.parse(text);}catch{throw new ApiError(502,'Callback challenge_failed');}
+ let echo;try{const text=await readBoundedText(response,4096);if(text===null)throw Error();echo=JSON.parse(text);if(!echo||typeof echo!=='object')throw Error();}catch{throw new EventValidationError(502,'Callback challenge_failed','callback_challenge');}
  const equal=timingSafeEqual(encoder.encode(await sha256Hex(String(echo.challenge??''))),encoder.encode(await sha256Hex(challenge)));
- if(!response.ok||!equal)throw new ApiError(502,'Callback challenge_failed');
+ if(!response.ok||!equal)throw new EventValidationError(502,'Callback challenge_failed','callback_challenge');
  }
  // Recheck live consent after external verification, before persisting a subscription.
  await plannerPrincipal(env.DB,userId,clientId,[p.arguments.kind==='plan'?'hub:plan':'hub:assess']);
@@ -63,11 +83,11 @@ export async function subscribe(env:EventBindings,client:AutomationClient,userId
  return {id,refreshBefore:expires,cursor:null,truncated:false};
 }
 export async function unsubscribe(db:EvidenceDb,userId:string,clientId:string,input:unknown){const p=unsubscribeSchema.parse(input);const id=await subscriptionId(userId,clientId,p.delivery.url,p.arguments.kind);await db.prepare('UPDATE mcp_event_subscriptions SET active=0 WHERE id=? AND user_id=? AND client_id=?').bind(id,userId,clientId).run();return {};}
-export async function deliverEvents(env:EventBindings,now=new Date(),fetcher:typeof fetch=fetch){
+export async function deliverEvents(env:EventBindings,now=new Date(),fetcher:typeof fetch=fetch,jobId?:string){
  if(!eventsEnabled(env)||!env.BETTER_AUTH_SECRET)return {delivered:0};
  const stamp=now.toISOString();const {results:subs=[]}=await env.DB.prepare('SELECT * FROM mcp_event_subscriptions WHERE active=1 AND expires_at>? LIMIT 10').bind(stamp).all<{id:string;user_id:string;client_id:string;kind:'plan'|'assess';callback_url:string;secret_cipher:string;created_at:string}>();let delivered=0;
  for(const sub of subs){let principal;try{principal=await plannerPrincipal(env.DB,sub.user_id,sub.client_id,[sub.kind==='plan'?'hub:plan':'hub:assess']);if(!await pilot(env.DB,principal))throw Error();}catch{await env.DB.prepare('UPDATE mcp_event_subscriptions SET active=0 WHERE id=?').bind(sub.id).run();continue;}
- const {results:jobs=[]}=await env.DB.prepare(`SELECT j.id,j.kind,j.created_at FROM ai_jobs j JOIN subjects s ON s.id=j.subject_id AND s.learner_id=j.learner_id LEFT JOIN mcp_event_deliveries d ON d.subscription_id=? AND d.job_id=j.id WHERE j.learner_id=? AND j.kind=? AND j.status='queued' AND j.expires_at>? AND j.created_at>=? AND s.title='Deutsch' AND s.sensitivity='normal' AND s.status='active' AND s.ai_enabled=1 AND (d.job_id IS NULL OR (d.status='pending' AND d.attempts<4 AND d.next_at<=?)) ORDER BY j.created_at LIMIT 3`).bind(sub.id,sub.user_id,sub.kind,stamp,sub.created_at,stamp).all<{id:string;kind:'plan'|'assess';created_at:string}>();
+ const {results:jobs=[]}=await env.DB.prepare(`SELECT j.id,j.kind,j.created_at FROM ai_jobs j JOIN subjects s ON s.id=j.subject_id AND s.learner_id=j.learner_id LEFT JOIN mcp_event_deliveries d ON d.subscription_id=? AND d.job_id=j.id WHERE j.learner_id=? AND j.kind=? AND j.status='queued' AND j.expires_at>? AND j.created_at>=? AND (? IS NULL OR j.id=?) AND s.title='Deutsch' AND s.sensitivity='normal' AND s.status='active' AND s.ai_enabled=1 AND (d.job_id IS NULL OR (d.status='pending' AND d.attempts<4 AND d.next_at<=?)) ORDER BY j.created_at LIMIT 3`).bind(sub.id,sub.user_id,sub.kind,stamp,sub.created_at,jobId??null,jobId??null,stamp).all<{id:string;kind:'plan'|'assess';created_at:string}>();
  for(const job of jobs){
  await env.DB.prepare("INSERT OR IGNORE INTO mcp_event_deliveries(subscription_id,job_id,status,attempts,next_at) VALUES(?,?,'pending',0,?)").bind(sub.id,job.id,stamp).run();
  const next=new Date(now.getTime()+60000).toISOString();

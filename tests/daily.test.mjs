@@ -5,12 +5,12 @@ import {readFileSync} from 'node:fs';
 import {readdirSync} from 'node:fs';
 import {assignmentSql} from '../lib/daily-sql.ts';
 import {berlinDay,cutoffFor,canAdvance} from '../lib/daily-policy.ts';
-test('Berlin date and 03:00 cutoff follow winter, summer and DST changes',()=>{
+test('Berlin date and midnight cutoff follow winter, summer and DST changes',()=>{
  assert.equal(berlinDay(new Date('2026-10-07T22:30:00Z')),'2026-10-08');
- assert.equal(cutoffFor('2026-01-15'),'2026-01-15T02:00:00.000Z');
- assert.equal(cutoffFor('2026-07-15'),'2026-07-15T01:00:00.000Z');
- assert.equal(cutoffFor('2026-03-29'),'2026-03-29T01:00:00.000Z');
- assert.equal(cutoffFor('2026-10-25'),'2026-10-25T02:00:00.000Z');
+ assert.equal(cutoffFor('2026-01-15'),'2026-01-14T23:00:00.000Z');
+ assert.equal(cutoffFor('2026-07-15'),'2026-07-14T22:00:00.000Z');
+ assert.equal(cutoffFor('2026-03-29'),'2026-03-28T23:00:00.000Z');
+ assert.equal(cutoffFor('2026-10-25'),'2026-10-24T22:00:00.000Z');
  assert.equal(canAdvance({assignedDate:'2026-10-06',completedAt:null},'2026-10-07'),false);
  assert.equal(canAdvance({assignedDate:'2026-10-06',completedAt:'2026-10-07T01:01:00.000Z'},'2026-10-07'),false);
 });
@@ -40,7 +40,7 @@ test('actual SQLite writer keeps unfinished lessons, advances tracks separately 
  db.prepare('UPDATE learning_lessons SET completed_at=NULL WHERE user_id=? AND id=?').run(userA,fresh.id);
  assert.equal(run(userA,'Deutsch',fresh.id,'2026-10-08'),0,'undo completion is checked by writer');
  db.prepare('UPDATE learning_lessons SET completed_at=? WHERE user_id=? AND id=?').run('2026-10-08T01:01:00.000Z',userA,fresh.id);
- assert.equal(run(userA,'Deutsch',fresh.id,'2026-10-08'),0,'after 03:00 waits for next day');
+ assert.equal(run(userA,'Deutsch',fresh.id,'2026-10-08'),0,'after midnight waits for next day');
  assert.equal(run(userA,'Deutsch',fresh.id,'2026-10-09'),1);
  assert.equal(db.prepare('SELECT COUNT(*) n FROM learning_lessons').get().n,5,'each learner retains independent active and historical lessons');
  assert.throws(()=>db.prepare('INSERT INTO learning_lessons (id,user_id,track,payload,assigned_date,updated) VALUES(?,?,?,?,?,?)').run('duplicate-a','learner-a','Deutsch','{}','2026-10-06','now'),/UNIQUE/,'database prevents a second same-track assignment for the same learner/day');

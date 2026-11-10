@@ -1352,6 +1352,54 @@
             "type": "string",
             "maxLength": 3000
           },
+          "roadmap": {
+            "minItems": 5,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "objective": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "situation": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "skills": {
+                  "minItems": 1,
+                  "maxItems": 3,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(sk_|key:)[a-zA-Z0-9_-]{1,80}$"
+                  }
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "review",
+                    "new",
+                    "mixed"
+                  ]
+                }
+              },
+              "required": [
+                "title",
+                "objective",
+                "situation",
+                "skills",
+                "mode"
+              ],
+              "additionalProperties": false
+            },
+            "description": "Đề xuất 5–10 bài tiếp theo theo mục tiêu, kỹ năng, tình huống; có thể cập nhật cả khi no_action. Không phải bài đã giao."
+          },
           "requestsHandled": {
             "maxItems": 20,
             "type": "array",

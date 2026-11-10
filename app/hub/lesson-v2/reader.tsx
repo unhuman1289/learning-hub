@@ -1,6 +1,9 @@
 "use client";
+import {useLiveRefresh} from "../use-live-refresh";
+import {feedbackForItems} from "../../../lib/feedback-history";
+import {LessonReflection} from "./reflection";
 import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { Drafts } from "../lesson-page";
@@ -50,8 +53,10 @@ export function LessonReader({
     [error, setError] = useState(""),
     [state, setState] = useState(""),
     [busy, setBusy] = useState(false),
-    [submission, setSubmission] = useState<SubmissionView | null>(null),
+    [history,setHistory]=useState<SubmissionView[]>([]),
+    [feedbackError,setFeedbackError]=useState(""),
     [pending, setPending] = useState(false);
+  const feedbackId = useId();
   const revision = useRef(0),
     latest = useRef<DraftAnswers>({}),
     saved = useRef("{}"),
@@ -98,7 +103,6 @@ export function LessonReader({
         setAnswers(next);
         setLesson(result);
         onLoaded?.(result.id, result.subjectId);
-        setSubmission(result.lastSubmission ?? null);
         setState(JSON.stringify(next) === saved.current ? "" : "Chưa lưu");
       })
       .catch((e) => {
@@ -109,6 +113,18 @@ export function LessonReader({
       ready.current = false;
     };
   }, [url, suffix, cacheKey, readonly, onLoaded]);
+  const refreshFeedback=useCallback(async()=>{
+    const version=generation.current;
+    try{
+      const value=await json<{submissions:SubmissionView[];lesson:Pick<Lesson,"items"|"stages">}>(url+"/feedback"+suffix);
+      if(generation.current!==version)return;
+      setHistory(value.submissions);setFeedbackError("");
+      // Add server-authored check questions without touching draft revision, answers or current page.
+      setLesson(current=>current?{...current,items:value.lesson.items,stages:value.lesson.stages}:current);
+    }catch(e){if(generation.current===version)setFeedbackError((e as Error).message);}
+  },[url,suffix]);
+  useEffect(()=>{void Promise.resolve().then(refreshFeedback);},[refreshFeedback]);
+  useLiveRefresh(refreshFeedback,!!lesson&&!busy&&!pending);
   const save = useCallback(async (): Promise<boolean> => {
     if (readonly || !ready.current) return false;
     if (saveInFlight.current) {
@@ -213,7 +229,7 @@ export function LessonReader({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pendingSubmission.current),
       });
-      setSubmission(response.submission);
+      setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
       pendingSubmission.current = null;
       setPending(false);
       setState("Đã nộp");
@@ -254,21 +270,31 @@ export function LessonReader({
       </div>
     );
   const stage = lesson.stages[stageIndex],
-    items = lesson.items.filter((item) => stage.itemIds.includes(item.id));
+    items = lesson.items.filter((item) => stage.itemIds.includes(item.id)),
+    stageHistory=feedbackForItems(history,stage.itemIds),
+    latestGraded=stageHistory.find(s=>s.attempts.some(a=>a.result)),
+    reflectionSubmission=history.find(s=>stageHistory.some(entry=>entry.id===s.id)&&s.attempts.length>0&&s.attempts.every(a=>a.result));
   return (
-    <RuledPage className="mx-auto max-w-4xl space-y-6 p-4 sm:p-8">
+    <RuledPage className="mx-auto max-w-4xl space-y-8">
       {readonly && <p className="bg-rose-soft p-3">Đang xem bài của người học — chỉ đọc.</p>}
       {!opened ? (
-        <Cover title={lesson.title} objective={lesson.objective} why={lesson.why} minutes={lesson.estMinutes} onStart={() => setOpened(true)} />
+        <><Cover title={lesson.title} objective={lesson.objective} why={lesson.why} minutes={lesson.estMinutes} onStart={() => setOpened(true)} />
+        {history.some(s=>s.attempts.some(a=>a.result))&&<button className={buttonClass("secondary")} onClick={()=>{const index=lesson.stages.findIndex(st=>feedbackForItems(history,st.itemIds).some(s=>s.attempts.some(a=>a.result)));if(index>=0)setStageIndex(index);setOpened(true);}}>Mở bài và xem lời phê đã lưu</button>}</>
       ) : (
         <>
-          <h1 className="font-print text-3xl">{lesson.title}</h1>
+          <header className="space-y-3">
+            <h1 className="text-balance font-print text-3xl leading-tight sm:text-4xl">{lesson.title}</h1>
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
+              <p className="text-muted">Phần {stageIndex + 1}/{lesson.stages.length} · {lesson.estMinutes} phút dự kiến cho cả bài</p>
+              {stageHistory.length > 0 && <a href={"#" + feedbackId} className="inline-flex min-h-11 items-center font-semibold text-accent underline underline-offset-4">{latestGraded ? "Xem lời phê phần này" : "Xem bài đã nộp"}</a>}
+            </div>
+          </header>
           <nav aria-label="Các phần của bài" className="flex flex-wrap gap-2">
             {lesson.stages.map((s, i) => (
               <button
                 key={s.stage}
                 aria-current={i === stageIndex ? "step" : undefined}
-                className={buttonClass(i === stageIndex ? "primary" : "secondary")}
+                className={"min-h-11 rounded-md border px-3 py-2 text-left text-sm transition-colors " + (i === stageIndex ? "border-accent bg-rose-soft font-semibold text-accent-hover" : "border-line bg-paper text-muted hover:text-ink")}
                 onClick={() => {
                   setStageIndex(i);
                 }}
@@ -331,7 +357,7 @@ export function LessonReader({
             onChange={change}
             onReveal={reveal}
           />
-          <div aria-live="polite" role="status">
+          <div aria-live="polite" role="status" className="min-h-6 text-sm text-muted">
             {state}
           </div>
           {error && (
@@ -340,21 +366,20 @@ export function LessonReader({
             </p>
           )}
           {!readonly && (
-            <div className="flex flex-wrap gap-3">
-              <button className={buttonClass("secondary")} disabled={busy || pending} onClick={() => void save()}>
+            <div className="flex flex-wrap items-center gap-3 border-y border-line bg-paper py-4">
+              <button className={buttonClass("ghost")} disabled={busy || pending} onClick={() => void save()}>
                 Lưu nháp
               </button>
               {items.length > 0 && (
-                <button className={buttonClass("primary")} disabled={busy || !!lesson.completedAt} onClick={() => void submit()}>
+                <button className={buttonClass("primary", "order-first w-full sm:w-auto")} disabled={busy || !!lesson.completedAt} onClick={() => void submit()}>
                   {pending ? "Kiểm tra lượt nộp" : "Nộp phần này"}
                 </button>
               )}
               <button
-                className={buttonClass("secondary")}
+                className={buttonClass("ghost")}
                 disabled={busy || pending}
                 onClick={() => {
                   pendingSubmission.current = null;
-                  setSubmission(null);
                   setState("Sửa bài rồi nộp lại — lần cũ vẫn được giữ.");
                 }}
               >
@@ -365,20 +390,20 @@ export function LessonReader({
               </button>
             </div>
           )}
-          <Feedback
-            formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined}
-            submission={submission}
-            items={lesson.items}
-            readOnly={readonly}
-            onRefresh={() => {
-              if (!submission) return;
-              void json<{ submission: SubmissionView }>(`/api/submissions/${submission.id}${suffix}`)
-                .then((value) => setSubmission(value.submission))
-                .catch((e: Error) => setError(e.message));
-            }}
-          />
+          <section id={feedbackId} aria-label="Lịch sử lời phê phần này" className="scroll-mt-28 space-y-4 bg-paper py-4">
+            <h2 className="font-hand text-2xl">Bài đã nộp và lời phê · {stage.title || "phần này"}</h2>
+            {feedbackError&&<p role="alert">{feedbackError} <button className="text-accent underline" onClick={()=>void refreshFeedback()}>Đọc lại lời phê</button></p>}
+            {!stageHistory.length&&<p className="text-sm text-muted">Phần này chưa có lượt nộp đã lưu. Chọn phần khác để xem lời phê của phần đó.</p>}
+            {stageHistory.map((saved,i)=><details key={saved.id} open={i===0||saved.id===latestGraded?.id} className="border-t border-line pt-3">
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-accent">{saved.created_at?new Intl.DateTimeFormat("vi-VN",{dateStyle:"short",timeStyle:"short",timeZone:"Europe/Berlin"}).format(new Date(saved.created_at)):"Lượt nộp"} · {saved.job_status==="cancelled"?"Đã hủy lượt chấm":saved.attempts.every(a=>a.result)?"Đã có lời phê":"Đang chờ lời phê"}</summary>
+              {saved.job_status==="cancelled"&&<p className="mt-2 text-sm">Lượt chấm này đã hủy. Các lời phê ở lượt trước vẫn được giữ bên dưới.</p>}
+              <Feedback formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined} submission={saved} items={lesson.items} readOnly={readonly} onRefresh={()=>void refreshFeedback()}/>
+            </details>)}
+            {history.length>=30&&<p className="text-sm text-muted">Hiển thị 30 lượt nộp gần nhất của bài.</p>}
+          </section>
+          {!readonly&&reflectionSubmission&&<LessonReflection key={reflectionSubmission.id} submissionId={reflectionSubmission.id}/>}
           <p className="leading-7">Tiếp theo: {lesson.nextTopic}</p>
-          <p className="text-sm text-muted">Hoàn thành do bạn đánh dấu, không phụ thuộc điểm. Bài tiếp chỉ được giao theo mốc 03:00 Berlin.</p>
+          <p className="text-sm text-muted">Hoàn thành do bạn đánh dấu, không phụ thuộc điểm. Bài tiếp chỉ được giao theo mốc 00:00 Berlin.</p>
         </>
       )}
     </RuledPage>

@@ -61,7 +61,7 @@ export function NotesView({ workspace, openForm }: { workspace: WorkspaceApi; op
 }
 
 /** Admin-only: approvals, scheduled update log, backups and a copy of shared notes. */
-export function AdminView({ daily, workspace, hub2 = false }: { daily: DailyApi; workspace: WorkspaceApi; hub2?: boolean }) {
+export function AdminView({ daily, workspace, hub2 = false, profileMode = false }: { daily: DailyApi; workspace: WorkspaceApi; hub2?: boolean; profileMode?: boolean }) {
   function exportWorkspace() {
     const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), ...workspace.latest.current }, null, 2)], { type: "application/json" });
     const anchor = document.createElement("a");
@@ -74,7 +74,7 @@ export function AdminView({ daily, workspace, hub2 = false }: { daily: DailyApi;
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-6">
       <h1 className="font-print text-[2rem] font-medium">Quản trị</h1>
-      <WoodFrame label="Duyệt tài khoản"><PendingApprovals isAdmin /></WoodFrame>
+      {!profileMode && <WoodFrame label="Duyệt tài khoản"><PendingApprovals isAdmin /></WoodFrame>}
       <WoodFrame label="Gia đình">
         <h2 className="font-print text-2xl font-medium">Gia đình</h2>
         <p className="mb-4 mt-2 text-sm text-muted">Đặt trẻ em, biệt danh dùng trong bài và lời phê, và phụ huynh của từng người.</p>

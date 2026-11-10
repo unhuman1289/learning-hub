@@ -58,6 +58,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     const text = [
       s.reason,
       s.progressSummary,
+      ...(s.roadmap??[]).flatMap(step=>[step.title,step.objective,step.situation]),
       ...s.skillChanges.flatMap((x) => ['name' in x ? x.name : '', 'description' in x ? x.description : '', 'reason' in x ? x.reason : '']),
       ...s.masteryProposals.map((x) => x.reason),
       ...s.requestsHandled.map((x) => x.note),
@@ -149,6 +150,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           ...(s.primaryLesson ? [job.learner_id, s.subjectId, cutoffFor(job.learning_day), job.learning_day] : []),
         ),
     );
+    if (s.roadmap) {
+      if(s.roadmap.some(step=>step.skills.some(ref=>!resolve(ref)))) issue(path+'/roadmap','unknown_reference','Lộ trình tham chiếu kỹ năng ngoài sổ.');
+      statements.push(db.prepare(`UPDATE subjects SET roadmap=? WHERE ${gate}`).bind(JSON.stringify(s.roadmap.map(step=>({...step,skills:step.skills.map(ref=>resolve(ref))}))),...gateValues));
+    }
     for (const change of s.skillChanges) {
       if (change.op === 'add')
         statements.push(
@@ -208,7 +213,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         slotKind = field === 'reviewSet' ? 'review' : 'primary';
       if ((field === 'reviewSet' && l.kind !== 'review') || (field === 'primaryLesson' && ['review', 'exploration'].includes(l.kind)))
         issue(path + '/' + field, 'schema', 'Loại bài không khớp slot.');
-      if (field === 'primaryLesson' && !c.slot.eligibleForPrimary) issue(path + '/' + field, 'not_eligible', 'Bài trước chưa xong trước 03:00.');
+      if (field === 'primaryLesson' && !c.slot.eligibleForPrimary) issue(path + '/' + field, 'not_eligible', 'Bài trước chưa xong trước 00:00.');
       if (field === 'reviewSet' && !c.slot.eligibleForReview) issue(path + '/' + field, 'slot_taken', 'Bộ ôn đang mở hoặc đã giao hôm nay.');
       const used = l.items
         .flatMap((i) => [...i.skills, ...(i.rubric ?? []).flatMap((r) => (r.skill ? [r.skill] : []))])

@@ -93,7 +93,7 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
       <label className={labelClass}>Chương trình
         <input value={curriculum} maxLength={500} onChange={(event) => { setCurriculum(event.target.value); setState("idle"); }} className={fieldClass} />
       </label>
-{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Cho phép chuẩn bị bài mới lúc 03:00. Lượt tạo bài được lưu vào hàng đợi; chỉ có nội dung mới khi runner xử lý và server xác nhận.</label>}
+{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Cho phép chuẩn bị bài mới lúc 00:00. Lượt tạo bài được lưu vào hàng đợi; chỉ có nội dung mới khi runner xử lý và server xác nhận.</label>}
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>

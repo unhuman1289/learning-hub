@@ -74,7 +74,7 @@
       ],
       "triggers": {
         "crons": [
-          "0 1-5 * * *"
+          "0 1-5,22,23 * * *"
         ]
       },
       "queues": {
@@ -84,7 +84,10 @@
             "binding": "AI_QUEUE"
           }
         ]
-      }
+      },
+      "services": [
+        {"binding":"EVENT_DISPATCHER","service":"learning-hub-mcp-staging","entrypoint":"EventDispatcher"}
+      ]
     },
     "production": {
       "name": "learning-hub-prod",
@@ -97,8 +100,12 @@
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "APP_VERSION": "hub2-schema-2026-10-13",
-        "HUB2_ENABLED": "false",
+        "APP_VERSION": "hub2-production-2026-10-14",
+        "APP_ENV": "production",
+        "AI_JOBS_DAILY_CAP": "300",
+        "HUB2_ENABLED": "true",
+        "MCP_ENABLED": "true",
+        "MCP_EVENTS_ENABLED": "true",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",
@@ -128,9 +135,12 @@
       ],
       "triggers": {
         "crons": [
-          "0 1,2 * * *"
+          "*/5 * * * *"
         ]
-      }
+      },
+      "services": [
+        {"binding":"EVENT_DISPATCHER","service":"learning-hub-prod","entrypoint":"EventDispatcher"}
+      ]
     }
   },
   "assets": {

@@ -134,6 +134,10 @@
       ],
       "additionalProperties": false
     },
+    "planningGuidance": {
+      "type": "string",
+      "maxLength": 2000
+    },
     "subjects": {
       "maxItems": 30,
       "type": "array",
@@ -205,6 +209,98 @@
           "progressSummary": {
             "type": "string",
             "maxLength": 3000
+          },
+          "roadmap": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "maxLength": 160
+                },
+                "objective": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "situation": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "skills": {
+                  "minItems": 1,
+                  "maxItems": 3,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^(sk_|key:)[a-zA-Z0-9_-]{1,80}$"
+                  }
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "review",
+                    "new",
+                    "mixed"
+                  ]
+                }
+              },
+              "required": [
+                "title",
+                "objective",
+                "situation",
+                "skills",
+                "mode"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "learnerReflections": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "submissionId": {
+                  "type": "string"
+                },
+                "lessonId": {
+                  "type": "string"
+                },
+                "difficulty": {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                "usefulness": {
+                  "type": "string",
+                  "maxLength": 20
+                },
+                "minutes": {
+                  "type": "integer",
+                  "minimum": -9007199254740991,
+                  "maximum": 9007199254740991
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 1500
+                },
+                "updatedAt": {
+                  "type": "string",
+                  "maxLength": 40
+                }
+              },
+              "required": [
+                "submissionId",
+                "lessonId",
+                "difficulty",
+                "usefulness",
+                "minutes",
+                "note",
+                "updatedAt"
+              ],
+              "additionalProperties": false
+            }
           },
           "slot": {
             "type": "object",

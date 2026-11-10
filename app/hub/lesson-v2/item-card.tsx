@@ -30,7 +30,7 @@ export function ItemCard({
   } catch {}
   const fieldId = "answer-" + item.id;
   return (
-    <article className="space-y-3 rounded border border-line p-4 sm:p-6">
+    <article className="space-y-4 border-b border-line bg-paper py-6">
       <h3 id={"prompt-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
         {item.id}. {formatText(item.prompt)}
       </h3>
@@ -39,9 +39,10 @@ export function ItemCard({
         <fieldset aria-labelledby={"prompt-" + item.id}>
           <legend className="sr-only">Chọn đáp án</legend>
           {item.choices?.map((choice) => (
-            <label key={choice.id} className="my-2 flex min-h-11 items-start gap-3 rounded border border-line p-3">
+            <label key={choice.id} className="my-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-line p-3 leading-7 has-[:checked]:border-accent has-[:checked]:bg-rose-soft">
               <input
                 type="checkbox"
+                className="mt-1.5 size-5 shrink-0 accent-accent"
                 disabled={readOnly || disabled || uploading}
                 checked={selected.includes(choice.id)}
                 onChange={(e) =>

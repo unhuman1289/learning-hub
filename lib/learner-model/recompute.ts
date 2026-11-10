@@ -1,4 +1,6 @@
 import type { EvidenceDb } from '../evidence/submit.ts';
+import {berlinDay} from '../daily-policy.ts';
+import {addDays} from './rules.ts';
 import { ApiError } from '../api-error.ts';
 import { sha256Hex } from '../auth/automation.ts';
 import { clampMastery, computeSkillState, evidenceFingerprint, type Evidence, type ErrorCategory, type Mastery } from './rules.ts';
@@ -219,7 +221,7 @@ export async function recomputeSubmission(db: EvidenceDb, learnerId: string, sub
 export async function readSubjectSkills(db: EvidenceDb, learnerId: string, subjectId: string) {
   const { results = [] } = await db
     .prepare(
-      `SELECT s.*,st.mastery,st.mastery_ceiling,st.dim_knowledge,st.dim_recognition,st.dim_application,st.dim_retention,st.next_review_day,st.review_kind,st.maintained,st.recent_exposure,st.stuck_on,st.revision AS state_revision FROM skills s LEFT JOIN skill_states st ON st.skill_id=s.id WHERE s.learner_id=? AND s.subject_id=? ORDER BY s.path_order,s.id`,
+      `SELECT s.*,st.mastery,st.mastery_ceiling,st.dim_knowledge,st.dim_recognition,st.dim_application,st.dim_retention,st.next_review_day,st.review_kind,st.maintained,st.attempts_total,st.last_attempt_at,st.recent_exposure,st.stuck_on,st.revision AS state_revision FROM skills s LEFT JOIN skill_states st ON st.skill_id=s.id WHERE s.learner_id=? AND s.subject_id=? ORDER BY s.path_order,s.id`,
     )
     .bind(learnerId, subjectId)
     .all<Record<string, unknown>>();
@@ -227,5 +229,14 @@ export async function readSubjectSkills(db: EvidenceDb, learnerId: string, subje
     .prepare('SELECT * FROM error_patterns WHERE learner_id=? AND subject_id=? ORDER BY last_seen_at DESC')
     .bind(learnerId, subjectId)
     .all<Record<string, unknown>>();
-  return { skills: results, errors };
+  return {skills:results,errors};
+}
+export async function readSubjectEffort(db:EvidenceDb,learnerId:string,subjectId:string,now=new Date()){
+  const from=addDays(berlinDay(now),-13);
+  const effort=await db.prepare(`SELECT
+ (SELECT coalesce(sum(seconds),0)/60.0 FROM study_time WHERE user_id=? AND day>=? AND track IN (?,coalesce((SELECT legacy_track FROM subjects WHERE id=? AND learner_id=?),''))) AS minutes,
+ (SELECT count(DISTINCT day) FROM study_time WHERE user_id=? AND day>=? AND seconds>0 AND track IN (?,coalesce((SELECT legacy_track FROM subjects WHERE id=? AND learner_id=?),''))) AS days,
+ (SELECT count(*) FROM attempts WHERE learner_id=? AND subject_id=? AND day>=?) AS attempts,
+ (SELECT count(*) FROM attempts WHERE learner_id=? AND subject_id=? AND day>=? AND attempt_no>1) AS retries`).bind(learnerId,from,subjectId,subjectId,learnerId,learnerId,from,subjectId,subjectId,learnerId,learnerId,subjectId,from,learnerId,subjectId,from).first<{minutes:number;days:number;attempts:number;retries:number}>();
+  return effort;
 }

@@ -3,6 +3,7 @@ import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 export type QueueBindings = {
+  EVENT_DISPATCHER?:{dispatch(jobId:string):Promise<{delivered:number}>};
   AI_JOBS_DAILY_CAP?: string;
   AI_QUEUE?: { send(body: unknown): Promise<unknown> };
   AI_DISPATCH_URL?: string;
@@ -48,6 +49,8 @@ export async function enqueue(
     purpose: 'daily' | 'initial' | 'request' | 'submission' | 'recheck';
     subjectId?: string | null;
     refId?: string | null;
+    /** Stable scheduler invocation identity; retries reuse it, later checks can create another daily job. */
+    dailyRunId?: string;
     /** Wait for the nightly runner instead of asking for an answer now. */
     tonight?: boolean;
   },
@@ -62,7 +65,7 @@ export async function enqueue(
       ':' +
       input.learnerId +
       ':' +
-      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + day : (input.refId ?? input.subjectId ?? day));
+      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + (input.dailyRunId??stamp) : (input.refId ?? input.subjectId ?? day));
   const existing = await db
     .prepare('SELECT id,status,trigger,kind,purpose,priority FROM ai_jobs WHERE dedupe_key=?')
     .bind(dedupe)
@@ -133,6 +136,8 @@ export async function enqueue(
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
+  if(created&&bindings.EVENT_DISPATCHER)
+    await bindings.EVENT_DISPATCHER.dispatch(saved.id).catch(()=>console.error('Event dispatch unavailable; queued job retained.'));
   if (created && saved.trigger === 'on_demand')
     await dispatchJob(bindings, saved, now).catch(() => console.error('Dispatch unavailable; queued job retained.'));
   return { ...saved, created };
@@ -164,7 +169,7 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
   let failed = 0;
   for (const r of results) {
     try {
-      await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily', subjectId: r.id }, now);
+      await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily', subjectId: r.id,dailyRunId:now.toISOString() }, now);
     } catch (error) {
       failed++;
       console.error('Daily plan job not queued:', error instanceof Error ? error.message : error);

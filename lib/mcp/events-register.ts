@@ -2,14 +2,16 @@ import {z} from 'zod/v4';
 import {ProtocolError,type McpServer} from '@modelcontextprotocol/server';
 import {ApiError} from '../api-error.ts';
 import type {AutomationClient} from '../auth/automation.ts';
-import {eventsEnabled,listEvents,subscribe,unsubscribe,subscribeSchema,unsubscribeSchema,type EventBindings} from './events.ts';
+import {eventsEnabled,listEvents,subscribe,unsubscribe,subscribeSchema,unsubscribeSchema,EventValidationError,type EventBindings} from './events.ts';
 export async function checked<T>(run:()=>Promise<T>){
  console.info(JSON.stringify({component:'mcp-events',operation:'subscribe',phase:'handler_started'}));
  try{const result=await run();console.info(JSON.stringify({component:'mcp-events',operation:'subscribe',phase:'stored'}));return result;}
  catch(e){
   const category=e instanceof ApiError?(e.status===403?'forbidden':e.status===429?'limit':e.status===400?'invalid_callback_or_secret':'callback_failed'):'unavailable';
-  console.info(JSON.stringify({component:'mcp-events',operation:'subscribe',phase:'failed',category}));
-  if(e instanceof ApiError){if(e.status===403)throw new ProtocolError(-32024,'Event không được phép.');if(e.status===429)throw new ProtocolError(-32000,'Subscription limit reached.');if(e.status===400)throw new ProtocolError(-32602,e.message);throw new ProtocolError(-32015,'Callback verification failed.',{reason:'challenge_failed'});}
+  const reason=e instanceof EventValidationError?e.reason:undefined;
+  const destination=e instanceof EventValidationError?e.destination:undefined;
+  console.info(JSON.stringify({component:'mcp-events',operation:'subscribe',phase:'failed',category,reason,destination}));
+  if(e instanceof ApiError){if(e.status===403)throw new ProtocolError(-32024,'Event không được phép.');if(e.status===429)throw new ProtocolError(-32000,'Subscription limit reached.');if(e.status===400)throw new ProtocolError(-32602,e.message,reason?{reason}:undefined);throw new ProtocolError(-32015,'Callback verification failed.',{reason:reason==='callback_dns'?'dns_failed':'challenge_failed'});}
   throw new ProtocolError(-32015,'Callback verification failed.',{reason:'timeout_or_unavailable'});
  }
 }

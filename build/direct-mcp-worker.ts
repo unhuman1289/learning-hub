@@ -7,12 +7,21 @@ import {allowedRegistration} from '../lib/mcp/policy';
 import {sha256Hex} from '../lib/auth/automation';
 import {deliverEvents} from '../lib/mcp/events';
 import {readBoundedText} from '../lib/mcp/body';
+import {WorkerEntrypoint} from 'cloudflare:workers';
+
+// Private RPC service binding only; no public HTTP route or caller credentials.
+export class EventDispatcher extends WorkerEntrypoint<HubAuthBindings>{
+ async dispatch(jobId:string){
+  if(!/^job_[a-z0-9]{20}$/.test(jobId))throw new Error('Invalid job ID');
+  return deliverEvents(this.env,new Date(),fetch,jobId);
+ }
+}
 
 function html(title:string,body:string,script=''){
  return new Response(`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>body{font:17px/1.6 system-ui;background:#f2eff0;color:#343136;margin:0}main{max-width:560px;margin:8vh auto;padding:28px;background:#fff;border:1px solid #d9cdd2}label,input{display:block}input{box-sizing:border-box;width:100%;padding:12px;margin:4px 0 18px;border:1px solid #9b8991}button{padding:12px 20px;border:1px solid #82566a;background:#ecd9e2;color:#343136;cursor:pointer;margin:12px 8px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #82566a;outline-offset:3px}button:disabled{opacity:.5}#error{color:#9a314f}p,code{overflow-wrap:anywhere}@media(max-width:600px){main{margin:20px 12px;padding:20px}}</style><main>${body}</main>${script?'<script>'+script+'</script>':''}</html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'"}});
 }
 const queryValue=(query:string)=>JSON.stringify(query).replaceAll('<','\\u003c');
-export default {scheduled(controller:ScheduledController,env:HubAuthBindings,ctx:ExecutionContext){ctx.waitUntil(deliverEvents(env,new Date(controller.scheduledTime)));},async fetch(request:Request,env:HubAuthBindings){
+export default {scheduled(controller:ScheduledController,env:HubAuthBindings,ctx:ExecutionContext){console.info(JSON.stringify({component:'mcp-events',operation:'dispatch',phase:'scheduled_started'}));ctx.waitUntil(deliverEvents(env,new Date(controller.scheduledTime)).then(r=>console.info(JSON.stringify({component:'mcp-events',operation:'dispatch',phase:'scheduled_finished',delivered:r.delivered}))));},async fetch(request:Request,env:HubAuthBindings,oauthLoginOnly=false){
  try{
   if(env.MCP_ENABLED!=='true'||env.HUB2_ENABLED!=='true')return Response.json({error:'Not found'},{status:404});
   const url=new URL(request.url),path=url.pathname;
@@ -24,6 +33,18 @@ export default {scheduled(controller:ScheduledController,env:HubAuthBindings,ctx
   if(path.startsWith('/api/auth/')){
    // Only the login/session, OAuth, and public-key surfaces are exposed here.
    if(!['/api/auth/oauth2/authorize','/api/auth/oauth2/token','/api/auth/oauth2/register','/api/auth/oauth2/consent','/api/auth/oauth2/userinfo','/api/auth/oauth2/revoke','/api/auth/sign-in/email','/api/auth/sign-out','/api/auth/get-session','/api/auth/jwks'].includes(path))return Response.json({error:'Not found'},{status:404});
+   if (oauthLoginOnly && path === '/api/auth/sign-in/email') {
+    const reject = () => Response.json({error:'Kết nối OAuth không hợp lệ.'},{status:400,headers:{'Cache-Control':'no-store'}});
+    if (request.method !== 'POST' || request.headers.get('Origin') !== env.APP_ORIGIN ||
+        !request.headers.get('Content-Type')?.startsWith('application/json')) return reject();
+    const text = await readBoundedText(request.clone(), 16384);
+    if (text === null) return reject();
+    let query: unknown;
+    try { query = JSON.parse(text)?.oauth_query; } catch { return reject(); }
+    const auth = createHubAuth(env);
+    if (typeof query !== 'string' || !await verifyOAuthQueryParams(query,(await auth.$context).secret)) return reject();
+    return await auth.handler(request);
+   }
    if(path==='/api/auth/oauth2/register'&&request.method==='POST'){
     const text=await readBoundedText(request.clone(),16384);if(text===null)return Response.json({error:'invalid_client_metadata'},{status:413});
     let body;try{body=JSON.parse(text);}catch{return Response.json({error:'invalid_client_metadata'},{status:400});}

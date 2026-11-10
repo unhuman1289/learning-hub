@@ -35,6 +35,12 @@ test('every standalone API route is authenticated or explicitly public/disabled'
       assert.match(source, /standalone Workers|independent\/public Worker|Sites dispatch\s+boundary/i, `${name} must document its mandatory Worker boundary`);
       continue;
     }
+    if (name === 'profiles/route.ts') {
+      assert.match(source, /householdMode\(env\)/);
+      const worker = readFileSync(new URL('../build/worker.ts', import.meta.url), 'utf8');
+      assert.match(worker, /await householdGuard\(request, env\).*handler.fetch/);
+      continue;
+    }
     if (serviceRoutes.has(name)) {
       if (name.startsWith('automation/v2/')) {
         assert.match(source, /authorizeAutomation\(req,\s*env,\s*'jobs:plan'\)/);

@@ -52,6 +52,11 @@ export const skillChanges = z.discriminatedUnion('op', [
     .strict(),
   z.object({ op: z.literal('retire'), skillId: ref, reason: text(500) }).strict(),
 ]);
+export const roadmapStep = z.object({
+ title: text(160), objective: text(500), situation: text(300), skills: z.array(ref).min(1).max(3),
+ mode: z.enum(['review','new','mixed']),
+}).strict();
+export const roadmap = z.array(roadmapStep).min(5).max(10).describe("Đề xuất 5–10 bài tiếp theo theo mục tiêu, kỹ năng, tình huống; có thể cập nhật cả khi no_action. Không phải bài đã giao.");
 export const planResult = z
   .object({
     contract: z.literal('plan-result/1'),
@@ -71,6 +76,7 @@ export const planResult = z
             reviewSet: lessonPackageV2.nullable(),
             masteryProposals: z.array(proposal).max(40),
             progressSummary: text(3000),
+            roadmap: roadmap.optional(),
             requestsHandled: z.array(z.object({ requestId: z.string(), status: z.enum(['done', 'declined']), note: text(1000) }).strict()).max(20),
           })
           .strict(),
@@ -217,6 +223,8 @@ const subject = z
     weight: z.number(),
     revision: z.number().int(),
     progressSummary: text(3000),
+    roadmap: z.array(roadmapStep).max(10).optional(),
+    learnerReflections: z.array(z.object({submissionId:z.string(), lessonId:z.string(), difficulty:text(20), usefulness:text(20), minutes:z.number().int(), note:text(1500), updatedAt:text(40)}).strict()).max(10).optional(),
     slot: z
       .object({
         openPrimaryLessonId: z.string().nullable(),
@@ -259,6 +267,7 @@ export const planContext = z
         duplicateWindowDays: z.literal(90),
       })
       .strict(),
+    planningGuidance: text(2000).optional(),
     subjects: z.array(subject).max(30),
     explorations: z
       .array(

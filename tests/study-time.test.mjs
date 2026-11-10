@@ -33,9 +33,9 @@ test('a day never holds more than 24 hours for one notebook', () => {
   assert.equal(db.prepare(readDaySql).get('vu', '2026-10-09').seconds, 86_400);
 });
 
-test('daily target defaults to 60 minutes and is stored per account', () => {
+test('daily target defaults to 45 minutes and is stored per account', () => {
   const db = database();
-  assert.equal(toStudyDay('2026-10-09', [], db.prepare(readTargetSql).get('vu')?.target).targetMinutes, 60);
+  assert.equal(toStudyDay('2026-10-09', [], db.prepare(readTargetSql).get('vu')?.target).targetMinutes, 45);
   db.prepare(setTargetSql).run('vu', 90, 'a');
   db.prepare(setTargetSql).run('vu', 45, 'b');
   assert.equal(db.prepare(readTargetSql).get('vu').target, 45);
