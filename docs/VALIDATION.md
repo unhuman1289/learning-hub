@@ -150,3 +150,12 @@ Final staging code deployment: `f64cc4d2-ce38-452d-96de-6b3c2a6db96a`. Real unhu
 - H6 local acceptance in the browser (child + parent test accounts, local only): dispute with recheck shows "Đang chấm lại"; dispute without recheck → "Nhờ phụ huynh xem" → parent sets a grade in Sổ liên lạc; "Hỏi thêm" request shows "Đang chờ soạn"; quality table shows 2 disputes, 1 overturned, 1 key issue; admin "Chấm sai cần xem" empty after resolution; 375 px without horizontal overflow.
 - 222 tests, typecheck, lint, contracts and build pass.
 - Staging: 0014 applied; Worker version `f996b84e-69fd-4879-ad88-948d4f5271f4`, `APP_VERSION=hub2-h6-2026-10-13`, cron `0 1-5 * * *`. Anonymous and forged `oai-authenticated-user-*` probes of the new request, dispute and quality routes return 401. Production unchanged.
+
+## L1.1 Qwen on the family Mac — 10/11/2026
+
+MacBook Pro M4 Pro, 48 GB. LM Studio, model `qwen/qwen3.6-35b-a3b` (MLX, vision-capable), context 32k, TTL 15 min.
+
+- Load: 19.6 s, 27.1 GiB resident.
+- `scripts/eval-assess.mjs` on `fixtures/eval/assess/deutsch.json` (4 submissions × 4 open answers, authored; draft key not yet confirmed by the owner): mean 20.9 s per submission (~2.6k prompt tokens → ~1k output tokens), valid `assess-result/1` JSON 4/4 on the first try, result agreement 14/16, G/P/N agreement 9/10, 0 correct answers marked wrong without evidence, injection attempts 0/2 shifted, all evidence quotes verbatim.
+- With a JSON schema, LM Studio returns the reply in `reasoning_content` while the model thinks; the engine reads either field.
+- Not yet measured: photos (vision), 96 KB contexts, Codex engine. Gate E1 needs the 30-case set graded by the owner.

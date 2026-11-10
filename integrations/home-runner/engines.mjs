@@ -75,7 +75,8 @@ export function qwenEngine({
       const choice = body.choices?.[0];
       if (choice?.finish_reason === 'length') throw Error('Local model ran out of tokens.');
       return {
-        json: parseJsonReply(choice?.message?.content),
+        // With a schema, LM Studio may return the JSON in reasoning_content when the model runs in thinking mode.
+        json: parseJsonReply(choice?.message?.content?.trim() ? choice.message.content : choice?.message?.reasoning_content),
         usage: {
           model: 'local:' + model,
           inputTokens: body.usage?.prompt_tokens ?? 0,
