@@ -9,10 +9,10 @@ Follow `docs/plan/PLAN.md`, the single implementation plan, in the order of its 
 ## Architecture and cost
 
 - Start with Workers Free and D1; measure real CPU/usage before recommending a paid plan.
-- Use existing ChatGPT/Claude subscriptions for scheduled content preparation (nightly plan jobs). The user requested immediate grading on submission (12/10/2026): a model API key may exist only in the separate Worker `learning-hub-assessor`. The Hub itself holds no model key and never calls a model directly; AI reaches it only through the job API v2 (`docs/hub2/AI-API.md`).
+- Use existing ChatGPT/Claude subscriptions for content preparation. The Hub holds no model key and never calls a model; AI reaches it only through the job API v2 (`docs/hub2/AI-API.md`). Open answers are graded by `integrations/home-runner/` on the family Mac (local Qwen; Codex CLI on the ChatGPT plan for rechecks and on-demand lessons); when the Mac is off, work waits and the UI says so (`docs/plan/LOCAL-GRADER.md`).
 - Git owns source/configuration; D1 owns learning state; Docs owns editable long-form materials. Do not use Docs as the transactional progress database.
 - Preserve the exported Sites identity in `.openai/hosting.json`. This is provenance, not permission to create a replacement Site or deploy changes when asked to export/local-only.
-- This checkout retains Sites auth and connector infrastructure. Before independent/public hosting, replace the platform trust boundary with validated app authentication and service authorization. Never trust client-supplied `oai-authenticated-user-*` headers on a standalone Worker.
+- This checkout retains Sites auth and connector infrastructure. Before independent/public hosting, replace the platform trust boundary with validated app authentication and service authorization. Never trust client-supplied `oai-authenticated-user-*` headers on a standalone Worker. With `HOUSEHOLD_GATE` set (`access` or `passphrase`, `lib/household.ts`) the trust boundary is the household gate checked by the Worker on every request; inside it, family profiles replace accounts and "Chế độ quản lý" grants admin powers.
 - `/api/learning-run` is retired (410). Features are not implemented merely because they appear in the design; FEATURES.md lists what exists.
 
 ## Daily update invariants

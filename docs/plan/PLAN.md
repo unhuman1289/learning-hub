@@ -271,6 +271,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H1.3, H1.4. **Cỡ:** L.
 
 #### H1.6 Admin: trẻ em và phụ huynh
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L5: hồ sơ gia đình sau cổng nhà, không có tài khoản (10/11/2026).**
+
 - **Thay đổi:**
   - Trang Quản trị: đặt `role = child`, `display_name`, gắn hoặc gỡ phụ huynh.
   - `app/api/admin/guardians/route.ts`.
@@ -284,6 +286,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H0.3, H1.1. **Cỡ:** S.
 
 #### H1.8 Tài khoản và sổ của Ếch
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L5: hồ sơ của Ếch tạo ở chế độ quản lý (10/11/2026).**
+
 - **Việc:**
   - Ếch đăng ký bằng email riêng. Admin duyệt, đặt `role = child`, `display_name = "Ếch"`, gắn phụ huynh.
   - Tạo ba sổ, `curriculum = "Chương trình GDPT 2018 (Việt Nam), lớp 7"`:
@@ -620,6 +624,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H5.7. **Cỡ:** S.
 
 #### H7.2 Thử giới hạn Cloudflare cho Worker chấm bài
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L1: không cần Queue hay Worker chấm bài (10/11/2026).**
+
 - **Việc:** trên staging, dựng consumer Queue tối thiểu chờ một lệnh `fetch` 2–3 phút (giả lập gọi model). Kiểm:
   - Queue có trong gói hiện tại không;
   - thời gian chạy tối đa của consumer;
@@ -628,6 +634,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H5.6. **Cỡ:** S.
 
 #### H7.3 Worker chấm bài `integrations/assessor/`
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L1.3: `integrations/home-runner/` trên Mac (Qwen, Codex) (10/11/2026).**
+
 - **Thay đổi:** theo [AI-API §9.2](../hub2/AI-API.md#92-r2-worker-chấm-bài).
   - **Mã nguồn:** `src/index.ts` (consumer Queue, cron), `src/hub.ts` (lease, context, ảnh, result, fail, xác minh), `src/model.ts` (`@anthropic-ai/sdk`).
   - **Gọi model:**
