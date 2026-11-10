@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PaperDialog, fieldClass, labelClass } from "./paper-dialog";
 import { buttonClass, PageLabel } from "./ui";
 import { apiJson, learnerQuery } from "./api";
+import { GraderOffline } from "./runner-status";
 
 export type RequestKind = "explore" | "extra_practice" | "school_topic" | "note";
 export type RequestView = {
@@ -85,7 +86,10 @@ export function RequestDialog({ kind, subjectId, learner, onClose, onSent }: { k
 export function RequestList({ requests, subjectId }: { requests: RequestView[]; subjectId?: string }) {
   const shown = requests.filter((r) => subjectId === undefined || r.subjectId === subjectId).slice(0, 8);
   if (!shown.length) return null;
+  const waiting = shown.some((r) => r.urgency === "now" && (r.status === "queued" || r.status === "in_job"));
   return (
+    <>
+    <GraderOffline waiting={waiting} what="Yêu cầu" />
     <ul className="mt-2 grid gap-2">
       {shown.map((r) => (
         <li key={r.id} className="leading-7">
@@ -95,6 +99,7 @@ export function RequestList({ requests, subjectId }: { requests: RequestView[]; 
         </li>
       ))}
     </ul>
+    </>
   );
 }
 

@@ -1,6 +1,7 @@
 "use client";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import { DisputeControl, type DisputeState } from "./dispute-dialog";
+import { GraderOffline } from "../runner-status";
 function answerLabel(answer: string, item?: ItemView) {
   if (item?.input !== "choice") return answer;
   try {
@@ -42,6 +43,7 @@ export function Feedback({
   return (
     <section aria-label="Lời phê" className="space-y-3">
       <h2 className="font-hand text-2xl">Lời phê</h2>
+      <GraderOffline waiting={submission.attempts.some((a) => !a.result || a.dispute?.status === "rechecking")} what="Câu đang chờ" />
       {submission.attempts.map((a) => (
         <div key={a.id} className="border-l border-red-700 pl-4">
           <h3 className="font-semibold">
