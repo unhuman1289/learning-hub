@@ -20,13 +20,18 @@ tools.push(
   {name:'hub2_check_result',description:'Validate a plan-result/1 without saving (dry run). Fix every reported path and check again before hub2_submit_result.',inputSchema:{type:'object',required:['jobId','leaseToken','result'],properties:{...jobArgs,result:{type:'object'}},additionalProperties:false}},
   {name:'hub2_submit_result',description:'Save a checked plan-result/1. Afterwards read hub2_job to confirm the saved lesson IDs. Never resubmit after an uncertain write; read hub2_job instead.',inputSchema:{type:'object',required:['jobId','leaseToken','result'],properties:{...jobArgs,result:{type:'object'}},additionalProperties:false}},
   {name:'hub2_job',description:'Read a job status and saved outcome; safe after uncertain writes.',inputSchema:{type:'object',required:['jobId'],properties:{jobId:jobArgs.jobId},additionalProperties:false}},
+  {name:'hub2_status',description:'Read-only progress of one family profile for Status: due skills, open errors, G/P/N mastery and the open lesson per notebook. No answers.',inputSchema:{type:'object',required:['profileId'],properties:{profileId:{type:'string',pattern:'^[A-Za-z0-9_-]{1,128}$'}},additionalProperties:false}},
   {name:'hub2_fail',description:'Give a leased job back with a short reason (no learner text). retryable=true requeues it.',inputSchema:{type:'object',required:['jobId','leaseToken','reason','retryable'],properties:{...jobArgs,reason:{type:'string',maxLength:300},retryable:{type:'boolean'}},additionalProperties:false}},
 );
 
 function v2Request(name, args) {
-  const allowed = { hub2_schema: [], hub2_lease_plan: [], hub2_job: ['jobId'], hub2_context: ['jobId', 'leaseToken'], hub2_check_result: ['jobId', 'leaseToken', 'result'], hub2_submit_result: ['jobId', 'leaseToken', 'result'], hub2_fail: ['jobId', 'leaseToken', 'reason', 'retryable'] }[name];
+  const allowed = { hub2_schema: [], hub2_status: ['profileId'], hub2_lease_plan: [], hub2_job: ['jobId'], hub2_context: ['jobId', 'leaseToken'], hub2_check_result: ['jobId', 'leaseToken', 'result'], hub2_submit_result: ['jobId', 'leaseToken', 'result'], hub2_fail: ['jobId', 'leaseToken', 'reason', 'retryable'] }[name];
   if (!allowed || Object.keys(args).some((key) => !allowed.includes(key)) || allowed.some((key) => args[key] === undefined)) throw Error('Invalid arguments');
   if (name === 'hub2_schema') return { path: '/schema', method: 'GET' };
+  if (name === 'hub2_status') {
+    if (typeof args.profileId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(args.profileId)) throw Error('Invalid profileId');
+    return { path: `/status/${args.profileId}`, method: 'GET' };
+  }
   if (name === 'hub2_lease_plan') return { path: '/jobs/lease', method: 'POST', body: { kinds: ['plan'], max: 1, runner: { name: 'chatgpt-sites-bridge', version: '0.2.0', model: 'chatgpt' } } };
   if (!jobId.test(args.jobId)) throw Error('Invalid jobId');
   if (name === 'hub2_job') return { path: `/jobs/${args.jobId}`, method: 'GET' };
