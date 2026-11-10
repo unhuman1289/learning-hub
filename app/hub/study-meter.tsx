@@ -6,7 +6,7 @@ import { cx } from "../../components/notebook/paper";
 import { buttonClass } from "./ui";
 import type { StudyClock } from "./use-study-clock";
 
-const presets = [30, 60, 90, 120, 240];
+const presets = [30, 45, 60, 90, 120];
 
 /**
  * Minutes studied today as a small ruler in the top bar. Counted automatically while a notebook

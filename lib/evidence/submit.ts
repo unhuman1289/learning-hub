@@ -71,6 +71,17 @@ export async function readSubmission(db: Db, learnerId: string, id: string) {
     })),
   };
 }
+/** Saved feedback history. A cancelled/pending retry never hides previously graded submissions. */
+export async function readLessonSubmissions(db:Db,learnerId:string,lessonId:string){
+ const owner=await db.prepare("SELECT id FROM learning_lessons WHERE id=? AND user_id=? AND package_version='2'").bind(lessonId,learnerId).first();
+ if(!owner)throw new ApiError(404,'Không tìm thấy bài.');
+ const {results:rows=[]}=await db.prepare(`SELECT s.id,s.stage,s.status,s.created_at,j.status AS job_status FROM submissions s LEFT JOIN ai_jobs j ON j.id=s.ai_job_id WHERE s.lesson_id=? AND s.learner_id=? ORDER BY s.created_at DESC,s.rowid DESC LIMIT 30`).bind(lessonId,learnerId).all<Record<string,unknown>>();
+ if(!rows.length)return [];
+ const {results:attempts=[]}=await db.prepare(`SELECT a.submission_id,a.id,a.item_id,a.answer,a.attempt_no,a.support,a.status,g.result,g.score,g.feedback,g.correction,
+ (SELECT json_object('id',d.id,'status',d.status,'note',d.resolution_note) FROM disputes d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1) AS dispute
+ FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=? AND a.learner_id=? AND a.submission_id IN (SELECT id FROM submissions WHERE lesson_id=? AND learner_id=? ORDER BY created_at DESC,rowid DESC LIMIT 30) ORDER BY a.rowid`).bind(lessonId,learnerId,lessonId,learnerId).all<Record<string,unknown>>();
+ return rows.map(row=>({...row,id:String(row.id),attempts:attempts.filter(a=>a.submission_id===row.id).map(a=>({...a,dispute:a.dispute?JSON.parse(String(a.dispute)):null}))}));
+}
 export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: string, input: SubmissionInput, now = new Date()) {
   const hash = await requestHash(input);
   const existing = await db

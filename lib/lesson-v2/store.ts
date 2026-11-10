@@ -76,22 +76,22 @@ export function itemView(item: LessonItem, stage: string, support: Support[strin
 }
 
 type LessonRow = {
-  id: string; subject_id: string; payload: string; assigned_date: string; completed_at: string | null; updated: string; template: string;
+  id: string; subject_id: string; subject_title:string; payload: string; assigned_date: string; completed_at: string | null; updated: string; template: string;
   kind: string; slot: string; reason: string; est_minutes: number | null; draft: string; draft_revision: number; support: string; snoozed_until: string | null;
 };
 type ItemRow = { item_id: string; stage: string; payload: string; flag: string | null };
 
 /** A v2 lesson as the learner sees it: secrets stripped unless revealed (support) or graded. */
 export async function readLessonV2(db: Db, learnerId: string, lessonId: string, gradedItemIds: ReadonlySet<string> = new Set()) {
-  const row = await db.prepare(`SELECT id, subject_id, payload, assigned_date, completed_at, updated, template, kind, slot, reason, est_minutes,
-      draft, draft_revision, support, snoozed_until FROM learning_lessons WHERE id = ? AND user_id = ? AND package_version = '2'`)
+  const row = await db.prepare(`SELECT l.*,s.title AS subject_title FROM learning_lessons l
+      JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version='2'`)
     .bind(lessonId, learnerId).first<LessonRow>();
   if (!row) throw new ApiError(404, 'Không tìm thấy bài.');
   const { results: items = [] } = await db.prepare('SELECT item_id, stage, payload, flag FROM lesson_items WHERE lesson_id = ? ORDER BY rowid').bind(lessonId).all<ItemRow>();
   const lesson = JSON.parse(row.payload) as LessonPackageV2;
   const support = JSON.parse(row.support) as Support;
   return {
-    id: row.id, subjectId: row.subject_id, assignedDate: row.assigned_date, completedAt: row.completed_at, updated: row.updated,
+    id: row.id, subjectId: row.subject_id, subjectTitle:row.subject_title, assignedDate: row.assigned_date, completedAt: row.completed_at, updated: row.updated,
     kind: row.kind, slot: row.slot, template: row.template, reason: row.reason, estMinutes: row.est_minutes, snoozedUntil: row.snoozed_until,
     title: lesson.title, objective: lesson.objective, why: lesson.why, level: lesson.level, sheet: lesson.sheet, sections: lesson.sections,
     diagram: lesson.diagram, output: lesson.output, sources: lesson.sources, nextTopic: lesson.nextTopic,

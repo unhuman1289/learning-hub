@@ -1,9 +1,11 @@
 "use client";
 
+import {SkillProgress} from "./skill-progress";
+import { PostIt } from "../../components/notebook/post-it";
 import {TodayBoard} from "./today-board";
 import { ContactBook } from "./guardian/contact-book";
 import {AdminAlertBanner} from "./ai-jobs-panel";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
 import { NotebookCover, cx } from "../../components/notebook/paper";
@@ -23,7 +25,6 @@ const postitColor: Record<TrackId, string> = {
   Cardio: "bg-postit-rose",
   "Bột": "bg-postit-lilac",
 };
-const tilts = [-1.6, 1.2, -0.8, 1.8, -1.2, 0.9, -1.9];
 
 export type Viewing = {
   learners: LearnerSummary[];
@@ -32,7 +33,7 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
+export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false, profileMode = false }: {
   name: string;
   isAdmin: boolean;
   go: (route: Route) => void;
@@ -43,6 +44,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   canOpenNotebook: boolean;
   onNewNotebook: () => void;
   hub2?: boolean;
+  profileMode?: boolean;
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
@@ -50,18 +52,19 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   const today = berlinKey(new Date());
   const date = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" }).format(new Date());
   // The desk only holds what needs attention: lessons still to learn, and notes due for review.
-  const lessons = trackIds.flatMap((track) => {
+  const visibleTracks=hub2?trackIds.filter(track=>shelf.subjects?.some(s=>s.legacyTrack===track)):trackIds;
+  const lessons = visibleTracks.flatMap((track) => {
     const lesson = daily.data?.active.find((item) => item.track === track);
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
   const v2Lessons=daily.data?.v2Active??[];
   const activeV2Subjects=new Set(v2Lessons.map(l=>l.subjectId));
-  const finished = trackIds.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt && !shelf.subjects?.some(s=>s.legacyTrack===track&&activeV2Subjects.has(s.id)));
+  const finished = visibleTracks.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt && !shelf.subjects?.some(s=>s.legacyTrack===track&&activeV2Subjects.has(s.id)));
   const reviews = readOnly ? [] : workspace.data.logs
     .filter((log) => log.due && log.due <= today && !workspace.data.done.includes(log.id))
     .sort((x, y) => (x.due ?? "").localeCompare(y.due ?? ""));
   const health = daily.data?.health;
-  const pending = usePendingCount(isAdmin);
+  const pending = usePendingCount(isAdmin && !profileMode);
   const loading = !daily.data && !daily.error;
 
   const summary = loading
@@ -172,6 +175,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
           {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
+      {hub2 && shelf.subjects?.filter(s=>s.status==="active").map(s=><section key={s.id} aria-label={`Tiến bộ ${s.title}`}><h2 className="font-hand text-2xl">{s.title} · Tiến bộ của bạn</h2><SkillProgress subjectId={s.id} learner={viewing.id}/></section>)}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
@@ -210,20 +214,6 @@ function TopicNotebook({ subject, go }: { subject: ShelfSubject; go: (route: Rou
         className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
       />
     </RouteLink>
-  );
-}
-
-/** A post-it pressed onto the desk, slightly tilted; it straightens and lifts on hover. */
-function PostIt({ color, index, taped = false, children }: { color: string; index: number; taped?: boolean; children: ReactNode }) {
-  return (
-    <li
-      style={{ "--tilt": `${tilts[index % tilts.length]}deg`, animationDelay: `${150 + index * 110}ms` } as CSSProperties}
-      className={cx("postit flex min-h-44 flex-col rounded-[1px] p-4 animate-stick [rotate:var(--tilt)] hover:-translate-y-1 hover:[rotate:0deg] focus-within:[rotate:0deg]", color, taped && "pt-6")}
-    >
-      {/* Review notes are held down by a strip of paper tape. */}
-      {taped && <span aria-hidden="true" className="absolute -top-3 left-1/2 h-6 w-24 -translate-x-1/2 -rotate-3 bg-paper/70 shadow-[0_1px_2px_rgb(0_0_0/0.18)] [clip-path:polygon(3%_0,97%_4%,100%_50%,96%_100%,2%_96%,0_50%)]" />}
-      {children}
-    </li>
   );
 }
 

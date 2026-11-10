@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import {useLiveRefresh} from "./use-live-refresh";
+import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./ui";
 type ApiBody = { error?: string; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
 type Job = {
@@ -17,12 +18,33 @@ type Job = {
 export function AiJobsPanel() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [error, setError] = useState(""),
+    [notice,setNotice]=useState(""),
+    [pending,setPending]=useState<{learner:string;requestId:string}|null>(null),
     [status, setStatus] = useState(""),
     [kind, setKind] = useState(""),
     [learner, setLearner] = useState(""),
     [learners, setLearners] = useState<{ id: string; name: string }[]>([]),
     [detail, setDetail] = useState<unknown>(null),
     [busy, setBusy] = useState(false);
+  const creating=useRef(false);
+  async function createPlan(){
+    if(creating.current||(!learner&&!pending))return;
+    creating.current=true;setBusy(true);setError("");setNotice("");
+    const request=pending??{learner,requestId:crypto.randomUUID()};
+    let uncertain=true;
+    setPending(request);
+    try{
+      const r=pending
+        ? await fetch('/api/admin/ai-jobs?'+new URLSearchParams({learnerFilter:request.learner,requestId:request.requestId}),{cache:'no-store'})
+        : await fetch('/api/admin/ai-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({learnerId:request.learner,purpose:'daily',requestId:request.requestId})});
+      const x=await r.json() as {error?:string;job?:{id?:string}};
+      if(!r.ok){if(r.status>=400&&r.status<500){setPending(null);uncertain=false;}throw Error(x.error||'Chưa xác nhận lượt soạn.');}
+      if(!x.job?.id)throw Error('Chưa tìm thấy lượt đã lưu. Chỉ kiểm tra lại, không gửi thêm yêu cầu tạo.');
+      uncertain=false;setPending(null);setNotice('Đã xếp lượt soạn. Bài mới chỉ hiện sau khi xử lý và lưu thành công.');
+      await refresh();
+    }catch(e){setError((e as Error).message+(uncertain?' Bấm “Kiểm tra lượt vừa tạo”; không tạo lại.':''));}
+    finally{creating.current=false;setBusy(false);}
+  }
   const url =
     "/api/admin/ai-jobs?" +
     new URLSearchParams({ ...(status ? { status } : {}), ...(kind ? { kind } : {}), ...(learner ? { learnerFilter: learner } : {}) });
@@ -53,14 +75,15 @@ export function AiJobsPanel() {
       .then((x) => setLearners(x.learners ?? []))
       .catch(() => {});
   }, []);
-  async function action(id?: string) {
+  useLiveRefresh(async()=>{await refresh();const selected=detail as {id?:string}|null;if(selected?.id)await inspect(selected.id);},!busy);
+  async function action(id: string) {
     setBusy(true);
     setError("");
     try {
-      const r = await fetch(id ? "/api/admin/ai-jobs/" + id + "/cancel" : "/api/admin/ai-jobs", {
+      const r = await fetch("/api/admin/ai-jobs/" + id + "/cancel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(id ? {} : { learnerId: learner, purpose: "daily" }),
+          body: JSON.stringify({}),
         }),
         x = (await r.json()) as ApiBody;
       if (!r.ok) throw Error(x.error || "Chưa xác nhận thao tác.");
@@ -81,11 +104,20 @@ export function AiJobsPanel() {
       setError((e as Error).message);
     }
   }
+  async function dispatch(id:string){
+    setBusy(true);setError('');setNotice('');
+    try{
+      const r=await fetch('/api/admin/ai-jobs/'+id+'/dispatch',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+      const x=await r.json() as {error?:string;delivered?:number};
+      if(!r.ok)throw Error(x.error||'Chưa xác nhận gửi sự kiện.');
+      setNotice(x.delivered?'ChatGPT đã nhận thông báo. Đang chờ kết quả xử lý.':'Chưa gửi thêm thông báo: có thể đã gửi, đang chờ thử lại hoặc chưa có kết nối phù hợp.');await refresh();
+    }catch(e){setError((e as Error).message);}finally{setBusy(false);}
+  }
   return (
     <section aria-label="Lượt soạn và chấm" className="grid gap-4">
       <h2 className="font-print text-2xl">Lượt soạn và chấm</h2>
       <p className="text-sm text-muted">
-        Hàng đợi và kết quả đã lưu. Runner AI thật chưa kết nối trong đợt H5; kiểm thử bằng runner giả chỉ dùng tài khoản thử.
+        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. Soạn bài qua ChatGPT và chấm câu mở là hai kết nối riêng.
       </p>
       <div className="flex flex-wrap gap-3">
         <label>
@@ -121,10 +153,12 @@ export function AiJobsPanel() {
         <button className={buttonClass("secondary")} onClick={() => void refresh().catch((e) => setError(e.message))}>
           Tải lại
         </button>
-        <button disabled={!learner || busy} className={buttonClass("primary")} onClick={() => void action()}>
-          Tạo lượt soạn hôm nay
+        <button disabled={busy||(!learner&&!pending)} className={buttonClass("primary")} onClick={()=>void createPlan()}>
+          {pending?'Kiểm tra lượt vừa tạo':'Tạo lượt soạn'}
         </button>
       </div>
+      <p className="text-sm text-muted">Tự chuẩn bị lúc 00:00 giờ Đức, hoặc chọn người học rồi tạo lượt khi cần. Không giới hạn một lượt mỗi ngày. Bài chưa xong được giữ nguyên.</p>
+      {notice&&<p role="status" className="text-sm text-muted">{notice}</p>}
       {error && (
         <p role="alert" className="text-accent">
           {error}
@@ -149,6 +183,7 @@ export function AiJobsPanel() {
                 Huỷ lượt
               </button>
             )}
+            {j.status==='queued'&&<button disabled={busy} className={buttonClass('secondary','ml-2 mt-2')} onClick={()=>void dispatch(j.id)}>Gửi thông báo</button>}
           </li>
         ))}
       </ul>

@@ -1,0 +1,51 @@
+{
+  "name": "learning-hub-probe-local",
+  "main": "integrations/assessor/src/probe.ts",
+  "compatibility_date": "2026-05-15",
+  "workers_dev": false,
+  "env": {
+    "delay": {
+      "name": "learning-hub-delay-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "ROLE": "delay",
+        "DELAY_ORIGIN": "https://learning-hub-delay-staging.tranvu-812.workers.dev"
+      }
+    },
+    "consumer": {
+      "name": "learning-hub-queue-probe-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "vars": {
+        "ROLE": "consumer",
+        "DELAY_ORIGIN": "https://learning-hub-delay-staging.tranvu-812.workers.dev"
+      },
+      "queues": {
+        "producers": [
+          {
+            "binding": "Q",
+            "queue": "learning-hub-assess-staging"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "learning-hub-assess-staging",
+            "max_batch_size": 1,
+            "max_batch_timeout": 1,
+            "max_retries": 0
+          }
+        ]
+      },
+      "services": [
+        {
+          "binding": "DELAY",
+          "service": "learning-hub-delay-staging"
+        }
+      ]
+    }
+  },
+  "observability": {
+    "enabled": true
+  }
+}

@@ -86,13 +86,9 @@
                   "pattern": "^(sk_|key:)[a-zA-Z0-9_-]{1,80}$"
                 },
                 "patternId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": [
+                    "string",
+                    "null"
                   ]
                 },
                 "label": {
@@ -205,7 +201,7 @@
                     }
                   },
                   "key": {
-                    "anyOf": [
+                    "oneOf": [
                       {
                         "type": "object",
                         "properties": {
@@ -408,13 +404,9 @@
                   "pattern": "^(sk_|key:)[a-zA-Z0-9_-]{1,80}$"
                 },
                 "patternId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
+                  "type": [
+                    "string",
+                    "null"
                   ]
                 },
                 "label": {

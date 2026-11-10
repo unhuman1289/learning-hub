@@ -11,7 +11,9 @@ export function ItemCard({
   readOnly,
   onChange,
   onReveal,
+  formatText = (text:string)=>text,
 }: {
+  formatText?:(text:string)=>string;
   item: ItemView;
   value: DraftAnswers[string];
   disabled: boolean;
@@ -28,18 +30,19 @@ export function ItemCard({
   } catch {}
   const fieldId = "answer-" + item.id;
   return (
-    <article className="space-y-3 rounded border border-line p-4 sm:p-6">
+    <article className="space-y-4 border-b border-line bg-paper py-6">
       <h3 id={"prompt-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
-        {item.id}. {item.prompt}
+        {item.id}. {formatText(item.prompt)}
       </h3>
-      {item.instructions && <p>{item.instructions}</p>}
+      {item.instructions && <p>{formatText(item.instructions)}</p>}
       {item.input === "choice" ? (
         <fieldset aria-labelledby={"prompt-" + item.id}>
           <legend className="sr-only">Chọn đáp án</legend>
           {item.choices?.map((choice) => (
-            <label key={choice.id} className="my-2 flex min-h-11 items-start gap-3 rounded border border-line p-3">
+            <label key={choice.id} className="my-2 flex min-h-11 cursor-pointer items-start gap-3 rounded-md border border-line p-3 leading-7 has-[:checked]:border-accent has-[:checked]:bg-rose-soft">
               <input
                 type="checkbox"
+                className="mt-1.5 size-5 shrink-0 accent-accent"
                 disabled={readOnly || disabled || uploading}
                 checked={selected.includes(choice.id)}
                 onChange={(e) =>
@@ -49,7 +52,7 @@ export function ItemCard({
                   })
                 }
               />
-              <span>{choice.text}</span>
+              <span>{formatText(choice.text)}</span>
             </label>
           ))}
         </fieldset>
@@ -121,7 +124,8 @@ export function ItemCard({
           ))}
         </div>
       )}
-      <Hints item={item} disabled={readOnly || disabled || uploading} onReveal={onReveal} />
+      {value.answer && formatText(value.answer)!==value.answer && <p className="text-sm text-muted">Công thức: {formatText(value.answer)}</p>}
+      <Hints formatText={formatText} item={item} disabled={readOnly || disabled || uploading} onReveal={onReveal} />
     </article>
   );
 }

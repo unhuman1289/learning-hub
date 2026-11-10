@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { House, NotebookPen, ShieldCheck } from "lucide-react";
 import AuthControls from "../components/auth-controls";
+import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
 import { cx } from "../components/notebook/paper";
 import { tasks } from "./content";
@@ -24,7 +25,7 @@ import {LessonList} from "./hub/lesson-v2/list";
 import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
-export default function Home({ userEmail, userName, userRole,hub2Enabled=false }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean }) {
+export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean }) {
   const isAdmin = userRole === "admin";
   const { route, go } = useRoute();
   const workspace = useWorkspace();
@@ -99,7 +100,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false }
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <SaveIndicator workspace={workspace} />
             <StudyMeter clock={clock} labelFor={labelFor} />
-            <AuthControls name={name} email={userEmail} />
+            {profileMode ? <ProfileControls name={name} manage={isAdmin} /> : <AuthControls name={name} email={userEmail} />}
           </div>
         </div>
         </div>
@@ -119,6 +120,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false }
             canOpenNotebook={canOpenNotebook}
             onNewNotebook={() => setNewNotebook(true)}
             hub2={hub2Enabled}
+            profileMode={profileMode}
           />
         )}
         {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
@@ -126,7 +128,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false }
         {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} go={go} hub2={hub2Enabled} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} hub2={hub2Enabled} />}
         {route.view === "notes" && <NotesView workspace={workspace} openForm={setForm} />}
-        {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
+        {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>
 
       <SaveProblem workspace={workspace} />

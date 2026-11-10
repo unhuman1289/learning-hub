@@ -755,6 +755,7 @@ test('a question goes to its own plan job and becomes an exploration lesson in "
   const result = { ...plan(context), subjects: [], explorations: [{ requestId: request.id, action: 'assign', subjectId: null, lesson, reason: 'Câu hỏi hay.' }] };
   const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(applied.status, 200, JSON.stringify(applied.errors));
+  assert.equal(applied.outcome.extraLessonIds.length,1);
   const saved = db.sqlite.prepare("SELECT l.slot, l.kind, s.title, s.system_kind FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id").get();
   assert.deepEqual({ ...saved }, { slot: 'extra', kind: 'exploration', title: 'Khám phá', system_kind: 'explore' });
   const done = db.sqlite.prepare('SELECT status, result_lesson_id FROM learner_requests WHERE id=?').get(request.id);
@@ -782,4 +783,19 @@ test('a declined request keeps the reason for the asker; requests are rate limit
   await assert.rejects(createRequest(db, {}, learner, learner, parseRequest({ kind: 'note', subjectId: subject, text: 'Ít bài viết hơn' }), now), (e) => e.status === 429);
   assert.throws(() => parseRequest({ kind: 'note', text: 'Không có sổ' }), (e) => e.status === 400);
   db.sqlite.close();
+});
+
+test('roadmap saves 5–10 next steps atomically without assigning lessons; foreign skill refs are rejected',async()=>{
+ const db=seed();
+ db.sqlite.prepare("INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at) VALUES('sk_emails',?,?,'emails','Email','Viết email',1,'[]','active','ai','t','t')").run(subject,learner);
+ const {lease,context}=await leasePlan(db),result=plan(context,null);
+ result.subjects[0].roadmap=Array.from({length:5},(_,i)=>({title:`Email ${i+1}`,objective:'Xác nhận lịch',situation:'Công việc',skills:['sk_foreign'],mode:'mixed'}));
+ assert.equal((await applyResult(db,client,lease.jobId,lease.leaseToken,result,true,now)).status,422);
+ assert.equal(db.sqlite.prepare('SELECT roadmap FROM subjects WHERE id=?').get(subject).roadmap,'[]');
+ result.subjects[0].roadmap=result.subjects[0].roadmap.map(s=>({...s,skills:['sk_emails']}));
+ assert.equal((await applyResult(db,client,lease.jobId,lease.leaseToken,result,false,now)).status,200);
+ const saved=JSON.parse(db.sqlite.prepare('SELECT roadmap FROM subjects WHERE id=?').get(subject).roadmap);
+ assert.equal(saved.length,5);assert(saved[0].skills[0].startsWith('sk_'));
+ assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n,0);
+ db.sqlite.close();
 });

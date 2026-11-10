@@ -35,10 +35,11 @@ export async function maintainJobs(db: EvidenceDb, now = new Date()) {
 export async function leaseJobs(
   db: EvidenceDb,
   client: AutomationClient,
-  input: { kinds: string[]; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string } },
+  input: { kinds: string[]; subjectIds?: string[]; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string } },
   environment: string,
   now = new Date(),
 ) {
+  if(input.subjectIds && !input.subjectIds.length) return [];
   await maintainJobs(db, now);
   const kinds = input.kinds.filter((k) => client.scopes.includes(k === 'plan' ? 'jobs:plan' : 'jobs:assess'));
   const purposes = (client.purposes ?? []).filter((x) => !input.purposes || input.purposes.includes(x));
@@ -52,7 +53,7 @@ export async function leaseJobs(
       stamp = now.toISOString();
     const job = await db
       .prepare(
-        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
+        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
       )
       .bind(
         berlinDay(now),
@@ -66,6 +67,7 @@ export async function leaseJobs(
         ...triggers,
         stamp,
         ...(client.learnerIds ?? []),
+        ...(input.subjectIds ?? []),
       )
       .first<Job>();
     if (!job) break;

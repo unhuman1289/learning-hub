@@ -1,4 +1,6 @@
 "use client";
+import { PostIt } from "../../components/notebook/post-it";
+import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useState } from "react";
 import type { TodayItem } from "../../lib/today";
 import { buttonClass, RouteLink } from "./ui";
@@ -25,6 +27,7 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
       alive = false;
     };
   }, [url, onLoad]);
+  useLiveRefresh(async()=>{const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("Chưa cập nhật được kế hoạch.");const x=await r.json() as NonNullable<typeof data>;setData(x);});
   async function snooze(id: string) {
     setError("");
     try {
@@ -44,26 +47,32 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
         </p>
       )}
       {data && data.items.length > 0 && (
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {data.items.map((i) => (
-            <li key={i.id} className={"rounded border border-line bg-postit-yellow p-4 shadow-paper " + (i.optional ? "opacity-70" : "")}>
-              <p className="text-sm text-muted">
-                {i.subjectTitle} · {i.reason}
+        <ul className="grid gap-x-5 gap-y-7 px-1 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
+          {data.items.map((i, index) => (
+            <PostIt key={i.id} color="bg-postit-yellow" index={index}>
+              <p className="font-hand text-base leading-5">
+                {i.subjectTitle} · {i.minutes} phút
               </p>
               <RouteLink
                 route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "subject", id: i.subjectId }}
                 go={go}
-                className="font-hand text-xl text-accent"
+                className="pencil-underline mt-2 self-start break-words font-hand text-[22px] leading-7"
               >
                 {i.title}
               </RouteLink>
-              {i.optional && <p className="text-sm">Thêm nếu muốn — đã đạt mục tiêu phút hôm nay.</p>}
+              <p className="mt-2 font-hand text-base leading-6">{i.reason}</p>
+              {i.optional && <p className="mt-2 text-sm leading-6">Thêm nếu muốn — đã đạt mục tiêu phút hôm nay.</p>}
+              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
+                <RouteLink route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "subject", id: i.subjectId }} go={go} className={buttonClass("primary", "min-h-9 px-3")}>
+                  {i.category === "new" ? "Bắt đầu" : i.category === "correction" ? "Xem lời phê" : i.category === "review" ? "Ôn bài" : "Học tiếp"}
+                </RouteLink>
               {i.lessonId && !learner && (
-                <button className={buttonClass("secondary", "mt-3 min-h-9")} onClick={() => void snooze(i.lessonId!)}>
+                <button className={buttonClass("ghost", "min-h-11 text-postit-ink hover:text-postit-ink")} onClick={() => void snooze(i.lessonId!)}>
                   Để mai
                 </button>
               )}
-            </li>
+              </div>
+            </PostIt>
           ))}
         </ul>
       )}

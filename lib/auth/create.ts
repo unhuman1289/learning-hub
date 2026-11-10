@@ -1,4 +1,8 @@
 import { betterAuth } from "better-auth";
+import { jwt } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
+import {mcpScopes} from "../mcp/metadata";
+import {isChatGptCallback} from "../mcp/policy";
 import { authSchemaOptions } from "./schema-options";
 import { initialAccountStatus, statusAfterEmailVerification } from "./approval-policy";
 import { accountCanCreateSession } from "./approval-store";
@@ -6,6 +10,9 @@ import { escapeHtml, sendAuthEmail } from "./email";
 
 export type HubAuthBindings = {
   DB: D1Database;
+  MCP_ENABLED?: string;
+  MCP_EVENTS_ENABLED?: string;
+  HUB2_ENABLED?: string;
   APP_ORIGIN?: string;
   ENVIRONMENT?: string;
   BETTER_AUTH_SECRET?: string;
@@ -82,6 +89,15 @@ export function createHubAuth(bindings: HubAuthBindings) {
 
   return betterAuth({
     appName: "Learning Hub",
+    plugins: bindings.MCP_ENABLED === "true" && bindings.HUB2_ENABLED === "true" && appOrigin ? [jwt(), mcp({
+      resource: appOrigin + "/mcp", loginPage: "/login", consentPage: "/connect/chatgpt",
+      scopes: mcpScopes,
+      allowDynamicClientRegistration: true, allowUnauthenticatedClientRegistration: true,
+      accessTokenExpiresIn: 900, refreshTokenExpiresIn: 30 * 86400,
+      codeExpiresIn: 120, grantTypes: ["authorization_code", "refresh_token"],
+      // Exact registered callback plus HTTPS; no wildcard or user-supplied audience.
+      validateRedirectUri: async (uri, _registered, matched) => matched && isChatGptCallback(uri),
+    })] : [],
     ...authSchemaOptions,
     database: bindings.DB,
     secret: authSecret,
@@ -100,6 +116,8 @@ export function createHubAuth(bindings: HubAuthBindings) {
       window: 60,
       max: 60,
       customRules: {
+        "/oauth2/register": {window: 60, max: 4},
+        "/oauth2/token": {window: 60, max: 20},
         "/sign-in/email": { window: 60, max: 8 },
         "/sign-up/email": { window: 60, max: 4 },
         "/request-password-reset": { window: 60, max: 4 },

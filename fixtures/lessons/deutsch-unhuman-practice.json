@@ -1,0 +1,223 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "remediation",
+  "template": "skill",
+  "title": "Deutsch 02 · Xác nhận lịch và hỏi lại chi tiết",
+  "objective": "Viết lời xác nhận ngắn, nêu giờ/ngày rõ ràng và hỏi lịch sự khi còn thiếu thông tin.",
+  "why": "Bài luyện thêm theo yêu cầu pilot; không thay bài chính và không suy luận bạn yếu từ câu chưa nộp.",
+  "reasonRefs": [
+    "key:de-termin-verschieben"
+  ],
+  "estMinutes": 20,
+  "level": "A2",
+  "targetSkills": [
+    "key:de-termin-verschieben",
+    "key:de-weil-verbende",
+    "key:de-hoeflich-bitten"
+  ],
+  "sheet": {
+    "rules": [
+      "Dùng am với ngày/thứ, um với giờ.",
+      "Câu hỏi lịch sự: Könnten Sie mir bitte … mitteilen?",
+      "Trong câu với weil, động từ chia đứng cuối mệnh đề."
+    ],
+    "explanation": "Xác nhận lịch không cần viết dài. Trước hết nói bạn đồng ý với lịch được đề nghị, sau đó nhắc lại ngày và giờ để tránh hiểu nhầm. Nếu chưa biết nơi gặp, hỏi đúng chi tiết đó. Ví dụ tự soạn: Vielen Dank für Ihren Vorschlag. Donnerstag um zehn Uhr passt mir gut. Könnten Sie mir bitte den Besprechungsraum mitteilen? Dùng Sie khi chưa thân. Phần nói dùng chính ba ý trên; bản gõ chỉ cho phép nhận xét cấu trúc/nội dung, không chứng minh phát âm.",
+    "examples": [
+      {
+        "text": "Am Donnerstag treffen wir uns um zehn Uhr.",
+        "correct": true
+      },
+      {
+        "text": "Ich kann am Vormittag nicht kommen, weil ich eine Besprechung habe.",
+        "correct": true
+      }
+    ],
+    "mistakes": [
+      "Dùng am trước giờ cụ thể.",
+      "Viết weil ich habe thay vì weil ich … habe trong bài viết."
+    ],
+    "tips": [
+      "Tách email thành ba câu trước khi nối ý."
+    ],
+    "checklist": [
+      "Ngày và giờ có rõ không?",
+      "Đã hỏi chi tiết còn thiếu chưa?",
+      "Cách xưng hô có nhất quán không?"
+    ]
+  },
+  "sections": [],
+  "diagram": "Xác nhận → ngày/giờ → hỏi chi tiết còn thiếu → kết thúc lịch sự",
+  "stages": [
+    {
+      "stage": "retrieval",
+      "itemIds": [
+        "i1",
+        "i2"
+      ]
+    },
+    {
+      "stage": "sheet",
+      "itemIds": []
+    },
+    {
+      "stage": "guided",
+      "itemIds": [
+        "i3",
+        "i4"
+      ]
+    },
+    {
+      "stage": "independent",
+      "itemIds": [
+        "i5"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "recall",
+      "input": "short",
+      "skills": [
+        "key:de-termin-verschieben"
+      ],
+      "difficulty": 2,
+      "prompt": "Điền đúng một từ: Wir treffen uns ___ zehn Uhr.",
+      "hints": [
+        "Xem lại quy tắc liên quan nếu cần."
+      ],
+      "solution": "um: giờ cụ thể đi với um.",
+      "attachment": "none",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "um"
+        ],
+        "caseSensitive": false
+      }
+    },
+    {
+      "id": "i2",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:de-weil-verbende"
+      ],
+      "difficulty": 2,
+      "prompt": "Chọn câu viết đúng.",
+      "hints": [
+        "Xem lại quy tắc liên quan nếu cần."
+      ],
+      "solution": "b; động từ habe đứng cuối mệnh đề weil.",
+      "attachment": "none",
+      "key": {
+        "type": "choice",
+        "correct": [
+          "b"
+        ]
+      },
+      "choices": [
+        {
+          "id": "a",
+          "text": "Ich kann nicht kommen, weil ich habe eine Besprechung."
+        },
+        {
+          "id": "b",
+          "text": "Ich kann nicht kommen, weil ich eine Besprechung habe."
+        }
+      ]
+    },
+    {
+      "id": "i3",
+      "activity": "correct",
+      "input": "short",
+      "skills": [
+        "key:de-termin-verschieben"
+      ],
+      "difficulty": 2,
+      "prompt": "Sửa duy nhất giới từ sai trong câu: Am Freitag treffen wir uns am neun Uhr.",
+      "hints": [
+        "Xem lại quy tắc liên quan nếu cần."
+      ],
+      "solution": "Am Freitag treffen wir uns um neun Uhr.",
+      "attachment": "none",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "Am Freitag treffen wir uns um neun Uhr."
+        ],
+        "caseSensitive": false
+      }
+    },
+    {
+      "id": "i4",
+      "activity": "apply",
+      "input": "long",
+      "skills": [
+        "key:de-hoeflich-bitten"
+      ],
+      "difficulty": 2,
+      "prompt": "Viết một câu hỏi lịch sự để hỏi phòng họp. Dùng Könnten Sie và mitteilen.",
+      "hints": [
+        "Xem lại quy tắc liên quan nếu cần."
+      ],
+      "solution": "Ví dụ: Könnten Sie mir bitte den Besprechungsraum mitteilen? Chấp nhận cách diễn đạt khác nếu đúng rubric.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Hỏi đúng thông tin phòng họp",
+          "points": 2
+        },
+        {
+          "criterion": "Câu hỏi lịch sự, Sie nhất quán",
+          "points": 2
+        },
+        {
+          "criterion": "Cấu trúc câu hiểu được",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "id": "i5",
+      "activity": "create",
+      "input": "long",
+      "skills": [
+        "key:de-termin-verschieben",
+        "key:de-hoeflich-bitten"
+      ],
+      "difficulty": 2,
+      "prompt": "Viết email 45–60 từ cho đồng nghiệp mới: cảm ơn đề nghị, xác nhận thứ Năm lúc 10 giờ và hỏi phòng họp. Sau đó nói lại 30–45 giây, gõ bản bạn thực sự nói.",
+      "hints": [
+        "Xem lại quy tắc liên quan nếu cần."
+      ],
+      "solution": "Một đáp án tự soạn: Guten Tag, vielen Dank für Ihren Vorschlag. Der Termin am Donnerstag um zehn Uhr passt mir gut. Ich freue mich auf unser Gespräch. Könnten Sie mir bitte noch den Besprechungsraum mitteilen? Dann kann ich mich besser vorbereiten. Vielen Dank für Ihre Hilfe. Mit freundlichen Grüßen. Phần nói đánh giá riêng từ bản thực sự gửi, không suy luận phát âm.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Đủ ba ý: cảm ơn, xác nhận ngày/giờ, hỏi phòng",
+          "points": 3
+        },
+        {
+          "criterion": "Xưng hô Sie và lời kết phù hợp",
+          "points": 1
+        },
+        {
+          "criterion": "Nội dung rõ, nối ý đơn giản",
+          "points": 1
+        }
+      ]
+    }
+  ],
+  "output": "Một email 45–60 từ xác nhận buổi trao đổi và hỏi nơi gặp; một lượt nói 30–45 giây, tự ghi lại bản nói.",
+  "sources": [
+    {
+      "title": "Goethe-Institut: A2, phần Schreiben và Sprechen",
+      "url": "https://www.goethe.de/ins/de/de/prf/gzsd2.cfm",
+      "readScope": "Đã đọc mô tả Schreiben/Sprechen và phạm vi A2; ví dụ và bài tập trong Hub tự soạn, không sao chép đề thi. Không truy cập audio.",
+      "retrievedAt": "2026-10-13T21:47:04Z",
+      "publishedAt": null
+    }
+  ],
+  "nextTopic": "Mô tả ngắn việc đã làm bằng Perfekt; chỉ chuyển khi bài hiện tại đủ điều kiện."
+}

@@ -58,7 +58,7 @@ test('create, list, update with optimistic concurrency and AI only on active not
 
 test('learner settings: defaults, validated patch, role untouched', async () => {
   const db = memoryDb();
-  assert.deepEqual(await readSettings(db, 'ech'), { dailyTargetMinutes: 60, role: 'adult', displayName: null, explainLanguage: 'vi', preferences: {}, aiBudget: null });
+  assert.deepEqual(await readSettings(db, 'ech'), { dailyTargetMinutes: 45, role: 'adult', displayName: null, explainLanguage: 'vi', preferences: {}, aiBudget: null });
   db.sqlite.prepare("INSERT INTO learner_settings(user_id,daily_target_minutes,updated,role) VALUES('ech',60,'t','child')").run();
   const saved = await updateSettings(db, 'ech', parseSettingsPatch({ dailyTargetMinutes: 45, displayName: 'Ếch', aiBudget: { assessPerDay: 10 } }));
   assert.deepEqual(saved, { dailyTargetMinutes: 45, role: 'child', displayName: 'Ếch', explainLanguage: 'vi', preferences: {}, aiBudget: { assessPerDay: 10 } });

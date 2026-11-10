@@ -6,7 +6,7 @@ export function berlinDay(now = new Date()) {
   return `${v('year')}-${v('month')}-${v('day')}`;
 }
 export function cutoffFor(day:string) {
-  const guess = new Date(`${day}T03:00:00Z`);
+  const guess = new Date(`${day}T00:00:00Z`);
   const zone = new Intl.DateTimeFormat('en',{timeZone:'Europe/Berlin',timeZoneName:'shortOffset'}).formatToParts(guess).find(x=>x.type==='timeZoneName')!.value;
   const hours = Number(zone.replace('GMT',''));
   return new Date(guess.getTime()-hours*3600000).toISOString();

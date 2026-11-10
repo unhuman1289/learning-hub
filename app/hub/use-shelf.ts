@@ -1,4 +1,5 @@
 "use client";
+import {useLiveRefresh} from "./use-live-refresh";
 
 import { useCallback, useEffect, useState } from "react";
 import type { LearnerSummary } from "../../lib/learners/list";
@@ -48,6 +49,8 @@ export function useShelf(learner: string | null) {
       .catch(() => {});
     return () => { current = false; };
   }, []);
+
+  useLiveRefresh(load);
 
   const create = useCallback(async (input: NewSubject) => {
     const body = await readJson<{ subject: ShelfSubject }>(await fetch(`/api/subjects${query(learner)}`, {

@@ -89,7 +89,7 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
   return {
     day,
     minutes: study?.minutes ?? 0,
-    targetMinutes: setting?.daily_target_minutes ?? 60,
-    items: sortToday(rows, study?.minutes ?? 0, setting?.daily_target_minutes ?? 60),
+    targetMinutes: setting?.daily_target_minutes ?? 45,
+    items: sortToday(rows, study?.minutes ?? 0, setting?.daily_target_minutes ?? 45),
   };
 }

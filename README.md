@@ -4,6 +4,14 @@ Source riêng tư: https://github.com/unhuman1289/learning-hub
 
 Phòng học của cả nhà tại **[learn.unhuman.cc](https://learn.unhuman.cc)**: mỗi chủ đề là một cuốn sổ trên tủ sách; mở sổ để đọc bài, làm bài tập, lưu bài làm và theo dõi thời gian học. Bài được giao theo từng tài khoản; ghi chú và mốc dự án hiện còn dùng chung.
 
+## Pilot unhuman — H7/H8 (14/10/2026)
+
+Deutsch unhuman là pilot. Một bài luyện thêm thật đã lưu qua MCP staging; hạn mức không còn cộng bài nền v1. Cardio của unhuman đã xóa riêng trên staging/production. ChatGPT thuê bao đã chấm và đọc lại 4 lượt qua MCP; không dùng API key. MCP Events đang thử trên staging, chưa có callback thật/nghiệm thu tự động. Production chưa bật Hub2. Xem [vận hành AI](docs/ops/AI-RUNNERS.md), [lộ trình Deutsch](docs/curricula/deutsch-unhuman.md) và [phần H8 còn lại](docs/curricula/h8-expansion.md).
+
+## MCP trực tiếp — staging (13/10/2026)
+
+ChatGPT có thể kết nối OAuth tới Worker riêng, dùng D1 staging, không qua Sites. Client QA đã kiểm tra OAuth, lưu/đọc lại bài và thu hồi quyền. App thật đã gọi công cụ ghi và đọc lại ID bài luyện thêm. Còn scheduled task cloud/dùng thử; chưa đặt lịch, chưa đổi code production. Xem [hướng dẫn kết nối](docs/ops/DIRECT-MCP.md).
+
 ## Đợt H4/H5 staging (13/10/2026)
 
 Learner model, hàng đợi hôm nay, job API v2, quản trị và cảnh báo đã đưa lên staging. E2E dùng runner giả đạt; chưa có AI thật/tác vụ ChatGPT. Phép đo gói lớn vượt ngân sách CPU Free; xem [VALIDATION](docs/VALIDATION.md) và [hướng vận hành](docs/ops/h5-staging.md). Production chưa nhận đợt này.
@@ -98,3 +106,7 @@ Giải thích chính bằng tiếng Việt, giữ thuật ngữ Anh/Đức; bài
 - **`private-data/` trên máy**: snapshot phục hồi; không vào Git.
 
 QUEST/SWARM là dự án riêng; repo Hub không chứa source hay dữ liệu bệnh nhân của hai dự án.
+
+## Quyết định 14/10/2026: chỉ dùng thuê bao
+
+Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; chấm chuyển sang direct MCP với scope riêng hub:assess. Cần cấp lại OAuth và nghiệm thu bài nộp thật. Không cam kết chấm tức thì hoặc task cloud khi chưa kiểm thật. Toán 7/KHTN 7 theo Kết nối tri thức từ 2026–2027; chưa bật AI cho trẻ. Production không đổi.

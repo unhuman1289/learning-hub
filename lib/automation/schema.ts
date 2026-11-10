@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod/v3';
 import { lessonContentSchema } from '../run-schema.ts';
 
 const shortText = z.string().trim().min(1).max(200);

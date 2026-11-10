@@ -1,0 +1,36 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {memoryDb} from './d1-adapter.mjs';
+import {readLessonSubmissions,submitLesson,parseSubmission} from '../lib/evidence/submit.ts';
+import {insertLessonV2} from '../lib/lesson-v2/store.ts';
+import {saveDraft} from '../lib/lesson-v2/actions.ts';
+import {feedbackForItems} from '../lib/feedback-history.ts';
+test('cancelled newest retry retains previously graded feedback, latest grade/dispute and ownership',async()=>{
+ const db=memoryDb(),subject='sub_aaaaaaaaaaaaaaaaaaaa';
+ db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES(?,'learner','Deutsch','skill','active','learner','t','t')").run(subject);
+ const lesson=JSON.parse(readFileSync(new URL('../fixtures/contracts/lesson-v2/deutsch-modalverb.json',import.meta.url)));
+ const id=await insertLessonV2(db,{learnerId:'learner',subjectId:subject,day:'2026-10-14',lesson});
+ await saveDraft(db,'learner',id,{revision:0,answers:{i1:{answer:'["b"]'},i2:{answer:'Hallo'}}});
+ const first=await submitLesson(db,'learner',id,parseSubmission({clientSubmissionId:crypto.randomUUID(),draftRevision:1,itemIds:['i1']}),new Date('2026-10-14T19:46:33Z'));
+ db.sqlite.prepare("UPDATE grades SET feedback='Lời phê đã lưu' WHERE attempt_id=?").run(first.attempts[0].id);
+ const otherStage=await submitLesson(db,'learner',id,parseSubmission({clientSubmissionId:crypto.randomUUID(),draftRevision:1,itemIds:['i2']}),new Date('2026-10-14T19:46:34Z'));
+ const second=await submitLesson(db,'learner',id,parseSubmission({clientSubmissionId:crypto.randomUUID(),draftRevision:1,itemIds:['i1']}),new Date('2026-10-14T19:46:37Z'));
+ db.sqlite.prepare("UPDATE attempts SET current_grade_id=NULL,status='pending' WHERE submission_id=?").run(second.id);
+ db.sqlite.prepare("INSERT INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at) VALUES('job_cancel','assess','submission','on_demand','learner',?,'2026-10-14',80,'cancelled','test','t','t','t')").run(subject);
+ db.sqlite.prepare("UPDATE submissions SET ai_job_id='job_cancel',status='deferred' WHERE id=?").run(second.id);
+ const history=await readLessonSubmissions(db,'learner',id);
+ assert.equal(history.length,3);assert.equal(history[0].id,second.id);assert.equal(history[0].job_status,'cancelled');
+ const stage=feedbackForItems(history,['i1']);
+ assert.equal(stage.length,2);assert(stage.some(s=>s.attempts.some(a=>a.feedback==='Lời phê đã lưu')));
+ assert(!stage.some(s=>s.id===otherStage.id));
+ await assert.rejects(readLessonSubmissions(db,'other',id),e=>e.status===404);
+ assert.equal(db.sqlite.prepare('SELECT completed_at FROM learning_lessons WHERE id=?').get(id).completed_at,null);
+ db.sqlite.close();
+});
+test('history selection preserves pending and graded tries per item, including added checks',()=>{
+ const history=[{id:'pending',attempts:[{item_id:'i9',result:null}]},{id:'graded',attempts:[{item_id:'i9',result:'partial'},{item_id:'i1',result:'correct'}]}];
+ assert.deepEqual(feedbackForItems(history,['i9']).map(s=>[s.id,s.attempts.length]),[['pending',1],['graded',1]]);
+ assert.equal(history[1].attempts.length,2,'selection never mutates saved history');
+ assert.deepEqual(feedbackForItems(history,[]),[]);
+});

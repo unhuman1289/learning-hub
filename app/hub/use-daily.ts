@@ -1,4 +1,5 @@
 "use client";
+import {useLiveRefresh} from "./use-live-refresh";
 
 import { useCallback, useEffect, useState } from "react";
 import type { DailyLesson, DailyView } from "../../lib/daily-types";
@@ -29,6 +30,8 @@ export function useDaily(learner: string | null = null, enabled = true) {
     if (!enabled) return;
     void Promise.resolve().then(() => { setData(null); return load(); });
   }, [load, enabled]);
+
+  useLiveRefresh(load, enabled);
 
   const save = useCallback(async (lesson: DailyLesson, response: string, completed: boolean) => {
     setBusyId(lesson.id);
