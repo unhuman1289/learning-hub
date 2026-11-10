@@ -60,6 +60,12 @@ export function createHub({ baseUrl, bearer, accessClientId, accessClientSecret,
         await call(job(lease.jobId) + '/fail', { method: 'POST', body: { error: String(error).slice(0, 1000), retryable }, lease: lease.leaseToken })
       ).body;
     },
+    /** Markdown history of one profile; needs the history:read scope and the profile in the client's learnerIds. */
+    async history(learnerId) {
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(learnerId)) throw Error('Unexpected profile id.');
+      const response = await call('/history/' + learnerId, { raw: true });
+      return response.text();
+    },
     async state(id) {
       return (await call(job(id))).body;
     },

@@ -355,3 +355,21 @@ test('reference hygiene: invented pattern ids become null and each answer keeps 
     ['err_known'],
   );
 });
+
+test('Drive copy: once per Berlin day after 03:00, atomic files, only listed profiles', async () => {
+  const { mirrorDue, mirrorHistory } = await import('../integrations/home-runner/mirror.mjs');
+  const { mkdtemp, readFile, readdir, rm } = await import('node:fs/promises');
+  const { tmpdir } = await import('node:os');
+  const { join } = await import('node:path');
+  assert.equal(mirrorDue(null, new Date('2026-11-10T01:30:00Z')), null); // 02:30 Berlin
+  assert.equal(mirrorDue(null, new Date('2026-11-10T02:30:00Z')), '2026-11-10');
+  assert.equal(mirrorDue('2026-11-10', new Date('2026-11-10T20:00:00Z')), null);
+  const dir = await mkdtemp(join(tmpdir(), 'lh-mirror-'));
+  const asked = [];
+  const hub = { history: async (id) => (asked.push(id), '# Lịch sử ' + id) };
+  assert.equal(await mirrorHistory(hub, { dir, learnerIds: ['prf_a', '../evil', 'prf_b'] }), 2);
+  assert.deepEqual(asked, ['prf_a', 'prf_b']);
+  assert.deepEqual((await readdir(dir)).sort(), ['lich-su-prf_a.md', 'lich-su-prf_b.md']);
+  assert.equal(await readFile(join(dir, 'lich-su-prf_a.md'), 'utf8'), '# Lịch sử prf_a');
+  await rm(dir, { recursive: true });
+});

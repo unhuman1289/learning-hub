@@ -10,6 +10,7 @@ import { promisify } from 'node:util';
 import { createHub } from './hub.mjs';
 import { claudeEngine, codexEngine, qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
+import { mirrorDue, mirrorHistory } from './mirror.mjs';
 
 export const VERSION = '1.0.0';
 
@@ -34,7 +35,13 @@ export function loadConfig(file = join(homedir(), '.config/learning-hub/home-run
     ...fromFile,
     ...Object.fromEntries(
       Object.entries(env).filter(
-        ([k]) => k.startsWith('HUB_') || k.startsWith('QWEN_') || k.startsWith('CODEX_') || k.startsWith('CLAUDE_') || k.startsWith('RUNNER_'),
+        ([k]) =>
+          k.startsWith('HUB_') ||
+          k.startsWith('QWEN_') ||
+          k.startsWith('CODEX_') ||
+          k.startsWith('CLAUDE_') ||
+          k.startsWith('RUNNER_') ||
+          k.startsWith('DRIVE_'),
       ),
     ),
   };
@@ -137,12 +144,25 @@ async function main() {
   const config = loadConfig(args.includes('--config') ? args[args.indexOf('--config') + 1] : undefined);
   const { hub, engines } = buildFromConfig(config);
   let stop = false,
-    backoff = 0;
+    backoff = 0,
+    mirroredDay = null;
+  const mirror = {
+    dir: config.DRIVE_MIRROR_DIR,
+    learnerIds: (config.DRIVE_MIRROR_PROFILES ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean),
+  };
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => (stop = true));
   log({ event: 'start', version: VERSION, hub: new URL(config.HUB_BASE_URL).origin });
   while (!stop) {
     let delay;
     try {
+      const day = mirror.dir ? mirrorDue(mirroredDay) : null;
+      if (day) {
+        await mirrorHistory(hub, mirror, log);
+        mirroredDay = day;
+      }
       const outcome = await runOnce(hub, engines);
       if (!outcome.idle) log({ event: 'job', ...outcome });
       backoff = 0;

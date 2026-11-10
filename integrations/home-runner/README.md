@@ -25,3 +25,9 @@ Mac tắt hoặc ngủ thì việc nằm chờ. Trang bài hiện "Máy chấm �
 - **Codex chạy trong sandbox chỉ đọc**, ở thư mục tạm riêng, xoá sau mỗi job.
 - **Hub kiểm mọi kết quả.** Runner gửi thử (`dryRun`) trước, sửa lỗi 422 tối đa một lần cho mỗi engine. Gặp lỗi mạng sau khi gửi thật thì đọc lại trạng thái job; chỉ gửi lại đúng nội dung cũ.
 - **Tắt khẩn cấp:** `launchctl bootout gui/$(id -u)/cc.unhuman.learning-hub-runner`, hoặc xoá client `home-runner` khỏi `AUTOMATION_CLIENTS` (có hiệu lực ngay).
+
+## Chép lịch sử sang Google Drive (tuỳ chọn)
+
+Đặt `DRIVE_MIRROR_DIR` là một thư mục bên trong Google Drive for desktop, và `DRIVE_MIRROR_PROFILES` là danh sách id hồ sơ, cách nhau bởi dấu phẩy. Client `home-runner` cần thêm scope `history:read` và các id đó trong `learnerIds`.
+
+Mỗi ngày sau 03:00 Berlin, runner ghi `lich-su-<id>.md` cho từng hồ sơ, rồi Drive tự đồng bộ. Chép một chiều: sửa trên Drive không quay về Hub. Dữ liệu chính vẫn nằm trong D1.
