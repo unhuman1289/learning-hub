@@ -25,7 +25,7 @@ import {LessonList} from "./hub/lesson-v2/list";
 import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
-export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean }) {
+export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
   const { route, go } = useRoute();
   const workspace = useWorkspace();
@@ -100,7 +100,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <SaveIndicator workspace={workspace} />
             <StudyMeter clock={clock} labelFor={labelFor} />
-            {profileMode ? <ProfileControls name={name} manage={isAdmin} /> : <AuthControls name={name} email={userEmail} />}
+            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} /> : <AuthControls name={name} email={userEmail} />}
           </div>
         </div>
         </div>

@@ -14,5 +14,5 @@ export default async function HomePage() {
     if (profiles) return <ProfilePicker />;
     redirect("/login");
   }
-  return <Home hub2Enabled={env.HUB2_ENABLED==="true"} userEmail={profiles ? "" : user.email} userName={user.name ?? ""} userRole={user.role ?? "learner"} profileMode={profiles} />;
+  return <Home hub2Enabled={env.HUB2_ENABLED==="true"} userEmail={profiles ? "" : user.email} userName={user.name ?? ""} userRole={user.role ?? "learner"} profileMode={profiles} profileAvatar={user.avatar ?? ""} />;
 }

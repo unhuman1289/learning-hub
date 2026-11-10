@@ -1,5 +1,6 @@
 import { ApiError } from './api-error.ts';
 import { sha256Hex } from './auth/automation.ts';
+import { DEFAULT_TARGET_MINUTES } from './study-sql.ts';
 
 type Db = {
   prepare(sql: string): {
@@ -38,7 +39,24 @@ export async function activeProfile(db: Db, id: unknown, legacyIds?: string) {
   return row.id;
 }
 
-const avatarPattern = /^[\p{Extended_Pictographic}\p{L}\p{N}‍️]{0,8}$/u;
+// Match a complete Unicode emoji, including flags, skin tones and joined sequences.
+const avatarPattern = new RegExp(String.raw`^\p{RGI_Emoji}$`, 'v');
+function normalizeAvatar(value: unknown) {
+  if (typeof value !== 'string') throw new ApiError(400, 'Hãy nhập một emoji hoặc để trống.');
+  const icon = value.trim();
+  if (icon && (icon.length > 32 || Array.from(icon).length > 16 || !avatarPattern.test(icon)))
+    throw new ApiError(400, 'Hãy nhập một emoji hoặc để trống.');
+  return icon;
+}
+
+export async function updateProfileAvatar(db: Db, id: unknown, value: unknown, legacyIds?: string, now = new Date()) {
+  const profile = await activeProfile(db, id, legacyIds);
+  const avatar = normalizeAvatar(value);
+  await db.prepare(`INSERT INTO learner_settings(user_id,daily_target_minutes,updated,avatar)
+    VALUES(?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET avatar=excluded.avatar`)
+    .bind(profile, DEFAULT_TARGET_MINUTES, now.toISOString(), avatar).run();
+  return avatar;
+}
 
 /** A new profile is a user row without password or real email, plus its settings. */
 export async function createProfile(db: Db, input: unknown, now = new Date()) {
@@ -47,8 +65,7 @@ export async function createProfile(db: Db, input: unknown, now = new Date()) {
   if (typeof displayName !== 'string' || displayName.trim().length < 1 || displayName.trim().length > 40)
     throw new ApiError(400, 'Tên hiển thị cần 1–40 ký tự.');
   if (role !== 'adult' && role !== 'child') throw new ApiError(400, 'Vai trò là người lớn hoặc trẻ em.');
-  const icon = typeof avatar === 'string' ? avatar.trim() : '';
-  if (!avatarPattern.test(icon)) throw new ApiError(400, 'Biểu tượng tối đa vài ký tự hoặc emoji.');
+  const icon = normalizeAvatar(avatar ?? '');
   const id = 'prf_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20),
     name = displayName.trim(),
     ms = now.getTime();

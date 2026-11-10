@@ -5,7 +5,7 @@ import { storage } from "../../db/storage";
 import { householdMode, manageActive, profileFromCookie } from "../household";
 import { householdProfileVisible } from "../profiles";
 
-export type HubUser = { id: string; name: string; email: string; role: string | null | undefined; status: string | null | undefined; profileMode?: boolean };
+export type HubUser = { id: string; name: string; email: string; role: string | null | undefined; status: string | null | undefined; profileMode?: boolean; avatar?: string | null };
 
 /**
  * The person using the app. With a household gate (docs/plan/LOCAL-GRADER.md L5) this is the profile chosen on this
@@ -24,10 +24,10 @@ async function getProfileUser(): Promise<HubUser | null> {
   const id = await profileFromCookie(cookieHeader, env.PROFILE_COOKIE_SECRET);
   if (!id) return null;
   const row = await storage()
-    .prepare("SELECT u.id,u.name,u.email,s.display_name FROM user u LEFT JOIN learner_settings s ON s.user_id=u.id WHERE u.id=? AND u.status='active'")
+    .prepare("SELECT u.id,u.name,u.email,s.display_name,s.avatar FROM user u LEFT JOIN learner_settings s ON s.user_id=u.id WHERE u.id=? AND u.status='active'")
     .bind(id)
-    .first<{ id: string; name: string; email: string; display_name: string | null }>();
+    .first<{ id: string; name: string; email: string; display_name: string | null; avatar: string | null }>();
   if (!row || !householdProfileVisible(row, env.HOUSEHOLD_LEGACY_PROFILE_IDS)) return null;
   const manage = await manageActive(cookieHeader, env.PROFILE_COOKIE_SECRET);
-  return { id: row.id, name: row.display_name ?? row.name, email: row.email, role: manage ? "admin" : "learner", status: "active", profileMode: true };
+  return { id: row.id, name: row.display_name ?? row.name, email: row.email, role: manage ? "admin" : "learner", status: "active", profileMode: true, avatar: row.avatar };
 }
