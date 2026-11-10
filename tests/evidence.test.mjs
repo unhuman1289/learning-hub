@@ -78,7 +78,7 @@ test('submission auto-grades closed items, leaves open pending, preserves retrie
   assert.equal(next.attempts[0].strength, 'E2');
   db.sqlite.close();
 });
-test('a retry after a wrong graded answer counts as worked with the solution', async () => {
+test('a retry after the first hidden correction does not count as worked with the solution', async () => {
   const { db, id } = await seed();
   await saveDraft(db, 'learner', id, { revision: 0, answers: { i1: { answer: '["a"]' } } });
   const wrong = await submitLesson(db, 'learner', id, input(1, ['i1']));
@@ -86,8 +86,9 @@ test('a retry after a wrong graded answer counts as worked with the solution', a
   await saveDraft(db, 'learner', id, { revision: 1, answers: { i1: { answer: '["b"]' } } });
   const retry = await submitLesson(db, 'learner', id, input(2, ['i1']));
   assert.equal(retry.attempts[0].result, 'correct');
-  assert.equal(retry.attempts[0].support, 'solution');
-  assert.equal(retry.attempts[0].strength, 'E0');
+  assert.equal(wrong.attempts[0].correctionHidden, true);
+  assert.equal(retry.attempts[0].support, 'none');
+  assert.equal(retry.attempts[0].strength, 'E2');
   db.sqlite.close();
 });
 test('ownership, stage, stale draft and photo ownership failures write nothing', async () => {
@@ -234,4 +235,16 @@ test('import privacy scans instructions, rubric, knowledge sheet notes and sourc
     assert.ok(validateLessonPackage(x, { sensitivity: 'clinical' }).issues.some((i) => i.code === 'privacy'));
   }
   assert.equal(validateLessonPackage(fixture, { sensitivity: 'clinical' }).lesson !== null, true);
+});
+
+test('two-step correction: the fix stays hidden after a first wrong answer until a retry or the solution (D21)', async () => {
+  const { hiddenCorrection } = await import('../lib/evidence/submit.ts');
+  const first = { item_id: 'i3', result: 'incorrect', attempt_no: 1, support: 'none', correction: 'Paul möchte einen Kuchen kaufen.' };
+  assert.deepEqual(hiddenCorrection(first, {}), { correction: null, correctionHidden: true });
+  assert.deepEqual(hiddenCorrection({ ...first, result: 'partial' }, {}), { correction: null, correctionHidden: true });
+  assert.deepEqual(hiddenCorrection({ ...first, result: 'correct' }, {}), { correctionHidden: false });
+  assert.deepEqual(hiddenCorrection({ ...first, attempt_no: 2 }, {}), { correctionHidden: false });
+  assert.deepEqual(hiddenCorrection(first, { i3: 'solution' }), { correctionHidden: false });
+  assert.deepEqual(hiddenCorrection(first, { i3: 'hint2' }), { correction: null, correctionHidden: true });
+  assert.deepEqual(hiddenCorrection({ ...first, result: null }, {}), { correctionHidden: false });
 });

@@ -42,13 +42,18 @@
         "explainLanguage": {
           "type": "string",
           "maxLength": 10
+        },
+        "personalPrompt": {
+          "type": "string",
+          "maxLength": 4000
         }
       },
       "required": [
         "ref",
         "displayName",
         "role",
-        "explainLanguage"
+        "explainLanguage",
+        "personalPrompt"
       ],
       "additionalProperties": false
     },
@@ -70,6 +75,10 @@
           "type": "string",
           "maxLength": 200
         },
+        "instructions": {
+          "type": "string",
+          "maxLength": 4000
+        },
         "sensitivity": {
           "type": "string",
           "enum": [
@@ -84,6 +93,7 @@
         "title",
         "goal",
         "level",
+        "instructions",
         "sensitivity"
       ],
       "additionalProperties": false

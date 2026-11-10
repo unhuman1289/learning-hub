@@ -1,5 +1,8 @@
 // Runs only behind Sites' private hosting boundary. Never import into the standalone Hub.
 export const stagingOrigin = 'https://learning-hub-staging.tranvu-812.workers.dev';
+export const productionOrigin = 'https://learn.unhuman.cc';
+/** HUB_BRIDGE_ORIGIN picks the Hub; only these two origins are accepted, anything else falls back to staging. */
+export const hubOrigin = (env) => (env?.HUB_BRIDGE_ORIGIN === productionOrigin ? productionOrigin : stagingOrigin);
 const keys = ['HUB_BRIDGE_BEARER', 'HUB_BRIDGE_ACCESS_CLIENT_ID', 'HUB_BRIDGE_ACCESS_CLIENT_SECRET'];
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export const tools = [
@@ -20,13 +23,18 @@ tools.push(
   {name:'hub2_check_result',description:'Validate a plan-result/1 without saving (dry run). Fix every reported path and check again before hub2_submit_result.',inputSchema:{type:'object',required:['jobId','leaseToken','result'],properties:{...jobArgs,result:{type:'object'}},additionalProperties:false}},
   {name:'hub2_submit_result',description:'Save a checked plan-result/1. Afterwards read hub2_job to confirm the saved lesson IDs. Never resubmit after an uncertain write; read hub2_job instead.',inputSchema:{type:'object',required:['jobId','leaseToken','result'],properties:{...jobArgs,result:{type:'object'}},additionalProperties:false}},
   {name:'hub2_job',description:'Read a job status and saved outcome; safe after uncertain writes.',inputSchema:{type:'object',required:['jobId'],properties:{jobId:jobArgs.jobId},additionalProperties:false}},
+  {name:'hub2_status',description:'Read-only progress of one family profile for Status: due skills, open errors, G/P/N mastery and the open lesson per notebook. No answers.',inputSchema:{type:'object',required:['profileId'],properties:{profileId:{type:'string',pattern:'^[A-Za-z0-9_-]{1,128}$'}},additionalProperties:false}},
   {name:'hub2_fail',description:'Give a leased job back with a short reason (no learner text). retryable=true requeues it.',inputSchema:{type:'object',required:['jobId','leaseToken','reason','retryable'],properties:{...jobArgs,reason:{type:'string',maxLength:300},retryable:{type:'boolean'}},additionalProperties:false}},
 );
 
 function v2Request(name, args) {
-  const allowed = { hub2_schema: [], hub2_lease_plan: [], hub2_job: ['jobId'], hub2_context: ['jobId', 'leaseToken'], hub2_check_result: ['jobId', 'leaseToken', 'result'], hub2_submit_result: ['jobId', 'leaseToken', 'result'], hub2_fail: ['jobId', 'leaseToken', 'reason', 'retryable'] }[name];
+  const allowed = { hub2_schema: [], hub2_status: ['profileId'], hub2_lease_plan: [], hub2_job: ['jobId'], hub2_context: ['jobId', 'leaseToken'], hub2_check_result: ['jobId', 'leaseToken', 'result'], hub2_submit_result: ['jobId', 'leaseToken', 'result'], hub2_fail: ['jobId', 'leaseToken', 'reason', 'retryable'] }[name];
   if (!allowed || Object.keys(args).some((key) => !allowed.includes(key)) || allowed.some((key) => args[key] === undefined)) throw Error('Invalid arguments');
   if (name === 'hub2_schema') return { path: '/schema', method: 'GET' };
+  if (name === 'hub2_status') {
+    if (typeof args.profileId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(args.profileId)) throw Error('Invalid profileId');
+    return { path: `/status/${args.profileId}`, method: 'GET' };
+  }
   if (name === 'hub2_lease_plan') return { path: '/jobs/lease', method: 'POST', body: { kinds: ['plan'], max: 1, runner: { name: 'chatgpt-sites-bridge', version: '0.2.0', model: 'chatgpt' } } };
   if (!jobId.test(args.jobId)) throw Error('Invalid jobId');
   if (name === 'hub2_job') return { path: `/jobs/${args.jobId}`, method: 'GET' };
@@ -74,7 +82,7 @@ export async function bridgeCall(name, args, env, fetcher = fetch) {
   if(encoded && encoded.length>300000) throw Error('Payload too large');
   if(encoded)headers['Content-Type']='application/json';
   try {
-    const response=await fetcher(`${stagingOrigin}/api/automation/${version}${path}`,{method,headers,body:encoded,redirect:'manual',signal:AbortSignal.timeout(20000)});
+    const response=await fetcher(`${hubOrigin(env)}/api/automation/${version}${path}`,{method,headers,body:encoded,redirect:'manual',signal:AbortSignal.timeout(20000)});
     // Never follow redirects with service credentials, or return Access HTML as a success.
     if(!(response.headers.get('content-type')??'').includes('application/json')) return {ok:false,status:response.status,error:'upstream_access_or_non_json_response',runId:args.runId??null};
     const text=await response.text();if(text.length>500000)throw Error('Response too large');

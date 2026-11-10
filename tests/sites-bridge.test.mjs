@@ -58,3 +58,21 @@ test('an uncertain Hub 2 write points to the job readback, never a retry', async
   assert.equal(r.error, 'uncertain_write_read_hub2_job');
   assert.equal(r.jobId, jobId);
 });
+
+test('hub2_status reads one profile through the read-only status path', async () => {
+  const calls = [];
+  const fetcher = async (url, opts) => { calls.push({ url, opts }); return Response.json({ notebooks: [] }); };
+  await bridgeCall('hub2_status', { profileId: 'prf_0123456789abcdef0123' }, env, fetcher);
+  assert.deepEqual(calls.map((c) => [c.opts.method, c.url.replace(stagingOrigin, '')]), [['GET', '/api/automation/v2/status/prf_0123456789abcdef0123']]);
+  await assert.rejects(bridgeCall('hub2_status', { profileId: '../jobs/lease' }, env, fetcher));
+  await assert.rejects(bridgeCall('hub2_status', {}, env, fetcher));
+});
+
+test('the bridge reaches production only when HUB_BRIDGE_ORIGIN names it exactly', async () => {
+  const { productionOrigin } = await import('../integrations/sites-bridge/site/lib/hub-bridge.mjs');
+  const urls = [];
+  const fetcher = async (url) => { urls.push(url); return Response.json({}); };
+  await bridgeCall('hub2_schema', {}, { ...env, HUB_BRIDGE_ORIGIN: productionOrigin }, fetcher);
+  await bridgeCall('hub2_schema', {}, { ...env, HUB_BRIDGE_ORIGIN: 'https://evil.test' }, fetcher);
+  assert.deepEqual(urls, ['https://learn.unhuman.cc/api/automation/v2/schema', stagingOrigin + '/api/automation/v2/schema']);
+});

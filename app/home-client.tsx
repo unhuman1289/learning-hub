@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { House, NotebookPen, ShieldCheck } from "lucide-react";
+import { House, ShieldCheck } from "lucide-react";
 import AuthControls from "../components/auth-controls";
 import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
@@ -21,7 +21,6 @@ import { useWorkspace, type WorkspaceApi } from "./hub/use-workspace";
 import { useShelf } from "./hub/use-shelf";
 import { NewNotebookDialog } from "./hub/new-notebook";
 import {LessonReader} from "./hub/lesson-v2/reader";
-import {LessonList} from "./hub/lesson-v2/list";
 import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
@@ -73,7 +72,6 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
   const name = userName.trim() || userEmail.split("@")[0];
   const nav: { route: Route; label: string; icon: typeof House; on: boolean }[] = [
     { route: { view: "desk" }, label: "Phòng học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "subject" || route.view === "lesson" },
-    { route: { view: "notes" }, label: "Ghi chú", icon: NotebookPen, on: route.view === "notes" },
     ...(isAdmin ? [{ route: { view: "admin" } as Route, label: "Quản trị", icon: ShieldCheck, on: route.view === "admin" }] : []),
   ];
 
@@ -100,7 +98,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <SaveIndicator workspace={workspace} />
             <StudyMeter clock={clock} labelFor={labelFor} />
-            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} /> : <AuthControls name={name} email={userEmail} />}
+            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={shelf.learners.find(l=>l.relation==="self")?.id} /> : <AuthControls name={name} email={userEmail} />}
           </div>
         </div>
         </div>
@@ -120,13 +118,11 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
             canOpenNotebook={canOpenNotebook}
             onNewNotebook={() => setNewNotebook(true)}
             hub2={hub2Enabled}
-            profileMode={profileMode}
           />
         )}
-        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
-        {hub2Enabled&&(route.view==="subject"||route.view==="notebook")&&<LessonList subjectId={route.view==="subject"?route.id:shelf.subjects?.find(s=>s.legacyTrack===route.track)?.id??null} learner={viewingId} go={go}/>}
-        {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} go={go} hub2={hub2Enabled} />}
-        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} hub2={hub2Enabled} />}
+        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
+        {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
+        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} hub2={hub2Enabled} />}
         {route.view === "notes" && <NotesView workspace={workspace} openForm={setForm} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>

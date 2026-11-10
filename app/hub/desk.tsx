@@ -4,12 +4,12 @@ import {SkillProgress} from "./skill-progress";
 import { PostIt } from "../../components/notebook/post-it";
 import {TodayBoard} from "./today-board";
 import { ContactBook } from "./guardian/contact-book";
-import {AdminAlertBanner} from "./ai-jobs-panel";
-import { useEffect, useState } from "react";
+import { RuledPage } from "../../components/notebook/paper";
+import { useState } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
 import { NotebookCover, cx } from "../../components/notebook/paper";
-import { berlinKey, coverTitle, coverTransition, dateTimeOf, isTrack, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
+import { berlinKey, coverTitle, coverTransition, isTrack, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
 import { buttonClass, RouteLink } from "./ui";
@@ -33,7 +33,7 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false, profileMode = false }: {
+export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
   name: string;
   isAdmin: boolean;
   go: (route: Route) => void;
@@ -44,7 +44,6 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   canOpenNotebook: boolean;
   onNewNotebook: () => void;
   hub2?: boolean;
-  profileMode?: boolean;
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
@@ -58,49 +57,15 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
   const v2Lessons=daily.data?.v2Active??[];
-  const activeV2Subjects=new Set(v2Lessons.map(l=>l.subjectId));
-  const finished = visibleTracks.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt && !shelf.subjects?.some(s=>s.legacyTrack===track&&activeV2Subjects.has(s.id)));
   const reviews = readOnly ? [] : workspace.data.logs
     .filter((log) => log.due && log.due <= today && !workspace.data.done.includes(log.id))
     .sort((x, y) => (x.due ?? "").localeCompare(y.due ?? ""));
-  const health = daily.data?.health;
-  const pending = usePendingCount(isAdmin && !profileMode);
   const loading = !daily.data && !daily.error;
-
-  const summary = loading
-    ? "Đang mở các sổ…"
-    : [(lessons.length+v2Lessons.length) && `${lessons.length+v2Lessons.length} bài đang chờ`, reviews.length && `${reviews.length} mục cần ôn`].filter(Boolean).join(" và ") || "Bàn học đang gọn";
-
-  return (
-    <div className="mx-auto grid w-full max-w-6xl gap-8">
-      {/* Entering the study: a greeting by the garden window. */}
-      <section className="grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_15rem]">
-        <div>
-          <p className="font-hand text-xl text-accent first-letter:uppercase">{date}</p>
-          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{readOnly ? `Kệ của ${viewedName}` : `Chào ${name}.`}</h1>
-          <p className="mt-1 text-muted">{summary}{loading || readOnly ? "" : ". Chọn một tờ trên bàn, hoặc lấy sổ từ tủ."}{readOnly ? ". Chỉ xem; bài làm và ghi chú chỉ người học sửa được." : ""}</p>
-          {viewing.learners.length > 1 && (
-            <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem kệ của
-              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="rounded-md border border-rule bg-paper px-2 py-1 text-ink">
-                {viewing.learners.map((item) => (
-                  <option key={item.id} value={item.relation === "self" ? "" : item.id}>{item.relation === "self" ? `${item.name} (tôi)` : item.name}</option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-        <GardenWindow className="hidden h-36 md:block" />
-      </section>
-
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
-        <OakDesk drawers className="min-w-0">
-          <h2 className="px-1 pb-4 font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
-          {hub2 && isAdmin && <AdminAlertBanner />}
-          {hub2 && <TodayBoard learner={viewing.id} go={go} />}
-
-          {lessons.length + v2Lessons.length + reviews.length > 0 ? (
-            <ul className="grid gap-x-5 gap-y-7 px-1 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
-              {lessons.map(({ track, lesson }, index) => {
+  const skillSubjects = shelf.subjects?.filter(s => s.status === "active") ?? [];
+  const [selectedSkill, setSelectedSkill] = useState("");
+  const activeSkill = skillSubjects.find(s=>s.id===selectedSkill) ?? skillSubjects.find(s=>s.id===v2Lessons[0]?.subjectId) ?? skillSubjects[0];
+  const notes = [
+    ...lessons.map(({ track, lesson }, index) => {
                 const route: Route = { view: "notebook", track, tab: "bai", page: lesson.id };
                 const isNew = lesson.assignedDate === today && !lesson.response.trim();
                 return (
@@ -118,37 +83,40 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
                     </div>
                   </PostIt>
                 );
-              })}
-              {reviews.map((log, index) => (
+    }),
+    ...reviews.map((log, index) => (
                 <ReviewNote key={log.id} log={log} index={lessons.length + index} today={today} go={go} onReviewed={() => void workspace.toggleDone(log.id)} />
-              ))}
-            </ul>
-          ) : (
-            <p className="px-1 pb-6 pt-2 font-hand text-xl leading-8 text-oak-ink">
-              {loading ? "Đang mở các sổ…" : "Bàn đang gọn: không có bài mới hay mục nào cần ôn. Lấy một cuốn sổ từ tủ để đọc lại bài cũ."}
-            </p>
-          )}
+    )),
+  ];
 
-          {finished.length > 0 && (
-            <p className="mt-5 px-1 text-sm leading-6 text-oak-ink">
-              Đã học xong: {finished.map((track) => trackInfo(track).title).join(", ")}. Bài tiếp theo có vào sáng mai.
-            </p>
+  return (
+    <div className="mx-auto grid w-full max-w-6xl gap-8">
+      {/* Entering the study: a greeting by the garden window. */}
+      <section className="grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_15rem]">
+        <div>
+          <p className="font-hand text-xl text-accent first-letter:uppercase">{date}</p>
+          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{readOnly ? `Kệ của ${viewedName}` : `Chào ${name}.`}</h1>
+          {viewing.learners.length > 1 && (
+            <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem kệ của
+              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="rounded-md border border-rule bg-paper px-2 py-1 text-ink">
+                {viewing.learners.map((item) => (
+                  <option key={item.id} value={item.relation === "self" ? "" : item.id}>{item.relation === "self" ? `${item.name} (tôi)` : item.name}</option>
+                ))}
+              </select>
+            </label>
           )}
+        </div>
+        <GardenWindow className="hidden h-36 md:block" />
+      </section>
+
+      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
+        <OakDesk drawers className="min-w-0">
+          <h2 className="px-1 pb-4 font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
+          <TodayBoard key={viewing.id ?? "self"} learner={viewing.id} go={go} enabled={hub2} notes={notes} loadingLegacy={loading} />
           {daily.error && (
             <p role="alert" className="mt-5 flex gap-2 rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">
               <AlertCircle size={16} className="mt-1 shrink-0" aria-hidden="true" />
               <span>{daily.error} {daily.error === "Sign in required" && <a href="/login" className="underline">Đăng nhập lại</a>} <button type="button" onClick={() => void daily.load()} className="underline">Tải lại</button></span>
-            </p>
-          )}
-          {daily.data && (
-            <p className="mt-3 px-1 text-sm leading-6 text-oak-ink opacity-90">
-              {daily.data.lastRun ? `Lần kiểm tra bài mới gần nhất: ${dateTimeOf(daily.data.lastRun.updated)}.` : "Chưa có lần kiểm tra bài mới nào."}
-              {health && (health.stale || health.latestFailed) && <span className="font-semibold"> Lần soạn bài gần nhất chưa thành công; bài cũ vẫn giữ nguyên.</span>}
-            </p>
-          )}
-          {isAdmin && pending > 0 && (
-            <p className="px-1 text-sm leading-6">
-              <RouteLink route={{ view: "admin" }} go={go} className="font-semibold text-oak-ink underline underline-offset-2">{pending} tài khoản đang chờ duyệt</RouteLink>
             </p>
           )}
         </OakDesk>
@@ -161,8 +129,8 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
           {(shelf.subjects ?? []).map((subject) => (
             <Shelf key={subject.id}>
               {subject.legacyTrack
-                ? <PreparedNotebook track={subject.legacyTrack} daily={daily} workspace={workspace} readOnly={readOnly} go={go} />
-                : <TopicNotebook subject={subject} go={go} />}
+                ? <PreparedNotebook track={subject.legacyTrack} daily={daily} readOnly={readOnly} go={go} />
+                : <TopicNotebook subject={subject} hasLesson={v2Lessons.some(l=>l.subjectId===subject.id)} go={go} />}
             </Shelf>
           ))}
           {canOpenNotebook && (
@@ -175,7 +143,14 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
           {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
-      {hub2 && shelf.subjects?.filter(s=>s.status==="active").map(s=><section key={s.id} aria-label={`Tiến bộ ${s.title}`}><h2 className="font-hand text-2xl">{s.title} · Tiến bộ của bạn</h2><SkillProgress subjectId={s.id} learner={viewing.id}/></section>)}
+      {hub2 && activeSkill && <RuledPage as="section" className="space-y-4" >
+        <h2 className="font-hand text-2xl">Kỹ năng</h2>
+        <div className="flex flex-wrap gap-2" aria-label="Chọn sổ để xem kỹ năng">
+          {skillSubjects.map(s => <button type="button" key={s.id} aria-pressed={s.id===activeSkill.id}
+            className={buttonClass(s.id===activeSkill.id?"secondary":"ghost")} onClick={()=>setSelectedSkill(s.id)}>{s.title}</button>)}
+        </div>
+        <SkillProgress subjectId={activeSkill.id} learner={viewing.id} canEdit={isAdmin} showPath={false}/>
+      </RuledPage>}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
@@ -183,13 +158,12 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
 }
 
 /** One of the five prepared notebooks, with its foundation lessons and assigned lessons. */
-function PreparedNotebook({ track, daily, workspace, readOnly, go }: { track: TrackId; daily: DailyApi; workspace: WorkspaceApi; readOnly: boolean; go: (route: Route) => void }) {
-  const { assigned, foundation, active: current } = notebookPages(track, daily.data);
-  const learned = assigned.filter((page) => page.kind === "daily" && page.lesson.completedAt).length + (readOnly ? 0 : foundation.filter((page) => workspace.data.done.includes(page.id)).length);
+function PreparedNotebook({ track, daily, readOnly, go }: { track: TrackId; daily: DailyApi; readOnly: boolean; go: (route: Route) => void }) {
+  const { active: current } = notebookPages(track, daily.data);
   const cover = (
     <NotebookCover
       title={coverTitle[track]}
-      lines={[readOnly ? `${learned}/${assigned.length} bài được giao` : `${learned}/${assigned.length + foundation.length} bài`, current ? (current.completedAt ? "chờ bài mới" : "đang học") : "chưa có bài"]}
+      lines={[current && !current.completedAt ? "đang học" : "chưa có bài"]}
       className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
     />
   );
@@ -202,15 +176,14 @@ function PreparedNotebook({ track, daily, workspace, readOnly, go }: { track: Tr
   );
 }
 
-const topicStatus: Record<ShelfSubject["status"], string> = { setup: "đang lập lộ trình", active: "đang học", paused: "tạm dừng", archived: "đã cất" };
 
 /** A notebook opened since Learning Hub 2.0. */
-function TopicNotebook({ subject, go }: { subject: ShelfSubject; go: (route: Route) => void }) {
+function TopicNotebook({ subject, hasLesson, go }: { subject: ShelfSubject; hasLesson: boolean; go: (route: Route) => void }) {
   return (
     <RouteLink route={{ view: "subject", id: subject.id }} go={go} aria-label={`Mở sổ ${subject.title}`} className="group block rounded-md" style={{ viewTransitionName: `cover-${subject.id}` }}>
       <NotebookCover
         title={subject.title}
-        lines={[topicStatus[subject.status], subject.skillCount ? `${subject.skillCount} kỹ năng` : "chưa có bài"]}
+        lines={[hasLesson ? "đang học" : "chưa có bài"]}
         className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
       />
     </RouteLink>
@@ -237,18 +210,4 @@ function ReviewNote({ log, index, today, go, onReviewed }: { log: Log; index: nu
       </div>
     </PostIt>
   );
-}
-
-function usePendingCount(isAdmin: boolean) {
-  const [count, setCount] = useState(0);
-  useEffect(() => {
-    if (!isAdmin) return;
-    let current = true;
-    fetch("/api/admin/users", { cache: "no-store" })
-      .then((response) => response.ok ? response.json() as Promise<{ users?: unknown[] }> : { users: [] })
-      .then((body) => { if (current) setCount(body.users?.length ?? 0); })
-      .catch(() => {});
-    return () => { current = false; };
-  }, [isAdmin]);
-  return count;
 }

@@ -11,6 +11,7 @@ const masteryText: Record<string, string> = {
 };
 type Skill = {
   id: string;
+  key?: string;
   name: string;
   path_order: number;
   mastery: string | null;
@@ -22,9 +23,39 @@ type Skill = {
   state_revision: number | null;
   status:string; attempts_total:number|null;
 };
-type ProgressData={skills:Skill[];errors:Pattern[];effort:{minutes:number;days:number;attempts:number;retries:number}|null;subject:{level:string;roadmap:{title:string;objective:string;situation:string;skills:string[];mode:string}[]}};
+type ProgressData={skills:Skill[];errors:Pattern[];effort:{minutes:number;days:number;attempts:number;retries:number}|null;subject:{level:string;progressSummary?:string;progressUpdatedAt?:string|null;roadmap:{title:string;objective:string;situation:string;skills:string[];mode:string}[]}};
 type Pattern = { id: string; label: string; confidence: string; status: string };
-function Progress({ subjectId, learner, canEdit }: { subjectId: string; learner?: string | null; canEdit?: boolean }) {
+/** Deutsch notebooks group skills and errors by G/P/N, from the skill key prefix and the error label prefix (L3.2). */
+const facets = [
+  ["g", "Ngữ pháp"],
+  ["p", "Dấu câu, chính tả"],
+  ["n", "Độ tự nhiên"],
+] as const;
+export const skillFacet = (key?: string) => /^([gpn])-/.exec(key ?? "")?.[1] ?? null;
+export const errorFacet = (label: string) => /^([GPN]):/.exec(label)?.[1]?.toLowerCase() ?? null;
+function FacetSummary({ skills, errors }: { skills: Skill[]; errors: Pattern[] }) {
+  if (!skills.some((s) => skillFacet(s.key))) return null;
+  return (
+    <dl className="grid grid-cols-3 gap-2 text-sm">
+      {facets.map(([facet, name]) => {
+        const group = skills.filter((s) => skillFacet(s.key) === facet);
+        const open = errors.filter((e) => e.status !== "resolved" && errorFacet(e.label) === facet).length;
+        return (
+          <div key={facet} className="rounded border border-line p-2">
+            <dt className="font-semibold">
+              {facet.toUpperCase()} · {name}
+            </dt>
+            <dd>
+              {group.filter((s) => s.mastery === "demonstrated").length}/{group.length} kỹ năng đã tự làm được
+            </dd>
+            <dd>{open ? open + " lỗi cần chú ý" : "Không có lỗi đang mở"}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
+function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId: string; learner?: string | null; canEdit?: boolean; showPath?: boolean }) {
   const [data, setData] = useState<ProgressData | null>(null),
     [error, setError] = useState(""),
     [note, setNote] = useState(""),
@@ -86,18 +117,33 @@ function Progress({ subjectId, learner, canEdit }: { subjectId: string; learner?
       {!data && !error && <p role="status">Đang đọc tiến độ đã lưu…</p>}
       {data && (
         <>
-          <p className="text-sm text-muted">
-            Nhận diện đúng và tự vận dụng được được theo dõi riêng. Thang 0–3 phản ánh bài làm đã chấm, không phải chứng nhận trình độ.
-          </p>
-          <p className="text-sm">Trình độ tự khai: {data.subject.level || "Chưa đặt"}. Kết quả dưới đây phản ánh kỹ năng đã luyện, chưa chứng nhận mức CEFR.</p>
+          {showPath && (
+            <section className="space-y-3 bg-paper py-3" aria-label="Tiến độ">
+              <h3 className="font-semibold">Tiến độ</h3>
+              {data.subject.progressSummary && <p className="whitespace-pre-wrap">{data.subject.progressSummary}</p>}
+              {data.subject.roadmap?.length ? <>
+                <h4 className="text-sm font-semibold">Bước tiếp theo</h4>
+                <ol className="list-decimal space-y-1 pl-5">
+                  {data.subject.roadmap.slice(0,3).map((step,i)=><li key={i}>{step.title} · {step.objective}</li>)}
+                </ol>
+                {data.subject.roadmap.length > 3 && <details><summary className="min-h-11 cursor-pointer py-2 text-accent">Xem các bước còn lại</summary>
+                  <ol start={4} className="list-decimal space-y-2 pl-5">{data.subject.roadmap.slice(3).map((step,i)=><li key={i}>{step.title} · {step.objective}</li>)}</ol>
+                </details>}
+              </> : <p className="text-sm text-muted">Chưa có lộ trình cho sổ này.</p>}
+            </section>
+          )}
           {data.effort && <section aria-label="Cố gắng trong 14 ngày"><h3 className="font-semibold">Cố gắng trong 14 ngày</h3><p>{Math.round(data.effort.minutes)} phút đã đo · {data.effort.days} ngày học · {data.effort.attempts} lần trả lời · {data.effort.retries} lần làm lại</p><p className="text-sm text-muted">Cố gắng và mức thành thạo được theo dõi riêng.</p></section>}
           <h3 className="font-semibold">Kỹ năng đang học và cần ôn</h3>
           {!data.skills.length && <p>Chưa có kỹ năng được giao.</p>}
+          <FacetSummary skills={data.skills} errors={data.errors} />
           <ul className="grid gap-3">
             {data.skills.filter(s=>s.status!=="retired").map((s) => (
               <li key={s.id} className="border-b border-line pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong>{s.name}</strong>
+                  <strong>
+                    {skillFacet(s.key) && <span className="mr-1 text-sm text-muted">{skillFacet(s.key)!.toUpperCase()}</span>}
+                    {s.name}
+                  </strong>
                   <span>{masteryText[s.mastery ?? "not_assessed"]}</span>
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
@@ -153,8 +199,6 @@ function Progress({ subjectId, learner, canEdit }: { subjectId: string; learner?
                 </li>
               ))}
           </ul>
-          <section aria-label="Các bài tiếp theo"><h3 className="font-semibold">5–10 bài tiếp theo · dự kiến</h3><p className="text-sm text-muted">Thứ tự có thể đổi theo bài làm, lịch ôn và góp ý. Đây là lộ trình, chưa phải bài đã giao.</p>
-          {data.subject.roadmap?.length ? <ol className="mt-3 grid gap-3">{data.subject.roadmap.map((step,i)=><li key={i}><strong>{i+1}. {step.title}</strong><p>{step.objective}</p><p className="text-sm text-muted">{step.mode==="review"?"Ôn tập":step.mode==="new"?"Học mới":"Ôn và học mới"} · {step.situation}</p></li>)}</ol>:<p className="mt-2">Lượt soạn tiếp theo sẽ đề xuất lộ trình từ mục tiêu và các kỹ năng của sổ.</p>}</section>
           {error && (
             <button className={buttonClass("secondary")} onClick={() => void load().catch((e) => setError(e.message))}>
               Tải lại

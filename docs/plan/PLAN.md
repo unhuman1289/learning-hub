@@ -3,6 +3,7 @@
 Cập nhật 14/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). H0–H2.4 đã có trong main; H2.5–H3.4 được triển khai cùng một đợt tích hợp trên nhánh `codex/hub2-h2-h3`, vì reader mới cần bảng submission và điểm. Chưa triển khai đợt này lên production.
 
 - **Thiết kế:** [docs/hub2/](../hub2/README.md): quyết định D1–D18, [hướng xây dựng bài học](../hub2/LESSON-DESIGN.md), [mô hình dữ liệu](../hub2/DATA-MODEL.md), [API AI](../hub2/AI-API.md).
+- **Đề xuất 10/11/2026 (chờ duyệt):** [LOCAL-GRADER.md](LOCAL-GRADER.md): Qwen chấm câu mở trên Mac, ChatGPT soạn bài, chấm lại và chấm thay khi Mac vắng (thay H7.2–H7.5); hồ sơ không tài khoản (thay H1.6, H1.8, D14, D15); bài 5–10 câu; chuyển dữ liệu từ Google Sheets.
 - **Plan cũ đã lưu trữ:** [plan v2](archive/learning-hub-plan-v2-cloudflare.md) (Phase 0–1, Cloudflare và cutover) và [plan 2026-10](archive/learning-hub-plan-2026-10.md). Phần còn dở của v2 nằm ở H0 (commit Phase 1, sửa B1–B2) và H7 (bật automation trên production); Phase 2 và các task P1.6, P1.9, P1.12 được thay bằng plan này (xem §18). Chỉ đọc plan cũ để tra lịch sử.
 
 ## Hiện trạng H2.5–H3 (13/10/2026)
@@ -270,6 +271,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H1.3, H1.4. **Cỡ:** L.
 
 #### H1.6 Admin: trẻ em và phụ huynh
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L5: hồ sơ gia đình sau cổng nhà, không có tài khoản (10/11/2026).**
+
 - **Thay đổi:**
   - Trang Quản trị: đặt `role = child`, `display_name`, gắn hoặc gỡ phụ huynh.
   - `app/api/admin/guardians/route.ts`.
@@ -283,6 +286,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H0.3, H1.1. **Cỡ:** S.
 
 #### H1.8 Tài khoản và sổ của Ếch
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L5: hồ sơ của Ếch tạo ở chế độ quản lý (10/11/2026).**
+
 - **Việc:**
   - Ếch đăng ký bằng email riêng. Admin duyệt, đặt `role = child`, `display_name = "Ếch"`, gắn phụ huynh.
   - Tạo ba sổ, `curriculum = "Chương trình GDPT 2018 (Việt Nam), lớp 7"`:
@@ -619,6 +624,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H5.7. **Cỡ:** S.
 
 #### H7.2 Thử giới hạn Cloudflare cho Worker chấm bài
+> **Thay bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L1: không cần Queue hay Worker chấm bài (10/11/2026).**
+
 - **Việc:** trên staging, dựng consumer Queue tối thiểu chờ một lệnh `fetch` 2–3 phút (giả lập gọi model). Kiểm:
   - Queue có trong gói hiện tại không;
   - thời gian chạy tối đa của consumer;
@@ -627,6 +634,8 @@ Theo AGENTS.md:
 - **Phụ thuộc:** H5.6. **Cỡ:** S.
 
 #### H7.3 Chấm qua ChatGPT thuê bao và direct MCP
+> **Câu mở của sổ trong nhà chấm bằng [LOCAL-GRADER.md](LOCAL-GRADER.md) L1.3: `integrations/home-runner/` trên Mac (Qwen, Codex). Direct MCP vẫn là đường ChatGPT (10/11/2026).**
+
 - Quyết định 14/10/2026: không dùng Anthropic/OpenAI API, không yêu cầu key hoặc gói API.
 - Hub xếp và lưu lượt chấm trong D1; ChatGPT nhận qua `hub2_lease_assess`, đọc context/schema, kiểm kết quả, lưu một lần và đọc lại cùng job.
 - OAuth cần riêng `hub:assess`, giao với consent còn hiệu lực; token `hub:plan` cũ không có quyền chấm. Pilot chỉ câu chữ Deutsch của unhuman, không bài trẻ/y khoa/ảnh.

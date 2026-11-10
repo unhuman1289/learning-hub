@@ -1,11 +1,16 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { Hints } from "./hints";
 import { uploadPhoto } from "./photo";
 export function ItemCard({
   item,
+  number,
+  feedback,
+  onSubmit,
+  submitLabel,
+  canSubmit,
   value,
   disabled,
   readOnly,
@@ -15,6 +20,11 @@ export function ItemCard({
 }: {
   formatText?:(text:string)=>string;
   item: ItemView;
+  number: number;
+  feedback?: ReactNode;
+  onSubmit?: () => void;
+  submitLabel?: string;
+  canSubmit?: boolean;
   value: DraftAnswers[string];
   disabled: boolean;
   readOnly: boolean;
@@ -32,7 +42,7 @@ export function ItemCard({
   return (
     <article className="space-y-4 border-b border-line bg-paper py-6">
       <h3 id={"prompt-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
-        {item.id}. {formatText(item.prompt)}
+        {number}. {formatText(item.prompt)}
       </h3>
       {item.instructions && <p>{formatText(item.instructions)}</p>}
       {item.input === "choice" ? (
@@ -118,7 +128,7 @@ export function ItemCard({
                 Xem ảnh đã đính kèm
               </a>
               {!readOnly && (
-                <button onClick={() => onChange({ ...value, attachmentIds: value.attachmentIds?.filter((x) => x !== photo) })}>Gỡ khỏi câu</button>
+                <button disabled={disabled || uploading} onClick={() => onChange({ ...value, attachmentIds: value.attachmentIds?.filter((x) => x !== photo) })}>Gỡ khỏi câu</button>
               )}
             </div>
           ))}
@@ -126,6 +136,9 @@ export function ItemCard({
       )}
       {value.answer && formatText(value.answer)!==value.answer && <p className="text-sm text-muted">Công thức: {formatText(value.answer)}</p>}
       <Hints formatText={formatText} item={item} disabled={readOnly || disabled || uploading} onReveal={onReveal} />
+      {!readOnly && <button type="button" disabled={!canSubmit || uploading} onClick={onSubmit}
+        className="brick min-h-11 px-4 text-sm font-semibold disabled:opacity-50">{submitLabel ?? "Kiểm tra"}</button>}
+      {feedback}
     </article>
   );
 }

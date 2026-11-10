@@ -16,6 +16,22 @@ export function permits(client: AutomationClient, job: Pick<Job, 'kind' | 'purpo
     (!client.learnerIds || client.learnerIds.includes(job.learner_id))
   );
 }
+/** At most one write a minute per client: polling every 15 s must not spend the D1 write budget. */
+export async function recordPresence(db: EvidenceDb, clientId: string, runner: unknown, capabilities: string[], now = new Date()) {
+  const stamp = now.toISOString();
+  await db
+    .prepare(
+      'INSERT INTO runner_presence(client_id,runner,capabilities,last_seen_at) VALUES(?,?,?,?) ON CONFLICT(client_id) DO UPDATE SET runner=excluded.runner,capabilities=excluded.capabilities,last_seen_at=excluded.last_seen_at WHERE runner_presence.last_seen_at<? OR runner_presence.runner<>excluded.runner OR runner_presence.capabilities<>excluded.capabilities',
+    )
+    .bind(clientId, JSON.stringify(runner).slice(0, 400), JSON.stringify(capabilities), stamp, new Date(now.getTime() - 60000).toISOString())
+    .run();
+}
+/** The grading runner counts as online when it asked for work within the last 3 minutes. */
+export async function runnerStatus(db: EvidenceDb, clientId: string, now = new Date()) {
+  const row = await db.prepare('SELECT last_seen_at FROM runner_presence WHERE client_id=?').bind(clientId).first<{ last_seen_at: string }>();
+  const lastSeenAt = row?.last_seen_at ?? null;
+  return { online: !!lastSeenAt && Date.parse(lastSeenAt) >= now.getTime() - 3 * 60000, lastSeenAt };
+}
 export async function maintainJobs(db: EvidenceDb, now = new Date()) {
   const stamp = now.toISOString();
   await db.batch([
@@ -35,7 +51,7 @@ export async function maintainJobs(db: EvidenceDb, now = new Date()) {
 export async function leaseJobs(
   db: EvidenceDb,
   client: AutomationClient,
-  input: { kinds: string[]; subjectIds?: string[]; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string } },
+  input: { kinds: string[]; subjectIds?: string[]; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string }; capabilities?: string[] },
   environment: string,
   now = new Date(),
 ) {
@@ -45,6 +61,8 @@ export async function leaseJobs(
   const purposes = (client.purposes ?? []).filter((x) => !input.purposes || input.purposes.includes(x));
   const triggers = (client.triggers ?? []).filter((x) => !input.triggers || input.triggers.includes(x));
   if (!kinds.length || !purposes.length || !triggers.length) throw new ApiError(403, 'Client không được lease loại công việc này.');
+  await recordPresence(db, client.id, input.runner, input.capabilities ?? [], now);
+  const vision = input.capabilities?.includes('vision') && client.scopes.includes('attachments:read') ? 1 : 0;
   const jobs = [];
   const placeholders = (x: unknown[]) => x.map(() => '?').join(',');
   for (let n = 0; n < input.max; n++) {
@@ -53,7 +71,7 @@ export async function leaseJobs(
       stamp = now.toISOString();
     const job = await db
       .prepare(
-        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
+        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
       )
       .bind(
         berlinDay(now),
@@ -66,6 +84,8 @@ export async function leaseJobs(
         ...purposes,
         ...triggers,
         stamp,
+        vision,
+        berlinDay(now),
         ...(client.learnerIds ?? []),
         ...(input.subjectIds ?? []),
       )

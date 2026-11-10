@@ -206,7 +206,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity, subjectTitle:c.title });
+      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       const l = checked.lesson,

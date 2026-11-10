@@ -88,7 +88,8 @@ export async function enqueue(
     .first<{ n: number }>();
   const limit =
     input.purpose === 'submission'
-      ? Number(budget.assessPerDay ?? (adult ? 20 : 15))
+      ? // Open answers are graded by the family Mac's local model (no API cost), so retries stay on demand.
+        Number(budget.assessPerDay ?? 60)
       : input.purpose === 'recheck'
         ? Number(budget.recheckPerDay ?? (adult ? 10 : 5))
         : input.purpose === 'request'
@@ -99,13 +100,29 @@ export async function enqueue(
     trigger = 'deferred';
     priority = 20;
   }
+  // Photos can only go to a runner that declares it reads images.
+  const vision =
+    input.kind === 'assess' && input.refId
+      ? (
+          await db
+            .prepare(
+              input.purpose === 'recheck'
+                ? "SELECT EXISTS(SELECT 1 FROM disputes d JOIN attempts a ON a.id=d.attempt_id WHERE d.id=? AND a.attachment_ids<>'[]') AS v"
+                : "SELECT EXISTS(SELECT 1 FROM attempts WHERE submission_id=? AND attachment_ids<>'[]') AS v",
+            )
+            .bind(input.refId)
+            .first<{ v: number }>()
+        )?.v
+        ? 1
+        : 0
+      : 0;
   const id = 'job_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20),
     expires = input.purpose === 'daily' ? cutoffFor(addDays(day, 1)) : new Date(now.getTime() + 36 * 3600000).toISOString();
   // Bound both system and per-learner budgets in SQL to prevent concurrent requests exceeding caps.
   const result = await db
     .prepare(
-      `INSERT OR IGNORE INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,ref_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at)
- SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<?`,
+      `INSERT OR IGNORE INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,ref_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at,needs_vision)
+ SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<?`,
     )
     .bind(
       id,
@@ -126,6 +143,7 @@ export async function enqueue(
       stamp,
       stamp,
       expires,
+      vision,
       day,
       cap,
     )
@@ -162,7 +180,7 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
   // One plan job per notebook keeps each lease, context and apply within the Free CPU and D1 query budget.
   const { results = [] } = await db
     .prepare(
-      "SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' ORDER BY s.learner_id, s.weight DESC, s.id",
+      "SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version='2' AND l.completed_at IS NULL) ORDER BY s.learner_id, s.weight DESC, s.id",
     )
     .all<{ id: string; learner_id: string }>();
   // One notebook's failure (daily cap, D1 hiccup) must not stop the others.

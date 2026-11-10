@@ -522,6 +522,8 @@ Hub không phụ thuộc runner nào. Ba runner dự kiến:
 
 ### 9.2 R2: Worker chấm bài
 
+> **Không làm nữa (10/11/2026).** Thay bằng `integrations/home-runner/` trên Mac của nhà: Qwen chấm câu mở, Codex CLI (thuê bao ChatGPT) chấm lại và soạn theo yêu cầu; lease có `capabilities: ['vision']`; Mac vắng thì `GET /api/runner-status` báo "Máy chấm đang tắt". Client `home-runner`: scope `jobs:assess`, `jobs:plan`, `attachments:read`, `history:read` (lịch sử, `/status/{profileId}`). Xem [LOCAL-GRADER.md](../plan/LOCAL-GRADER.md).
+
 Đây là chỗ duy nhất giữ key model.
 
 - **Mã nguồn:** `integrations/assessor/`, TypeScript, `@anthropic-ai/sdk`. Có `wrangler.jsonc` riêng và deploy riêng thành `learning-hub-assessor-staging` và `learning-hub-assessor-production`. Không có route, `workers_dev: false`. Dùng chung schema hợp đồng với Hub từ `lib/contracts/`, nên hai bên không lệch nhau.

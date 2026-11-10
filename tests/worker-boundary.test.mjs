@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {standaloneRequestGuard} from '../build/worker-boundary.ts';
@@ -35,4 +36,10 @@ test('Hub 2 APIs do not exist while Hub 2 is switched off', async () => {
   assert.equal(hub2Guard(new Request('https://example.test/api/lessons/les_x'), { HUB2_ENABLED: 'true' }), null);
   for (const path of ['/api/daily', '/api/subjects', '/api/health', '/api/lessonsx'])
     assert.equal(hub2Guard(new Request('https://example.test' + path), {}), null, path);
+});
+
+test('the worker runs the household gate before the app', () => {
+  const source = readFileSync(new URL('../build/worker.ts', import.meta.url), 'utf8');
+  // Direct MCP keeps its own OAuth checks; everything else passes the household gate before the app.
+  assert.match(source, /return \(await householdGuard\(request, env\)\) \?\? handler\.fetch\(request, env, ctx\)/);
 });

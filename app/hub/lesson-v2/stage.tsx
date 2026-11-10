@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { ItemCard } from "./item-card";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
@@ -9,6 +9,7 @@ export function Stage({
   answers,
   disabled,
   readOnly,
+  actions,
   onChange,
   onReveal,
   formatText = (text:string)=>text,
@@ -18,6 +19,7 @@ export function Stage({
   answers: DraftAnswers;
   disabled: boolean;
   readOnly: boolean;
+  actions: (item: ItemView) => { feedback?: ReactNode; onSubmit: () => void; submitLabel: string; canSubmit: boolean };
   onChange: (id: string, value: DraftAnswers[string]) => void;
   onReveal: (id: string, level: "hint1" | "hint2" | "solution") => void;
 }) {
@@ -29,6 +31,8 @@ export function Stage({
           <ItemCard
             formatText={formatText}
             item={item}
+            number={i + 1}
+            {...actions(item)}
             value={answers[item.id] ?? { answer: "" }}
             disabled={disabled}
             readOnly={readOnly}

@@ -8,6 +8,8 @@ import { leaseJobs, leasedJob, readJob, heartbeat, permits } from '../../../../.
 import { applyResult } from '../../../../../lib/ai-jobs/result';
 import { planContext, planResult, assessContext, assessResult } from '../../../../../lib/contracts/ai-common';
 import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-package-v2';
+import { historyMarkdown, readHistory } from '../../../../../lib/history';
+import { learnerStatus } from '../../../../../lib/status';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store' };
 const leaseBody = z
@@ -26,6 +28,10 @@ const leaseBody = z
       .optional(),
     max: z.number().int().min(1).max(5),
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
+    capabilities: z
+      .array(z.enum(['vision']))
+      .max(1)
+      .optional(),
   })
   .strict();
 // Building JSON Schema costs real CPU; do it once per isolate.
@@ -67,6 +73,23 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
       const input = leaseBody.safeParse(body);
       if (!input.success) throw new ApiError(400, 'Lease request không hợp lệ.');
       return Response.json({ jobs: await leaseJobs(db, client, input.data, env.ENVIRONMENT ?? 'unknown') }, { headers });
+    }
+    // Read-only history for the Drive copy on the family Mac (L5.6): only profiles listed for this client.
+    if (path[0] === 'history' && path.length === 2 && req.method === 'GET') {
+      if (!client.scopes.includes('history:read') || !client.learnerIds?.includes(path[1])) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
+      const name = await db
+        .prepare('SELECT coalesce(s.display_name,u.name) AS name FROM user u LEFT JOIN learner_settings s ON s.user_id=u.id WHERE u.id=?')
+        .bind(path[1])
+        .first<{ name: string }>();
+      if (!name) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
+      return new Response(historyMarkdown(name.name, await readHistory(db, path[1], { days: 3660, limit: 2000 })), {
+        headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8' },
+      });
+    }
+    // Read-only status for ChatGPT Project v7 (L6.2), same scope and profile list as the history copy.
+    if (path[0] === 'status' && path.length === 2 && req.method === 'GET') {
+      if (!client.scopes.includes('history:read') || !client.learnerIds?.includes(path[1])) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
+      return Response.json(await learnerStatus(db, path[1]), { headers });
     }
     if (path[0] !== 'jobs' || !/^job_[a-f0-9]{20}$/.test(path[1] ?? '')) throw new ApiError(404, 'Không tìm thấy công việc.');
     const id = path[1],

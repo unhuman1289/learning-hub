@@ -21,9 +21,20 @@ export async function prepareRecheck(db: EvidenceDb, job: Job, context: AssessCo
        JOIN attempts a ON a.id=d.attempt_id JOIN grades g ON g.id=d.grade_id WHERE d.id=? AND d.learner_id=?`,
     )
     .bind(job.ref_id, job.learner_id)
-    .first<{ id: string; attempt_id: string; grade_id: string; status: string; lesson_id: string; item_id: string; answer: string; grader: string; result: string }>();
+    .first<{
+      id: string;
+      attempt_id: string;
+      grade_id: string;
+      status: string;
+      lesson_id: string;
+      item_id: string;
+      answer: string;
+      grader: string;
+      result: string;
+    }>();
   const decision = result.recheckDecision;
-  if (!dispute || (context.recheck as { disputeId?: string } | null)?.disputeId !== dispute.id) issue('/recheckDecision', 'unknown_reference', 'Phản đối không khớp ngữ cảnh.');
+  if (!dispute || (context.recheck as { disputeId?: string } | null)?.disputeId !== dispute.id)
+    issue('/recheckDecision', 'unknown_reference', 'Phản đối không khớp ngữ cảnh.');
   if (!decision) issue('/recheckDecision', 'schema', 'Lượt chấm lại cần recheckDecision.');
   if (result.diagnosis.length || result.masteryProposals.length || result.reviewProposals.length || result.errorPatternUpdates.length)
     issue('/', 'schema', 'Lượt chấm lại chỉ gửi quyết định và (khi lật điểm) một điểm mới.');
@@ -35,10 +46,12 @@ export async function prepareRecheck(db: EvidenceDb, job: Job, context: AssessCo
     issue('/recheckDecision', 'privacy', 'Lời giải thích có thể chứa định danh.');
   if (decision.decision === 'overturned') {
     const grade = result.grades[0];
-    if (result.grades.length !== 1 || grade.attemptId !== dispute.attempt_id) issue('/grades', 'missing_grade', 'Lật điểm cần đúng một điểm mới cho câu bị phản đối.');
+    if (result.grades.length !== 1 || grade.attemptId !== dispute.attempt_id)
+      issue('/grades', 'missing_grade', 'Lật điểm cần đúng một điểm mới cho câu bị phản đối.');
     else if (grade.result === dispute.result) issue('/grades/0', 'schema', 'Điểm mới phải khác điểm bị phản đối.');
     else if (grade.result === 'ungradable') issue('/grades/0', 'schema', 'Câu không chấm được thì dùng item_void.');
-    else if (attempt?.rubric && grade.rubricScores.length !== attempt.rubric.length) issue('/grades/0/rubricScores', 'schema', 'Cần điểm cho từng tiêu chí rubric.');
+    else if (attempt?.rubric && grade.rubricScores.length !== attempt.rubric.length)
+      issue('/grades/0/rubricScores', 'schema', 'Cần điểm cho từng tiêu chí rubric.');
   } else if (result.grades.length) issue('/grades', 'schema', 'Chỉ gửi điểm mới khi lật điểm.');
   if (errors.length) return { errors, statements, gradeIds, skillIds: attempt?.skills ?? [], clipped: [], attemptGuards: [] };
 
@@ -98,7 +111,9 @@ export async function prepareRecheck(db: EvidenceDb, job: Job, context: AssessCo
   }
   statements.push(
     db
-      .prepare(`UPDATE disputes SET status=?,resolution_grade_id=?,resolved_by='ai',resolution_note=?,resolved_at=? WHERE id=? AND status='rechecking' AND ${gate}`)
+      .prepare(
+        `UPDATE disputes SET status=?,resolution_grade_id=?,resolved_by='ai',resolution_note=?,resolved_at=? WHERE id=? AND status='rechecking' AND ${gate}`,
+      )
       .bind(status, resolutionGrade, decision.explanation, stamp, dispute.id, ...args),
   );
   return { errors, statements, gradeIds, skillIds: attempt?.skills ?? [], clipped: [], attemptGuards: [] };

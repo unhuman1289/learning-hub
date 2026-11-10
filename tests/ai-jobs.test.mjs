@@ -211,7 +211,9 @@ for (const [code, mutate] of [
         kind: 'review',
         sheet: null,
         estMinutes: 10,
-        stages: [{ stage: 'independent', itemIds: fixture.items.map((i) => i.id) }],
+        // A review set from an AI runner holds 5–6 items (D20).
+        items: fixture.items.slice(0, 6),
+        stages: [{ stage: 'independent', itemIds: fixture.items.slice(0, 6).map((i) => i.id) }],
       };
     },
   ],
@@ -635,7 +637,9 @@ test('daily queueing continues past one notebook whose job cannot be created', a
   const db = seed();
   const other = 'second-learner-id';
   db.sqlite
-    .prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'Other','other@example.test',1,1,1,'learner','active')")
+    .prepare(
+      "INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'Other','other@example.test',1,1,1,'learner','active')",
+    )
     .run(other);
   db.sqlite
     .prepare(
@@ -668,7 +672,13 @@ test('nightly refresh keeps an AI review date while evidence is unchanged and st
 async function gradedWrong() {
   const ctx = await assigned();
   await saveDraft(ctx.db, learner, ctx.lesson, { revision: 0, answers: { i1: { answer: '["a"]' } } }, now);
-  const sub = await submitLesson(ctx.db, learner, ctx.lesson, { clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'retrieval', itemIds: ['i1'] }, now);
+  const sub = await submitLesson(
+    ctx.db,
+    learner,
+    ctx.lesson,
+    { clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'retrieval', itemIds: ['i1'] },
+    now,
+  );
   return { ...ctx, attempt: sub.attempts[0] };
 }
 const disputeInput = { reason: 'answer_correct', message: 'Mình nghĩ đáp án a cũng đúng.', recheck: true };
@@ -693,12 +703,26 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   const job = await readJob(db, lease.jobId);
   assert.equal(job.purpose, 'recheck');
   const context = JSON.parse(job.context_snapshot);
-  assert.deepEqual(context.attempts.map((a) => a.attemptId), [attempt.id]);
+  assert.deepEqual(
+    context.attempts.map((a) => a.attemptId),
+    [attempt.id],
+  );
   const result = {
     contract: 'assess-result/1',
     contextHash: context.contextHash,
     summary: 'Chấm lại',
-    grades: [{ attemptId: attempt.id, result: 'correct', score: 1, rubricScores: [], feedback: 'Đáp án a cũng đúng.', correction: '', errors: [], checkItem: null }],
+    grades: [
+      {
+        attemptId: attempt.id,
+        result: 'correct',
+        score: 1,
+        rubricScores: [],
+        feedback: 'Đáp án a cũng đúng.',
+        correction: '',
+        errors: [],
+        checkItem: null,
+      },
+    ],
     diagnosis: [],
     masteryProposals: [],
     errorPatternUpdates: [],
@@ -708,9 +732,16 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   };
   const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(applied.status, 200);
-  const row = db.sqlite.prepare('SELECT a.status, g.grader, g.result FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?').get(attempt.id);
+  const row = db.sqlite
+    .prepare('SELECT a.status, g.grader, g.result FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?')
+    .get(attempt.id);
   assert.deepEqual({ ...row }, { status: 'graded', grader: 'ai', result: 'correct' });
-  assert.equal(db.sqlite.prepare('SELECT superseded_by FROM grades WHERE id=?').get(attempt.current_grade_id ?? db.sqlite.prepare('SELECT grade_id FROM disputes').get().grade_id).superseded_by, applied.outcome.gradeIds[0]);
+  assert.equal(
+    db.sqlite
+      .prepare('SELECT superseded_by FROM grades WHERE id=?')
+      .get(attempt.current_grade_id ?? db.sqlite.prepare('SELECT grade_id FROM disputes').get().grade_id).superseded_by,
+    applied.outcome.gradeIds[0],
+  );
   assert.equal(db.sqlite.prepare("SELECT flag FROM lesson_items WHERE item_id='i1'").get().flag, 'key_issue');
   assert.equal(db.sqlite.prepare('SELECT status FROM disputes').get().status, 'overturned');
   // One AI recheck per answer: the next dispute goes to a person.
@@ -724,11 +755,21 @@ test('without recheck budget the dispute waits for a person; a guardian grade is
   db.sqlite.prepare('UPDATE learner_settings SET ai_budget=? WHERE user_id=?').run(JSON.stringify({ recheckPerDay: 0 }), learner);
   const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(dispute.status, 'needs_human');
-  const resolved = await resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'set', result: 'correct', score: 1, feedback: 'Bố mẹ xem lại: đúng.', note: '' }, now);
+  const resolved = await resolveDispute(
+    db,
+    learner,
+    dispute.id,
+    { id: 'parent', asAdmin: false },
+    { decision: 'set', result: 'correct', score: 1, feedback: 'Bố mẹ xem lại: đúng.', note: '' },
+    now,
+  );
   assert.equal(resolved.status, 'overturned');
   const row = db.sqlite.prepare('SELECT a.status, g.grader FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?').get(attempt.id);
   assert.deepEqual({ ...row }, { status: 'graded', grader: 'guardian' });
-  await assert.rejects(resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'keep', note: '' }, now), (e) => e.status === 409);
+  await assert.rejects(
+    resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'keep', note: '' }, now),
+    (e) => e.status === 409,
+  );
   db.sqlite.close();
 });
 
@@ -744,7 +785,14 @@ test('voiding an item removes it from evidence', async () => {
 
 test('a question goes to its own plan job and becomes an exploration lesson in "Khám phá"', async () => {
   const db = seed();
-  const request = await createRequest(db, {}, learner, learner, parseRequest({ kind: 'explore', text: 'Warum steht das Verb am Ende?', urgency: 'tonight' }), now);
+  const request = await createRequest(
+    db,
+    {},
+    learner,
+    learner,
+    parseRequest({ kind: 'explore', text: 'Warum steht das Verb am Ende?', urgency: 'tonight' }),
+    now,
+  );
   assert.equal(request.status, 'in_job');
   const [lease] = await leaseJobs(db, client, { ...input, kinds: ['plan'] }, 'test', now);
   const job = await readJob(db, lease.jobId);
@@ -752,7 +800,11 @@ test('a question goes to its own plan job and becomes an exploration lesson in "
   const context = JSON.parse(job.context_snapshot);
   assert.equal(context.explorations[0].requestId, request.id);
   const lesson = { ...structuredClone(fixture), kind: 'exploration' };
-  const result = { ...plan(context), subjects: [], explorations: [{ requestId: request.id, action: 'assign', subjectId: null, lesson, reason: 'Câu hỏi hay.' }] };
+  const result = {
+    ...plan(context),
+    subjects: [],
+    explorations: [{ requestId: request.id, action: 'assign', subjectId: null, lesson, reason: 'Câu hỏi hay.' }],
+  };
   const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(applied.status, 200, JSON.stringify(applied.errors));
   assert.equal(applied.outcome.extraLessonIds.length,1);
@@ -766,7 +818,14 @@ test('a question goes to its own plan job and becomes an exploration lesson in "
 
 test('a declined request keeps the reason for the asker; requests are rate limited', async () => {
   const db = seed();
-  const request = await createRequest(db, {}, learner, learner, parseRequest({ kind: 'extra_practice', subjectId: subject, text: 'Thêm bài Modalverb', urgency: 'now' }), now);
+  const request = await createRequest(
+    db,
+    {},
+    learner,
+    learner,
+    parseRequest({ kind: 'extra_practice', subjectId: subject, text: 'Thêm bài Modalverb', urgency: 'now' }),
+    now,
+  );
   const [lease] = await leaseJobs(db, client, { ...input, kinds: ['plan'] }, 'test', now);
   const job = await readJob(db, lease.jobId);
   assert.deepEqual([job.purpose, job.trigger], ['request', 'on_demand']);
@@ -779,9 +838,16 @@ test('a declined request keeps the reason for the asker; requests are rate limit
   assert.equal((await applyResult(db, client, job.id, lease.leaseToken, result, false, now)).status, 200);
   const row = db.sqlite.prepare('SELECT status, response_note FROM learner_requests WHERE id=?').get(request.id);
   assert.deepEqual({ ...row }, { status: 'declined', response_note: 'Hôm nay đã đủ bài; mai làm tiếp.' });
-  for (let n = 1; n < 10; n++) await createRequest(db, {}, learner, learner, parseRequest({ kind: 'school_topic', subjectId: subject, text: 'Tuần này: Perfekt' }), now);
-  await assert.rejects(createRequest(db, {}, learner, learner, parseRequest({ kind: 'note', subjectId: subject, text: 'Ít bài viết hơn' }), now), (e) => e.status === 429);
-  assert.throws(() => parseRequest({ kind: 'note', text: 'Không có sổ' }), (e) => e.status === 400);
+  for (let n = 1; n < 10; n++)
+    await createRequest(db, {}, learner, learner, parseRequest({ kind: 'school_topic', subjectId: subject, text: 'Tuần này: Perfekt' }), now);
+  await assert.rejects(
+    createRequest(db, {}, learner, learner, parseRequest({ kind: 'note', subjectId: subject, text: 'Ít bài viết hơn' }), now),
+    (e) => e.status === 429,
+  );
+  assert.throws(
+    () => parseRequest({ kind: 'note', text: 'Không có sổ' }),
+    (e) => e.status === 400,
+  );
   db.sqlite.close();
 });
 
@@ -798,4 +864,34 @@ test('roadmap saves 5–10 next steps atomically without assigning lessons; fore
  assert.equal(saved.length,5);assert(saved[0].skills[0].startsWith('sk_'));
  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n,0);
  db.sqlite.close();
+});
+
+test('nightly skips an unfinished extra lesson even after the primary is complete', async () => {
+  const { db, lesson } = await assigned();
+  db.sqlite.prepare("UPDATE learning_lessons SET slot='extra' WHERE id=?").run(lesson);
+  assert.deepEqual(await queueDaily(db, {}, now), { subjects: 0, failed: 0 });
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=? WHERE id=?').run(now.toISOString(), lesson);
+  assert.deepEqual(await queueDaily(db, {}, now), { subjects: 1, failed: 0 });
+  db.sqlite.close();
+});
+
+test('an over-budget request does not lease before the next Berlin day', async () => {
+  const db = seed();
+  db.sqlite.prepare('UPDATE learner_settings SET ai_budget=? WHERE user_id=?').run('{"requestNowPerDay":0}', learner);
+  const req = await createRequest(db, {}, learner, learner, parseRequest({ kind:'extra_practice', subjectId:subject, urgency:'now' }), now);
+  assert.equal(req.text,'Bài tiếp theo');
+  assert.equal(req.deferred,true);
+  assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
+  const next = new Date('2026-10-13T22:00:00Z');
+  assert.equal((await leaseJobs(db, client, input, 'test', next)).length, 1);
+  db.sqlite.close();
+});
+
+test('a practice request waits until tomorrow if there is no room for even a short lesson', async () => {
+  const { db, lesson } = await assigned();
+  db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(lesson);
+  const req = await createRequest(db, {}, learner, learner, parseRequest({ kind:'extra_practice', subjectId:subject, urgency:'now' }), now);
+  assert.equal(req.deferred,true);
+  assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
+  db.sqlite.close();
 });

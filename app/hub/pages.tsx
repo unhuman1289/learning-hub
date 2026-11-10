@@ -7,7 +7,7 @@ import { RuledPage, cx } from "../../components/notebook/paper";
 import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
 import {ImportPanel} from "./lesson-v2/import-panel";
-import {AiJobsPanel} from "./ai-jobs-panel";
+import {AdminAlertBanner, AiJobsPanel} from "./ai-jobs-panel";
 import { AdminDisputes } from "./admin-disputes";
 import { FamilyAdmin } from "./family-admin";
 import { JournalList, journalKinds, type FormRequest } from "./journal";
@@ -74,6 +74,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
   return (
     <div className="mx-auto grid w-full max-w-4xl gap-6">
       <h1 className="font-print text-[2rem] font-medium">Quản trị</h1>
+      {hub2 && <AdminAlertBanner />}
       {!profileMode && <WoodFrame label="Duyệt tài khoản"><PendingApprovals isAdmin /></WoodFrame>}
       <WoodFrame label="Gia đình">
         <h2 className="font-print text-2xl font-medium">Gia đình</h2>
