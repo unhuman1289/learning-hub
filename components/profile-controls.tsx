@@ -84,7 +84,7 @@ export function ProfilePicker() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void run({ action: "select", id: p.id }, () => window.location.assign("/"))}
+                onClick={() => void run({ action: "select", id: p.id }, () => window.location.reload())}
                 className="grid w-full justify-items-center gap-2 rounded-lg border border-line bg-paper p-4 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
               >
                 <Badge profile={p} size="size-14 text-2xl" />
@@ -212,7 +212,7 @@ export function ProfileControls({ name, manage }: { name: string; manage: boolea
     try {
       await post(body);
       // The server page decides between the picker and the hub, so load it again.
-      window.location.assign("/");
+      window.location.reload();
     } finally {
       setBusy(false);
     }
