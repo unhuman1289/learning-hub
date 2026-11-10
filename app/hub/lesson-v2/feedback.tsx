@@ -23,6 +23,8 @@ export type SubmissionView = {
     score: number | null;
     feedback: string | null;
     correction: string | null;
+    /** First wrong answer: the fix stays hidden until a retry or "Xem lời giải" (D21). */
+    correctionHidden?: boolean;
     attempt_no: number;
     support: string;
     dispute?: DisputeState;
@@ -33,11 +35,13 @@ export function Feedback({
   items = [],
   readOnly = false,
   onRefresh,
+  onRevealSolution,
 }: {
   submission: SubmissionView | null;
   items?: ItemView[];
   readOnly?: boolean;
   onRefresh?: () => void;
+  onRevealSolution?: (itemId: string) => void;
 }) {
   if (!submission) return null;
   return (
@@ -59,6 +63,22 @@ export function Feedback({
           </p>
           {a.feedback && <p className="text-red-800 dark:text-red-300">{a.feedback}</p>}
           {a.correction && <p className="whitespace-pre-wrap">Lời giải: {a.correction}</p>}
+          {a.correctionHidden && (
+            <p className="text-sm text-muted">
+              Thử sửa lại câu này trước; bản sửa sẽ hiện nếu lần sau vẫn chưa đúng.{" "}
+              {!readOnly && onRevealSolution && (
+                <button
+                  type="button"
+                  className="underline underline-offset-2"
+                  onClick={() => {
+                    if (window.confirm("Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?")) onRevealSolution(a.item_id);
+                  }}
+                >
+                  Xem lời giải
+                </button>
+              )}
+            </p>
+          )}
           {!a.result && <p className="text-sm text-muted">Câu trả lời đã lưu, đang chờ nhận lời phê.</p>}
           {a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} onChanged={onRefresh} />}
         </div>

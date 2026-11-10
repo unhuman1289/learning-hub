@@ -45,6 +45,15 @@ async function requestHash(input: SubmissionInput) {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(input)));
   return Array.from(new Uint8Array(bytes), (b) => b.toString(16).padStart(2, '0')).join('');
 }
+/**
+ * Two-step correction (docs/plan/LOCAL-GRADER.md D21): after a first wrong answer the learner sees where the problem is,
+ * not the fixed answer. The correction appears once a retry is still not right or the solution was opened (support=solution).
+ */
+export function hiddenCorrection(a: Record<string, unknown>, lessonSupport: Record<string, string>) {
+  const wrong = a.result === 'incorrect' || a.result === 'partial';
+  const revealed = (a.attempt_no as number) > 1 || a.support === 'solution' || lessonSupport[a.item_id as string] === 'solution';
+  return wrong && !revealed ? { correction: null, correctionHidden: true } : { correctionHidden: false };
+}
 export async function readSubmission(db: Db, learnerId: string, id: string) {
   const row = await db
     .prepare('SELECT id,lesson_id,stage,status,created_at,graded_at FROM submissions WHERE id=? AND learner_id=?')
@@ -60,11 +69,17 @@ export async function readSubmission(db: Db, learnerId: string, id: string) {
     )
     .bind(id, learnerId)
     .all<Record<string, unknown>>();
+  const lesson = await db
+    .prepare('SELECT support FROM learning_lessons WHERE id=? AND user_id=?')
+    .bind(row.lesson_id, learnerId)
+    .first<{ support: string }>();
+  const support = JSON.parse(lesson?.support ?? '{}') as Record<string, string>;
   return {
     ...row,
     id: String(row.id),
     attempts: results.map((a) => ({
       ...a,
+      ...hiddenCorrection(a, support),
       attachmentIds: JSON.parse(a.attachment_ids as string),
       dispute: a.dispute ? (JSON.parse(a.dispute as string) as { id: string; status: string; note: string | null }) : null,
       strength: a.result ? evidenceStrength(a.result as 'correct', a.support as 'none', a.attempt_no as number) : null,

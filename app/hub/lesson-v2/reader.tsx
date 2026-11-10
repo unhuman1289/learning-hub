@@ -367,6 +367,12 @@ export function LessonReader({
             submission={submission}
             items={lesson.items}
             readOnly={readonly}
+            onRevealSolution={async (itemId) => {
+              await reveal(itemId, "solution");
+              if (!submission) return;
+              const fresh = await json<{ submission: SubmissionView }>(`/api/submissions/${submission.id}${suffix}`).catch(() => null);
+              if (fresh) setSubmission(fresh.submission);
+            }}
             onRefresh={() => {
               if (!submission) return;
               void json<{ submission: SubmissionView }>(`/api/submissions/${submission.id}${suffix}`)

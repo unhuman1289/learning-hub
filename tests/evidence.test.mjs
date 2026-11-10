@@ -235,3 +235,15 @@ test('import privacy scans instructions, rubric, knowledge sheet notes and sourc
   }
   assert.equal(validateLessonPackage(fixture, { sensitivity: 'clinical' }).lesson !== null, true);
 });
+
+test('two-step correction: the fix stays hidden after a first wrong answer until a retry or the solution (D21)', async () => {
+  const { hiddenCorrection } = await import('../lib/evidence/submit.ts');
+  const first = { item_id: 'i3', result: 'incorrect', attempt_no: 1, support: 'none', correction: 'Paul möchte einen Kuchen kaufen.' };
+  assert.deepEqual(hiddenCorrection(first, {}), { correction: null, correctionHidden: true });
+  assert.deepEqual(hiddenCorrection({ ...first, result: 'partial' }, {}), { correction: null, correctionHidden: true });
+  assert.deepEqual(hiddenCorrection({ ...first, result: 'correct' }, {}), { correctionHidden: false });
+  assert.deepEqual(hiddenCorrection({ ...first, attempt_no: 2 }, {}), { correctionHidden: false });
+  assert.deepEqual(hiddenCorrection(first, { i3: 'solution' }), { correctionHidden: false });
+  assert.deepEqual(hiddenCorrection(first, { i3: 'hint2' }), { correction: null, correctionHidden: true });
+  assert.deepEqual(hiddenCorrection({ ...first, result: null }, {}), { correctionHidden: false });
+});
