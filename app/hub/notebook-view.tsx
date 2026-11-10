@@ -1,6 +1,7 @@
 "use client";
 
 import {SkillProgress} from "./skill-progress";
+import { HistoryPanel } from "./history-panel";
 import {SubjectForm,SubjectFacts} from "./subject-view";
 import type {ShelfApi} from "./use-shelf";
 import { ArrowLeft, ArrowUpRight, Plus } from "lucide-react";
@@ -112,7 +113,7 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
               ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} />
               : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ xuất hiện ở đây sau lượt soạn bài buổi sáng."}</p></RuledPage>
           )}
-          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canEdit}/>}</>:<GoalsPage track={track} workspace={workspace} openForm={openForm} />)}
+          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canEdit}/>}{hub2 && <HistoryPanel subjectId={subject.id} learner={shelf.learner} />}</>:<GoalsPage track={track} workspace={workspace} openForm={openForm} />)}
           {tab === "ghi-chu" && (
             <RuledPage className="min-h-[60vh]">
               <div className="flex flex-wrap items-center justify-between gap-3">

@@ -2,6 +2,7 @@
 
 import {SkillProgress} from "./skill-progress";
 import { NotebookRequests } from "./requests-panel";
+import { HistoryPanel } from "./history-panel";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { RuledPage } from "../../components/notebook/paper";
@@ -34,6 +35,7 @@ export function SubjectView({ id, shelf, canEdit, go, hub2 = false }: { id: stri
         {canEdit ? <SubjectForm subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
         {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canEdit} />}
         {hub2 && (subject.status === "active" || subject.status === "setup") && <NotebookRequests subjectId={id} learner={shelf.learner} />}
+        {hub2 && <HistoryPanel subjectId={id} learner={shelf.learner} />}
         <div className="mt-7">
           <PageLabel>Lộ trình</PageLabel>
           <HandNote>
