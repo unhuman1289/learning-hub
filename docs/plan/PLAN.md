@@ -3,6 +3,7 @@
 Cập nhật 13/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). H0–H2.4 đã có trong main; H2.5–H3.4 được triển khai cùng một đợt tích hợp trên nhánh `codex/hub2-h2-h3`, vì reader mới cần bảng submission và điểm. Chưa triển khai đợt này lên production.
 
 - **Thiết kế:** [docs/hub2/](../hub2/README.md): quyết định D1–D18, [hướng xây dựng bài học](../hub2/LESSON-DESIGN.md), [mô hình dữ liệu](../hub2/DATA-MODEL.md), [API AI](../hub2/AI-API.md).
+- **Đề xuất 10/11/2026 (chờ duyệt):** [LOCAL-GRADER.md](LOCAL-GRADER.md): Qwen chấm câu mở trên Mac, ChatGPT soạn bài, chấm lại và chấm thay khi Mac vắng (thay H7.2–H7.5); hồ sơ không tài khoản (thay H1.6, H1.8, D14, D15); bài 5–10 câu; chuyển dữ liệu từ Google Sheets.
 - **Plan cũ đã lưu trữ:** [plan v2](archive/learning-hub-plan-v2-cloudflare.md) (Phase 0–1, Cloudflare và cutover) và [plan 2026-10](archive/learning-hub-plan-2026-10.md). Phần còn dở của v2 nằm ở H0 (commit Phase 1, sửa B1–B2) và H7 (bật automation trên production); Phase 2 và các task P1.6, P1.9, P1.12 được thay bằng plan này (xem §18). Chỉ đọc plan cũ để tra lịch sử.
 
 ## Hiện trạng H2.5–H3 (13/10/2026)
