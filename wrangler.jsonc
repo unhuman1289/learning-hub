@@ -100,7 +100,8 @@
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "APP_VERSION": "hub2-production-2026-10-14",
+        "APP_VERSION": "hub2-family-2026-11-10",
+        "HOUSEHOLD_GATE": "passphrase",
         "APP_ENV": "production",
         "AI_JOBS_DAILY_CAP": "300",
         "HUB2_ENABLED": "true",

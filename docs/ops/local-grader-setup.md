@@ -27,7 +27,7 @@ Bản tích hợp dựa trên Worker production tháng 10 và giữ các route O
 - Production đã áp 0000–0017. Migration mới duy nhất cho đợt này là `0018_household_profiles.sql`; giữ nguyên tên 0000–0017. Staging đã chạy `0016_profiles.sql` có cùng SQL: **không chạy workflow deploy staging** trước khi đối chiếu và xử lý lịch sử migration ở staging.
 - Khi đã có CI xanh, lấy bản sao D1 mới và thử 0018. So sánh số bài, câu trả lời, điểm, kết nối OAuth, sự kiện MCP và lời phê trước/sau; kiểm khóa ngoại và toàn vẹn.
 - Chủ nhà lưu mật khẩu chung dài, ngẫu nhiên. Chỉ đưa `HOUSEHOLD_PASSPHRASE_SHA256` và `PROFILE_COOKIE_SECRET` vào secrets. `HOUSEHOLD_LEGACY_PROFILE_IDS` là các ID tài khoản cũ thuộc gia đình, đã được xác nhận, cách nhau bằng dấu phẩy. Danh sách này không cần thêm hồ sơ tạo từ giao diện và không đổi tài khoản OAuth.
-- Production chưa bật `HOUSEHOLD_GATE` trong cấu hình này. Chỉ bật `passphrase` và cập nhật phiên bản sau khi có các cấu hình trên; giữ flags MCP, binding và cron hiện hành. Không ghi `AUTOMATION_CLIENTS` trong đợt này.
+- Bản production cấu hình `HOUSEHOLD_GATE=passphrase`. Chỉ deploy sau khi đã lưu ba secrets, áp 0018 và đặt PIN quản lý. Cấu hình giữ flags MCP, binding và cron hiện hành. Không ghi `AUTOMATION_CLIENTS` trong đợt này.
 - Sau deploy: thiếu mật khẩu thì API hồ sơ trả 401; cổng mở đúng thì tạo/chọn được hồ sơ bằng tên; người đã có sổ vẫn thấy bài và lời phê; MCP khám phá được metadata và token cũ vẫn hoạt động. OAuth mới tiếp tục xác minh tài khoản cũ riêng của chủ nhà. Nếu lỗi, tắt riêng `HOUSEHOLD_GATE` hoặc quay lại bản Worker trước đó, giữ D1 đã mở rộng.
 
 ## Bước 1 — Cloudflare Zero Trust (cần điều khiển máy)
