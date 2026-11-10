@@ -89,7 +89,9 @@ export function qwenEngine({
 }
 
 /** Codex CLI signed in with the family's ChatGPT plan: `codex exec` with a JSON Schema for the final message. */
-export function codexEngine({ bin = 'codex', model, timeoutMs = 20 * 60000, runner = run, env = process.env }) {
+// --output-schema hangs on the large assess/plan schemas (measured 10/11/2026: no reply after 8 min, 32 s without it),
+// so by default the schema goes into the prompt and the shared zod contracts plus one repair round catch drift.
+export function codexEngine({ bin = 'codex', model, timeoutMs = 10 * 60000, runner = run, env = process.env, outputSchema = false }) {
   return {
     name: 'codex',
     vision: true,
@@ -118,15 +120,22 @@ export function codexEngine({ bin = 'codex', model, timeoutMs = 20 * 60000, runn
           '--ephemeral',
           '--sandbox',
           'read-only',
-          '--output-schema',
-          join(dir, 'schema.json'),
+          ...(outputSchema ? ['--output-schema', join(dir, 'schema.json')] : []),
           '-o',
           join(dir, 'out.json'),
           ...(model ? ['-m', model] : []),
           ...files,
           '-',
         ];
-        await runner(bin, args, { input: system + '\n\n' + user, cwd: dir, timeoutMs, env: childEnv(env) });
+        const input = outputSchema
+          ? system + '\n\n' + user
+          : system +
+            '\n\n' +
+            user +
+            '\n\nJSON Schema của kết quả:\n' +
+            JSON.stringify(schema) +
+            '\n\nChỉ trả về đúng một đối tượng JSON theo schema này, không kèm chữ nào khác. Không chạy lệnh hay đọc tệp.';
+        await runner(bin, args, { input, cwd: dir, timeoutMs, env: childEnv(env) });
         const json = stripOptionalNulls(schema, parseJsonReply(await readFile(join(dir, 'out.json'), 'utf8')));
         return { json, usage: { model: 'codex:' + (model ?? 'default'), inputTokens: 0, outputTokens: 0, ms: Date.now() - started } };
       } finally {

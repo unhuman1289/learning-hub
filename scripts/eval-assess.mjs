@@ -14,7 +14,7 @@ const file = arg('--cases', 'fixtures/eval/assess/deutsch.json'),
 const cases = JSON.parse(readFileSync(file, 'utf8'));
 const engine =
   engineName === 'codex'
-    ? codexEngine({ model: arg('--model') })
+    ? codexEngine({ model: arg('--model', 'gpt-6.1-sol') })
     : qwenEngine({ baseUrl: arg('--base', 'http://127.0.0.1:1234/v1'), model: arg('--model', 'qwen/qwen3.6-35b-a3b') });
 if (!(await engine.available())) throw Error(engineName + ' is not available.');
 

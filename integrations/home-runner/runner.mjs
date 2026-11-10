@@ -126,7 +126,7 @@ export function buildFromConfig(config) {
     qwen: off(config.QWEN_ENABLED)
       ? null
       : qwenEngine({ baseUrl: config.QWEN_BASE_URL, model: config.QWEN_MODEL ?? 'qwen/qwen3.6-35b-a3b', vision: config.QWEN_VISION === '1' }),
-    codex: off(config.CODEX_ENABLED) ? null : codexEngine({ bin: config.CODEX_BIN ?? 'codex', model: config.CODEX_MODEL || undefined }),
+    codex: off(config.CODEX_ENABLED) ? null : codexEngine({ bin: config.CODEX_BIN ?? 'codex', model: config.CODEX_MODEL || 'gpt-6.1-sol' }),
     claude: off(config.CLAUDE_ENABLED ?? '0') ? null : claudeEngine({ bin: config.CLAUDE_BIN ?? 'claude', model: config.CLAUDE_MODEL || undefined }),
   };
   return { hub, engines };

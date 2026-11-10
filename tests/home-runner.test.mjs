@@ -311,8 +311,9 @@ test('codex engine runs exec with an output schema in a private temp dir and rea
   });
   assert.deepEqual(out.json, { ok: true });
   assert.equal(seen.bin, 'codex');
-  for (const flag of ['exec', '--skip-git-repo-check', '--ephemeral', '--output-schema', '-o', '-m']) assert(seen.args.includes(flag), flag);
+  for (const flag of ['exec', '--skip-git-repo-check', '--ephemeral', '-o', '-m']) assert(seen.args.includes(flag), flag);
+  assert(!seen.args.includes('--output-schema'));
+  assert.match(seen.opts.input, /^S\n\nU\n\nJSON Schema/);
   assert.equal(seen.args[seen.args.indexOf('--sandbox') + 1], 'read-only');
-  assert.equal(seen.opts.input, 'S\n\nU');
   assert.equal(seen.opts.env.HUB_BEARER, undefined);
 });
