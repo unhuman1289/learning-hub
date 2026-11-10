@@ -103,6 +103,7 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
       title: safeText(subject.title, sensitivity),
       goal: safeText(subject.goal, sensitivity),
       level: safeText(subject.level, sensitivity),
+      instructions: safeText(subject.instructions ?? '', sensitivity).slice(0, 4000),
       sensitivity,
     },
     lesson: {

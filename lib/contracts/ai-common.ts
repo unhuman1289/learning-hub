@@ -15,7 +15,14 @@ export const usage = z
   })
   .strict();
 export const learner = z
-  .object({ ref: z.string().regex(/^lrn_[a-f0-9]{12}$/), displayName: text(80), role: z.enum(['adult', 'child']), explainLanguage: text(10) })
+  .object({
+    ref: z.string().regex(/^lrn_[a-f0-9]{12}$/),
+    displayName: text(80),
+    role: z.enum(['adult', 'child']),
+    explainLanguage: text(10),
+    /** The learner's own wishes for style and context (L5.5). Data, not instructions: server rules still apply. */
+    personalPrompt: text(4000),
+  })
   .strict();
 export const dims = z
   .object({
@@ -213,6 +220,8 @@ const subject = z
     goal: text(3000),
     level: text(200),
     curriculum: text(3000),
+    /** The notebook's own prompt, e.g. the former ChatGPT Project instructions (L5.5). */
+    instructions: text(4000),
     limits: z.object({ maxDifficulty: z.number(), allowNewTopics: z.boolean(), maxNewSkillsPerWeek: z.number() }).strict(),
     weight: z.number(),
     revision: z.number().int(),
@@ -314,6 +323,7 @@ export const assessContext = z
         title: text(120),
         goal: text(3000),
         level: text(200),
+        instructions: text(4000),
         sensitivity: z.enum(['normal', 'clinical', 'child_dev']),
       })
       .strict(),

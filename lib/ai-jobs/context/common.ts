@@ -49,7 +49,7 @@ export function safeText(value: unknown, sensitivity: SubjectSensitivity = 'norm
 }
 export async function learnerContext(db: EvidenceDb, id: string, environment: string) {
   const settings = await db
-    .prepare('SELECT role,display_name,explain_language,daily_target_minutes,preferences,ai_budget FROM learner_settings WHERE user_id=?')
+    .prepare('SELECT role,display_name,explain_language,daily_target_minutes,preferences,ai_budget,personal_prompt FROM learner_settings WHERE user_id=?')
     .bind(id)
     .first<Record<string, unknown>>();
   return {
@@ -58,6 +58,7 @@ export async function learnerContext(db: EvidenceDb, id: string, environment: st
       displayName: safeText(settings?.display_name || 'Người học').slice(0, 80),
       role: settings?.role === 'child' ? ('child' as const) : ('adult' as const),
       explainLanguage: String(settings?.explain_language ?? 'vi'),
+      personalPrompt: safeText(settings?.personal_prompt ?? '').slice(0, 4000),
     },
     settings,
   };

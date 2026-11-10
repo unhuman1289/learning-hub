@@ -9,6 +9,7 @@ import { DisputeResolver, type DisputeItem } from "../dispute-resolver";
 import { QualityTable, type QualityRow } from "../quality-table";
 import { RequestDialog, RequestList, useRequests, type RequestKind } from "../requests-panel";
 import type { ShelfSubject } from "../use-shelf";
+import { ProfileSettings } from "../profile-settings";
 
 type Settings = { dailyTargetMinutes: number; aiBudget: Record<string, number> | null };
 const budgetFields = [
@@ -75,6 +76,7 @@ export function ContactBook({ learner, name, subjects }: { learner: string; name
 
       <PageLabel className="mt-7">Cài đặt</PageLabel>
       <SettingsForm learner={learner} />
+      <ProfileSettings learner={learner} title={"Hồ sơ của " + name} />
 
       <PageLabel className="mt-7">Chất lượng chấm</PageLabel>
       {quality ? <QualityTable rows={quality} /> : <p className="text-muted">Đang tải…</p>}

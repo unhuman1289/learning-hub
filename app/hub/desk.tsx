@@ -2,6 +2,8 @@
 
 import {TodayBoard} from "./today-board";
 import { ContactBook } from "./guardian/contact-book";
+import { ProfileSettings } from "./profile-settings";
+import { RuledPage } from "../../components/notebook/paper";
 import {AdminAlertBanner} from "./ai-jobs-panel";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
@@ -44,6 +46,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   onNewNotebook: () => void;
   hub2?: boolean;
 }) {
+  const selfId = shelf.learners.find((l) => l.relation === "self")?.id;
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
@@ -174,6 +177,12 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
       </div>
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
+      {/* Your own profile: name, icon and the personal prompt the AI reads (L5.5). */}
+      {hub2 && !readOnly && selfId && (
+        <RuledPage className="mt-8">
+          <ProfileSettings learner={selfId} />
+        </RuledPage>
+      )}
     </div>
   );
 }

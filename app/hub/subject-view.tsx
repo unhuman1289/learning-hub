@@ -65,16 +65,17 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
   const [goal, setGoal] = useState(subject.goal);
   const [level, setLevel] = useState(subject.level);
   const [curriculum, setCurriculum] = useState(subject.curriculum);
+  const [instructions, setInstructions] = useState(subject.instructions ?? "");
   const [aiEnabled,setAiEnabled]=useState(subject.aiEnabled);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState("");
-  const changed = goal !== subject.goal || level !== subject.level || curriculum !== subject.curriculum || aiEnabled!==subject.aiEnabled;
+  const changed = goal !== subject.goal || level !== subject.level || curriculum !== subject.curriculum || instructions !== (subject.instructions ?? "") || aiEnabled!==subject.aiEnabled;
 
   async function save() {
     setState("saving");
     setError("");
     try {
-      await shelf.update(subject.id, { revision: subject.revision, goal, level, curriculum, aiEnabled });
+      await shelf.update(subject.id, { revision: subject.revision, goal, level, curriculum, ...(hub2 ? { instructions } : {}), aiEnabled });
       setState("saved");
     } catch (cause) {
       setError((cause as Error).message);
@@ -93,6 +94,12 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
       <label className={labelClass}>Chương trình
         <input value={curriculum} maxLength={500} onChange={(event) => { setCurriculum(event.target.value); setState("idle"); }} className={fieldClass} />
       </label>
+{hub2 && (
+        <label className={labelClass}>Prompt của sổ
+          <span className="text-sm font-normal text-muted">Hướng dẫn riêng cho người soạn và chấm bài của sổ này, ví dụ bối cảnh, tỉ lệ chủ đề, cách sửa bài. Luật của Hub vẫn được áp dụng.</span>
+          <textarea value={instructions} maxLength={4000} rows={6} onChange={(event) => { setInstructions(event.target.value); setState("idle"); }} className={fieldClass} />
+        </label>
+      )}
 {hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Cho phép chuẩn bị bài mới lúc 03:00. Lượt tạo bài được lưu vào hàng đợi; chỉ có nội dung mới khi runner xử lý và server xác nhận.</label>}
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">

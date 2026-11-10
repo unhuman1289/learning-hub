@@ -131,6 +131,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       goal: safeText(s.goal, sensitivity),
       level: safeText(s.level, sensitivity),
       curriculum: safeText(s.curriculum, sensitivity),
+      instructions: safeText(s.instructions ?? '', sensitivity).slice(0, 4000),
       limits: JSON.parse(String(s.limits)),
       weight: s.weight,
       revision: s.revision,
