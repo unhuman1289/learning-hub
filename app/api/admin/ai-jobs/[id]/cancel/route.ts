@@ -1,0 +1,23 @@
+import { getHubUser } from '../../../../../../lib/auth/session';
+import { storage } from '../../../../../../db/storage';
+import { apiFailure, ApiError } from '../../../../../../lib/api-error';
+export const dynamic = 'force-dynamic';
+const headers = { 'Cache-Control': 'private, no-store' };
+export async function POST(req: Request, context: { params: Promise<{ id: string }> }) {
+  const user = await getHubUser();
+  if (!user || user.role !== 'admin') return Response.json({ error: 'Forbidden' }, { status: user ? 403 : 401, headers });
+  if (req.headers.get('origin') !== new URL(req.url).origin) return Response.json({ error: 'Origin rejected' }, { status: 403, headers });
+  try {
+    const { id } = await context.params;
+    const result = await storage()
+      .prepare(
+        "UPDATE ai_jobs SET status='cancelled',finished_at=?,lease_token_sha256=NULL,lease_expires_at=NULL WHERE id=? AND status IN ('queued','leased')",
+      )
+      .bind(new Date().toISOString(), id)
+      .run();
+    if (!result.meta.changes) throw new ApiError(409, 'Lượt đã hoàn tất hoặc không còn có thể huỷ.');
+    return Response.json({ status: 'cancelled' }, { headers });
+  } catch (e) {
+    return apiFailure(e, 'Chưa xác nhận huỷ lượt.', headers);
+  }
+}

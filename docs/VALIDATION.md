@@ -66,3 +66,87 @@ This proves a manual non-AI MCP-to-staging round trip. Fresh scheduled cloud tas
 - Trước khi áp: sao lưu R2 `daily-2026-10-12`; lessons 5, slots 5, workspace 1, users 2, study_time 4, learner_settings 0.
 - Áp `0007_subjects`, `0008_workspace_per_user`: dữ liệu học không đổi (lessons 5, slots 5, workspace 1, study_time 4). Tạo 5 sổ từ 5 mảng cũ của admin (Deutsch `skill`; AI `reading`; MTB, Cardio `reading` + `clinical`; Bột `reading` + `child_dev`), đều `active`, `ai_enabled = 0`. Workspace chung (rỗng) chuyển cho admin đầu tiên.
 - Smoke `learn.unhuman.cc`: `/api/health` ok; `/` 307 → login; `/login`, `/register` 200; `/api/daily`, `/api/state`, `/api/study`, `/api/subjects`, `/api/learners`, `/api/learners/me/settings`, `/api/admin/family`, `/api/export` 401 kể cả với header `oai-authenticated-user-*` giả; `/api/learning-run` 410; `/api/automation/v1/schema` 503 (automation vẫn tắt).
+
+## H2.5–H3.4 — 13/10/2026, local et migration staging
+
+- Isolated worktree `hub2-lessons-submissions`, branch `codex/hub2-h2-h3`, base main `6393544` (H2.4). Original dirty Phase 1 checkout preserved.
+- 140 SQLite/unit tests pass; typecheck, lint, contracts:check and build pass. More than 40 auto-grading cases; replay/retry, support, completion/undo, stale revision/race, private desk summaries and fractional-grade backup round trip covered.
+- Local HTTP acceptance (`scripts/hub2-local-smoke.mjs`): email/password sign-in, anonymous 401, other learner 404, wrong origin 403, guardian/admin read only, D1 draft, auto grade, replay, retry, completion/undo, sign-out/sign-in answer and latest-grade persistence pass. Synthetic demo only.
+- Browser local: exact DOM widths 375 and 1280 px, no document overflow; phone one question with previous/next; keyboard Enter opens lesson and moves between questions. Correct/incorrect feedback, saved answer readback and second attempt visible. Network emulation: failed save showed Chưa lưu and kept text; reconnect + explicit Save confirmed Đã lưu. Error copy localized after this check. Input body font 16 px.
+- Impeccable mechanical detector on all nine added reader components returned `[]`. Screenshot proof saved privately (demo only), not committed.
+- Migration 0011 drill on actual staging SQL export: all 25 existing tables hashed identically before/after, four new empty tables, foreign_key_check clean. Export kept private, not in Git.
+- Full staging pre-migration SQL stored in R2 `learning-hub-backups-staging/h3/2026-10-13-before-0011.sql`; downloaded readback matches original bytes.
+- Only pending staging migration was 0011; applied successfully. No production migration/deploy or DNS changes. Existing uploads staging lifecycle: `uploads/` expires after 30 days.
+- H3.5/Gate A remains open: parent review and real Ếch one-week use of at least three lessons on phone/desktop required. Demo tests do not satisfy this. No AI grading, disputes workflow, learner-model updates or daily content runner in this release.
+
+### Staging acceptance H2/H3
+
+- Source code `acecb84`, deployed staging version `eee8376d-07d4-416a-9a86-8ef79d3f1b45`; HUB2_ENABLED true. No staging migrations pending. Secret names checked only; values never read or displayed.
+- Anonymous/forged-identity smoke: health/D1 200, login/register/reset pages and CSS/JS available, anonymous home 307, retired Sites endpoint 410, all 16 protected probes 401 (including new lesson/submission/import routes).
+- Authenticated real staging (`hub2-staging-smoke.mjs`): generated learner fixtures only. Login, D1 draft, correct auto grade, open-item pending, server hint support, UUID replay, retry link, other learner 404, wrong origin 403, non-admin import 403, completion/undo and logout/login persistence pass. Signup/Resend not retested in this release. Test users blocked, sessions expired, subject archived afterwards; real learner rows untouched.
+- Post-migration learning backup: 2 submissions, 4 attempts, 3 grades restored and compared cell-for-cell in fresh SQLite along with all other learning tables. Format-4 snapshot uploaded to R2 and download compared byte-for-byte; no existing database overwritten. SQL export including auth kept private separately.
+- Local positive admin import HTTP probe passes: valid 201, invalid package 422 with paths, unfinished lesson 409; non-admin 403. Wrangler local proxy was observed aborting a subsequent POST after a denied large-body request when switching test identities. Negative authorization probe is isolated at the end of the local harness; this preview-transport issue is not evidence of data loss and is retained here as a QA limitation. Live staging positive admin import remains a manual review check (no test admin added).
+- Production read-only health 200, `production-admin-bootstrap`, D1 connected. This H2/H3 release has not been deployed there.
+
+### Final H2/H3 patch
+
+- Interpreter-only v2 schema validation avoids runtime code generation in Workers. Expanded privacy validation covers instructions, explanations, rubric text, knowledge-sheet notes/checklists and source descriptions as well as prompts. Six identifying-data mutation cases are blocked; ordinary fixture remains valid.
+- Reader now shows the concrete output in independent work and the next topic. 141 tests, typecheck, lint, contracts and build pass for this patch; prior staging authenticated acceptance remains recorded above.
+- Staging version `1abed8ed-404d-4b05-8e4c-4e41dd633bb4` corresponds to source `b388f4f`; anonymous/forged-header smoke passed again. Subsequent deployment of this patch is staging-only. PR #90 holds the reviewed source and CI evidence.
+
+### H2/H3 staging final acceptance — source 649b2f9
+
+- Final staging version: `6beaf3c9-14ce-44da-9a3c-5008ca6a1f0e`. Both final GitHub CI checks passed (141 tests, typecheck, lint, contracts, build).
+- Repeated anonymous/forged-header smoke and authenticated synthetic-learner acceptance on this version: all listed checks passed again; generated QA accounts blocked and sessions expired afterwards. No pending staging migrations.
+- Still pending: positive import using the real staging admin, parent-reviewed content and the one-week Ếch pilot. H3.5/Cổng A remains open. No production deployment or DNS changes in this task.
+
+## Deutsch người lớn — unhuman, 13/10/2026
+
+- Nội dung mới, không đổi Worker/runtime: `deutsch-adult-01-termin.json`, 40 phút, 8 câu, nguồn Goethe HTML thực sự mở; prompt chuẩn bị/tutor/lịch prepare-only. Không triển khai H5/H7 hoặc production.
+- Real staging admin dùng panel Giao bài đã duyệt, server trả `les_8b52eae6ba6b4eee8fb4`. Reload dashboard thấy bài; reader mở đủ 4 phần, chưa trả lời/nộp/đánh dấu hoàn thành thay người học. Đây là positive admin import thực đầu tiên của đợt H2/H3.
+- Read-only D1 đối chiếu: bài mới package 2, 8 lesson_items, completed_at NULL, response rỗng. Bài v1 07/10 vẫn có completed_at 09/10 và response dài 48 ký tự như trước. Không đọc nội dung câu trả lời hoặc ghi SQL.
+- 141 tests, typecheck, contracts:check đạt; gói bài kiểm validator với maxDifficulty 3. Không build/deploy mới vì chỉ đổi tài liệu/nội dung nhập qua API đã deploy.
+- Câu mở chưa được AI chấm; plugin vẫn chỉ v1 staging. Goal/level trong D1 của sổ Deutsch còn trống, khác mục tiêu hiển thị tĩnh ở UI; profile hiện nằm trong prompt/bài đã duyệt, cần đưa vào context v2 ở H5. Dashboard còn thông báo hoàn thành Deutsch từ bài v1 bên cạnh bài v2 chưa xong; reader/bài v2 là trạng thái đúng, cần sửa thông báo ở đợt UI sau.
+- Cổng A vẫn cần phụ huynh duyệt bài và pilot Ếch một tuần. Positive import của người lớn không thay thế điều kiện đó.
+
+## H4–H5 implementation and staging — 13/10/2026
+
+- User changed Gate A to unhuman/Deutsch and authorized H4–H5 local/staging immediately; real-user acceptance remains required before production.
+- Local D1: all 14 migrations applied; full build passed (owner terminal and agent rebuild). 210 tests pass; typecheck, ESLint and contract schema check pass.
+- Staging D1 0012/0013 applied after a SQL export and in-memory migration drill: all cells in 29 previous tables unchanged, foreign key check passed. Private export is outside Git.
+- Staging Worker version `0e370c2b-2aa8-45f3-aad9-38123991cb01`, `APP_VERSION=hub2-h4-h5-2026-10-13`. Queue producer `learning-hub-ai-staging` attached; no model API/consumer or subscription task configured.
+- Local and HTTPS staging E2E PASS: sign in → plan dry-run/write/readback → save draft → submit → fake assess → skill application state → completion/undo → sign out/in → saved answer and incomplete state preserved. Synthetic QA only, scoped service client; no real learner answer was graded or completed.
+- Staging QA E2E lesson `les_2997e7cc081752b29418`, submission `subm_f05ce769bbd09d3ff91c`. These are temporary test artifacts, not authored content for unhuman.
+- Alerts distinguish a once-per-day general digest from the urgent 06:00 missing-plan warning; missing cron jobs are detected. Uncertain email delivery is not retried. Tests use fake Resend; actual overnight delivery not yet witnessed.
+- H5.9 measurements completed with a concrete cost/performance proposal below; QA cleanup was executed after tests. H6 recheck decisions/explorations are deliberately rejected until their writers and user workflows exist.
+- Production code/config/DNS and real staging lessons remain unchanged. No ChatGPT task or real AI grading is implied by a succeeded fake job.
+
+### H5.9 CPU measurements and remaining risk
+
+Actual Wrangler tail CPU values (single/few synthetic invocations, not p95):
+
+| Work | Payload | CPU ms | Result |
+| --- | --- | ---: | --- |
+| Small plan lease | ordinary fixture | 6 | 200 |
+| Large context before fix | 3 × 120 skills | 1557 | 200 |
+| Large context after incremental truncation | 130654 bytes, 81 truncation markers | 122 cold / 48 warm | 200 |
+| Read large context | 130654 bytes | 6 warm | 200 |
+| Validate plan (dry run) | 3 × 97792-byte lessons | 186 | 200 |
+| Apply plan | 3 subjects / 42 items | 192 | 200; all 3 persisted |
+
+Cloudflare's [published Free limit](https://developers.cloudflare.com/workers/platform/limits/) is 10ms, with occasional overrun flexibility. Successful responses above 10ms do not establish a reliable Free operating envelope. No billing-plan change was made; the actual account plan was not checked. H5.9 has measurements and a specific proposal, not a claim that maximal workloads fit Free.
+
+Proposed next step before production AI: use one subject per plan job, cap working context to 32KB and ordinary lesson payload to 12KB, precompute/cache learner summaries, and measure these bounded cases with realistic Deutsch content. Keep the 96/128KB protocol caps for compatibility but reject/route heavy workloads deliberately; do not rely on overrun flexibility. Changing the job scope/body policy requires a reviewed follow-up. Paid Workers is an alternative only after reviewing those measurements and user approval; no model API dependency is needed.
+
+R2 backup after the migrations restored into fresh in-memory SQLite with exact cell comparison in all 29 learning/operation tables, including skill_states, ai_jobs and private context snapshots. Staging unauthenticated APIs return 401; another QA learner cannot read the lesson/subject; non-admin cannot read admin jobs; unsigned automation is denied. At 375px the loaded room has document width 375px (no horizontal overflow); the existing unfinished/finished learner state was preserved.
+
+Final staging code deployment: `f64cc4d2-ce38-452d-96de-6b3c2a6db96a`. Real unhuman Deutsch completion observed in D1 (13/10 10:32 UTC); this was not created by QA scripts and does not alone satisfy the three-lesson acceptance gate.
+
+## H2.5–H6 review fixes, H5.9 budget work and H6 — 13/10/2026
+
+- Branch `hub2/h2-h5-hardening` on top of PR #91 (`4b6b207`). Independent review of #90/#91 found no access hole; fixed: nightly chain could skip daily jobs, nightly refresh overwrote AI review dates and resolved patterns, replayed submission lost its graded state, saved submission/notebook reported as failed at the job cap, retry after the solution counted as E2, orphaned leases, distractor error labels visible before grading, photo-only error quotes building patterns, AI budget keys ignored, dry runs counted as strikes, later alerts not emailed, superseded grades not restorable. New code reformatted for review.
+- Migration 0014: `skill_states.review_source`, `subjects.system_kind` (one "Khám phá" per learner), indexes on attempts/grades/disputes. Rehearsed on a fresh staging export: 35 tables, row counts identical, `foreign_key_check` and `integrity_check` clean. Export kept private (scratchpad), not in Git.
+- Local budget measurement (`scripts/benchmark-cpu-local.mjs`, synthetic Deutsch notebook, 14 days, 15 KB lesson): lease+context 2–3 ms / 18 queries, context 32 KB; dry run 1–2 ms / 22; apply 2–4 ms / 28; submit 4 items 2–3 ms / 30; nightly refresh 1 ms / 13. Node CPU includes SQLite, so it is an upper bound for Worker CPU. Not yet confirmed with Wrangler tail on staging.
+- H6 local acceptance in the browser (child + parent test accounts, local only): dispute with recheck shows "Đang chấm lại"; dispute without recheck → "Nhờ phụ huynh xem" → parent sets a grade in Sổ liên lạc; "Hỏi thêm" request shows "Đang chờ soạn"; quality table shows 2 disputes, 1 overturned, 1 key issue; admin "Chấm sai cần xem" empty after resolution; 375 px without horizontal overflow.
+- 222 tests, typecheck, lint, contracts and build pass.
+- Staging: 0014 applied; Worker version `f996b84e-69fd-4879-ad88-948d4f5271f4`, `APP_VERSION=hub2-h6-2026-10-13`, cron `0 1-5 * * *`. Anonymous and forged `oai-authenticated-user-*` probes of the new request, dispute and quality routes return 401. Production unchanged.

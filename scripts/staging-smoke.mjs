@@ -72,6 +72,15 @@ const forged = {
 };
 const origin = url.origin;
 const protectedChecks = [
+  ['GET /api/lessons/id','/api/lessons/les_aaaaaaaaaaaaaaaaaaaa',{headers:forged}],
+  ['PUT lesson draft','/api/lessons/les_aaaaaaaaaaaaaaaaaaaa/draft',{method:'PUT',headers:{...forged,origin,'Content-Type':'application/json'},body:'{}'}],
+  ['POST lesson reveal','/api/lessons/les_aaaaaaaaaaaaaaaaaaaa/items/i1/reveal',{method:'POST',headers:{...forged,origin,'Content-Type':'application/json'},body:'{}'}],
+  ['POST lesson submission','/api/lessons/les_aaaaaaaaaaaaaaaaaaaa/submissions',{method:'POST',headers:{...forged,origin,'Content-Type':'application/json'},body:'{}'}],
+  ['PUT lesson completion','/api/lessons/les_aaaaaaaaaaaaaaaaaaaa/completion',{method:'PUT',headers:{...forged,origin,'Content-Type':'application/json'},body:'{}'}],
+  ['GET submission','/api/submissions/subm_aaaaaaaaaaaaaaaaaaaa',{headers:forged}],
+  ['GET subject lessons','/api/subjects/sub_aaaaaaaaaaaaaaaaaaaa/lessons',{headers:forged}],
+  ['POST admin import','/api/admin/lessons/import',{method:'POST',headers:{...forged,origin,'Content-Type':'application/json'},body:'{}'}],
+
   ['GET /api/state', '/api/state', { headers: forged }],
   ['GET /api/daily', '/api/daily', { headers: forged }],
   ['GET /api/export', '/api/export', { headers: forged }],

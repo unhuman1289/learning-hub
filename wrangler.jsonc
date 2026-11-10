@@ -10,7 +10,10 @@
   "vars": {
     "ENVIRONMENT": "local",
     "APP_VERSION": "local",
-    "DEPLOYMENT_ID": "learning-hub-local"
+    "DEPLOYMENT_ID": "learning-hub-local",
+    "HUB2_ENABLED": "true",
+    "APP_ENV": "local",
+    "AI_JOBS_DAILY_CAP": "300"
   },
   "d1_databases": [
     {
@@ -35,13 +38,17 @@
       "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "staging",
-        "APP_VERSION": "mvp-2026-10-09",
+        "APP_ENV": "staging",
+        "APP_VERSION": "hub2-h6-2026-10-13",
         "DEPLOYMENT_ID": "learning-hub-staging",
         "STAGING_SPIKE_LOCKDOWN": "false",
         "APP_ORIGIN": "https://learning-hub-staging.tranvu-812.workers.dev",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",
         "ACCESS_TEAM_DOMAIN": "https://unhuman-lab.cloudflareaccess.com",
-        "AUTOMATION_ACCESS_AUD": "7c55439963964a7cb0a0597600f7fad2f932b80bbd650703aca1f321e0e751ef"
+        "AUTOMATION_ACCESS_AUD": "7c55439963964a7cb0a0597600f7fad2f932b80bbd650703aca1f321e0e751ef",
+        "HUB2_ENABLED": "true",
+        "AI_JOBS_DAILY_CAP": "300",
+        "AI_COST_ALERT_USD": "3"
       },
       "d1_databases": [
         {
@@ -67,7 +74,15 @@
       ],
       "triggers": {
         "crons": [
-          "0 1,2 * * *"
+          "0 1-5 * * *"
+        ]
+      },
+      "queues": {
+        "producers": [
+          {
+            "queue": "learning-hub-ai-staging",
+            "binding": "AI_QUEUE"
+          }
         ]
       }
     },
@@ -82,7 +97,8 @@
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "APP_VERSION": "production-admin-bootstrap",
+        "APP_VERSION": "hub2-schema-2026-10-13",
+        "HUB2_ENABLED": "false",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",

@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, uniqueIndex, foreignKey } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, primaryKey, uniqueIndex, foreignKey } from 'drizzle-orm/sqlite-core';
 export * from './auth-schema';
 export const workspace = sqliteTable('learning_workspace', { owner: text('owner').primaryKey(), payload: text('payload').notNull(), revision: integer('revision').notNull().default(0), updated: text('updated').notNull() });
 export const dailyLessons = sqliteTable('learning_lessons', {
@@ -92,4 +92,29 @@ export const learnerRequests = sqliteTable('learner_requests', {
  kind:text('kind').notNull(),text:text('text').notNull(),urgency:text('urgency').notNull().default('tonight'),createdBy:text('created_by').notNull(),
  status:text('status').notNull().default('queued'),activeUntil:text('active_until'),resultLessonId:text('result_lesson_id'),responseNote:text('response_note'),
  jobId:text('job_id'),createdAt:text('created_at').notNull(),processedAt:text('processed_at'),
+});
+
+// H3 evidence is append-only; retry links keep previous answers and grades.
+export const submissions = sqliteTable('submissions', {
+ id:text('id').primaryKey(),learnerId:text('learner_id').notNull(),lessonId:text('lesson_id').notNull().references(()=>dailyLessons.id),
+ stage:text('stage'),clientSubmissionId:text('client_submission_id').notNull(),requestHash:text('request_hash').notNull(),
+ status:text('status').notNull(),aiJobId:text('ai_job_id'),createdAt:text('created_at').notNull(),gradedAt:text('graded_at'),
+},t=>[uniqueIndex('submissions_learner_client_unique').on(t.learnerId,t.clientSubmissionId)]);
+export const attempts = sqliteTable('attempts', {
+ id:text('id').primaryKey(),submissionId:text('submission_id').notNull().references(()=>submissions.id),learnerId:text('learner_id').notNull(),
+ lessonId:text('lesson_id').notNull(),itemId:text('item_id').notNull(),subjectId:text('subject_id').notNull().references(()=>subjects.id),
+ skillIds:text('skill_ids').notNull(),activity:text('activity').notNull(),attemptNo:integer('attempt_no').notNull(),retryOf:text('retry_of'),
+ answer:text('answer').notNull(),attachmentIds:text('attachment_ids').notNull().default('[]'),support:text('support').notNull(),context:text('context').notNull(),
+ status:text('status').notNull(),currentGradeId:text('current_grade_id'),day:text('day').notNull(),createdAt:text('created_at').notNull(),
+},t=>[uniqueIndex('attempts_lesson_item_no_unique').on(t.lessonId,t.itemId,t.attemptNo),foreignKey({columns:[t.lessonId,t.itemId],foreignColumns:[lessonItems.lessonId,lessonItems.itemId]}),foreignKey({columns:[t.retryOf],foreignColumns:[t.id]})]);
+export const grades = sqliteTable('grades', {
+ id:text('id').primaryKey(),attemptId:text('attempt_id').notNull().references(()=>attempts.id),grader:text('grader').notNull(),jobId:text('job_id'),
+ result:text('result').notNull(),score:real('score').notNull(),rubricScores:text('rubric_scores').notNull().default('[]'),feedback:text('feedback').notNull(),
+ correction:text('correction').notNull().default(''),errors:text('errors').notNull().default('[]'),supersededBy:text('superseded_by'),createdAt:text('created_at').notNull(),
+},t=>[foreignKey({columns:[t.supersededBy],foreignColumns:[t.id]})]);
+export const disputes = sqliteTable('disputes', {
+ id:text('id').primaryKey(),attemptId:text('attempt_id').notNull().references(()=>attempts.id),gradeId:text('grade_id').notNull().references(()=>grades.id),
+ learnerId:text('learner_id').notNull(),raisedBy:text('raised_by').notNull(),reason:text('reason').notNull(),message:text('message').notNull(),
+ recheckRequested:integer('recheck_requested').notNull().default(0),status:text('status').notNull().default('open'),resolutionGradeId:text('resolution_grade_id').references(()=>grades.id),
+ resolvedBy:text('resolved_by'),resolutionNote:text('resolution_note'),createdAt:text('created_at').notNull(),resolvedAt:text('resolved_at'),
 });

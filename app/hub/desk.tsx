@@ -1,5 +1,8 @@
 "use client";
 
+import {TodayBoard} from "./today-board";
+import { ContactBook } from "./guardian/contact-book";
+import {AdminAlertBanner} from "./ai-jobs-panel";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { AlertCircle, RotateCcw } from "lucide-react";
 import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
@@ -29,7 +32,7 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook }: {
+export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
   name: string;
   isAdmin: boolean;
   go: (route: Route) => void;
@@ -39,6 +42,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   viewing: Viewing;
   canOpenNotebook: boolean;
   onNewNotebook: () => void;
+  hub2?: boolean;
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
@@ -50,7 +54,9 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
     const lesson = daily.data?.active.find((item) => item.track === track);
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
-  const finished = trackIds.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt);
+  const v2Lessons=daily.data?.v2Active??[];
+  const activeV2Subjects=new Set(v2Lessons.map(l=>l.subjectId));
+  const finished = trackIds.filter((track) => daily.data?.active.find((item) => item.track === track)?.completedAt && !shelf.subjects?.some(s=>s.legacyTrack===track&&activeV2Subjects.has(s.id)));
   const reviews = readOnly ? [] : workspace.data.logs
     .filter((log) => log.due && log.due <= today && !workspace.data.done.includes(log.id))
     .sort((x, y) => (x.due ?? "").localeCompare(y.due ?? ""));
@@ -60,7 +66,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
 
   const summary = loading
     ? "Đang mở các sổ…"
-    : [lessons.length && `${lessons.length} bài đang chờ`, reviews.length && `${reviews.length} mục cần ôn`].filter(Boolean).join(" và ") || "Bàn học đang gọn";
+    : [(lessons.length+v2Lessons.length) && `${lessons.length+v2Lessons.length} bài đang chờ`, reviews.length && `${reviews.length} mục cần ôn`].filter(Boolean).join(" và ") || "Bàn học đang gọn";
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8">
@@ -86,8 +92,10 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <OakDesk drawers className="min-w-0">
           <h2 className="px-1 pb-4 font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
+          {hub2 && isAdmin && <AdminAlertBanner />}
+          {hub2 && <TodayBoard learner={viewing.id} go={go} />}
 
-          {lessons.length + reviews.length > 0 ? (
+          {lessons.length + v2Lessons.length + reviews.length > 0 ? (
             <ul className="grid gap-x-5 gap-y-7 px-1 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
               {lessons.map(({ track, lesson }, index) => {
                 const route: Route = { view: "notebook", track, tab: "bai", page: lesson.id };
@@ -164,6 +172,8 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
           {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
+      {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
+      {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
   );
 }

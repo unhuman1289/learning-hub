@@ -1,19 +1,24 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 
-export type AutomationScope = 'runs:create' | 'context:read' | 'result:write';
+export type AutomationScope = 'runs:create' | 'context:read' | 'result:write' | 'jobs:plan' | 'jobs:assess' | 'attachments:read';
 export type AutomationClient = {
   id: string;
   keySha256: string;
   scopes: AutomationScope[];
   accessClientId: string;
+  learnerIds?: string[];
+  purposes?: string[];
+  triggers?: string[];
 };
 export type AutomationBindings = {
   ACCESS_TEAM_DOMAIN?: string;
   AUTOMATION_ACCESS_AUD?: string;
   AUTOMATION_CLIENTS?: string;
+  APP_ENV?: string;
+  ENVIRONMENT?: string;
 };
 
-const scopeSet = new Set<AutomationScope>(['runs:create', 'context:read', 'result:write']);
+const scopeSet = new Set<AutomationScope>(['runs:create', 'context:read', 'result:write','jobs:plan','jobs:assess','attachments:read']);
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const noStore = { 'Cache-Control': 'no-store' };
 
@@ -46,8 +51,11 @@ function parseClients(value: string | undefined): AutomationClient[] | null {
       if (typeof row.keySha256 !== 'string' || !/^[a-f0-9]{64}$/.test(row.keySha256)) return null;
       if (typeof row.accessClientId !== 'string' || !/^[A-Za-z0-9.-]{8,128}$/.test(row.accessClientId)) return null;
       if (!Array.isArray(row.scopes) || row.scopes.some((scope) => typeof scope !== 'string' || !scopeSet.has(scope as AutomationScope))) return null;
+      if(row.purposes !== undefined && (!Array.isArray(row.purposes)||row.purposes.some(p=>!['daily','initial','request','submission','recheck'].includes(p as string))))return null;
+      if(row.triggers !== undefined && (!Array.isArray(row.triggers)||row.triggers.some(p=>!['scheduled','on_demand','deferred'].includes(p as string))))return null;
+      if(row.learnerIds !== undefined && (!Array.isArray(row.learnerIds)||row.learnerIds.length>32||row.learnerIds.some(x=>typeof x!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(x))))return null;
       seen.add(row.id);
-      clients.push({ id: row.id, keySha256: row.keySha256, scopes: row.scopes as AutomationScope[], accessClientId: row.accessClientId });
+      clients.push({ id: row.id, keySha256: row.keySha256, scopes: row.scopes as AutomationScope[], accessClientId: row.accessClientId, learnerIds:row.learnerIds as string[]|undefined,purposes: row.purposes as string[]|undefined, triggers:row.triggers as string[]|undefined });
     }
     return clients;
   } catch {
@@ -115,16 +123,17 @@ export async function authorizeAutomation(
   const issuer = parseIssuer(bindings.ACCESS_TEAM_DOMAIN);
   const audience = bindings.AUTOMATION_ACCESS_AUD?.trim();
   const clients = parseClients(bindings.AUTOMATION_CLIENTS);
-  if (!issuer || !audience || !clients) return { response: failure(503, 'Automation authorization is not configured.') };
+  const local = scope.startsWith('jobs:') && bindings.APP_ENV === 'local' && bindings.ENVIRONMENT === 'local' && new URL(request.url).hostname === 'localhost';
+  if ((!local && (!issuer || !audience)) || !clients) return { response: failure(503, 'Automation authorization is not configured.') };
 
   const auth = request.headers.get('authorization') ?? '';
   const match = /^Bearer lhk_([A-Za-z0-9-]{3,64})_([A-Za-z0-9._~-]{32,256})$/.exec(auth);
   const assertion = request.headers.get('cf-access-jwt-assertion');
-  if (!match || !assertion) return { response: failure(401, 'Automation credentials are required.') };
+  if (!match || (!local && !assertion)) return { response: failure(401, 'Automation credentials are required.') };
 
   const client = clients.find((candidate) => candidate.id === match[1]);
   if (!client || !equalHash(client.keySha256, await sha256Hex(match[2]))) return { response: failure(401, 'Automation credentials are invalid.') };
-  if (!await verifyAccessAssertion(assertion, { issuer, audience, clientId: client.accessClientId }, keyResolver)) {
+  if (!local && !await verifyAccessAssertion(assertion!, { issuer:issuer!, audience:audience!, clientId: client.accessClientId }, keyResolver)) {
     return { response: failure(401, 'Automation credentials are invalid.') };
   }
   if (!client.scopes.includes(scope)) return { response: failure(403, 'Automation client lacks the required permission.') };

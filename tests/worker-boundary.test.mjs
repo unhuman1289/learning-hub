@@ -27,3 +27,12 @@ test('staging lockdown is scoped to staging environment',()=>{
  assert.equal(standaloneRequestGuard(new Request('https://example.test/'),production),null);
  assert.equal(standaloneRequestGuard(new Request('https://example.test/api/state'),production),null);
 });
+
+test('Hub 2 APIs do not exist while Hub 2 is switched off', async () => {
+  const { hub2Guard } = await import('../build/worker-boundary.ts');
+  for (const path of ['/api/lessons/les_x', '/api/requests', '/api/disputes', '/api/admin/quality', '/api/uploads'])
+    assert.equal(hub2Guard(new Request('https://example.test' + path), {}).status, 404, path);
+  assert.equal(hub2Guard(new Request('https://example.test/api/lessons/les_x'), { HUB2_ENABLED: 'true' }), null);
+  for (const path of ['/api/daily', '/api/subjects', '/api/health', '/api/lessonsx'])
+    assert.equal(hub2Guard(new Request('https://example.test' + path), {}), null, path);
+});

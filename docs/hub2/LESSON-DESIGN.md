@@ -372,3 +372,11 @@ Không được:
 | Tự kiểm và nộp | Checklist rồi nộp | 3 |
 
 Hôm sau không giao lại bài này. Bài tiếp theo có thể là hội thoại cuối tuần, tìm lỗi trong một đoạn văn, hoặc bộ ôn trộn Dativ với W-Fragen.
+
+## Deutsch người lớn — unhuman (nội dung thủ công đầu tiên)
+
+Tự đánh giá A2, chưa có kiểm tra xác nhận; B2 cho công việc/chứng chỉ trong một năm, C2 dài hạn. Ưu tiên viết và nói trong đời sống/công việc nghiên cứu. Bài 35–45 phút, kiểm tra nền trước, một đầu ra thực tế và bài mở có rubric. Không dùng profile/bài trẻ em của Ếch để thay mục tiêu này. Không hứa đạt chứng chỉ từ số bài đã hoàn thành.
+
+Bài 01 có email đổi lịch và đối thoại, củng cố V2/modal, hướng dẫn weil và đề nghị lịch sự. Chỉ chọn bài kế tiếp dựa trên câu trả lời đã có; chưa có dữ liệu thì ghi rõ. Nói phải có tương tác; bản chép chỉ chứng minh nội dung, không chứng minh phát âm/độ trôi chảy. Thời lượng và số từ là mục tiêu riêng của bài luyện, không phải mô phỏng đề thi chính thức.
+
+Prompt sử dụng ngay: [deutsch-unhuman.md](../../integrations/runner-prompts/deutsch-unhuman.md). Cách chuẩn bị, giao và học: [DEUTSCH-PILOT.md](../automation/DEUTSCH-PILOT.md). Đây là soạn tay và prompt chuẩn bị nội dung, **chưa triển khai H5/H7** hoặc vượt Cổng A.

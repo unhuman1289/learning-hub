@@ -22,6 +22,7 @@ test('every standalone API route is authenticated or explicitly public/disabled'
     'automation/v1/runs/[runId]/result/route.ts',
     'automation/v1/runs/[runId]/fail/route.ts',
     'automation/v1/schema/route.ts',
+    'automation/v2/[...path]/route.ts',
   ]);
   const files = routeFiles();
   assert.ok(files.length > 0);
@@ -35,6 +36,11 @@ test('every standalone API route is authenticated or explicitly public/disabled'
       continue;
     }
     if (serviceRoutes.has(name)) {
+      if (name.startsWith('automation/v2/')) {
+        assert.match(source, /authorizeAutomation\(req,\s*env,\s*'jobs:plan'\)/);
+        assert.match(source, /leasedJob\(db,\s*client,\s*id,\s*token\)/);
+        continue;
+      }
       assert.match(source, /requireAutomation\(request, '(runs:create|context:read|result:write)'\)/, `${name} must require scoped service authorization`);
       continue;
     }

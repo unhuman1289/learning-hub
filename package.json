@@ -22,7 +22,8 @@
     "db:restore:local": "node scripts/restore-export.mjs",
     "db:restore:drill": "node scripts/restore-drill.mjs",
     "contracts:schema": "node --experimental-strip-types scripts/contracts-schema.mjs",
-    "contracts:check": "node --experimental-strip-types scripts/contracts-schema.mjs --check"
+    "contracts:check": "node --experimental-strip-types scripts/contracts-schema.mjs --check",
+    "seed:hub2": "node --experimental-strip-types scripts/seed-hub2.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -1,9 +1,31 @@
 # Learning Hub — Plan triển khai
 
-Cập nhật 12/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). Chưa bắt đầu code.
+Cập nhật 13/10/2026. **Đây là plan triển khai duy nhất của Learning Hub.** Đã duyệt; mỗi task có một GitHub issue (nhãn `hub2`, `H0`…`H9`, `gate`). H0–H2.4 đã có trong main; H2.5–H3.4 được triển khai cùng một đợt tích hợp trên nhánh `codex/hub2-h2-h3`, vì reader mới cần bảng submission và điểm. Chưa triển khai đợt này lên production.
 
 - **Thiết kế:** [docs/hub2/](../hub2/README.md): quyết định D1–D18, [hướng xây dựng bài học](../hub2/LESSON-DESIGN.md), [mô hình dữ liệu](../hub2/DATA-MODEL.md), [API AI](../hub2/AI-API.md).
 - **Plan cũ đã lưu trữ:** [plan v2](archive/learning-hub-plan-v2-cloudflare.md) (Phase 0–1, Cloudflare và cutover) và [plan 2026-10](archive/learning-hub-plan-2026-10.md). Phần còn dở của v2 nằm ở H0 (commit Phase 1, sửa B1–B2) và H7 (bật automation trên production); Phase 2 và các task P1.6, P1.9, P1.12 được thay bằng plan này (xem §18). Chỉ đọc plan cũ để tra lịch sử.
+
+## Hiện trạng H2.5–H3 (13/10/2026)
+
+| Task | Bằng chứng / phần còn lại |
+| --- | --- |
+| H2.5 | Reader skill, từng câu trên điện thoại, nháp có revision, gợi ý/lời giải được ghi server. |
+| H2.6 | Reader reading: sections, nguồn đã đọc, phân tích và đầu ra. Fixture D1 đọc từ tài liệu Cloudflare, tách ví dụ tự soạn. |
+| H2.7 | Admin nhập JSON đã duyệt, kiểm contract và giữ bài chưa xong. Seed local có 3 sổ cho demo Ếch, 4 bài Deutsch, Toán/Hóa mẫu và một bài reading cho người lớn. Ngày 13/10: admin thật đã nhập bài Deutsch người lớn cho unhuman trên staging; đọc lại D1/reader đạt. |
+| H3.1–H3.4 | Migration 0011; chấm câu đóng; nộp nguyên tử; UUID chống trùng; lịch sử làm lại; câu mở chờ chấm; hoàn thành/bỏ dấu riêng với điểm. |
+| H3.5 / Cổng A | **Chưa đạt:** đã đổi sang unhuman/Deutsch theo yêu cầu 13/10; cho phép H4–H5 local/staging ngay, cần nghiệm thu dùng thật trước production. Test bằng tài khoản demo không thay cho mốc này. |
+
+## Hiện trạng H4–H6 (13/10/2026)
+
+| Task | Bằng chứng / phần còn lại |
+| --- | --- |
+| H4–H5 | Learner model, job plan/assess có lease, runner giả chạy cả vòng trên staging (PR #91). Bản review 13/10 đã sửa: chuỗi việc đêm, đề xuất AI bị ghi đè, nộp lại, làm lại sau lời giải, ngân sách theo người. |
+| H5.9 | Mỗi lượt soạn bài chỉ một sổ, context nhắm 32 KB, gộp truy vấn. Đo bằng `scripts/benchmark-cpu-local.mjs` (sổ Deutsch 14 ngày, bài 15 KB): mỗi bước ≤ 3 ms CPU trên Node và ≤ 33 truy vấn D1. Cron chia giờ 03 (xếp job), 04–05 (tính lại ≤ 10 kỹ năng), 06 (cảnh báo). Chưa đo lại bằng Wrangler tail trên staging. |
+| H6.1–H6.5 | Phản đối và chấm lại, yêu cầu "Hỏi thêm"/"Xin thêm bài", bài khám phá (sổ "Khám phá" do server tạo, `ai_enabled = 0` để không có job hằng đêm), Sổ liên lạc, chỉ số chấm, "Chấm sai cần xem". Migration 0014. |
+| Cổng B | Chưa xét: cần AI chấm thật (H7.3) để có dữ liệu phản đối thật. |
+| H7.1 | Chưa làm: cầu nối ChatGPT cần thêm công cụ ghi v2; việc mở rộng quyền ghi này chờ chủ dự án duyệt. |
+
+Nghiệm thu và phiên bản staging: [VALIDATION.md](../VALIDATION.md). Cách giao bài và dùng thử: [hub2-pilot.md](../ops/hub2-pilot.md). Câu mở chưa được AI chấm; job/runner ở H5/H7. Fixture Toán/Hóa là bài nhập thử tự soạn, chưa chứng minh bao phủ hay phù hợp toàn bộ GDPT 2018.
 
 ## 0. Tóm tắt
 
@@ -80,7 +102,7 @@ H9.6 prompt + eval  H9.7 thử: người lớn (Bayes) ─Cổng D─► H9.8 �
 ## 3. Cổng
 
 - **Cổng A** (sau H3):
-  - Ếch làm được ít nhất 3 bài v2 soạn tay trên điện thoại và máy tính.
+  - **Điều chỉnh được user duyệt 13/10/2026:** unhuman làm ít nhất 3 bài v2 trên điện thoại và máy tính. H4–H5 được triển khai local/staging ngay; phải nghiệm thu trước production. Pilot Ếch không được coi là đã làm.
   - Câu đóng chấm ngay; sửa lại được ghi là lần 2; gợi ý và lời giải được ghi lại.
   - Người học khác không thấy kệ hay tiến độ của nhau.
   - Mọi test xanh.
@@ -419,7 +441,7 @@ Theo AGENTS.md:
 #### H4.3 Tính lại và áp đề xuất
 - **Thay đổi:**
   - `lib/learner-model/recompute.ts`: đọc bằng chứng của một kỹ năng, gọi luật, ghi có `revision`.
-  - `lib/learner-model/proposals.ts`: cắt theo mức trần, kẹp lịch ôn, ghi `clipped`.
+  - `lib/learner-model/job-state.ts`: cắt theo mức trần, kẹp lịch ôn, ghi `clipped` trong cùng batch áp grade.
   - Gọi sau mỗi grade, phản đối, `item_void`.
 - **Test:** SQLite: chuỗi nộp → trạng thái đúng; hai lần tính đồng thời không ghi đè nhau.
 - **Phụ thuộc:** H4.1, H4.2, H3.3. **Cỡ:** M.
@@ -780,7 +802,7 @@ Thiết kế: [LESSON-DESIGN §3](../hub2/LESSON-DESIGN.md#3-bốn-cấp-tập-t
 15. H3.1 `0011_evidence`; H3.3 nộp bài.
 16. H3.4 Lời phê, sửa lại, hoàn thành.
 17. H2.6 Trang bài `reading`.
-18. H3.5 Ếch dùng thử → **Cổng A**. H4.2 làm song song.
+18. H3.5 nghiệm thu dùng thật → **Cổng A**. H4.2 làm song song. Quyết định 13/10: ưu tiên unhuman/Deutsch, cho phép H4–H5 local/staging ngay; nghiệm thu trước production.
 19. H4.1 + H4.3 Learner model, tính lại.
 20. H4.4 Cron đêm; H4.5 trang đầu sổ; H4.6 mặt bàn "Hôm nay".
 21. H5.1 `0013_ai_jobs`; H5.2 hợp đồng.
@@ -1034,3 +1056,7 @@ Mỗi tuần dành 30 phút: xem trang Lượt AI và chỉ số chấm, đọc 
 | "Each lesson needs … 2–8 questions with rubrics…" | Bài v2: 3–25 câu, mỗi câu có `key` hoặc `rubric`, có gợi ý và lời giải; khuôn `reading` bắt buộc nguồn; bài của Ếch bám GDPT 2018 lớp 7. |
 | "Initial GET creates a unique `runId`…", "A task is not a successful run until the actual saved lesson IDs…" | Áp cho job v2: lease tạo `leaseToken`; job chỉ `succeeded` khi `outcome` ghi id bài đã lưu; xác minh và khôi phục sau lỗi ghi bằng `GET /jobs/{id}`, không tạo job mới. |
 | (chưa có) | Câu trả lời của trẻ em chỉ gửi kèm biệt danh; không chat tự do với trẻ; mọi lời phê AI hiện cho phụ huynh; ảnh bài làm xoá sau 30 ngày. |
+
+## H4–H5 integration status — 13/10/2026
+
+H4 backend and H5 result writer are grouped for one staging release because evidence diagnoses, grade/state writes and migrations 0012/0013 must be deployed together. H4 rules have independent tests. Local and staging fake-runner E2E pass; 210 tests, typecheck, lint, schemas and build pass. H5.9 measured large payloads and recorded a concrete Free-budget proposal; staging UI width and cross-account permissions passed. QA learning data was cleaned up. Worst-case CPU has no Free safety margin, so production AI needs the bounded-workload follow-up described in VALIDATION. Real runner/ChatGPT scheduling remains H7; unhuman acceptance precedes production. Details: [VALIDATION](../VALIDATION.md), [operations](../ops/h5-staging.md).

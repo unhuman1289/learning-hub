@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
-import { insertLessonV2, readLessonV2 } from '../lib/lesson-v2/store.ts';
+import { insertLessonV2, itemView, readLessonV2 } from '../lib/lesson-v2/store.ts';
 import { parseDraft, reveal, saveDraft, snooze } from '../lib/lesson-v2/actions.ts';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
 import { resolveLearner } from '../lib/access.ts';
@@ -63,4 +63,12 @@ test('guardians read the lesson but cannot draft, reveal or snooze for the child
   for (const action of ['edit_work']) assert.equal((await resolveLearner(db, { id: 'ly' }, req('PUT'), action)).status, 404);
   assert.equal((await resolveLearner(db, { id: 'bot' }, req(), 'read_work')).status, 404);
   db.sqlite.close();
+});
+
+test('distractor error labels stay hidden until the item is graded', () => {
+  const fixture = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8'));
+  const item = fixture.items.find((candidate) => candidate.choices?.some((choice) => choice.errorLabel));
+  assert(item);
+  assert(!JSON.stringify(itemView(item, 'retrieval', undefined, false)).includes('errorLabel'));
+  assert(JSON.stringify(itemView(item, 'retrieval', undefined, true)).includes('errorLabel'));
 });

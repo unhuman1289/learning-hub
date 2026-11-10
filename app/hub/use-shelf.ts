@@ -70,7 +70,7 @@ export function useShelf(learner: string | null) {
   }, [learner]);
 
   const self = learners.find((item) => item.relation === "self") ?? null;
-  return { learners, self, subjects, error, load, create, update };
+  return { learner, learners, self, subjects, error, load, create, update };
 }
 
 export type ShelfApi = ReturnType<typeof useShelf>;

@@ -1,3 +1,4 @@
+import {cutoffFor} from '../daily-policy.ts';
 import { ApiError } from '../api-error.ts';
 import type { LessonItem, LessonPackageV2 } from '../contracts/lesson-package-v2.ts';
 import type { Db } from '../subjects/service.ts';
@@ -5,7 +6,7 @@ import type { Db } from '../subjects/service.ts';
 export type LessonSlot = 'primary' | 'review' | 'extra';
 export type NewLessonV2 = {
   id?: string; learnerId: string; subjectId: string; day: string; lesson: LessonPackageV2;
-  reason?: string; originJobId?: string | null; now?: Date;
+  guardCompletion?: boolean; extraStatements?: unknown[]; reason?: string; originJobId?: string | null; now?: Date;
 };
 
 const slotFor = (kind: LessonPackageV2['kind']): LessonSlot => (kind === 'review' ? 'review' : kind === 'exploration' ? 'extra' : 'primary');
@@ -35,13 +36,14 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
   const statements = [
     db.prepare(`INSERT INTO learning_lessons (id, user_id, track, payload, assigned_date, completed_at, response, updated, subject_id,
         package_version, template, kind, slot, reason, reason_refs, est_minutes, origin_job_id)
-      VALUES (?, ?, NULL, ?, ?, NULL, '', ?, ?, '2', ?, ?, ?, ?, ?, ?, ?)`)
+      SELECT ?, ?, NULL, ?, ?, NULL, '', ?, ?, '2', ?, ?, ?, ?, ?, ?, ? WHERE ?=0 OR NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR completed_at>=?))`)
       .bind(id, learnerId, JSON.stringify(lesson), day, now, subjectId, lesson.template, lesson.kind, slotFor(lesson.kind),
-        (input.reason ?? lesson.why).slice(0, 400), JSON.stringify(lesson.reasonRefs), lesson.estMinutes, input.originJobId ?? null),
+        (input.reason ?? lesson.why).slice(0, 400), JSON.stringify(lesson.reasonRefs), lesson.estMinutes, input.originJobId ?? null,input.guardCompletion?1:0,learnerId,subjectId,slotFor(lesson.kind),cutoffFor(day)),
     ...lesson.items.map((item, index) => db.prepare(`INSERT INTO lesson_items (lesson_id, item_id, learner_id, subject_id, stage, activity, input_kind,
-        skill_ids, difficulty, auto_gradable, prompt_hash, origin, payload, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plan', ?, ?)`)
+        skill_ids, difficulty, auto_gradable, prompt_hash, origin, payload, created_at) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'plan', ?, ? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?)`)
       .bind(id, item.id, learnerId, subjectId, stageOf.get(item.id), item.activity, item.input, JSON.stringify(item.skills), item.difficulty,
-        item.key ? 1 : 0, hashes[index], JSON.stringify(item), now)),
+        item.key ? 1 : 0, hashes[index], JSON.stringify(item), now,id)),
+    ...(input.extraStatements??[]),
   ];
   try {
     await db.batch(statements);
@@ -49,6 +51,8 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
     if (String(error).includes('UNIQUE')) throw new ApiError(409, 'Sổ này đã có bài cùng loại hôm nay.');
     throw error;
   }
+  const saved=await db.prepare('SELECT id FROM learning_lessons WHERE id=? AND user_id=?').bind(id,learnerId).first();
+  if(!saved)throw new ApiError(409,'Bài hiện tại chưa đủ điều kiện thay thế.');
   return id;
 }
 
@@ -63,6 +67,8 @@ export function itemView(item: LessonItem, stage: string, support: Support[strin
   void _key;
   const level = graded ? 'solution' : support;
   const shownHints = level === 'solution' ? hints : level === 'hint2' ? hints.slice(0, 2) : level === 'hint1' ? hints.slice(0, 1) : [];
+  // A distractor's error label tells which choices are wrong; it is shown only once the item is graded.
+  if (!graded && visible.choices) visible.choices = visible.choices.map(({ errorLabel: _label, ...choice }) => (void _label, choice));
   return {
     ...visible, stage, hintCount: hints.length, flag,
     revealed: { hints: shownHints, ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },

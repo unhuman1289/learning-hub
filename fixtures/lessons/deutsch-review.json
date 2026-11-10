@@ -1,0 +1,115 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "review",
+  "template": "skill",
+  "title": "Ôn Modalverb",
+  "objective": "Tự viết câu với können, möchten, müssen mà không chia động từ ở cuối câu.",
+  "why": "Bộ ôn soạn tay; không giả định người học đã làm hoặc sai bài trước.",
+  "reasonRefs": [
+    "key:modalverb-infinitiv"
+  ],
+  "estMinutes": 10,
+  "level": "A1–A2",
+  "targetSkills": [
+    "key:modalverb-infinitiv"
+  ],
+  "sheet": null,
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    {
+      "stage": "retrieval",
+      "itemIds": [
+        "i1",
+        "i2",
+        "i3"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 1,
+      "prompt": "Câu nào đúng?",
+      "choices": [
+        {
+          "id": "a",
+          "text": "Ich kann heute kocht.",
+          "errorLabel": "Chia động từ chính ở cuối câu sau Modalverb"
+        },
+        {
+          "id": "b",
+          "text": "Ich kann heute kochen."
+        }
+      ],
+      "key": {
+        "type": "choice",
+        "correct": [
+          "b"
+        ]
+      },
+      "hints": [],
+      "solution": "b: Ich kann heute kochen.",
+      "explanation": "kann đã chia theo ich; kochen giữ nguyên mẫu.",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "correct",
+      "input": "short",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 2,
+      "prompt": "Sửa câu: Lena kann heute Suppe kocht.",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "Lena kann heute Suppe kochen."
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Sau Modalverb, động từ cuối câu ở dạng nào?"
+      ],
+      "solution": "Lena kann heute Suppe kochen.",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "transform",
+      "input": "short",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 2,
+      "prompt": "Thêm möchten vào câu: Paul kauft einen Kuchen.",
+      "rubric": [
+        {
+          "criterion": "möchte chia đúng theo Paul",
+          "points": 1,
+          "skill": "key:modalverb-infinitiv"
+        },
+        {
+          "criterion": "kaufen nguyên mẫu ở cuối câu",
+          "points": 1,
+          "skill": "key:modalverb-infinitiv"
+        }
+      ],
+      "hints": [
+        "möchten với er/sie/es là dạng nào?",
+        "möchte ở vị trí 2, kaufen ra cuối câu."
+      ],
+      "solution": "Paul möchte einen Kuchen kaufen.",
+      "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "W-Fragen với Modalverb"
+}

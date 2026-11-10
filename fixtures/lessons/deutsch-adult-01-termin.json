@@ -1,0 +1,352 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "Deutsch 01 · Xin đổi lịch trao đổi công việc",
+  "objective": "Viết email 50–70 từ xin đổi một cuộc trao đổi công việc, nêu lý do bằng weil, đề xuất lịch mới và hỏi xác nhận; nói lại yêu cầu trong 45–60 giây.",
+  "why": "Bạn tự đánh giá khoảng A2 và muốn B2 cho công việc/chứng chỉ trong một năm; ưu tiên viết và nói. Hai câu đầu kiểm tra nền, chưa phải kết luận về năng lực.",
+  "reasonRefs": [],
+  "estMinutes": 40,
+  "level": "A2 củng cố → B1 bước đầu",
+  "targetSkills": [
+    "key:de-termin-verschieben",
+    "key:de-weil-verbende",
+    "key:de-hoeflich-bitten"
+  ],
+  "sheet": {
+    "rules": [
+      "Trong câu trần thuật, động từ đã chia đứng ở vị trí thứ hai: Am Donnerstag habe ich Zeit. Am Donnerstag là một thành phần, không phải hai vị trí.",
+      "Với können: động từ đã chia ở vị trí 2, động từ chính nguyên mẫu ở cuối: Ich kann heute nicht teilnehmen.",
+      "Trong mệnh đề bắt đầu bằng weil, động từ đã chia về cuối: …, weil ich einen anderen Termin habe. Bài này luyện văn viết chuẩn.",
+      "Dùng Könnten wir …? để đề nghị lịch sự; không trộn du với Sie trong cùng email."
+    ],
+    "explanation": "Một email đổi lịch có bốn việc: nói rõ cuộc hẹn nào → nêu lý do ngắn → đưa lựa chọn thay thế → hỏi xác nhận. Không cần từ chuyên môn khó để viết rõ.\n\nKhung câu:\nLeider kann ich am Dienstag nicht teilnehmen.\n… weil ich einen anderen Termin habe.\nKönnten wir unser Gespräch auf Donnerstag verschieben?\nPasst Ihnen Donnerstag um 10 Uhr?\n\nĐộng từ chính: teilnehmen = tham gia; verschieben = dời lịch; passen = phù hợp. Danh từ: das Gespräch, der Termin, die Besprechung. Dùng am trước thứ và um trước giờ. Quy tắc weil ở đây không được suy rộng cho mọi liên từ.",
+    "examples": [
+      {
+        "text": "Am Donnerstag habe ich Zeit.",
+        "correct": true,
+        "note": "habe ở vị trí 2."
+      },
+      {
+        "text": "Ich kann nicht teilnehmen, weil ich einen anderen Termin habe.",
+        "correct": true,
+        "note": "habe cuối mệnh đề weil."
+      },
+      {
+        "text": "Ich kann nicht teilnehmen, weil ich habe einen anderen Termin.",
+        "correct": false,
+        "note": "Trong văn viết của bài: … weil ich einen anderen Termin habe."
+      },
+      {
+        "text": "Könnten wir das Gespräch auf Donnerstag verschieben?",
+        "correct": true,
+        "note": "Könnten ở đầu câu hỏi; verschieben ở cuối."
+      }
+    ],
+    "mistakes": [
+      "Đếm vị trí theo số từ thay vì thành phần câu.",
+      "Giữ động từ ở vị trí 2 sau weil trong văn viết.",
+      "Chỉ nói không đến được mà không đưa lịch thay thế."
+    ],
+    "tips": [
+      "Viết câu ngắn rõ ý trước khi nối bằng weil.",
+      "Đọc thành tiếng, nhấn vào ngày và giờ; không cần nói nhanh."
+    ],
+    "checklist": [
+      "Đã nêu đúng cuộc hẹn?",
+      "Có lý do, lịch thay thế và câu hỏi xác nhận?",
+      "Động từ sau weil đã ra cuối?",
+      "Lời chào và cách xưng hô nhất quán?"
+    ]
+  },
+  "sections": [
+    {
+      "heading": "Cách học trong 40 phút",
+      "text": "Làm hai câu đầu không nhìn bảng kiến thức (5 phút). Đọc bảng và ví dụ (8 phút). Luyện câu có gợi ý (10 phút). Tự viết email và luyện nói (17 phút). Cần thêm thời gian thì giữ nguyên bài, không chạy theo lịch. Bài dùng tình huống giả định; không nhập thông tin bệnh nhân hay dữ liệu nghiên cứu riêng."
+    },
+    {
+      "heading": "Mẫu tham khảo — tự soạn, không phải đề thi",
+      "text": "Guten Tag Frau Neumann,\nvielen Dank für Ihre Einladung zum Gespräch am Dienstag um 9 Uhr. Leider kann ich nicht teilnehmen, weil ich einen anderen Termin habe. Könnten wir unser Gespräch auf Donnerstag verschieben? Am Donnerstag habe ich vormittags Zeit. Passt Ihnen 10 Uhr? Vielen Dank für Ihre Rückmeldung.\nMit freundlichen Grüßen\nAlex\n\nĐọc mẫu sau khi đã thử hai câu đầu. Không chép mẫu cho bài viết độc lập. Đây là bài luyện dài hơn một tác vụ viết A2, không phải bài thi Goethe chính thức."
+    }
+  ],
+  "diagram": "Cuộc hẹn cũ → lý do ngắn (weil … động từ cuối) → lịch mới → câu hỏi xác nhận",
+  "stages": [
+    {
+      "stage": "retrieval",
+      "title": "Kiểm tra nền",
+      "itemIds": [
+        "i1",
+        "i2"
+      ]
+    },
+    {
+      "stage": "sheet",
+      "title": "Đọc và hiểu",
+      "itemIds": []
+    },
+    {
+      "stage": "guided",
+      "title": "Luyện có hỗ trợ",
+      "itemIds": [
+        "i3",
+        "i4",
+        "i5",
+        "i6"
+      ]
+    },
+    {
+      "stage": "independent",
+      "title": "Viết và nói của bạn",
+      "itemIds": [
+        "i7",
+        "i8"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:de-termin-verschieben"
+      ],
+      "difficulty": 1,
+      "prompt": "Chọn câu trần thuật đúng với nghĩa: Thứ Năm tôi có thời gian.",
+      "hints": [],
+      "solution": "b. Am Donnerstag là một thành phần; habe đứng thứ hai và chia theo ich.",
+      "attachment": "none",
+      "key": {
+        "type": "choice",
+        "correct": [
+          "b"
+        ]
+      },
+      "choices": [
+        {
+          "id": "a",
+          "text": "Am Donnerstag ich habe Zeit."
+        },
+        {
+          "id": "b",
+          "text": "Am Donnerstag habe ich Zeit."
+        },
+        {
+          "id": "c",
+          "text": "Am Donnerstag haben ich Zeit."
+        }
+      ]
+    },
+    {
+      "id": "i2",
+      "activity": "recall",
+      "input": "short",
+      "skills": [
+        "key:de-termin-verschieben"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền đúng MỘT từ: Ich kann heute nicht ____. Động từ cần dùng là teilnehmen.",
+      "hints": [],
+      "solution": "teilnehmen. Sau kann, động từ chính giữ nguyên mẫu.",
+      "attachment": "none",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "teilnehmen"
+        ],
+        "caseSensitive": false
+      }
+    },
+    {
+      "id": "i3",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:de-weil-verbende"
+      ],
+      "difficulty": 2,
+      "prompt": "Chọn mệnh đề weil đúng trong văn viết.",
+      "hints": [
+        "Động từ đã chia đứng ở đâu trong mệnh đề weil?"
+      ],
+      "solution": "c. … weil ich einen Termin habe.",
+      "attachment": "none",
+      "key": {
+        "type": "choice",
+        "correct": [
+          "c"
+        ]
+      },
+      "choices": [
+        {
+          "id": "a",
+          "text": "weil ich habe einen Termin."
+        },
+        {
+          "id": "b",
+          "text": "weil habe ich einen Termin."
+        },
+        {
+          "id": "c",
+          "text": "weil ich einen Termin habe."
+        }
+      ]
+    },
+    {
+      "id": "i4",
+      "activity": "transform",
+      "input": "short",
+      "skills": [
+        "key:de-weil-verbende"
+      ],
+      "difficulty": 2,
+      "prompt": "Nối hai ý bằng weil: Ich kann nicht teilnehmen. Ich habe einen anderen Termin.",
+      "hints": [
+        "Giữ câu đầu; đưa lý do sau weil."
+      ],
+      "solution": "Ich kann nicht teilnehmen, weil ich einen anderen Termin habe. Cũng chấp nhận cấu trúc đặt mệnh đề weil trước nếu đúng trật tự.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Giữ đúng hai ý và dùng weil chỉ lý do",
+          "points": 1
+        },
+        {
+          "criterion": "habe đứng cuối mệnh đề weil, có dấu phẩy phân cách",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "i5",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:de-hoeflich-bitten"
+      ],
+      "difficulty": 2,
+      "prompt": "Viết một câu hỏi lịch sự xin dời cuộc trao đổi sang thứ Sáu. Dùng Könnten wir và verschieben.",
+      "hints": [
+        "Könnten wir unser Gespräch auf … verschieben?"
+      ],
+      "solution": "Könnten wir unser Gespräch auf Freitag verschieben? Đây là một đáp án mẫu, không phải cách viết duy nhất.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Có đề nghị dời cuộc trao đổi sang thứ Sáu",
+          "points": 1
+        },
+        {
+          "criterion": "Könnten ở đầu câu, verschieben cuối câu",
+          "points": 2
+        }
+      ]
+    },
+    {
+      "id": "i6",
+      "activity": "correct",
+      "input": "short",
+      "skills": [
+        "key:de-termin-verschieben"
+      ],
+      "difficulty": 2,
+      "prompt": "Sửa câu hỏi xác nhận giờ: Passt Ihnen am 11 Uhr?",
+      "hints": [
+        "am dùng với thứ; giới từ nào dùng với giờ?"
+      ],
+      "solution": "Passt Ihnen 11 Uhr? Hoặc: Passt Ihnen ein Termin um 11 Uhr? Không dùng am trước giờ.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Không dùng am trước giờ; dùng um trong cụm giờ hoặc 11 Uhr làm chủ ngữ",
+          "points": 1
+        },
+        {
+          "criterion": "Giữ câu hỏi xác nhận lịch sự và rõ nghĩa",
+          "points": 1
+        }
+      ]
+    },
+    {
+      "id": "i7",
+      "activity": "create",
+      "input": "long",
+      "skills": [
+        "key:de-termin-verschieben",
+        "key:de-weil-verbende",
+        "key:de-hoeflich-bitten"
+      ],
+      "difficulty": 3,
+      "prompt": "Viết email 50–70 từ cho đồng nghiệp mới (dùng Sie). Bạn không thể dự cuộc trao đổi thứ Hai lúc 14 giờ vì có cuộc hẹn khác; đề nghị thứ Tư lúc 10 giờ và hỏi xác nhận.",
+      "hints": [],
+      "solution": "Một cách viết: Guten Tag Herr Berger, vielen Dank für Ihre Einladung zum Gespräch am Montag um 14 Uhr. Leider kann ich nicht teilnehmen, weil ich einen anderen Termin habe. Könnten wir das Gespräch auf Mittwoch verschieben? Am Mittwoch habe ich um 10 Uhr Zeit. Passt Ihnen dieser Termin? Vielen Dank für Ihre Rückmeldung. Mit freundlichen Grüßen, Alex. Chấp nhận cách diễn đạt khác đáp ứng đề.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Nêu cuộc hẹn cũ, lý do, lịch mới và hỏi xác nhận",
+          "points": 4
+        },
+        {
+          "criterion": "Dùng weil với động từ cuối mệnh đề",
+          "points": 2
+        },
+        {
+          "criterion": "Đề nghị lịch sự; lời chào và Sie nhất quán",
+          "points": 2
+        },
+        {
+          "criterion": "Ý rõ, câu nối hợp lý; độ dài phù hợp bài luyện",
+          "points": 2
+        }
+      ],
+      "instructions": "Không mở mẫu khi viết lần đầu. Có thể sai nhỏ mà vẫn giao tiếp tốt; sửa sau khi đã có bản của bạn. Đây là độ dài luyện tập riêng, không phải quy định đề thi."
+    },
+    {
+      "id": "i8",
+      "activity": "create",
+      "input": "long",
+      "skills": [
+        "key:de-termin-verschieben",
+        "key:de-hoeflich-bitten"
+      ],
+      "difficulty": 3,
+      "prompt": "Luyện nói 45–60 giây: xin đổi cuộc trao đổi thứ Hai sang thứ Tư, giải thích lý do. Sau đó đáp lại: Am Mittwoch kann ich nicht. Geht es am Donnerstag? Gõ bản bạn thực sự nói và câu trả lời.",
+      "hints": [],
+      "solution": "Ví dụ: Guten Tag. Leider kann ich am Montag nicht teilnehmen. Ich habe einen anderen Termin. Können wir uns am Mittwoch treffen? — Am Mittwoch kann ich nicht. Geht es am Donnerstag? — Ja, Donnerstag passt gut. Können wir um 10 Uhr sprechen? Đây là gợi ý, hãy dùng lời của bạn.",
+      "attachment": "none",
+      "rubric": [
+        {
+          "criterion": "Yêu cầu đổi lịch và lý do rõ trong bản lời nói",
+          "points": 2
+        },
+        {
+          "criterion": "Đáp lại đề xuất thứ Năm bằng xác nhận hoặc lịch khác",
+          "points": 2
+        },
+        {
+          "criterion": "Cách nói lịch sự, dễ hiểu trong bản chép",
+          "points": 2
+        }
+      ],
+      "instructions": "Nói trước, gõ lại sau. Nếu chỉ viết chưa nói, ghi rõ điều đó. Hub hiện lưu văn bản, không thu/chấm âm thanh; rubric này không chứng minh phát âm hoặc độ trôi chảy."
+    }
+  ],
+  "output": "Một email đổi lịch tự viết + bản chép phần luyện nói và câu đáp lại. Câu kín được chấm tự động; câu mở lưu để xem lại và chờ phản hồi, chưa có AI chấm trong Hub.",
+  "sources": [
+    {
+      "title": "Goethe-Institut · A2 Schreiben",
+      "url": "https://bfu.goethe.de/a2_mod_2MX5/schreiben.php",
+      "readScope": "Đọc HTML phần nhiệm vụ và tiêu chí viết để định hướng giao tiếp và rubric; không sao chép đề/mẫu. Chưa đọc PDF. Ngữ liệu bài này tự soạn.",
+      "retrievedAt": "2026-10-13T10:19:06Z",
+      "publishedAt": null
+    },
+    {
+      "title": "Goethe-Institut · A2 Sprechen",
+      "url": "https://bfu.goethe.de/a2_mod_2MX5/sprechen.php",
+      "readScope": "Đọc HTML mô tả hỏi đáp, trình bày và lập kế hoạch cùng bạn học; chưa nghe audio/xem video. Tình huống và hội thoại trong bài tự soạn.",
+      "retrievedAt": "2026-10-13T10:19:06Z",
+      "publishedAt": null
+    }
+  ],
+  "nextTopic": "Sau khi xem câu trả lời: nếu trật tự câu còn khó, luyện lại câu ngắn/V2; nếu ổn, học xác nhận lịch và hỏi thông tin còn thiếu. Chưa tự động tăng trình độ."
+}

@@ -10,12 +10,15 @@ export type Route =
   | { view: "notes" }
   | { view: "admin" }
   | { view: "notebook"; track: TrackId; tab: NotebookTab; page?: string }
-  | { view: "subject"; id: string };
+  | { view: "subject"; id: string }
+  | { view: "lesson"; id: string };
 
 const tabs: NotebookTab[] = ["bai", "muc-luc", "muc-tieu", "ghi-chu", "tai-lieu"];
 
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search);
+  const v2=params.get("bai2");
+  if(v2&&/^les_[0-9a-f]{20}$/.test(v2))return {view:"lesson",id:v2};
   const legacyLesson = params.get("lesson");
   if (legacyLesson) {
     const track = findStaticTrack(legacyLesson);
@@ -36,6 +39,7 @@ export function parseRoute(search: string): Route {
 
 export function routeHref(route: Route) {
   const params = new URLSearchParams();
+  if (route.view === "lesson") params.set("bai2",route.id);
   if (route.view === "notes") params.set("trang", "ghi-chu");
   if (route.view === "admin") params.set("trang", "quan-tri");
   if (route.view === "subject") params.set("sach", route.id);

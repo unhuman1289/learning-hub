@@ -1,0 +1,113 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "W-Fragen: hỏi về người, nơi và thời gian",
+  "objective": "Giải thích quy tắc và tự làm ba câu ngắn.",
+  "why": "Bài soạn tay để thử luồng học; cần phụ huynh duyệt trước khi giao.",
+  "reasonRefs": [],
+  "estMinutes": 15,
+  "level": "A2",
+  "targetSkills": [
+    "key:deutsch-basics"
+  ],
+  "sheet": {
+    "rules": [
+      "Từ hỏi đứng đầu câu, động từ chia đứng thứ hai."
+    ],
+    "explanation": "Từ hỏi đứng đầu câu, động từ chia đứng thứ hai.",
+    "examples": [],
+    "mistakes": [],
+    "tips": [],
+    "checklist": [
+      "Có giải thích được cách làm bằng lời của mình?"
+    ]
+  },
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    {
+      "stage": "sheet",
+      "itemIds": []
+    },
+    {
+      "stage": "independent",
+      "itemIds": [
+        "i1",
+        "i2",
+        "i3"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:deutsch-basics"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền từ hỏi về tên: ___ heißt du?",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "Wie"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "Wie",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:deutsch-basics"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền từ hỏi về nơi ở: ___ wohnst du?",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "Wo"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "Wo",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:deutsch-basics"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền từ hỏi về thời gian: ___ kommst du?",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "Wann"
+        ],
+        "caseSensitive": true
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "Wann",
+      "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "Giải thích vì sao câu trả lời đúng."
+}

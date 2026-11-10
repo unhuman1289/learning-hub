@@ -15,7 +15,7 @@ const stagesFor = {
 
 const words = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
 
-function itemIssues(item: LessonItem, path: string, maxDifficulty: number): LessonIssue[] {
+export function itemIssues(item: LessonItem, path: string, maxDifficulty: number): LessonIssue[] {
   const issues: LessonIssue[] = [];
   const issue = (field: string, code: string, message: string) => issues.push({ path: `${path}/${field}`, code, message });
   if (!item.key && !item.rubric) issue('key', 'schema', 'Each item needs a key (auto-graded) or a rubric (AI-graded).');
@@ -74,7 +74,7 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
   if (new Set(lesson.stages.map((stage) => stage.stage)).size !== lesson.stages.length) issue('/stages', 'schema', 'Each stage appears once.');
   for (const id of ids) if (placed.get(id) !== 1) issue('/stages', 'schema', `Item "${id}" must be in exactly one stage.`);
 
-  if (lesson.template === 'skill' && (lesson.kind === 'new' || lesson.kind === 'remediation') && !lesson.sheet) {
+  if (lesson.template === 'skill' && (lesson.kind === 'new' || lesson.kind === 'remediation' || lesson.kind === 'diagnostic') && !lesson.sheet) {
     issue('/sheet', 'schema', 'New and remediation skill lessons need a knowledge sheet.');
   }
   if (lesson.template === 'reading') {
@@ -88,8 +88,9 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
   const learnerText = [
     lesson.title, lesson.objective, lesson.why, lesson.level, lesson.diagram ?? '', lesson.output ?? '', lesson.nextTopic,
     ...lesson.sections.flatMap((section) => [section.heading, section.text]),
-    ...(lesson.sheet ? [lesson.sheet.explanation, ...lesson.sheet.rules, ...lesson.sheet.examples.map((example) => example.text)] : []),
-    ...lesson.items.flatMap((item) => [item.prompt, item.solution, ...item.hints, ...(item.choices ?? []).map((choice) => choice.text)]),
+    ...(lesson.sheet ? [lesson.sheet.explanation, ...lesson.sheet.rules, ...lesson.sheet.examples.flatMap((example) => [example.text, example.note ?? ""]), ...lesson.sheet.mistakes, ...lesson.sheet.tips, ...lesson.sheet.checklist] : []),
+    ...lesson.items.flatMap((item) => [item.prompt, item.instructions ?? '', item.explanation ?? '', item.solution, ...item.hints, ...(item.choices ?? []).flatMap((choice) => [choice.text, choice.errorLabel ?? '']), ...(item.rubric ?? []).flatMap((criterion) => [criterion.criterion, criterion.description ?? ''])]),
+    ...lesson.sources.flatMap((source) => [source.title, source.readScope]),
   ].join('\n');
   if (containsContactDetails(learnerText) || containsPossibleClinicalIdentifier(learnerText, options.sensitivity ?? 'normal')) {
     issue('', 'privacy', 'Lesson text may contain identifying contact or clinical details.');

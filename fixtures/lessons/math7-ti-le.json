@@ -1,0 +1,111 @@
+{
+  "contract": "lesson-package/2",
+  "kind": "new",
+  "template": "skill",
+  "title": "Toán 7: tỉ lệ thức",
+  "objective": "Giải thích quy tắc và tự làm ba câu ngắn.",
+  "why": "Bài soạn tay để thử luồng học; cần phụ huynh duyệt trước khi giao.",
+  "reasonRefs": [],
+  "estMinutes": 15,
+  "level": "Lớp 7",
+  "targetSkills": [
+    "key:math7-ti-le"
+  ],
+  "sheet": {
+    "rules": [
+      "Hai tỉ số bằng nhau tạo thành tỉ lệ thức.",
+      "Với b,d khác 0: a/b=c/d khi ad=bc."
+    ],
+    "explanation": "Hai tỉ số bằng nhau tạo thành tỉ lệ thức.\nVới b,d khác 0: a/b=c/d khi ad=bc.",
+    "examples": [],
+    "mistakes": [],
+    "tips": [],
+    "checklist": [
+      "Có giải thích được cách làm bằng lời của mình?"
+    ]
+  },
+  "sections": [],
+  "diagram": null,
+  "stages": [
+    {
+      "stage": "sheet",
+      "itemIds": []
+    },
+    {
+      "stage": "independent",
+      "itemIds": [
+        "i1",
+        "i2",
+        "i3"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "id": "i1",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:math7-ti-le"
+      ],
+      "difficulty": 1,
+      "prompt": "Tìm x: x/3 = 2/6.",
+      "key": {
+        "type": "numeric",
+        "value": "1",
+        "tolerance": 0,
+        "unit": null
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "1",
+      "attachment": "none"
+    },
+    {
+      "id": "i2",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:math7-ti-le"
+      ],
+      "difficulty": 1,
+      "prompt": "Tìm x: 2/x = 4/6.",
+      "key": {
+        "type": "numeric",
+        "value": "3",
+        "tolerance": 0,
+        "unit": null
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "3",
+      "attachment": "none"
+    },
+    {
+      "id": "i3",
+      "activity": "apply",
+      "input": "short",
+      "skills": [
+        "key:math7-ti-le"
+      ],
+      "difficulty": 1,
+      "prompt": "Điền x: 3/4 = 6/x.",
+      "key": {
+        "type": "numeric",
+        "value": "8",
+        "tolerance": 0,
+        "unit": null
+      },
+      "hints": [
+        "Đọc lại quy tắc ở tờ kiến thức."
+      ],
+      "solution": "8",
+      "attachment": "none"
+    }
+  ],
+  "output": null,
+  "sources": [],
+  "nextTopic": "Giải thích vì sao câu trả lời đúng."
+}

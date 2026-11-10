@@ -6,6 +6,9 @@ import { OakDesk, WoodFrame } from "../../components/notebook/house";
 import { RuledPage, cx } from "../../components/notebook/paper";
 import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
+import {ImportPanel} from "./lesson-v2/import-panel";
+import {AiJobsPanel} from "./ai-jobs-panel";
+import { AdminDisputes } from "./admin-disputes";
 import { FamilyAdmin } from "./family-admin";
 import { JournalList, journalKinds, type FormRequest } from "./journal";
 import { trackIds, trackInfo, type TrackId } from "./model";
@@ -58,7 +61,7 @@ export function NotesView({ workspace, openForm }: { workspace: WorkspaceApi; op
 }
 
 /** Admin-only: approvals, scheduled update log, backups and a copy of shared notes. */
-export function AdminView({ daily, workspace }: { daily: DailyApi; workspace: WorkspaceApi }) {
+export function AdminView({ daily, workspace, hub2 = false }: { daily: DailyApi; workspace: WorkspaceApi; hub2?: boolean }) {
   function exportWorkspace() {
     const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), ...workspace.latest.current }, null, 2)], { type: "application/json" });
     const anchor = document.createElement("a");
@@ -75,8 +78,11 @@ export function AdminView({ daily, workspace }: { daily: DailyApi; workspace: Wo
       <WoodFrame label="Gia đình">
         <h2 className="font-print text-2xl font-medium">Gia đình</h2>
         <p className="mb-4 mt-2 text-sm text-muted">Đặt trẻ em, biệt danh dùng trong bài và lời phê, và phụ huynh của từng người.</p>
+        {hub2 && <ImportPanel />}
         <FamilyAdmin />
       </WoodFrame>
+      {hub2 && <WoodFrame label="Chấm sai cần xem"><AdminDisputes /></WoodFrame>}
+      {hub2 && <WoodFrame label="Lượt soạn và chấm"><AiJobsPanel /></WoodFrame>}
       <WoodFrame label="Cập nhật bài và sao lưu">
         <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>
         {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}

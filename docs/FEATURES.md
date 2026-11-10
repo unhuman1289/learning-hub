@@ -1,6 +1,20 @@
 # Learning Hub — tính năng
 
-Cập nhật 10/10/2026. Mô tả những gì người dùng thấy và làm được. Kiến trúc kỹ thuật ở [ARCHITECTURE.md](ARCHITECTURE.md); hướng tiếp theo ở [hub2/](hub2/README.md).
+Cập nhật H2/H3 ngày 13/10/2026. Phần dưới giữ mô tả lịch sử 10/10; trạng thái mới của đợt này ở bảng sau và VALIDATION.md.
+
+| Chức năng mới | Trạng thái đợt H2/H3 |
+| --- | --- |
+| Bài v2 theo từng câu, tờ kiến thức, gợi ý và lời giải | Có code; bật ở local/staging qua HUB2_ENABLED. |
+| Reading: đọc nguồn, phân tích, đầu ra | Có code và fixture mẫu. |
+| Lưu nháp tự động, lỗi mạng giữ nháp trong phiên trang | Có; tải lại khi còn nháp chưa lưu vẫn có nguy cơ mất nháp. |
+| Bài v2 hiện trên bàn; thời gian học gắn với sổ | Có; H4–H5 staging thêm hàng đợi hôm nay và trạng thái kỹ năng dựa trên bằng chứng. |
+| Nộp, chấm ngay câu đóng, giữ lần 1/lần 2 | Có; câu mở đã lưu và chờ chấm, chưa gọi model. |
+| Admin nhập bài đã duyệt | Có; giữ nguyên bài chưa xong, cần đúng learnerId/subjectId. |
+| Kỹ năng, lịch ôn, job soạn/chấm | H4–H5 chạy local/staging; E2E bằng runner giả đạt. Cron tạo job; chưa có runner AI thật. |
+| AI thật, phản đối điểm và khám phá | H6–H7 chưa triển khai. |
+| Production | Không thay đổi trong đợt H2/H3. |
+
+Mô tả ngày 10/10/2026: Mô tả những gì người dùng thấy và làm được. Kiến trúc kỹ thuật ở [ARCHITECTURE.md](ARCHITECTURE.md); hướng tiếp theo ở [hub2/](hub2/README.md).
 
 Cột **Trạng thái**:
 
