@@ -10,6 +10,7 @@ const masteryText: Record<string, string> = {
 };
 type Skill = {
   id: string;
+  key?: string;
   name: string;
   path_order: number;
   mastery: string | null;
@@ -21,6 +22,36 @@ type Skill = {
   state_revision: number | null;
 };
 type Pattern = { id: string; label: string; confidence: string; status: string };
+/** Deutsch notebooks group skills and errors by G/P/N, from the skill key prefix and the error label prefix (L3.2). */
+const facets = [
+  ["g", "Ngữ pháp"],
+  ["p", "Dấu câu, chính tả"],
+  ["n", "Độ tự nhiên"],
+] as const;
+export const skillFacet = (key?: string) => /^([gpn])-/.exec(key ?? "")?.[1] ?? null;
+export const errorFacet = (label: string) => /^([GPN]):/.exec(label)?.[1]?.toLowerCase() ?? null;
+function FacetSummary({ skills, errors }: { skills: Skill[]; errors: Pattern[] }) {
+  if (!skills.some((s) => skillFacet(s.key))) return null;
+  return (
+    <dl className="grid grid-cols-3 gap-2 text-sm">
+      {facets.map(([facet, name]) => {
+        const group = skills.filter((s) => skillFacet(s.key) === facet);
+        const open = errors.filter((e) => e.status !== "resolved" && errorFacet(e.label) === facet).length;
+        return (
+          <div key={facet} className="rounded border border-line p-2">
+            <dt className="font-semibold">
+              {facet.toUpperCase()} · {name}
+            </dt>
+            <dd>
+              {group.filter((s) => s.mastery === "demonstrated").length}/{group.length} kỹ năng đã tự làm được
+            </dd>
+            <dd>{open ? open + " lỗi cần chú ý" : "Không có lỗi đang mở"}</dd>
+          </div>
+        );
+      })}
+    </dl>
+  );
+}
 function Progress({ subjectId, learner, canEdit }: { subjectId: string; learner?: string | null; canEdit?: boolean }) {
   const [data, setData] = useState<{ skills: Skill[]; errors: Pattern[] } | null>(null),
     [error, setError] = useState(""),
@@ -86,11 +117,15 @@ function Progress({ subjectId, learner, canEdit }: { subjectId: string; learner?
             Nhận diện đúng và tự vận dụng được được theo dõi riêng. Thang 0–3 phản ánh bài làm đã chấm, không phải chứng nhận trình độ.
           </p>
           {!data.skills.length && <p>Chưa có kỹ năng được giao.</p>}
+          <FacetSummary skills={data.skills} errors={data.errors} />
           <ul className="grid gap-3">
             {data.skills.map((s) => (
               <li key={s.id} className="border-b border-line pb-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong>{s.name}</strong>
+                  <strong>
+                    {skillFacet(s.key) && <span className="mr-1 text-sm text-muted">{skillFacet(s.key)!.toUpperCase()}</span>}
+                    {s.name}
+                  </strong>
                   <span>{masteryText[s.mastery ?? "not_assessed"]}</span>
                 </div>
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
