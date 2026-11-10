@@ -18,6 +18,7 @@ declare namespace Cloudflare {
     ENVIRONMENT?: string;
     STAGING_SPIKE_LOCKDOWN?: string;
     HUB2_ENABLED?:string;
+    GRADER_CLIENT_ID?:string;
     BETTER_AUTH_SECRET?: string;
     BOOTSTRAP_ADMIN_EMAIL?: string;
     RESEND_API_KEY?: string;

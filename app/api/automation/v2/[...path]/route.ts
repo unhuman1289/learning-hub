@@ -26,6 +26,7 @@ const leaseBody = z
       .optional(),
     max: z.number().int().min(1).max(5),
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
+    capabilities: z.array(z.enum(['vision'])).max(1).optional(),
   })
   .strict();
 // Building JSON Schema costs real CPU; do it once per isolate.
