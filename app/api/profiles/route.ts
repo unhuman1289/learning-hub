@@ -11,7 +11,7 @@ import {
   profileFromCookie,
   signValue,
 } from '../../../lib/household';
-import { activeProfile, archiveProfile, checkManagePin, createProfile, listProfiles, setManagePin } from '../../../lib/profiles';
+import { activeProfile, archiveProfile, checkManagePin, createProfile, listProfiles, setManagePin, updateProfileAvatar } from '../../../lib/profiles';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
 
@@ -72,6 +72,13 @@ export async function POST(req: Request) {
       case 'create':
         if (!manage) throw new ApiError(403, 'Bật chế độ quản lý để thêm hồ sơ.');
         return reply({ profile: await createProfile(db, body) });
+      case 'avatar': {
+        const current = await profileFromCookie(cookies, env.PROFILE_COOKIE_SECRET);
+        if (!manage && (!current || body.id !== undefined))
+          throw new ApiError(403, 'Chỉ có thể đổi emoji của hồ sơ đang dùng.');
+        const id = body.id ?? current;
+        return reply({ avatar: await updateProfileAvatar(db, id, body.avatar, env.HOUSEHOLD_LEGACY_PROFILE_IDS) });
+      }
       case 'archive':
         if (!manage) throw new ApiError(403, 'Bật chế độ quản lý để ẩn hồ sơ.');
         await archiveProfile(db, body.id);

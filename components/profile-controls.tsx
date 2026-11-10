@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 type Profile = { id: string; displayName: string; avatar: string; role: "adult" | "child" };
 
-async function post(body: unknown) {
+async function post<T = unknown>(body: unknown): Promise<T> {
   let response: Response;
   try {
     response = await fetch("/api/profiles", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -13,17 +13,79 @@ async function post(body: unknown) {
   }
   const value = (await response.json().catch(() => null)) as { error?: string } | null;
   if (!response.ok) throw new Error(value?.error || "Chưa lưu được.");
-  return value;
+  return value as T;
 }
 
-function Badge({ profile, size = "size-8" }: { profile: Pick<Profile, "displayName" | "avatar">; size?: string }) {
+function shownEmoji(avatar: string) {
+  return /[\p{Extended_Pictographic}\p{Regional_Indicator}\u20e3]/u.test(avatar) ? avatar : "🙂";
+}
+
+function Badge({ avatar, size = "size-8 text-lg" }: { avatar: string; size?: string }) {
   return (
     <span
       aria-hidden="true"
-      className={`grid ${size} shrink-0 place-items-center rounded-full bg-paper/85 font-semibold uppercase text-accent-hover`}
+      className={`grid ${size} shrink-0 place-items-center rounded-full bg-paper/85 leading-none`}
     >
-      {profile.avatar || profile.displayName.slice(0, 1)}
+      {shownEmoji(avatar)}
     </span>
+  );
+}
+
+function EmojiField({ value, onChange, disabled, inputRef }: {
+  value: string; onChange: (value: string) => void; disabled?: boolean; inputRef?: React.Ref<HTMLInputElement>;
+}) {
+  return (
+    <label className="grid justify-items-start gap-1 text-sm">
+      Emoji
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        disabled={disabled}
+        maxLength={32}
+        autoComplete="off"
+        spellCheck={false}
+        placeholder="🙂"
+        className="min-h-11 w-24 rounded border border-line bg-paper px-3 text-xl text-ink"
+      />
+    </label>
+  );
+}
+
+function EmojiForm({ avatar, id, name, onSaved, onClose }: {
+  avatar: string; id?: string; name: string; onSaved: (avatar: string) => void; onClose: () => void;
+}) {
+  const [value, setValue] = useState(avatar), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => { input.current?.focus(); }, []);
+  async function save() {
+    setBusy(true);
+    setError("");
+    try {
+      const result = await post<{ avatar: string }>({ action: "avatar", id, avatar: value });
+      onSaved(result.avatar);
+    } catch (error) {
+      setError((error as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form
+      aria-label={`Đổi emoji của ${name}`}
+      className="grid gap-3 text-ink"
+      onSubmit={(event) => { event.preventDefault(); void save(); }}
+      onKeyDown={(event) => { if (event.key === "Escape" && !busy) { event.stopPropagation(); onClose(); } }}
+    >
+      <p className="font-semibold">Emoji của {name}</p>
+      <EmojiField value={value} onChange={setValue} disabled={busy} inputRef={input} />
+      <p className="text-sm text-muted">Nhập hoặc dán một emoji. Để trống để dùng mặc định.</p>
+      {error && <p role="alert" className="text-sm text-accent">{error}</p>}
+      <div className="flex flex-wrap gap-2">
+        <button disabled={busy} className="brick min-h-11 px-4 text-sm font-semibold disabled:opacity-50">{busy ? "Đang lưu…" : "Lưu emoji"}</button>
+        <button type="button" disabled={busy} onClick={onClose} className="min-h-11 px-3 text-sm underline">Hủy</button>
+      </div>
+    </form>
   );
 }
 
@@ -37,6 +99,7 @@ export function ProfilePicker() {
     [name, setName] = useState(""),
     [role, setRole] = useState<"adult" | "child">("adult"),
     [avatar, setAvatar] = useState(""),
+    [editing, setEditing] = useState<Profile | null>(null),
     [version, setVersion] = useState(0);
   useEffect(() => {
     let live = true;
@@ -87,10 +150,15 @@ export function ProfilePicker() {
                 onClick={() => void run({ action: "select", id: p.id }, () => window.location.reload())}
                 className="grid w-full justify-items-center gap-2 rounded-lg border border-line bg-paper p-4 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
               >
-                <Badge profile={p} size="size-14 text-2xl" />
+                <Badge avatar={p.avatar} size="size-14 text-2xl" />
                 <span className="font-semibold">{p.displayName}</span>
                 <span className="text-sm text-muted">{p.role === "child" ? "Trẻ em" : "Người lớn"}</span>
               </button>
+              {manage && (
+                <button type="button" onClick={() => setEditing(p)} aria-label={`Đổi emoji của ${p.displayName}`} className="min-h-11 w-full text-sm text-accent underline">
+                  Đổi emoji
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -102,6 +170,19 @@ export function ProfilePicker() {
         ) : (
           <>
             <p className="text-sm text-muted">Đang ở chế độ quản lý.</p>
+            {editing && (
+              <EmojiForm
+                key={editing.id}
+                id={editing.id}
+                name={editing.displayName}
+                avatar={editing.avatar}
+                onSaved={(icon) => {
+                  setProfiles((current) => current?.map((p) => p.id === editing.id ? { ...p, avatar: icon } : p) ?? null);
+                  setEditing(null);
+                }}
+                onClose={() => setEditing(null)}
+              />
+            )}
             {!adding ? (
               <button type="button" className="justify-self-start underline" onClick={() => setAdding(true)}>
                 Thêm hồ sơ
@@ -140,16 +221,7 @@ export function ProfilePicker() {
                     <option value="child">Trẻ em</option>
                   </select>
                 </label>
-                <label className="grid gap-1 text-sm">
-                  Biểu tượng
-                  <input
-                    maxLength={8}
-                    value={avatar}
-                    onChange={(e) => setAvatar(e.target.value)}
-                    placeholder="🐸"
-                    className="w-20 rounded border border-line bg-paper p-2"
-                  />
-                </label>
+                <EmojiField value={avatar} onChange={setAvatar} disabled={busy} />
                 <button disabled={busy} className="rounded-md border border-line bg-paper px-3 py-2 disabled:opacity-50">
                   Lưu
                 </button>
@@ -158,7 +230,7 @@ export function ProfilePicker() {
             <button
               type="button"
               className="justify-self-start text-sm underline"
-              onClick={() => void run({ action: "unmanage" }, () => setVersion((v) => v + 1))}
+              onClick={() => void run({ action: "unmanage" }, () => { setEditing(null); setVersion((v) => v + 1); })}
             >
               Thoát chế độ quản lý
             </button>
@@ -205,8 +277,14 @@ function ManageButton({ busy, onManage }: { busy: boolean; onManage: (pin: strin
 }
 
 /** Header controls in profile mode: who is studying, switch person, manage mode on/off. */
-export function ProfileControls({ name, manage }: { name: string; manage: boolean }) {
-  const [busy, setBusy] = useState(false);
+export function ProfileControls({ name, manage, initialAvatar }: { name: string; manage: boolean; initialAvatar: string }) {
+  const [busy, setBusy] = useState(false), [editing, setEditing] = useState(false), [avatar, setAvatar] = useState(initialAvatar);
+  const editorId = useId();
+  const avatarButton = useRef<HTMLButtonElement>(null);
+  function closeEditor() {
+    setEditing(false);
+    avatarButton.current?.focus();
+  }
   async function act(body: unknown) {
     setBusy(true);
     try {
@@ -218,8 +296,29 @@ export function ProfileControls({ name, manage }: { name: string; manage: boolea
     }
   }
   return (
-    <div className="flex min-w-0 items-center gap-2">
-      <Badge profile={{ displayName: name, avatar: "" }} />
+    <div className="relative flex min-w-0 items-center gap-2">
+      <button
+        ref={avatarButton}
+        type="button"
+        aria-label="Đổi emoji hồ sơ"
+        title="Đổi emoji hồ sơ"
+        aria-expanded={editing}
+        aria-controls={editing ? editorId : undefined}
+        onClick={() => setEditing((open) => !open)}
+        className="grid size-11 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-paper"
+      >
+        <Badge avatar={avatar} />
+      </button>
+      {editing && (
+        <div id={editorId} className="absolute right-0 top-full z-10 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-line bg-paper p-4">
+          <EmojiForm
+            avatar={avatar}
+            name={name}
+            onSaved={(icon) => { setAvatar(icon); closeEditor(); }}
+            onClose={closeEditor}
+          />
+        </div>
+      )}
       <span className="hidden max-w-40 truncate text-sm opacity-80 md:inline">
         {name}
         {manage ? " · quản lý" : ""}

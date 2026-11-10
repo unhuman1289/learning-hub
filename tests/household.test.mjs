@@ -12,7 +12,7 @@ import {
   PROFILE_COOKIE,
   MANAGE_COOKIE,
 } from '../lib/household.ts';
-import { activeProfile, archiveProfile, checkManagePin, createProfile, listProfiles, setManagePin } from '../lib/profiles.ts';
+import { activeProfile, archiveProfile, checkManagePin, createProfile, listProfiles, setManagePin, updateProfileAvatar } from '../lib/profiles.ts';
 
 const secret = 's'.repeat(40);
 const req = (path, init = {}) => new Request('https://learn.example' + path, init);
@@ -114,7 +114,7 @@ test('profiles: create, list, hide; the manage PIN is optional', async () => {
   );
   await assert.rejects(createProfile(db, { displayName: '', role: 'adult' }), /1–40/);
   await assert.rejects(createProfile(db, { displayName: 'X', role: 'admin' }), /người lớn hoặc trẻ em/);
-  await assert.rejects(createProfile(db, { displayName: 'X', role: 'adult', avatar: '<script>' }), /Biểu tượng/);
+  await assert.rejects(createProfile(db, { displayName: 'X', role: 'adult', avatar: '<script>' }), /một emoji/);
   await archiveProfile(db, b.id);
   assert.deepEqual(
     (await listProfiles(db)).map((p) => p.id),
@@ -140,5 +140,20 @@ test('legacy accounts only appear or can be selected when explicitly included', 
   assert.equal(await activeProfile(db, 'old', 'old'), 'old');
   await assert.rejects(archiveProfile(db, 'old'), /Không tìm thấy/);
   assert.equal(await activeProfile(db, 'old', 'old'), 'old');
+  db.sqlite.close();
+});
+
+test('profile emoji supports joined sequences, flags, and clearing without changing learner settings', async () => {
+  const db = memoryDb();
+  const child = await createProfile(db, { displayName: 'Học thử', role: 'child', avatar: '👩🏽‍💻' });
+  assert.equal(child.avatar, '👩🏽‍💻');
+  const read = () => db.sqlite.prepare('SELECT role, display_name, daily_target_minutes, avatar FROM learner_settings WHERE user_id=?').get(child.id);
+  const before = { ...read() };
+  assert.equal(await updateProfileAvatar(db, child.id, ' 🇻🇳 '), '🇻🇳');
+  assert.deepEqual({ ...read() }, { ...before, avatar: '🇻🇳' });
+  for (const input of ['🐸🌟', 'abc', '1', 42])
+    await assert.rejects(updateProfileAvatar(db, child.id, input), /một emoji/);
+  assert.equal(await updateProfileAvatar(db, child.id, ''), '');
+  assert.deepEqual({ ...read() }, { ...before, avatar: '' });
   db.sqlite.close();
 });
