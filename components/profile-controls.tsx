@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 
 type Profile = { id: string; displayName: string; avatar: string; role: "adult" | "child" };
 
@@ -30,7 +29,6 @@ function Badge({ profile, size = "size-8" }: { profile: Pick<Profile, "displayNa
 
 /** "Ai đang học?": pick a profile on this device. No passwords: the household gate is in front of the whole app. */
 export function ProfilePicker() {
-  const router = useRouter();
   const [profiles, setProfiles] = useState<Profile[] | null>(null),
     [manage, setManage] = useState(false),
     [error, setError] = useState(""),
@@ -86,7 +84,7 @@ export function ProfilePicker() {
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void run({ action: "select", id: p.id }, () => router.refresh())}
+                onClick={() => void run({ action: "select", id: p.id }, () => window.location.assign("/"))}
                 className="grid w-full justify-items-center gap-2 rounded-lg border border-line bg-paper p-4 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
               >
                 <Badge profile={p} size="size-14 text-2xl" />
@@ -208,13 +206,13 @@ function ManageButton({ busy, onManage }: { busy: boolean; onManage: (pin: strin
 
 /** Header controls in profile mode: who is studying, switch person, manage mode on/off. */
 export function ProfileControls({ name, manage }: { name: string; manage: boolean }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   async function act(body: unknown) {
     setBusy(true);
     try {
       await post(body);
-      router.refresh();
+      // The server page decides between the picker and the hub, so load it again.
+      window.location.assign("/");
     } finally {
       setBusy(false);
     }

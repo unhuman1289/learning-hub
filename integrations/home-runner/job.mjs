@@ -57,8 +57,35 @@ export function engineChain(lease, context, engines, { onAC }) {
   return order.filter(usable);
 }
 
-function finalize(json, context, usage) {
-  return { ...json, contextHash: context.contextHash, usage: { ...usage, model: String(usage.model).slice(0, 120) } };
+/**
+ * Reference hygiene for assess results, measured on Qwen (10/11/2026): it invents pattern ids and sometimes grades one
+ * answer twice. Only ids are touched here, never a judgement: unknown pattern ids become null (the Hub then groups the
+ * error by its label), the first grade per gradable attempt is kept, and updates for unknown patterns are dropped.
+ */
+export function normalizeAssess(json, context) {
+  if (!json || typeof json !== 'object' || !Array.isArray(json.grades)) return json;
+  const patterns = new Set((context.openErrorPatterns ?? []).map((p) => p.patternId));
+  const gradable = new Set((context.attempts ?? []).filter((a) => !a.autoGrade || context.purpose === 'recheck').map((a) => a.attemptId));
+  const fixErrors = (errors) =>
+    Array.isArray(errors)
+      ? errors.map((e) => (e && typeof e === 'object' && e.patternId != null && !patterns.has(e.patternId) ? { ...e, patternId: null } : e))
+      : errors;
+  const seen = new Set();
+  return {
+    ...json,
+    grades: json.grades
+      .filter((g) => g && gradable.has(g.attemptId) && !seen.has(g.attemptId) && seen.add(g.attemptId))
+      .map((g) => ({ ...g, errors: fixErrors(g.errors) })),
+    diagnosis: Array.isArray(json.diagnosis) ? json.diagnosis.map((d) => ({ ...d, errors: fixErrors(d?.errors) })) : json.diagnosis,
+    errorPatternUpdates: Array.isArray(json.errorPatternUpdates)
+      ? json.errorPatternUpdates.filter((u) => patterns.has(u?.patternId))
+      : json.errorPatternUpdates,
+  };
+}
+
+function finalize(json, context, usage, kind) {
+  const body = kind === 'assess' ? normalizeAssess(json, context) : json;
+  return { ...body, contextHash: context.contextHash, usage: { ...usage, model: String(usage.model).slice(0, 120) } };
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -88,7 +115,7 @@ export async function processJob(hub, lease, engines, { onAC = true, log = () =>
             schema: contract.json,
             images: engine.vision ? images : [],
           });
-          result = finalize(out.json, context, out.usage);
+          result = finalize(out.json, context, out.usage, lease.kind);
         } catch (error) {
           lastError = engine.name + ': ' + (error instanceof Error ? error.message : String(error));
           log({ jobId: lease.jobId, engine: engine.name, event: 'engine_error' });
@@ -98,13 +125,15 @@ export async function processJob(hub, lease, engines, { onAC = true, log = () =>
         if (!local.success) {
           repair = local.error.issues.slice(0, 20).map((i) => ({ path: i.path.join('/'), message: i.message }));
           lastError = engine.name + ': kết quả sai hợp đồng';
+          log({ jobId: lease.jobId, engine: engine.name, event: 'contract_error', errors: repair.slice(0, 10).map((e) => e.path) });
           continue;
         }
         const dry = await hub.result(lease, local.data, true);
         if (dry.status === 422) {
           repair = dry.body?.errors ?? [];
           lastError = engine.name + ': Hub từ chối (' + repair.map((e) => e.code).join(',') + ')';
-          log({ jobId: lease.jobId, engine: engine.name, event: 'dry_run_422', codes: repair.map((e) => e.code) });
+          // Codes and JSON paths only; Hub messages may quote ids but never the learner's answer.
+          log({ jobId: lease.jobId, engine: engine.name, event: 'dry_run_422', errors: repair.slice(0, 10).map((e) => e.code + ' ' + e.path) });
           continue;
         }
         await submit(hub, lease, local.data);
@@ -114,8 +143,8 @@ export async function processJob(hub, lease, engines, { onAC = true, log = () =>
         return { jobId: lease.jobId, status: 'succeeded', engine: engine.name };
       }
     }
-    // Every engine tried; another lease would hit the same wall, so do not retry.
-    await hub.fail(lease, lastError, false);
+    // Every engine tried. Models are not deterministic, so let the Hub requeue it; it stops after three leases.
+    await hub.fail(lease, lastError, true);
     return { jobId: lease.jobId, status: 'failed', error: lastError };
   } finally {
     clearInterval(timer);

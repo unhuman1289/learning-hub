@@ -212,13 +212,13 @@ test('an uncertain network failure after saving is verified, not resent with oth
   db.sqlite.close();
 });
 
-test('when every engine fails the job is failed without retry and gives only a short reason', async () => {
+test('when every engine fails the job goes back to the Hub queue with only a short reason', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db);
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
   const out = await processJob(hub, lease, { qwen: fakeEngine('qwen', [Error('down')]), codex: fakeEngine('codex', [Error('quota')], true) });
   assert.equal(out.status, 'failed');
-  assert.deepEqual(hub.calls.at(-1), { fail: 'codex: quota', retryable: false });
+  assert.deepEqual(hub.calls.at(-1), { fail: 'codex: quota', retryable: true });
   db.sqlite.close();
 });
 
@@ -316,4 +316,42 @@ test('codex engine runs exec with an output schema in a private temp dir and rea
   assert.match(seen.opts.input, /^S\n\nU\n\nJSON Schema/);
   assert.equal(seen.args[seen.args.indexOf('--sandbox') + 1], 'read-only');
   assert.equal(seen.opts.env.HUB_BEARER, undefined);
+});
+
+test('reference hygiene: invented pattern ids become null and each answer keeps one grade', async () => {
+  const { normalizeAssess } = await import('../integrations/home-runner/job.mjs');
+  const context = {
+    purpose: 'submission',
+    attempts: [
+      { attemptId: 'att_a', autoGrade: null },
+      { attemptId: 'att_auto', autoGrade: { result: 'incorrect' } },
+    ],
+    openErrorPatterns: [{ patternId: 'err_known' }],
+  };
+  const out = normalizeAssess(
+    {
+      grades: [
+        { attemptId: 'att_a', result: 'partial', errors: [{ patternId: 'modalverb-word-order' }, { patternId: 'err_known' }, { patternId: null }] },
+        { attemptId: 'att_a', result: 'correct', errors: [] },
+        { attemptId: 'att_auto', result: 'correct', errors: [] },
+        { attemptId: 'att_ghost', result: 'correct', errors: [] },
+      ],
+      diagnosis: [{ attemptId: 'att_auto', errors: [{ patternId: 'made-up' }] }],
+      errorPatternUpdates: [{ patternId: 'err_known' }, { patternId: 'nope' }],
+    },
+    context,
+  );
+  assert.deepEqual(
+    out.grades.map((g) => [g.attemptId, g.result]),
+    [['att_a', 'partial']],
+  );
+  assert.deepEqual(
+    out.grades[0].errors.map((e) => e.patternId),
+    [null, 'err_known', null],
+  );
+  assert.equal(out.diagnosis[0].errors[0].patternId, null);
+  assert.deepEqual(
+    out.errorPatternUpdates.map((u) => u.patternId),
+    ['err_known'],
+  );
 });
