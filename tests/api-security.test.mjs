@@ -15,6 +15,8 @@ function routeFiles(directory = apiRoot) {
 test('every standalone API route is authenticated or explicitly public/disabled', () => {
   const publicRoutes = new Set(['auth/[...all]/route.ts', 'health/route.ts']);
   const disabledRoutes = new Set(['learning-run/route.ts']);
+  // Profile choice exists only behind the household gate (lib/household.ts), which runs before the app on every request.
+  const householdRoutes = new Set(['profiles/route.ts']);
   const serviceRoutes = new Set([
     'automation/v1/runs/route.ts',
     'automation/v1/runs/[runId]/route.ts',
@@ -31,6 +33,10 @@ test('every standalone API route is authenticated or explicitly public/disabled'
     const name = relative(apiRoot, file).replaceAll('\\', '/');
     const source = readFileSync(file, 'utf8');
     if (publicRoutes.has(name)) continue;
+    if (householdRoutes.has(name)) {
+      assert.equal((source.match(/if \(!householdMode\(env\)\)/g) ?? []).length, 2, `${name} must not exist without the household gate`);
+      continue;
+    }
     if (disabledRoutes.has(name)) {
       assert.match(source, /standalone Workers|independent\/public Worker|Sites dispatch\s+boundary/i, `${name} must document its mandatory Worker boundary`);
       continue;

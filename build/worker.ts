@@ -1,5 +1,6 @@
 import handler from "vinext/server/fetch-handler";
 import { hub2Guard, standaloneRequestGuard } from "./worker-boundary";
+import { householdGuard } from "../lib/household";
 import { createStoredBackup } from "../lib/backup-store";
 import { berlinBackupDay, isBerlinBackupTime } from "../lib/backup-schedule.mjs";
 
@@ -41,8 +42,8 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
 }
 
 export default {
-  fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
-    const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env);
+  async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
+    const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env) ?? (await householdGuard(request, env));
     if (guarded) return guarded;
     return handler.fetch(request, env, ctx);
   },

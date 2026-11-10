@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { House, NotebookPen, ShieldCheck } from "lucide-react";
 import AuthControls from "../components/auth-controls";
+import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
 import { cx } from "../components/notebook/paper";
 import { tasks } from "./content";
@@ -24,7 +25,7 @@ import {LessonList} from "./hub/lesson-v2/list";
 import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
-export default function Home({ userEmail, userName, userRole,hub2Enabled=false }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean }) {
+export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean }) {
   const isAdmin = userRole === "admin";
   const { route, go } = useRoute();
   const workspace = useWorkspace();
@@ -99,7 +100,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false }
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <SaveIndicator workspace={workspace} />
             <StudyMeter clock={clock} labelFor={labelFor} />
-            <AuthControls name={name} email={userEmail} />
+            {profileMode ? <ProfileControls name={name} manage={isAdmin} /> : <AuthControls name={name} email={userEmail} />}
           </div>
         </div>
         </div>

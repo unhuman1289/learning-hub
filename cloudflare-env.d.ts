@@ -19,6 +19,10 @@ declare namespace Cloudflare {
     STAGING_SPIKE_LOCKDOWN?: string;
     HUB2_ENABLED?:string;
     GRADER_CLIENT_ID?:string;
+    HOUSEHOLD_GATE?:string;
+    APP_ACCESS_AUD?:string;
+    PROFILE_COOKIE_SECRET?:string;
+    HOUSEHOLD_PASSPHRASE_SHA256?:string;
     BETTER_AUTH_SECRET?: string;
     BOOTSTRAP_ADMIN_EMAIL?: string;
     RESEND_API_KEY?: string;
