@@ -441,22 +441,19 @@ Quy ước như [PLAN §4](PLAN.md#4-cách-làm-việc): mỗi task là một PR
 - **Việc:** xuất 4 tab ra CSV vào `private-data/legacy-sheets/<ngày>/`. Không commit.
 
 #### L4.2 Script nhập `scripts/import-legacy-sheet.mjs`
-- **Ánh xạ** (vào sổ Deutsch của hồ sơ chủ dự án):
+- **Ánh xạ** (vào sổ Deutsch của hồ sơ chủ dự án). Learner model tính lại thành thạo, lịch ôn và mẫu lỗi từ bài làm trong Hub, nên dữ liệu cũ không được ghi thẳng vào `skill_states` hay `error_patterns` (lần tính lại đầu sẽ xoá chúng). Thay vào đó:
 
   | Nguồn | Đích |
   | --- | --- |
-  | TAGS `active` | `skills`: `key` là tiền tố G/P/N cộng `tag_id`, `origin = migration` |
-  | ITEMS `active`, `misses > 0` | `error_patterns` `open`/`improving`; câu gốc và ví dụ đưa vào `intervention` |
-  | ITEMS `graduated` | `error_patterns` `resolved` |
-  | ITEMS (next_due, interval) | `skill_states.next_review_day`, `review_interval_days` |
-  | Tag mà DASHBOARD ghi đã thành thạo | `mastery = demonstrated`, `mastery_source = guardian`, lý do "Theo nhật ký Google Sheets đến <ngày>" |
-  | ATTEMPTS | Không nhập thành bằng chứng, vì không gắn với câu nào trong Hub. Lưu riêng; tóm tắt 30 ngày cuối vào `subjects.progress_summary`. |
+  | TAGS không `archived` | `skills` (`active`, `origin = migration`), `key` = tiền tố G/P/N cộng `tag_id` |
+  | Cột "mastered" của TAGS (nếu có) | Dòng "Đã thành thạo theo Sheet" trong prompt của sổ |
+  | ITEMS chưa `graduated`, `misses > 0` | Dòng "Lỗi hay lặp lại" (12 mục nhiều lần sai nhất) |
+  | ITEMS `next_due` trong 14 ngày | Dòng "Mục đến hạn ôn" |
+  | ATTEMPTS 30 ngày cuối | Tỉ lệ thành công độc lập theo G/P/N |
 
-- **Cách chạy:**
-  - `--dry-run` in số dòng và xung đột.
-  - `--apply` sinh SQL có tham số. Chạy lại không tạo trùng (khoá `legacy:<id>`).
-  - Hoàn tác: xoá dòng `origin = migration`.
-- **Test:** dùng CSV giả trên SQLite.
+  Phần tóm tắt (≤2500 ký tự, có dấu `[Từ Google Sheets …]`) được nối vào `subjects.instructions`; người soạn bài đọc nó, người học sửa được.
+- **Cách chạy:** in báo cáo và phần tóm tắt; `--out` ghi SQL (quyền 600). Chạy lại không tạo trùng (id cố định, dấu `[Từ Google Sheets`). Áp bằng `wrangler d1 execute … --file`. Hoàn tác: xoá kỹ năng `origin = migration` của sổ và xoá đoạn tóm tắt trong prompt sổ.
+- **Test:** CSV tự soạn theo bố cục v6.1, áp hai lần trên SQLite.
 - **Cỡ:** M.
 
 #### L4.3 Chạy và khoá Sheet
