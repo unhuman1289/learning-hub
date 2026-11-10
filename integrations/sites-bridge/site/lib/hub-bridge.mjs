@@ -1,5 +1,8 @@
 // Runs only behind Sites' private hosting boundary. Never import into the standalone Hub.
 export const stagingOrigin = 'https://learning-hub-staging.tranvu-812.workers.dev';
+export const productionOrigin = 'https://learn.unhuman.cc';
+/** HUB_BRIDGE_ORIGIN picks the Hub; only these two origins are accepted, anything else falls back to staging. */
+export const hubOrigin = (env) => (env?.HUB_BRIDGE_ORIGIN === productionOrigin ? productionOrigin : stagingOrigin);
 const keys = ['HUB_BRIDGE_BEARER', 'HUB_BRIDGE_ACCESS_CLIENT_ID', 'HUB_BRIDGE_ACCESS_CLIENT_SECRET'];
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 export const tools = [
@@ -79,7 +82,7 @@ export async function bridgeCall(name, args, env, fetcher = fetch) {
   if(encoded && encoded.length>300000) throw Error('Payload too large');
   if(encoded)headers['Content-Type']='application/json';
   try {
-    const response=await fetcher(`${stagingOrigin}/api/automation/${version}${path}`,{method,headers,body:encoded,redirect:'manual',signal:AbortSignal.timeout(20000)});
+    const response=await fetcher(`${hubOrigin(env)}/api/automation/${version}${path}`,{method,headers,body:encoded,redirect:'manual',signal:AbortSignal.timeout(20000)});
     // Never follow redirects with service credentials, or return Access HTML as a success.
     if(!(response.headers.get('content-type')??'').includes('application/json')) return {ok:false,status:response.status,error:'upstream_access_or_non_json_response',runId:args.runId??null};
     const text=await response.text();if(text.length>500000)throw Error('Response too large');

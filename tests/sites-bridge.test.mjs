@@ -67,3 +67,12 @@ test('hub2_status reads one profile through the read-only status path', async ()
   await assert.rejects(bridgeCall('hub2_status', { profileId: '../jobs/lease' }, env, fetcher));
   await assert.rejects(bridgeCall('hub2_status', {}, env, fetcher));
 });
+
+test('the bridge reaches production only when HUB_BRIDGE_ORIGIN names it exactly', async () => {
+  const { productionOrigin } = await import('../integrations/sites-bridge/site/lib/hub-bridge.mjs');
+  const urls = [];
+  const fetcher = async (url) => { urls.push(url); return Response.json({}); };
+  await bridgeCall('hub2_schema', {}, { ...env, HUB_BRIDGE_ORIGIN: productionOrigin }, fetcher);
+  await bridgeCall('hub2_schema', {}, { ...env, HUB_BRIDGE_ORIGIN: 'https://evil.test' }, fetcher);
+  assert.deepEqual(urls, ['https://learn.unhuman.cc/api/automation/v2/schema', stagingOrigin + '/api/automation/v2/schema']);
+});
