@@ -5,7 +5,23 @@ import { parseNumericAnswer } from './numeric.ts';
 
 /** One problem with a lesson package; codes match docs/hub2/AI-API.md §4. */
 export type LessonIssue = { path: string; code: string; message: string };
-export type ValidateOptions = { maxDifficulty?: number; sensitivity?: SubjectSensitivity };
+export type ValidateOptions = {
+  maxDifficulty?: number;
+  sensitivity?: SubjectSensitivity;
+  /** Lessons written by an AI runner follow the sizes in docs/plan/LOCAL-GRADER.md D20; hand-imported lessons keep 3–25. */
+  aiSizes?: boolean;
+};
+
+/** D20: items per lesson written by an AI runner, and at most four open answers so grading stays quick. */
+export const AI_ITEM_RANGE: Record<string, [number, number]> = {
+  new: [8, 10],
+  remediation: [8, 10],
+  diagnostic: [5, 10],
+  review: [5, 6],
+  exploration: [5, 8],
+  reading: [5, 8],
+};
+export const AI_MAX_OPEN_ITEMS = 4;
 
 const MAX_BYTES = 96 * 1024;
 const stagesFor = {
@@ -19,12 +35,14 @@ export function itemIssues(item: LessonItem, path: string, maxDifficulty: number
   const issues: LessonIssue[] = [];
   const issue = (field: string, code: string, message: string) => issues.push({ path: `${path}/${field}`, code, message });
   if (!item.key && !item.rubric) issue('key', 'schema', 'Each item needs a key (auto-graded) or a rubric (AI-graded).');
-  if (item.difficulty > maxDifficulty) issue('difficulty', 'difficulty_limit', `Difficulty ${item.difficulty} exceeds the notebook limit ${maxDifficulty}.`);
+  if (item.difficulty > maxDifficulty)
+    issue('difficulty', 'difficulty_limit', `Difficulty ${item.difficulty} exceeds the notebook limit ${maxDifficulty}.`);
   if (item.input === 'choice') {
     if (!item.choices) issue('choices', 'schema', 'A choice item needs choices.');
     if (item.key?.type !== 'choice') issue('key', 'schema', 'A choice item needs a choice key.');
   } else if (item.choices) issue('choices', 'schema', 'Only choice items have choices.');
-  if (item.choices && new Set(item.choices.map((choice) => choice.id)).size !== item.choices.length) issue('choices', 'schema', 'Choice ids must be unique.');
+  if (item.choices && new Set(item.choices.map((choice) => choice.id)).size !== item.choices.length)
+    issue('choices', 'schema', 'Choice ids must be unique.');
   if (item.key?.type === 'choice') {
     if (item.input !== 'choice') issue('key', 'schema', 'A choice key needs input "choice".');
     const ids = new Set(item.choices?.map((choice) => choice.id));
@@ -39,12 +57,19 @@ export function itemIssues(item: LessonItem, path: string, maxDifficulty: number
 }
 
 /** Validates a lesson package; returns the parsed package when there are no issues. */
-export function validateLessonPackage(input: unknown, options: ValidateOptions = {}): { lesson: LessonPackageV2; issues: [] } | { lesson: null; issues: LessonIssue[] } {
+export function validateLessonPackage(
+  input: unknown,
+  options: ValidateOptions = {},
+): { lesson: LessonPackageV2; issues: [] } | { lesson: null; issues: LessonIssue[] } {
   const size = new TextEncoder().encode(JSON.stringify(input ?? null)).length;
-  if (size > MAX_BYTES) return { lesson: null, issues: [{ path: '', code: 'size_limit', message: `Lesson package is ${size} bytes; the limit is ${MAX_BYTES}.` }] };
+  if (size > MAX_BYTES)
+    return { lesson: null, issues: [{ path: '', code: 'size_limit', message: `Lesson package is ${size} bytes; the limit is ${MAX_BYTES}.` }] };
   const parsed = lessonPackageV2.safeParse(input);
   if (!parsed.success) {
-    return { lesson: null, issues: parsed.error.issues.map((problem) => ({ path: '/' + problem.path.join('/'), code: 'schema', message: problem.message })) };
+    return {
+      lesson: null,
+      issues: parsed.error.issues.map((problem) => ({ path: '/' + problem.path.join('/'), code: 'schema', message: problem.message })),
+    };
   }
   const lesson = parsed.data;
   const issues: LessonIssue[] = [];
@@ -53,7 +78,20 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
 
   const review = lesson.kind === 'review';
   const [minItems, maxItems] = review ? [3, 10] : [3, 25];
-  if (lesson.items.length < minItems || lesson.items.length > maxItems) issue('/items', 'schema', `A ${lesson.kind} lesson has ${minItems}–${maxItems} items.`);
+  if (lesson.items.length < minItems || lesson.items.length > maxItems)
+    issue('/items', 'schema', `A ${lesson.kind} lesson has ${minItems}–${maxItems} items.`);
+  else if (options.aiSizes) {
+    const [low, high] = AI_ITEM_RANGE[lesson.template === 'reading' && !review ? 'reading' : lesson.kind];
+    if (lesson.items.length < low || lesson.items.length > high)
+      issue(
+        '/items',
+        'size_limit',
+        `A ${lesson.template === 'reading' ? 'reading' : lesson.kind} lesson has ${low}–${high} items (it has ${lesson.items.length}).`,
+      );
+    const open = lesson.items.filter((item) => !item.key).length;
+    if (open > AI_MAX_OPEN_ITEMS)
+      issue('/items', 'size_limit', `At most ${AI_MAX_OPEN_ITEMS} open-answer items per lesson (it has ${open}); give the others a key.`);
+  }
   if (review && lesson.estMinutes > 20) issue('/estMinutes', 'schema', 'A review set takes at most 20 minutes.');
 
   const ids = lesson.items.map((item) => item.id);
@@ -64,8 +102,10 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
   const placed = new Map<string, number>();
   lesson.stages.forEach((stage, index) => {
     const path = `/stages/${index}`;
-    if (!allowedStages.includes(stage.stage)) issue(`${path}/stage`, 'schema', `Stage "${stage.stage}" is not allowed in a ${review ? 'review set' : `${lesson.template} lesson`}.`);
-    if ((rules.withoutItems as readonly string[]).includes(stage.stage) && stage.itemIds.length) issue(`${path}/itemIds`, 'schema', `Stage "${stage.stage}" holds no items.`);
+    if (!allowedStages.includes(stage.stage))
+      issue(`${path}/stage`, 'schema', `Stage "${stage.stage}" is not allowed in a ${review ? 'review set' : `${lesson.template} lesson`}.`);
+    if ((rules.withoutItems as readonly string[]).includes(stage.stage) && stage.itemIds.length)
+      issue(`${path}/itemIds`, 'schema', `Stage "${stage.stage}" holds no items.`);
     for (const id of stage.itemIds) {
       if (!ids.includes(id)) issue(`${path}/itemIds`, 'unknown_reference', `Stage refers to unknown item "${id}".`);
       placed.set(id, (placed.get(id) ?? 0) + 1);
@@ -86,10 +126,33 @@ export function validateLessonPackage(input: unknown, options: ValidateOptions =
   lesson.items.forEach((item, index) => issues.push(...itemIssues(item, `/items/${index}`, maxDifficulty)));
 
   const learnerText = [
-    lesson.title, lesson.objective, lesson.why, lesson.level, lesson.diagram ?? '', lesson.output ?? '', lesson.nextTopic,
+    lesson.title,
+    lesson.objective,
+    lesson.why,
+    lesson.level,
+    lesson.diagram ?? '',
+    lesson.output ?? '',
+    lesson.nextTopic,
     ...lesson.sections.flatMap((section) => [section.heading, section.text]),
-    ...(lesson.sheet ? [lesson.sheet.explanation, ...lesson.sheet.rules, ...lesson.sheet.examples.flatMap((example) => [example.text, example.note ?? ""]), ...lesson.sheet.mistakes, ...lesson.sheet.tips, ...lesson.sheet.checklist] : []),
-    ...lesson.items.flatMap((item) => [item.prompt, item.instructions ?? '', item.explanation ?? '', item.solution, ...item.hints, ...(item.choices ?? []).flatMap((choice) => [choice.text, choice.errorLabel ?? '']), ...(item.rubric ?? []).flatMap((criterion) => [criterion.criterion, criterion.description ?? ''])]),
+    ...(lesson.sheet
+      ? [
+          lesson.sheet.explanation,
+          ...lesson.sheet.rules,
+          ...lesson.sheet.examples.flatMap((example) => [example.text, example.note ?? '']),
+          ...lesson.sheet.mistakes,
+          ...lesson.sheet.tips,
+          ...lesson.sheet.checklist,
+        ]
+      : []),
+    ...lesson.items.flatMap((item) => [
+      item.prompt,
+      item.instructions ?? '',
+      item.explanation ?? '',
+      item.solution,
+      ...item.hints,
+      ...(item.choices ?? []).flatMap((choice) => [choice.text, choice.errorLabel ?? '']),
+      ...(item.rubric ?? []).flatMap((criterion) => [criterion.criterion, criterion.description ?? '']),
+    ]),
     ...lesson.sources.flatMap((source) => [source.title, source.readScope]),
   ].join('\n');
   if (containsContactDetails(learnerText) || containsPossibleClinicalIdentifier(learnerText, options.sensitivity ?? 'normal')) {

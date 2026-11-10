@@ -20,7 +20,15 @@ export async function exploreSubjectId(learnerId: string) {
  * Exploration and extra-practice lessons (PLAN H6.4): an `extra` slot in the chosen notebook, or in
  * "Khám phá" when the request names none. Each request is answered once: assigned or declined with a reason.
  */
-export async function prepareExplorations(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, issue: Issue) {
+export async function prepareExplorations(
+  db: EvidenceDb,
+  job: Job,
+  context: PlanContext,
+  result: PlanResult,
+  token: string,
+  now: Date,
+  issue: Issue,
+) {
   const statements: Statement[] = [],
     savedIds: string[] = [];
   let minutes = 0;
@@ -32,7 +40,8 @@ export async function prepareExplorations(db: EvidenceDb, job: Job, context: Pla
   for (const request of context.explorations)
     if (!answered.has(request.requestId)) issue('/explorations', 'missing_answer', 'Cần giao bài hoặc từ chối mỗi yêu cầu trong ngữ cảnh.');
   const assigned = result.explorations.filter((e) => e.action === 'assign');
-  if (assigned.length > context.policy.extraLessonsLeftToday) issue('/explorations', 'over_budget', 'Hết lượt bài thêm hôm nay; để yêu cầu chờ đến mai.');
+  if (assigned.length > context.policy.extraLessonsLeftToday)
+    issue('/explorations', 'over_budget', 'Hết lượt bài thêm hôm nay; để yêu cầu chờ đến mai.');
 
   for (const [index, e] of result.explorations.entries()) {
     const path = '/explorations/' + index,
@@ -46,7 +55,9 @@ export async function prepareExplorations(db: EvidenceDb, job: Job, context: Pla
       if (e.lesson) issue(path + '/lesson', 'schema', 'Từ chối thì không kèm bài.');
       statements.push(
         db
-          .prepare(`UPDATE learner_requests SET status='declined',response_note=?,processed_at=? WHERE id=? AND learner_id=? AND status IN ('queued','in_job') AND ${gate}`)
+          .prepare(
+            `UPDATE learner_requests SET status='declined',response_note=?,processed_at=? WHERE id=? AND learner_id=? AND status IN ('queued','in_job') AND ${gate}`,
+          )
           .bind(e.reason, stamp, e.requestId, job.learner_id, ...args),
       );
       continue;
@@ -67,6 +78,7 @@ export async function prepareExplorations(db: EvidenceDb, job: Job, context: Pla
     const checked = validateLessonPackage(e.lesson, {
       maxDifficulty: known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
       sensitivity: known?.sensitivity ?? 'normal',
+      aiSizes: true,
     });
     for (const problem of checked.issues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
     if (!checked.lesson) continue;

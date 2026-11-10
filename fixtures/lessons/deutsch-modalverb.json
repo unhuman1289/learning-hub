@@ -48,7 +48,8 @@
       "stage": "retrieval",
       "itemIds": [
         "i1",
-        "i2"
+        "i2",
+        "i6"
       ]
     },
     {
@@ -59,7 +60,9 @@
       "stage": "guided",
       "itemIds": [
         "i3",
-        "i4"
+        "i4",
+        "i7",
+        "i8"
       ]
     },
     {
@@ -203,6 +206,87 @@
         "Bắt đầu bằng: Am Samstag …"
       ],
       "solution": "Ví dụ: Am Samstag kann ich lange schlafen. Ich möchte Fußball spielen. Am Sonntag muss ich Hausaufgaben machen.",
+      "attachment": "none"
+    },
+    {
+      "id": "i6",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 1,
+      "prompt": "Chọn câu đúng.",
+      "choices": [
+        {
+          "id": "a",
+          "text": "Wir müssen morgen früh aufstehen."
+        },
+        {
+          "id": "b",
+          "text": "Wir müssen morgen früh aufstehen müssen.",
+          "errorLabel": "Lặp Modalverb ở cuối câu"
+        }
+      ],
+      "key": {
+        "type": "choice",
+        "correct": [
+          "a"
+        ]
+      },
+      "hints": [],
+      "solution": "a: Wir müssen morgen früh aufstehen.",
+      "attachment": "none"
+    },
+    {
+      "id": "i7",
+      "activity": "transform",
+      "input": "short",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 2,
+      "prompt": "Điền động từ nguyên mẫu: Er will heute Fußball ___ (spielen).",
+      "key": {
+        "type": "text",
+        "accepted": [
+          "spielen"
+        ],
+        "caseSensitive": false
+      },
+      "hints": [
+        "Sau will, động từ chính ở dạng nguyên mẫu."
+      ],
+      "solution": "spielen",
+      "attachment": "none"
+    },
+    {
+      "id": "i8",
+      "activity": "recognize",
+      "input": "choice",
+      "skills": [
+        "key:modalverb-infinitiv"
+      ],
+      "difficulty": 2,
+      "prompt": "Động từ chính đứng ở đâu trong câu có Modalverb?",
+      "choices": [
+        {
+          "id": "a",
+          "text": "Ở vị trí thứ hai"
+        },
+        {
+          "id": "b",
+          "text": "Ở cuối câu, dạng nguyên mẫu"
+        }
+      ],
+      "key": {
+        "type": "choice",
+        "correct": [
+          "b"
+        ]
+      },
+      "hints": [],
+      "solution": "b",
       "attachment": "none"
     }
   ],
