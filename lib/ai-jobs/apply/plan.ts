@@ -76,7 +76,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     const text = [
       s.reason,
       s.progressSummary,
-      ...(setup ? [setup.level, setup.curriculum, setup.instructions] : []),
+      ...(setup ? [setup.goal ?? '', setup.level, setup.curriculum, setup.instructions] : []),
       ...(s.roadmap??[]).flatMap(step=>[step.title,step.objective,step.situation]),
       ...s.skillChanges.flatMap((x) => ['name' in x ? x.name : '', 'description' in x ? x.description : '', 'reason' in x ? x.reason : '']),
       ...s.masteryProposals.map((x) => x.reason),
@@ -363,11 +363,12 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       statements.push(db.prepare(
         `UPDATE subjects SET ai_enabled=CASE WHEN legacy_track IS NULL THEN 1 ELSE ai_enabled END,
            template=coalesce(?,template),
+           goal=CASE WHEN goal=opening_brief THEN coalesce(nullif(?,''),goal) ELSE goal END,
            level=coalesce(nullif(level,''),?,level), curriculum=coalesce(nullif(curriculum,''),?,curriculum),
            instructions=coalesce(nullif(instructions,''),?,instructions)
          WHERE id=? AND learner_id=? AND ${gate}
            AND EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=? AND user_id=? AND subject_id=? AND slot='primary')`,
-      ).bind(setup?.template ?? null, setup?.level.trim() ?? null, setup?.curriculum.trim() ?? null, setup?.instructions.trim() ?? null,
+      ).bind(setup?.template ?? null, setup?.goal?.trim() ?? null, setup?.level.trim() ?? null, setup?.curriculum.trim() ?? null, setup?.instructions.trim() ?? null,
         s.subjectId, job.learner_id, ...gateValues, job.id, job.learner_id, s.subjectId));
     }
     for (const r of s.requestsHandled) {

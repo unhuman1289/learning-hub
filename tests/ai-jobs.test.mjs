@@ -1016,12 +1016,12 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
     title: 'Bước ' + index, objective: 'Luyện tập', situation: 'Bài tập ngắn',
     skills: ['key:' + firstSkill.key], mode: 'new',
   }));
-  settings.notebookSetup = { template: 'reading', level: 'Chưa đánh giá', curriculum: 'Đề xuất khác', instructions: 'Ưu tiên bài tập ngắn.' };
+  settings.notebookSetup = { template: 'reading', goal: 'Ôn phân số để thi', level: 'Chưa đánh giá', curriculum: 'Đề xuất khác', instructions: 'Ưu tiên bài tập ngắn.' };
   const saved = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(saved.status, 200, JSON.stringify(saved));
-  const notebook = db.sqlite.prepare('SELECT template,goal,level,curriculum,instructions,roadmap,status,ai_enabled FROM subjects WHERE id=?').get(subject);
+  const notebook = db.sqlite.prepare('SELECT template,goal,opening_brief,level,curriculum,instructions,roadmap,status,ai_enabled FROM subjects WHERE id=?').get(subject);
   assert.deepEqual({ ...notebook, roadmap: JSON.parse(notebook.roadmap).length }, {
-    template: 'reading', goal: 'Ôn phân số để thi, thích bài tập ngắn', level: 'Chưa đánh giá',
+    template: 'reading', goal: 'Ôn phân số để thi', opening_brief: 'Ôn phân số để thi, thích bài tập ngắn', level: 'Chưa đánh giá',
     curriculum: 'Sách đã chọn', instructions: 'Ưu tiên bài tập ngắn.', roadmap: 5, status: 'active', ai_enabled: 1,
   });
   const midnight = new Date('2026-10-13T22:00:00Z');

@@ -7,7 +7,7 @@ export type SubjectLimits = { maxDifficulty: number; allowNewTopics: boolean; ma
 
 export type SubjectRow = {
   id: string; learner_id: string; title: string; template: SubjectTemplate; sensitivity: SubjectSensitivity;
-  goal: string; level: string; curriculum: string; instructions?: string; limits: string; weight: number; status: SubjectStatus;
+  goal: string; opening_brief: string | null; level: string; curriculum: string; instructions?: string; limits: string; weight: number; status: SubjectStatus;
   ai_enabled: number; legacy_track: LearningTrack | null; progress_summary: string; roadmap?: string; progress_updated_at: string | null;
   revision: number; created_by: string; created_at: string; updated_at: string;
 };
@@ -36,7 +36,7 @@ export function newSubjectId() {
 export const listSubjectsSql = `SELECT * FROM subjects WHERE learner_id = ? AND status <> 'archived' ORDER BY weight DESC, created_at, title`;
 export const readSubjectSql = 'SELECT * FROM subjects WHERE id = ? AND learner_id = ?';
 export const insertSubjectSql = `INSERT INTO subjects
- (id, learner_id, title, template, sensitivity, goal, level, curriculum, limits, weight, status, ai_enabled, legacy_track, created_by, created_at, updated_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`;
+ (id, learner_id, title, template, sensitivity, goal, level, curriculum, limits, weight, status, ai_enabled, legacy_track, created_by, created_at, updated_at, opening_brief)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`;
 export const readGuardianSql = 'SELECT 1 AS ok FROM guardians WHERE guardian_id = ? AND learner_id = ?';
 export const listWardsSql = 'SELECT learner_id FROM guardians WHERE guardian_id = ? ORDER BY learner_id';

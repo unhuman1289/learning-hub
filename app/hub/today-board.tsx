@@ -4,6 +4,7 @@ import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useState, type ReactNode } from "react";
 import type { TodayItem } from "../../lib/today";
 import { apiJson } from "./api";
+import { postitAction } from "./paper-bits";
 import { buttonClass, RouteLink } from "./ui";
 import type { Route } from "./use-route";
 export function TodayBoard({ learner, go, enabled, notes, loadingLegacy }: { learner: string | null; go: (r: Route) => void; enabled: boolean; notes: ReactNode[]; loadingLegacy: boolean }) {
@@ -76,11 +77,11 @@ export function TodayBoard({ learner, go, enabled, notes, loadingLegacy }: { lea
               {i.optional && i.category === "exploration" && <p className="mt-2 text-sm leading-6">Thêm nếu muốn — đã đạt mục tiêu phút hôm nay.</p>}
               <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                 {i.lessonId || learner ? (
-                  <RouteLink route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "subject", id: i.subjectId }} go={go} className={buttonClass(index === 0 ? "primary" : "secondary", "min-h-9 px-3")}>
+                  <RouteLink route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "subject", id: i.subjectId }} go={go} className={postitAction}>
                     {!i.lessonId ? "Mở sổ" : i.category === "new" ? "Bắt đầu" : i.category === "correction" ? "Xem lời phê" : i.category === "review" ? "Ôn bài" : "Học tiếp"}
                   </RouteLink>
                 ) : (
-                  <button type="button" className={buttonClass(index === 0 ? "primary" : "secondary", "min-h-9 px-3")} onClick={() => void practise(i.subjectId)}>Luyện tập</button>
+                  <button type="button" className={postitAction} onClick={() => void practise(i.subjectId)}>Luyện tập</button>
                 )}
               {i.lessonId && !learner && (
                 <button className={buttonClass("ghost", "min-h-11 text-postit-ink hover:text-postit-ink")} onClick={() => void snooze(i.lessonId!)}>

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { apiJson } from "./api";
-import { buttonClass } from "./ui";
+import { paperAction } from "./paper-bits";
 import { fieldClass, labelClass } from "./paper-dialog";
 import { useLiveRefresh } from "./use-live-refresh";
 import type { RequestView } from "./requests-panel";
@@ -46,12 +46,12 @@ export function NewLessonRequest({ subjectId, onOpen }: { subjectId: string; onO
         <label className={labelClass}>Ghi chú cho bài mới (tuỳ chọn)
           <input className={fieldClass} value={note} onChange={e => setNote(e.target.value)} maxLength={2000} placeholder="Ví dụ: muốn ôn cách hẹn lịch" />
         </label>
-        <button type="submit" disabled={busy} className={buttonClass("primary")}>Xin bài mới</button>
+        <button type="submit" disabled={busy} className={paperAction}>Xin bài mới</button>
       </>}
       {waiting(request) && <p role="status" className="text-muted">
         {request?.deferred ? "Bài sẽ được soạn vào sáng mai." : request?.status === "queued" ? "Đã nhận yêu cầu, đang chờ xếp lượt." : "Đang soạn bài… thường mất khoảng 1–2 phút khi máy đang bật."}
       </p>}
-      {request?.resultLessonId && <button type="button" onClick={() => onOpen(request.resultLessonId!)} className={buttonClass("primary")}>Mở bài mới</button>}
+      {request?.resultLessonId && <button type="button" onClick={() => onOpen(request.resultLessonId!)} className={paperAction}>Mở bài mới</button>}
       {request && !waiting(request) && !request.resultLessonId && <p role="status">{request.responseNote || "Chưa soạn được bài. Bạn có thể xin lại."}</p>}
       {error && <p role="alert" className="text-accent">{error}</p>}
     </form>

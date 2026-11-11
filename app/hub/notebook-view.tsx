@@ -12,6 +12,7 @@ import { googleDocs } from "../google-docs";
 import { type FormRequest } from "./document-form";
 import { LessonPage, type Drafts } from "./lesson-page";
 import { coverTitle, coverTransition, notebookPages, shortDate, trackInfo, type Page, type TrackId } from "./model";
+import { PaperSummary } from "./paper-bits";
 import { buttonClass, PageLabel, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { NotebookTab, Route } from "./use-route";
@@ -100,7 +101,7 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
               ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} />
               : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ xuất hiện ở đây sau lượt soạn bài buổi sáng."}</p></RuledPage>
           )}
-          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><summary className="cursor-pointer">Bài đã học</summary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</>:<GoalsPage track={track} workspace={workspace} />)}
+          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><PaperSummary>Bài đã học</PaperSummary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</>:<GoalsPage track={track} workspace={workspace} />)}
           {tab === "tai-lieu" && <DocsPage track={track} workspace={workspace} openForm={openForm} />}
         </div>
       </div>

@@ -148,6 +148,13 @@
       "when": 1794402000000,
       "tag": "0020_adaptive_pilot",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1794416400000,
+      "tag": "0021_notebook_opening_brief",
+      "breakpoints": true
     }
   ]
 }

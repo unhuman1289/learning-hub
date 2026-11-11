@@ -6,10 +6,10 @@ import { AdaptiveRequests } from "../adaptive-requests";
 import { NotebookRequests } from "../requests-panel";
 import { HistoryPanel } from "../history-panel";
 import { NewLessonRequest } from "../new-lesson-request";
-import { buttonClass, RouteLink } from "../ui";
+import { RouteLink } from "../ui";
 import { useLiveRefresh } from "../use-live-refresh";
 import { MarginDate } from "../../../components/notebook/paper";
-import { pencil, pencilLink, shortDay, skillLabel } from "../paper-bits";
+import { paperAction, PaperSummary, pencil, pencilLink, shortDay, skillLabel } from "../paper-bits";
 import type { Route } from "../use-route";
 
 type LessonRow = { id: string; title: string; completedAt: string | null; assignedDate: string; kind: string; slot: string; reason: string; minutes: number | null; skill: string | null };
@@ -93,7 +93,7 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
         <p className={pencil}>{primary.kind === "diagnostic" ? "Bài đầu tiên" : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Học tiếp"}{primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason ? ` · ${primary.reason}` : ""}</p>
         <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4">
           <p className="text-lg font-semibold">{primary.title}</p>
-          <RouteLink route={{view:"lesson",id:primary.id}} go={go} className={buttonClass("primary")}>Mở bài</RouteLink>
+          <RouteLink route={{view:"lesson",id:primary.id}} go={go} className={paperAction}>Mở bài</RouteLink>
         </div>
       </> : emptyStatus && <p role="status" className={pencil}>{emptyStatus}</p>}
       {canRequest && !notebook.setup && (notebook.adaptive
@@ -110,14 +110,14 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
     {canRequest && !notebook.setup && !notebook.adaptive && <details>
       <summary className="min-h-11 cursor-pointer">Yêu cầu khác</summary><NotebookRequests subjectId={subjectId} learner={learner} />
     </details>}
-    <details className="mt-7"><summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Bài đã học</summary>{historyList}</details>
+    <details className="mt-7"><PaperSummary>Bài đã học</PaperSummary>{historyList}</details>
   </>;
   return <>
     <section className="space-y-3 bg-paper py-3" aria-label="Bài hiện tại">
       {open.length ? <ul className="space-y-2">
-        {open.map((row, i) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
+        {open.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-semibold">{row.title}</p>
-          <RouteLink route={{view:"lesson",id:row.id}} go={go} className={buttonClass(i === 0 ? "primary" : "ghost")}>Mở bài</RouteLink>
+          <RouteLink route={{view:"lesson",id:row.id}} go={go} className={paperAction}>Mở bài</RouteLink>
         </li>)}
       </ul> : <>
         <p className="text-sm text-muted">Sổ không còn bài đang mở.</p>

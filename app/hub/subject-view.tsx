@@ -7,7 +7,8 @@ import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { RuledPage } from "../../components/notebook/paper";
 import { fieldClass, labelClass } from "./paper-dialog";
-import { buttonClass, RouteLink } from "./ui";
+import { paperAction, PaperSummary } from "./paper-bits";
+import { RouteLink } from "./ui";
 import type { Route } from "./use-route";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
 
@@ -35,7 +36,7 @@ export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }:
         {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
         {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
         <details className="mt-7">
-          <summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Cài đặt sổ</summary>
+          <PaperSummary>Cài đặt sổ</PaperSummary>
           {canEdit ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
         </details>
       </RuledPage>
@@ -100,10 +101,14 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
         </label>
       )}
 {hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.aiEnabled ?? subject.aiEnabled} disabled={subject.status!=="active"} onChange={e => edit({ aiEnabled: e.target.checked })}/> Tự chuẩn bị bài lúc 00:00 giờ Đức khi đã xong bài chính.</label>}
+      {subject.openingBrief && <details>
+        <PaperSummary>Nội dung lúc mở sổ</PaperSummary>
+        <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-muted">{subject.openingBrief}</p>
+      </details>}
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>
-        <button type="submit" disabled={!changed || state === "saving"} className={buttonClass("primary")}>{state === "saving" ? "Đang lưu…" : "Lưu"}</button>
+        <button type="submit" disabled={!changed || state === "saving"} className={paperAction}>{state === "saving" ? "Đang lưu…" : "Lưu"}</button>
       </div>
     </form>
   );
