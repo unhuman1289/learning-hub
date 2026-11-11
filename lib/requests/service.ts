@@ -1,4 +1,5 @@
 import { ApiError } from '../api-error.ts';
+import { usesAdaptivePlan } from '../subjects/sql.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { enqueue, type QueueBindings } from '../ai-jobs/queue.ts';
 import { openWorkMinutesSql } from '../ai-jobs/open-work.ts';
@@ -52,15 +53,18 @@ export function parseRequest(body: unknown): RequestInput {
 }
 
 export async function createRequest(db: EvidenceDb, bindings: QueueBindings, learnerId: string, createdBy: string, input: RequestInput, now = new Date()) {
-  if (input.subjectId) {
-    const subject = await db
-      .prepare("SELECT 1 AS ok FROM subjects WHERE id=? AND learner_id=? AND status IN ('setup','active')")
-      .bind(input.subjectId, learnerId)
-      .first();
-    if (!subject) throw new ApiError(404, 'Không tìm thấy sổ.');
+  const subject = input.subjectId
+    ? await db.prepare("SELECT id,status,legacy_track FROM subjects WHERE id=? AND learner_id=? AND status IN ('setup','active')")
+      .bind(input.subjectId, learnerId).first<{ id: string; status: string; legacy_track: string | null }>()
+    : null;
+  if (input.subjectId && !subject) throw new ApiError(404, 'Không tìm thấy sổ.');
+  const adaptive = !!subject && usesAdaptivePlan(subject.id, subject.legacy_track, bindings.ADAPTIVE_PILOT_SUBJECT_ID);
+  if (input.adaptive) {
+    if (!adaptive) throw new ApiError(404, 'Chưa mở cách xin bài này cho sổ.');
+    if (subject?.status !== 'active') throw new ApiError(409, 'Hãy chờ bài đầu tiên của sổ.');
+    return createAdaptiveRequest(db, bindings, learnerId, createdBy, input, input.adaptive, now);
   }
-  if (input.adaptive) return createAdaptiveRequest(db, bindings, learnerId, createdBy, input, input.adaptive, now);
-  if (input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID && !needsGoalAccess(input.kind))
+  if (adaptive && !needsGoalAccess(input.kind))
     throw new ApiError(409, 'Chọn Học mới, Luyện tập hoặc Cá nhân hóa trong sổ.');
   const recent = await db
     .prepare('SELECT count(*) AS n FROM learner_requests WHERE learner_id=? AND created_at>?')
@@ -111,7 +115,6 @@ async function createAdaptiveRequest(db: EvidenceDb, bindings: QueueBindings, le
   const existing = () => db.prepare('SELECT * FROM learner_requests WHERE id=? AND learner_id=?').bind(id, learnerId).first<Record<string, unknown>>();
   let row = await existing();
   if (!row) {
-    if (input.subjectId !== bindings.ADAPTIVE_PILOT_SUBJECT_ID) throw new ApiError(404, 'Chưa mở cách xin bài này cho sổ.');
     await db.prepare("INSERT OR IGNORE INTO learner_requests(id,learner_id,subject_id,kind,text,urgency,created_by,status,created_at,metadata) SELECT ?,?,?,'extra_practice',?,'now',?,'queued',?,? WHERE (SELECT count(*) FROM learner_requests WHERE learner_id=? AND metadata IS NOT NULL AND created_at>?)<20")
       .bind(id, learnerId, input.subjectId, input.text, createdBy, now.toISOString(), encoded, learnerId, new Date(now.getTime()-600000).toISOString()).run();
     row = await existing();
@@ -119,7 +122,7 @@ async function createAdaptiveRequest(db: EvidenceDb, bindings: QueueBindings, le
   }
   if (row.metadata !== encoded || row.subject_id !== input.subjectId || row.text !== input.text)
     throw new ApiError(409, 'Mã gửi đã dùng cho một yêu cầu khác.');
-  if (!row.job_id && row.status === 'queued' && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID) {
+  if (!row.job_id && row.status === 'queued') {
     const job = await enqueue(db, bindings, { learnerId, subjectId: input.subjectId, kind: 'plan', purpose: 'request', refId: id, adaptiveRequest: true }, now);
     if (job.id) await db.prepare("UPDATE learner_requests SET status='in_job',job_id=? WHERE id=? AND learner_id=? AND status='queued'").bind(job.id,id,learnerId).run();
   }

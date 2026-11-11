@@ -10,6 +10,8 @@ import { planContext, planResult, assessContext, assessResult } from '../../../.
 import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-package-v2';
 import { historyMarkdown, readHistory } from '../../../../../lib/history';
 import { learnerStatus } from '../../../../../lib/status';
+import { householdMode } from '../../../../../lib/household';
+import { listProfiles } from '../../../../../lib/profiles';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store' };
 const leaseBody = z
@@ -54,10 +56,15 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     let auth = await authorizeAutomation(req, env, 'jobs:plan');
     if ('response' in auth && auth.response.status === 403) auth = await authorizeAutomation(req, env, 'jobs:assess');
     if ('response' in auth) return auth.response;
-    const client = auth.client,
-      { path } = await context.params,
-      db = storage(),
-      token = req.headers.get('X-Lease-Token');
+    const { path } = await context.params;
+    const db = storage();
+    const token = req.headers.get('X-Lease-Token');
+    let client = auth.client;
+    if (path[0] === 'jobs' && env.AI_LOCAL_ONLY === 'true' && householdMode(env) &&
+        client.id === (env.GRADER_CLIENT_ID ?? 'home-runner')) {
+      const profiles = await listProfiles(db, env.HOUSEHOLD_LEGACY_PROFILE_IDS);
+      client = { ...client, learnerIds: [...new Set([...(client.learnerIds ?? []), ...profiles.map(profile => profile.id)])] };
+    }
     let body: unknown;
     if (req.method === 'POST') {
       const raw = await req.text();

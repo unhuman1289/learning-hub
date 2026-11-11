@@ -13,6 +13,8 @@ import { submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
 import { canonical, contextHash } from '../lib/ai-jobs/context/common.ts';
 import { sendAlertDigest } from '../lib/alerts.ts';
+import { createSubject } from '../lib/subjects/service.ts';
+import { parseSubjectInput } from '../lib/subjects/policy.ts';
 const now = new Date('2026-10-13T07:30:00Z'),
   subject = 'sub_aaaaaaaaaaaaaaaaaaaa',
   learner = 'private-real-learner-id';
@@ -40,7 +42,7 @@ function seed() {
     .run(learner);
   db.sqlite
     .prepare(
-      "INSERT INTO subjects(id,learner_id,title,template,status,ai_enabled,goal,level,created_by,created_at,updated_at) VALUES(?,?,'Deutsch','skill','active',1,'A2 → B2; viết và nói','A2',?,'2026-10-01','2026-10-01')",
+      "INSERT INTO subjects(id,learner_id,title,template,status,ai_enabled,goal,level,created_by,created_at,updated_at,legacy_track) VALUES(?,?,'Deutsch','skill','active',1,'A2 → B2; viết và nói','A2',?,'2026-10-01','2026-10-01','Deutsch')",
     )
     .run(subject, learner, learner);
   return db;
@@ -877,7 +879,7 @@ test('roadmap saves 5–10 next steps atomically without assigning lessons; fore
  db.sqlite.close();
 });
 
-test('nightly skips an unfinished extra lesson even after the primary is complete', async () => {
+test('legacy nightly skips an unfinished extra lesson even after the primary is complete', async () => {
   const { db, lesson } = await assigned();
   db.sqlite.prepare("UPDATE learning_lessons SET slot='extra' WHERE id=?").run(lesson);
   assert.deepEqual(await queueDaily(db, {}, now), { subjects: 0, failed: 0 });
@@ -925,15 +927,21 @@ test('adaptive requests deduplicate concurrently and legacy clients cannot lease
   assert.equal(JSON.parse(job.context_snapshot).adaptive.mode, 'personal');
 });
 
-test('adaptive nightly queue uses one Berlin-day key', async () => {
+test('each custom notebook has its own nightly job key, with no pilot ID', async () => {
   const db = seed();
-  const bindings = { ADAPTIVE_PILOT_SUBJECT_ID: subject };
-  await queueDaily(db, bindings, new Date('2026-10-24T22:00:00.000Z'));
-  await queueDaily(db, bindings, new Date('2026-10-24T22:00:20.000Z'));
-  const rows = db.sqlite.prepare('SELECT adaptive, learning_day FROM ai_jobs').all();
-  assert.equal(rows.length, 1);
-  assert.equal(rows[0].learning_day, '2026-10-25');
-  assert.equal(rows[0].adaptive, 1);
+  db.sqlite.prepare('UPDATE subjects SET ai_enabled=0 WHERE id=?').run(subject);
+  const ids = [];
+  for (const title of ['Tiếng Việt', 'Toán 7']) {
+    const custom = await createSubject(db, learner, learner, parseSubjectInput({ title }), now);
+    ids.push(custom.id);
+    db.sqlite.prepare("UPDATE subjects SET status='active',ai_enabled=1 WHERE id=?").run(custom.id);
+  }
+  await queueDaily(db, {}, new Date('2026-10-24T22:00:00.000Z'));
+  await queueDaily(db, {}, new Date('2026-10-24T22:00:20.000Z'));
+  const rows = db.sqlite.prepare('SELECT subject_id, adaptive, learning_day FROM ai_jobs ORDER BY subject_id').all();
+  assert.deepEqual(rows.map(row => ({ ...row })), ids.sort().map(subjectId => ({
+    subject_id: subjectId, adaptive: 1, learning_day: '2026-10-25',
+  })));
 });
 
 test('adaptive personal request saves a one-item lesson and does not block the nightly job', async () => {
@@ -986,10 +994,14 @@ test('manual Học mới advances the same roadmap that the nightly planner read
   assert.equal(next.adaptive.step.title, 'Xác nhận lịch');
 });
 
-test('initial plan fills notebook settings without overwriting the learning brief or existing details', async () => {
+test('the first saved lesson activates a new notebook and its nightly schedule', async () => {
   const db = seed();
-  db.sqlite.prepare("UPDATE subjects SET status='setup',goal=?,level='',curriculum=?,instructions='' WHERE id=?")
-    .run('Ôn phân số để thi, thích bài tập ngắn', 'Sách đã chọn', subject);
+  const subject = (await createSubject(db, learner, learner, parseSubjectInput({
+    title: 'Toán 7', goal: 'Ôn phân số để thi, thích bài tập ngắn', curriculum: 'Sách đã chọn',
+  }), now)).id;
+  const setupRequest = parseRequest({ subjectId: subject, mode: 'learn', clientRequestId: crypto.randomUUID() });
+  await assert.rejects(createRequest(db, {}, learner, learner, setupRequest, now), { status: 409 });
+  assert.equal(db.sqlite.prepare('SELECT ai_enabled FROM subjects WHERE id=?').get(subject).ai_enabled, 0);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
   const [lease] = await leaseJobs(db, client, input, 'test', now);
   assert.equal(lease.jobId, job.id);
@@ -1007,10 +1019,25 @@ test('initial plan fills notebook settings without overwriting the learning brie
   settings.notebookSetup = { template: 'reading', level: 'Chưa đánh giá', curriculum: 'Đề xuất khác', instructions: 'Ưu tiên bài tập ngắn.' };
   const saved = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(saved.status, 200, JSON.stringify(saved));
-  const notebook = db.sqlite.prepare('SELECT template,goal,level,curriculum,instructions,roadmap,status FROM subjects WHERE id=?').get(subject);
+  const notebook = db.sqlite.prepare('SELECT template,goal,level,curriculum,instructions,roadmap,status,ai_enabled FROM subjects WHERE id=?').get(subject);
   assert.deepEqual({ ...notebook, roadmap: JSON.parse(notebook.roadmap).length }, {
     template: 'reading', goal: 'Ôn phân số để thi, thích bài tập ngắn', level: 'Chưa đánh giá',
-    curriculum: 'Sách đã chọn', instructions: 'Ưu tiên bài tập ngắn.', roadmap: 5, status: 'active',
+    curriculum: 'Sách đã chọn', instructions: 'Ưu tiên bài tập ngắn.', roadmap: 5, status: 'active', ai_enabled: 1,
   });
+  const midnight = new Date('2026-10-13T22:00:00Z');
+  db.sqlite.prepare('UPDATE subjects SET ai_enabled=0 WHERE legacy_track IS NOT NULL').run();
+  await queueDaily(db, {}, midnight);
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily'").get().n, 0);
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=? WHERE subject_id=?').run(now.toISOString(), subject);
+  await queueDaily(db, {}, midnight);
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily' AND subject_id=? AND adaptive=1").get(subject).n, 1);
+  for (const mode of ['learn', 'practice', 'personal']) {
+    const request = await createRequest(db, {}, learner, learner, parseRequest({
+      subjectId: subject, mode, clientRequestId: crypto.randomUUID(),
+      ...(mode === 'personal' ? { note: 'Luyện theo tình huống thực tế' } : {}),
+    }), now);
+    assert.equal(request.mode, mode);
+    assert.equal((await readJob(db, db.sqlite.prepare('SELECT job_id FROM learner_requests WHERE id=?').get(request.id).job_id)).adaptive, 1);
+  }
   db.sqlite.close();
 });

@@ -20,7 +20,7 @@ Follow `docs/plan/PLAN.md`, the single implementation plan, in the order of its 
 
 - Schedule daily at 00:00 **Europe/Berlin**, including DST. A task is not a successful run until the actual saved lesson IDs and unchanged tracks are verified.
 - Read the current server state before generating replacements. Use only eligible tracks.
-- At 00:00 Berlin, the Deutsch pilot queues at most one primary lesson for the day if the preceding primary was completed before cutoff. Extra lessons never block that schedule. Học mới, Luyện tập and Cá nhân hóa create extra lessons with independent request IDs. Notebooks outside the pilot retain their existing policy.
+- At 00:00 Berlin, each scheduled custom notebook queues at most one primary lesson for the day if the preceding primary was completed before cutoff. The first saved lesson enables the schedule, which the learner can turn off. Extra lessons never block that schedule. Học mới, Luyện tập and Cá nhân hóa create extra lessons with independent request IDs. Legacy notebooks retain their existing policy.
 - Never replace an unfinished lesson, its exercises or saved answers. Never auto-complete a lesson.
 - Preserve history. New assignments use current expectedId and server-side eligibility checks; at most one per track per Berlin day.
 - Completion at or after today's 00:00 cutoff waits until the next day. Undoing completion must be respected by the database writer.
@@ -34,7 +34,7 @@ Follow `docs/plan/PLAN.md`, the single implementation plan, in the order of its 
 
 - Use opened primary sources; record URL, read scope, actual retrieval time, publication date, and whether only an abstract was read. Never invent source access, learner feedback or completed work.
 - Write original summaries and exercises; do not copy copyrighted articles or textbook exercises.
-- v2 lessons have 3–25 items (1–25 for the adaptive Deutsch pilot), each with a `key` or a `rubric`, hints and a solution; `reading` lessons require sources. Ếch's lessons follow the Vietnamese GDPT 2018 grade-7 curriculum.
+- v2 lessons have 3–25 items (1–25 for adaptive plans), each with a `key` or a `rubric`, hints and a solution; `reading` lessons require sources. Ếch's lessons follow the Vietnamese GDPT 2018 grade-7 curriculum.
 - MTB/Cardio cases are simulated only; never upload identifiable patient data. Do not claim Cardio novelty has been verified. Child-development material separates evidence, uncertain proposals and cultural anecdotes; no birth-date fabrication or IQ/height promises.
 - Children's answers are sent to models with a nickname only; no free chat with children; every AI comment is visible to guardians; work photos are deleted after 30 days.
 

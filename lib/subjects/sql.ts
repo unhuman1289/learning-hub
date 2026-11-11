@@ -12,6 +12,11 @@ export type SubjectRow = {
   revision: number; created_by: string; created_at: string; updated_at: string;
 };
 
+/** Custom notebooks use the same planner. Keep the named pilot for older deployments. */
+export function usesAdaptivePlan(id: string, legacyTrack: string | null, pilotId?: string) {
+  return legacyTrack === null || id === pilotId;
+}
+
 export const DEFAULT_LIMITS: SubjectLimits = { maxDifficulty: 3, allowNewTopics: true, maxNewSkillsPerWeek: 5 };
 
 /** How each legacy track maps onto a notebook; mirrors the backfill in drizzle/0007_subjects.sql. */

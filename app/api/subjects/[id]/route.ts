@@ -9,6 +9,7 @@ import { storage } from '../../../../db/storage';
 import { apiFailure } from '../../../../lib/api-error';
 import { resolveLearner } from '../../../../lib/access';
 import { parseSubjectPatch } from '../../../../lib/subjects/policy';
+import { usesAdaptivePlan } from '../../../../lib/subjects/sql';
 import { getSubject, toView, updateSubject } from '../../../../lib/subjects/service';
 
 export const dynamic = 'force-dynamic';
@@ -37,7 +38,7 @@ export async function GET(req: Request, context: Context) {
     const { results: study = [] } = await db.prepare(
       "SELECT day,sum(seconds)/60.0 AS minutes FROM study_time WHERE user_id=? AND day BETWEEN ? AND ? AND track IN (?,coalesce((SELECT legacy_track FROM subjects WHERE id=? AND learner_id=?),'')) GROUP BY day",
     ).bind(learnerId,addDays(day,-13),day,id,id,learnerId).all<{ day: string; minutes: number }>();
-    const adaptive = env.ADAPTIVE_PILOT_SUBJECT_ID === id;
+    const adaptive = usesAdaptivePlan(id, subject.legacyTrack, env.ADAPTIVE_PILOT_SUBJECT_ID);
     const activity = adaptive ? (await db.prepare(
       "SELECT DISTINCT a.day,a.lesson_id AS id,json_extract(l.payload,'$.title') AS title FROM attempts a JOIN learning_lessons l ON l.id=a.lesson_id WHERE a.learner_id=? AND a.subject_id=? AND a.day BETWEEN ? AND ? ORDER BY a.day,a.lesson_id LIMIT 150",
     ).bind(learnerId,id,addDays(day,-13),day).all<{ day: string; id: string; title: string }>()).results ?? [] : [];

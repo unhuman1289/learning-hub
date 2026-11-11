@@ -359,14 +359,15 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           .bind(clamped.mastery, p.reason, p.skillId, job.learner_id, ...gateValues),
       );
     }
-    if (setup && s.primaryLesson) {
+    if (job.purpose === 'initial' && current.status === 'setup' && s.primaryLesson) {
       statements.push(db.prepare(
-        `UPDATE subjects SET template=?,
-           level=coalesce(nullif(level,''),?), curriculum=coalesce(nullif(curriculum,''),?),
-           instructions=coalesce(nullif(instructions,''),?)
+        `UPDATE subjects SET ai_enabled=CASE WHEN legacy_track IS NULL THEN 1 ELSE ai_enabled END,
+           template=coalesce(?,template),
+           level=coalesce(nullif(level,''),?,level), curriculum=coalesce(nullif(curriculum,''),?,curriculum),
+           instructions=coalesce(nullif(instructions,''),?,instructions)
          WHERE id=? AND learner_id=? AND ${gate}
            AND EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=? AND user_id=? AND subject_id=? AND slot='primary')`,
-      ).bind(setup.template, setup.level.trim(), setup.curriculum.trim(), setup.instructions.trim(),
+      ).bind(setup?.template ?? null, setup?.level.trim() ?? null, setup?.curriculum.trim() ?? null, setup?.instructions.trim() ?? null,
         s.subjectId, job.learner_id, ...gateValues, job.id, job.learner_id, s.subjectId));
     }
     for (const r of s.requestsHandled) {
