@@ -33,7 +33,7 @@ export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }:
         <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
         <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
         {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
-        {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} />}
+        {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
         <details className="border-t border-line bg-paper py-3">
           <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Thêm</summary>
           {!shelf.learner && <RouteLink route={{view:"notes"}} go={go} className={buttonClass("ghost")}>Ghi chú và nhật ký</RouteLink>}

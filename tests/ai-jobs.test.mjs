@@ -947,3 +947,30 @@ test('adaptive personal request saves a one-item lesson and does not block the n
   await queueDaily(db, bindings, new Date('2026-10-13T22:00:00Z'));
   assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily'").get().n, 1);
 });
+
+test('manual Học mới advances the same roadmap that the nightly planner reads', async () => {
+  const db = seed();
+  const bindings = { ADAPTIVE_PILOT_SUBJECT_ID: subject };
+  const skill = 'sk_aaaaaaaaaaaaaaaaaaaa';
+  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at)
+    VALUES(?,?,?,'modalverb-infinitiv','Modalverb','',1,'[]','active','ai',?,?)`).run(skill, subject, learner, now.toISOString(), now.toISOString());
+  db.sqlite.prepare('UPDATE subjects SET roadmap=? WHERE id=?').run(JSON.stringify(
+    ['Sắp lịch', 'Xác nhận lịch'].map(title => ({ title, objective: 'Dùng động từ tình thái', situation: 'Văn phòng', skills: [skill], mode: 'new' })),
+  ), subject);
+  const request = await createRequest(db, bindings, learner, learner, parseRequest({
+    subjectId: subject, mode: 'learn', clientRequestId: crypto.randomUUID(),
+  }), now);
+  const withCapability = { ...input, capabilities: ['adaptive-plan'] };
+  const [lease] = await leaseJobs(db, client, withCapability, 'test', now);
+  const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
+  assert.equal(context.adaptive.step.title, 'Sắp lịch');
+  const result = plan(context, null);
+  result.explorations = [{ requestId: request.id, action: 'assign', subjectId: subject, lesson: { ...fixture, estMinutes: 15 }, reason: 'Bước tiếp theo.' }];
+  const saved = await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now);
+  assert.equal(saved.status, 200, JSON.stringify(saved));
+  const midnight = new Date('2026-10-13T22:00:00Z');
+  await queueDaily(db, bindings, midnight);
+  const [night] = await leaseJobs(db, client, withCapability, 'test', midnight);
+  const next = JSON.parse((await readJob(db, night.jobId)).context_snapshot);
+  assert.equal(next.adaptive.step.title, 'Xác nhận lịch');
+});
