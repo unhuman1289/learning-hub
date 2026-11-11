@@ -1,4 +1,5 @@
 import { env } from 'cloudflare:workers';
+import { readNotebookOverview } from '../../../../lib/learner-model/overview';
 import { berlinDay } from '../../../../lib/daily-policy';
 import { addDays } from '../../../../lib/learner-model/rules';
 import {readSubjectSkills,readSubjectEffort} from '../../../../lib/learner-model/recompute';
@@ -24,9 +25,14 @@ export async function GET(req: Request, context: Context) {
     const db = storage();
     const learnerId = await resolveLearner(db, user, req, 'read_progress');
     if (learnerId instanceof Response) return learnerId;
-    const details=await readSubjectSkills(db,learnerId,id);
-    const facts=await learnerFacts(db,user,learnerId);
-    if(user.id===learnerId&&facts.learnerRole==='child')details.errors=details.errors.filter(e=>e.confidence==='confirmed');
+    const subject = toView(await getSubject(db, learnerId, id));
+    const facts = await learnerFacts(db, user, learnerId);
+    const includeSuspected = user.id !== learnerId || facts.learnerRole !== 'child';
+    if (new URL(req.url).searchParams.get('view') === 'overview') {
+      return Response.json(await readNotebookOverview(db, learnerId, id, subject.legacyTrack, new Date(), includeSuspected), { headers });
+    }
+    const details = await readSubjectSkills(db, learnerId, id);
+    if (!includeSuspected) details.errors = details.errors.filter(e => e.confidence === 'confirmed');
     const day = berlinDay();
     const { results: study = [] } = await db.prepare(
       "SELECT day,sum(seconds)/60.0 AS minutes FROM study_time WHERE user_id=? AND day BETWEEN ? AND ? AND track IN (?,coalesce((SELECT legacy_track FROM subjects WHERE id=? AND learner_id=?),'')) GROUP BY day",
@@ -39,7 +45,7 @@ export async function GET(req: Request, context: Context) {
       const date = addDays(day,index-13);
       return { day: date, minutes: study.find(row => row.day === date)?.minutes ?? 0, lessons: activity.filter(row => row.day === date) };
     });
-    return Response.json({ timeline, subject: toView(await getSubject(db, learnerId, id)), ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers });
+    return Response.json({ timeline, subject, ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers });
   } catch (error) {
     return apiFailure(error, 'Chưa tải được sổ.', headers);
   }

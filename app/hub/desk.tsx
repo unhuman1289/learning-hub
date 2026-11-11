@@ -1,21 +1,18 @@
 "use client";
 
-import {SkillProgress} from "./skill-progress";
+import { DeskProgress } from "./desk-progress";
 import { PostIt } from "../../components/notebook/post-it";
 import {TodayBoard} from "./today-board";
 import { ContactBook } from "./guardian/contact-book";
-import { RuledPage } from "../../components/notebook/paper";
-import { useState } from "react";
-import { AlertCircle, RotateCcw } from "lucide-react";
+import { AlertCircle } from "lucide-react";
 import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
-import { NotebookCover, cx } from "../../components/notebook/paper";
-import { berlinKey, coverTitle, coverTransition, isTrack, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
+import { NotebookCover } from "../../components/notebook/paper";
+import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
 import { buttonClass, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { Route } from "./use-route";
-import type { Log, WorkspaceApi } from "./use-workspace";
 
 // Each notebook's note keeps its colour; the track name is always written on it as well.
 const postitColor: Record<TrackId, string> = {
@@ -33,12 +30,10 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
+export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
   name: string;
-  isAdmin: boolean;
   go: (route: Route) => void;
   daily: DailyApi;
-  workspace: WorkspaceApi;
   shelf: ShelfApi;
   viewing: Viewing;
   canOpenNotebook: boolean;
@@ -50,22 +45,15 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
   const date = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" }).format(new Date());
-  // The desk only holds what needs attention: lessons still to learn, and notes due for review.
+  // The desk only holds lessons that still need attention.
   const visibleTracks=hub2?trackIds.filter(track=>shelf.subjects?.some(s=>s.legacyTrack===track)):trackIds;
   const lessons = visibleTracks.flatMap((track) => {
     const lesson = daily.data?.active.find((item) => item.track === track);
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
   const v2Lessons=daily.data?.v2Active??[];
-  const reviews = readOnly ? [] : workspace.data.logs
-    .filter((log) => log.due && log.due <= today && !workspace.data.done.includes(log.id))
-    .sort((x, y) => (x.due ?? "").localeCompare(y.due ?? ""));
   const loading = !daily.data && !daily.error;
-  const skillSubjects = shelf.subjects?.filter(s => s.status === "active") ?? [];
-  const [selectedSkill, setSelectedSkill] = useState("");
-  const activeSkill = skillSubjects.find(s=>s.id===selectedSkill) ?? skillSubjects.find(s=>s.id===v2Lessons[0]?.subjectId) ?? skillSubjects[0];
-  const notes = [
-    ...lessons.map(({ track, lesson }, index) => {
+  const notes = lessons.map(({ track, lesson }, index) => {
                 const route: Route = { view: "notebook", track, tab: "bai", page: lesson.id };
                 const isNew = lesson.assignedDate === today && !lesson.response.trim();
                 return (
@@ -83,11 +71,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
                     </div>
                   </PostIt>
                 );
-    }),
-    ...reviews.map((log, index) => (
-                <ReviewNote key={log.id} log={log} index={lessons.length + index} today={today} go={go} onReviewed={() => void workspace.toggleDone(log.id)} />
-    )),
-  ];
+    });
 
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8">
@@ -143,14 +127,7 @@ export function Desk({ name, isAdmin, go, daily, workspace, shelf, viewing, canO
           {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
-      {hub2 && activeSkill && <RuledPage as="section" className="space-y-4" >
-        <h2 className="font-hand text-2xl">Kỹ năng</h2>
-        <div className="flex flex-wrap gap-2" aria-label="Chọn sổ để xem kỹ năng">
-          {skillSubjects.map(s => <button type="button" key={s.id} aria-pressed={s.id===activeSkill.id}
-            className={buttonClass(s.id===activeSkill.id?"secondary":"ghost")} onClick={()=>setSelectedSkill(s.id)}>{s.title}</button>)}
-        </div>
-        <SkillProgress subjectId={activeSkill.id} learner={viewing.id} canEdit={isAdmin} showPath={false}/>
-      </RuledPage>}
+      {hub2 && <DeskProgress key={viewing.id ?? "self"} subjects={shelf.subjects ?? []} learner={viewing.id} go={go} />}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
@@ -187,27 +164,5 @@ function TopicNotebook({ subject, hasLesson, go }: { subject: ShelfSubject; hasL
         className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
       />
     </RouteLink>
-  );
-}
-
-function ReviewNote({ log, index, today, go, onReviewed }: { log: Log; index: number; today: string; go: (route: Route) => void; onReviewed: () => void }) {
-  const track = isTrack(log.track) ? log.track : null;
-  const overdue = !!log.due && log.due < today;
-  return (
-    <PostIt color={track ? postitColor[track] : "bg-postit-yellow"} index={index} taped>
-      <p className="flex items-center gap-1.5 font-hand text-base leading-5">
-        <RotateCcw size={14} aria-hidden="true" />
-        <span className="font-semibold">Cần ôn</span>
-        <span className="opacity-75">· {log.kind}{track ? ` · ${trackInfo(track).title}` : ""}</span>
-      </p>
-      <p className="mt-2 line-clamp-4 whitespace-pre-wrap break-words font-hand text-lg leading-6">{log.body}</p>
-      <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
-        <span className={cx("font-hand text-base", overdue ? "font-semibold text-brick" : "opacity-75")}>{overdue ? `Quá hạn từ ${shortDate(log.due!)}` : "Đến hạn hôm nay"}</span>
-        <span className="flex items-center gap-2">
-          {track && <RouteLink route={{ view: "notebook", track, tab: "ghi-chu" }} go={go} className="pencil-underline font-hand text-base">Mở sổ</RouteLink>}
-          <button type="button" onClick={onReviewed} className={buttonClass("secondary", "min-h-9 px-3")}>Đã ôn</button>
-        </span>
-      </div>
-    </PostIt>
   );
 }

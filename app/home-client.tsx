@@ -8,10 +8,10 @@ import { Beam, HouseLogo } from "../components/notebook/house";
 import { cx } from "../components/notebook/paper";
 import { tasks } from "./content";
 import { Desk } from "./hub/desk";
-import { JournalForm, type FormRequest } from "./hub/journal";
+import { DocumentForm, type FormRequest } from "./hub/document-form";
 import type { Drafts } from "./hub/lesson-page";
 import { NotebookView } from "./hub/notebook-view";
-import { AdminView, NotesView } from "./hub/pages";
+import { AdminView } from "./hub/pages";
 import { StudyMeter } from "./hub/study-meter";
 import { useStudyClock } from "./hub/use-study-clock";
 import { RouteLink, buttonClass } from "./hub/ui";
@@ -109,10 +109,8 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
         {route.view === "desk" && (
           <Desk
             name={name}
-            isAdmin={isAdmin}
             go={go}
             daily={viewingId ? viewedDaily : daily}
-            workspace={workspace}
             shelf={shelf}
             viewing={{ learners: shelf.learners, id: viewingId, set: setViewingId }}
             canOpenNotebook={canOpenNotebook}
@@ -123,7 +121,6 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
         {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
         {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} hub2={hub2Enabled} />}
-        {route.view === "notes" && <NotesView workspace={workspace} openForm={setForm} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>
 
@@ -138,7 +135,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
         ))}
       </nav>
 
-      {form && <JournalForm request={form} workspace={workspace} onClose={closeForm} />}
+      {form && <DocumentForm request={form} workspace={workspace} onClose={closeForm} />}
       {newNotebook && (
         <NewNotebookDialog
           shelf={shelf}
@@ -167,7 +164,7 @@ function SaveProblem({ workspace }: { workspace: WorkspaceApi }) {
   return (
     <div role="alert" className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-xl flex-wrap items-center gap-3 rounded-md border border-accent bg-paper px-4 py-3 text-sm shadow-page lg:bottom-6">
       <span className="min-w-0 flex-1">
-        {notLoaded ? `Chưa mở được ghi chú: ${workspace.error}` : workspace.error ? `Chưa lưu được ghi chú: ${workspace.error}` : "Có thay đổi chưa lưu lên máy chủ."}
+        {notLoaded ? `Chưa tải được dữ liệu sổ: ${workspace.error}` : workspace.error ? `Chưa lưu được thay đổi: ${workspace.error}` : "Có thay đổi chưa lưu lên máy chủ."}
       </span>
       {!notLoaded && <button type="button" onClick={() => void workspace.save()} className={buttonClass("primary", "min-h-9 px-3")}>Lưu lại</button>}
       <button type="button" onClick={() => void workspace.load()} className={buttonClass("ghost", "min-h-9")}>{notLoaded ? "Thử lại" : "Tải bản trên máy chủ"}</button>

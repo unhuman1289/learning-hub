@@ -9,7 +9,7 @@ import { OakDesk } from "../../components/notebook/house";
 import { MarginDate, MiniCover, RuledPage, StickyNote, cx } from "../../components/notebook/paper";
 import { projects } from "../content";
 import { googleDocs } from "../google-docs";
-import { JournalList, type FormRequest } from "./journal";
+import { type FormRequest } from "./document-form";
 import { LessonPage, type Drafts } from "./lesson-page";
 import { coverTitle, coverTransition, notebookPages, shortDate, trackInfo, type Page, type TrackId } from "./model";
 import { buttonClass, PageLabel, RouteLink } from "./ui";
@@ -20,7 +20,6 @@ import type { WorkspaceApi } from "./use-workspace";
 const tabLabels: { id: NotebookTab; label: string }[] = [
   { id: "muc-luc", label: "Mục lục" },
   { id: "muc-tieu", label: "Mục tiêu" },
-  { id: "ghi-chu", label: "Ghi chú" },
   { id: "tai-lieu", label: "Tài liệu" },
 ];
 
@@ -101,22 +100,7 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
               ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} />
               : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ xuất hiện ở đây sau lượt soạn bài buổi sáng."}</p></RuledPage>
           )}
-          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><summary className="cursor-pointer">Bài đã học</summary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</>:<GoalsPage track={track} workspace={workspace} openForm={openForm} />)}
-          {tab === "ghi-chu" && (
-            <RuledPage className="min-h-[60vh]">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent">Ghi chú · {info.title}</h2>
-                <button type="button" disabled={!workspace.loaded || !!shelf?.learner} onClick={() => openForm({ kind: track === "Bột" ? "Quan sát Bột" : track === "Deutsch" ? "Lỗi tiếng Đức" : "Review tuần", track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Ghi lại</button>
-              </div>
-              <div className="mt-7">
-                <JournalList
-                  logs={workspace.data.logs.filter((log) => log.track === track)}
-                  workspace={{ done: workspace.data.done, toggle: (id) => void workspace.toggleDone(id) }}
-                  empty="Chưa có ghi chú trong sổ này. Sau khi học, ghi lại điều đã hiểu và điều còn vướng."
-                />
-              </div>
-            </RuledPage>
-          )}
+          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><summary className="cursor-pointer">Bài đã học</summary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</>:<GoalsPage track={track} workspace={workspace} />)}
           {tab === "tai-lieu" && <DocsPage track={track} workspace={workspace} openForm={openForm} />}
         </div>
       </div>
@@ -195,7 +179,7 @@ function TableOfContents({ track, assigned, foundation, currentId, go, doneIds, 
   );
 }
 
-function GoalsPage({ track, workspace, openForm }: { track: TrackId; workspace: WorkspaceApi; openForm: (request: FormRequest) => void }) {
+function GoalsPage({ track, workspace }: { track: TrackId; workspace: WorkspaceApi }) {
   const info = trackInfo(track);
   const trackProjects = projects.filter((project) => project.track === track);
   return (
@@ -249,7 +233,6 @@ function GoalsPage({ track, workspace, openForm }: { track: TrackId; workspace: 
               <p><strong className="font-hand text-lg font-normal text-accent-hover">Cần làm rõ: </strong>{project.open}</p>
               <p className="mt-2 text-muted">{project.boundary}</p>
             </StickyNote>
-            <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ kind: "Quyết định dự án", track })} className={buttonClass("ghost", "-ml-2")}><Plus size={16} aria-hidden="true" /> Ghi quyết định hoặc câu hỏi mở</button>
           </section>
         );
       })}
@@ -264,7 +247,7 @@ function DocsPage({ track, workspace, openForm }: { track: TrackId; workspace: W
     <RuledPage className="min-h-[60vh]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent">Tài liệu</h2>
-        <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ kind: "Tài liệu", track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Thêm tài liệu</button>
+        <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Thêm tài liệu</button>
       </div>
       <p className="max-w-[68ch] text-sm leading-7 text-muted">Bản dài để chỉnh sửa nằm trong Google Docs; quyền truy cập do Drive quản lý. Sổ này chỉ giữ liên kết và ghi chú ngắn.</p>
       <ul className="mt-7 grid max-w-[72ch] gap-7">
@@ -280,7 +263,7 @@ function DocsPage({ track, workspace, openForm }: { track: TrackId; workspace: W
               {note.url
                 ? <a href={note.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold leading-7 text-accent hover:underline">{note.title} <ArrowUpRight size={15} aria-hidden="true" /></a>
                 : <span className="font-semibold leading-7">{note.title}</span>}
-              <button type="button" onClick={() => openForm({ kind: "Tài liệu", track, note })} className="text-sm leading-7 text-muted hover:text-accent hover:underline">Sửa</button>
+              <button type="button" onClick={() => openForm({ track, note })} className="text-sm leading-7 text-muted hover:text-accent hover:underline">Sửa</button>
             </div>
             {note.body && <p className="whitespace-pre-wrap break-words leading-7">{note.body}</p>}
           </li>

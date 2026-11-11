@@ -4,16 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { findStaticTrack, isTrack, type TrackId } from "./model";
 
-export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "ghi-chu" | "tai-lieu";
+export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "tai-lieu";
 export type Route =
   | { view: "desk" }
-  | { view: "notes" }
   | { view: "admin" }
   | { view: "notebook"; track: TrackId; tab: NotebookTab; page?: string }
   | { view: "subject"; id: string }
   | { view: "lesson"; id: string };
 
-const tabs: NotebookTab[] = ["bai", "muc-luc", "muc-tieu", "ghi-chu", "tai-lieu"];
+const tabs: NotebookTab[] = ["bai", "muc-luc", "muc-tieu", "tai-lieu"];
 
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search);
@@ -32,7 +31,6 @@ export function parseRoute(search: string): Route {
   const subject = params.get("sach");
   if (subject && /^sub_[0-9a-f]{20}$/.test(subject)) return { view: "subject", id: subject };
   const page = params.get("trang");
-  if (page === "ghi-chu") return { view: "notes" };
   if (page === "quan-tri") return { view: "admin" };
   return { view: "desk" };
 }
@@ -40,7 +38,6 @@ export function parseRoute(search: string): Route {
 export function routeHref(route: Route) {
   const params = new URLSearchParams();
   if (route.view === "lesson") params.set("bai2",route.id);
-  if (route.view === "notes") params.set("trang", "ghi-chu");
   if (route.view === "admin") params.set("trang", "quan-tri");
   if (route.view === "subject") params.set("sach", route.id);
   if (route.view === "notebook") {
