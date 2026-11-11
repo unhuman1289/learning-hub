@@ -9,16 +9,17 @@ Follow `docs/plan/PLAN.md`, the single implementation plan, in the order of its 
 ## Architecture and cost
 
 - Start with Workers Free and D1; measure real CPU/usage before recommending a paid plan.
-- Use existing ChatGPT/Claude subscriptions for content preparation and grading. User decision 14/10/2026 forbids Anthropic/OpenAI model API dependencies and keys. ChatGPT reaches the Hub through direct OAuth MCP/job API v2. MCP Events is a staging experiment; do not claim automatic operation until a real subscription, verified callback and saved job outcome are observed.
+- Use existing ChatGPT/Claude subscriptions for content preparation and grading. User decision 14/10/2026 forbids Anthropic/OpenAI model API dependencies and keys; the Hub never calls a model. AI reaches it only through job API v2: ChatGPT via direct OAuth MCP or the Sites bridge, and `integrations/home-runner/` on the family Mac (local Qwen for open answers; Codex CLI on the ChatGPT plan for rechecks and on-demand lessons). When the Mac is off, grading waits and the UI says so (`docs/plan/LOCAL-GRADER.md`). MCP Events is a staging experiment; do not claim automatic operation until a real subscription, verified callback and saved job outcome are observed.
 - Git owns source/configuration; D1 owns learning state; Docs owns editable long-form materials. Do not use Docs as the transactional progress database.
 - Preserve the exported Sites identity in `.openai/hosting.json`. This is provenance, not permission to create a replacement Site or deploy changes when asked to export/local-only.
-- This checkout retains Sites auth and connector infrastructure. Before independent/public hosting, replace the platform trust boundary with validated app authentication and service authorization. Never trust client-supplied `oai-authenticated-user-*` headers on a standalone Worker.
+- This checkout retains Sites auth and connector infrastructure. Before independent/public hosting, replace the platform trust boundary with validated app authentication and service authorization. Never trust client-supplied `oai-authenticated-user-*` headers on a standalone Worker. With `HOUSEHOLD_GATE` set (`access` or `passphrase`, `lib/household.ts`) the trust boundary is the household gate checked by the Worker on every request; inside it, family profiles replace accounts and "Chế độ quản lý" grants admin powers.
 - `/api/learning-run` is retired (410). Features are not implemented merely because they appear in the design; FEATURES.md lists what exists.
 
 ## Daily update invariants
 
 - Schedule daily at 03:00 **Europe/Berlin**, including DST. A task is not a successful run until the actual saved lesson IDs and unchanged tracks are verified.
 - Read the current server state before generating replacements. Use only eligible tracks.
+- At 00:00 Berlin, queue a daily plan only for enabled notebooks with no unfinished v2 lesson in any slot. “Xin bài mới” requests extra practice within existing budgets; the planner chooses new material, remediation or review from evidence.
 - Never replace an unfinished lesson, its exercises or saved answers. Never auto-complete a lesson.
 - Preserve history. New assignments use current expectedId and server-side eligibility checks; at most one per track per Berlin day.
 - Completion after today's 03:00 cutoff waits until the next day. Undoing completion must be respected by the database writer.

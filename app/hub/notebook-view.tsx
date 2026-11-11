@@ -1,6 +1,7 @@
 "use client";
 
 import {SkillProgress} from "./skill-progress";
+import { LessonList } from "./lesson-v2/list";
 import {SubjectForm,SubjectFacts} from "./subject-view";
 import type {ShelfApi} from "./use-shelf";
 import { ArrowLeft, ArrowUpRight, Plus } from "lucide-react";
@@ -16,17 +17,17 @@ import type { DailyApi } from "./use-daily";
 import type { NotebookTab, Route } from "./use-route";
 import type { WorkspaceApi } from "./use-workspace";
 
-const tabLabels: { id: NotebookTab; label: string; phoneOnly?: boolean }[] = [
-  { id: "bai", label: "Bài học" },
-  { id: "muc-luc", label: "Mục lục", phoneOnly: true },
+const tabLabels: { id: NotebookTab; label: string }[] = [
+  { id: "muc-luc", label: "Mục lục" },
   { id: "muc-tieu", label: "Mục tiêu" },
   { id: "ghi-chu", label: "Ghi chú" },
   { id: "tai-lieu", label: "Tài liệu" },
 ];
 
-export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts, openForm, shelf,canEdit, hub2 = false }: {
+export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts, openForm, shelf,canEdit, canManage, hub2 = false }: {
   shelf?:ShelfApi;
   canEdit?:boolean;
+  canManage?:boolean;
   hub2?: boolean;
   track: TrackId;
   tab: NotebookTab;
@@ -76,48 +77,36 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
       {/* The open notebook lies on the oak desk. */}
       <div style={{ viewTransitionName: "book" }}>
       <OakDesk>
-      {/* Index tabs sticking out of the top edge of the page. */}
-      <nav aria-label={`Các phần của sổ ${info.title}`} className="relative z-[1] -mb-px flex gap-1 overflow-x-auto pl-2 [scrollbar-width:none]">
-        {tabLabels.map((item) => {
-          const on = tab === item.id;
-          return (
-            <RouteLink
-              key={item.id}
-              route={{ view: "notebook", track, tab: item.id, page: item.id === "bai" ? current?.id : undefined }}
-              go={go}
-              aria-current={on ? "page" : undefined}
-              className={cx(
-                "shrink-0 rounded-t-md border border-b-0 px-3.5 py-2 text-sm font-semibold transition-colors",
-                item.phoneOnly && "lg:hidden",
-                on ? "border-line bg-paper text-accent-hover" : "border-transparent bg-paper-2/85 text-muted hover:text-ink",
-              )}
-            >
-              {item.label}
-            </RouteLink>
-          );
-        })}
+      <nav aria-label={`Các phần của sổ ${info.title}`} className="relative z-[1] -mb-px flex flex-wrap items-start gap-2 pl-2">
+        <RouteLink route={{view:"notebook",track,tab:"bai"}} go={go} aria-current={tab==="bai"?"page":undefined}
+          className="rounded-t-md bg-paper px-4 py-3 text-sm font-semibold text-accent">Bài học</RouteLink>
+        <details className="relative">
+          <summary className="min-h-11 cursor-pointer rounded-t-md bg-paper px-4 py-3 text-sm font-semibold text-accent">Thêm</summary>
+          <div className="absolute left-0 top-full z-10 grid min-w-32 gap-1 rounded-b-md border border-line bg-paper p-2">
+            {tabLabels.map(item => <RouteLink key={item.id} route={{view:"notebook",track,tab:item.id}} go={go}
+              aria-current={tab===item.id?"page":undefined} className={buttonClass("ghost")}>{item.label}</RouteLink>)}
+          </div>
+        </details>
       </nav>
 
-      <div className="relative grid overflow-clip rounded-[2px_6px_6px_6px] border border-line shadow-page lg:grid-cols-[minmax(0,19rem)_minmax(0,1fr)]">
-        {/* The cover swings open over the pages each time a notebook is taken out. */}
+      <div className="relative rounded-[2px_6px_6px_6px] border border-line shadow-page">
         <CoverFlip key={track} title={coverTitle[track]} />
-        {/* Left page: table of contents (desktop always, phone via its tab). */}
-        <aside className={cx("lg:block lg:border-r lg:border-line", tab === "muc-luc" ? "block" : "hidden")}>{toc}</aside>
-        {/* Centre fold shadow of an open notebook. */}
-        <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-[19rem] z-[1] hidden w-6 -translate-x-1/2 bg-[linear-gradient(to_right,transparent,rgb(0_0_0/0.08)_45%,rgb(0_0_0/0.13)_50%,rgb(0_0_0/0.08)_55%,transparent)] lg:block" />
-
-        <div className={cx("min-w-0", tab === "muc-luc" && "hidden lg:block")}>
-          {(tab === "bai" || tab === "muc-luc") && (
+        {tab === "muc-luc" && toc}
+        <div className="min-w-0">
+          {tab==="bai" && hub2 && subject && shelf && <RuledPage className="space-y-4">
+            <LessonList subjectId={subject.id} learner={shelf.learner} go={go} canRequest={subject.status==="active" || subject.status==="setup"} />
+          </RuledPage>}
+          {tab === "bai" && (pageId || !hub2 || !subject) && (
             current
               ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} />
               : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ xuất hiện ở đây sau lượt soạn bài buổi sáng."}</p></RuledPage>
           )}
-          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canEdit}/>}</>:<GoalsPage track={track} workspace={workspace} openForm={openForm} />)}
+          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><summary className="cursor-pointer">Bài đã học</summary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</>:<GoalsPage track={track} workspace={workspace} openForm={openForm} />)}
           {tab === "ghi-chu" && (
             <RuledPage className="min-h-[60vh]">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent">Ghi chú · {info.title}</h2>
-                <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ kind: track === "Bột" ? "Quan sát Bột" : track === "Deutsch" ? "Lỗi tiếng Đức" : "Review tuần", track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Ghi lại</button>
+                <button type="button" disabled={!workspace.loaded || !!shelf?.learner} onClick={() => openForm({ kind: track === "Bột" ? "Quan sát Bột" : track === "Deutsch" ? "Lỗi tiếng Đức" : "Review tuần", track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Ghi lại</button>
               </div>
               <div className="mt-7">
                 <JournalList
@@ -139,7 +128,7 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
 
 function CoverFlip({ title }: { title: string }) {
   return (
-    <div aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-0 z-20 h-[min(100%,80vh)] [perspective:2200px] motion-reduce:hidden lg:left-[19rem]">
+    <div aria-hidden="true" className="pointer-events-none absolute left-0 right-0 top-0 z-20 h-[min(100%,80vh)] [perspective:2200px] motion-reduce:hidden">
       <div className="relative h-full w-full origin-left animate-cover-open [transform-style:preserve-3d]">
         {/* Outside: marble board, cloth spine, name label. */}
         <div className="absolute inset-0 overflow-hidden rounded-r-[6px] bg-marble shadow-cover [backface-visibility:hidden] [background-size:220px_220px]">

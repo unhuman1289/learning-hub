@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Copy to ~/Library/LaunchAgents/, replace REPO and NODE, then: launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/cc.unhuman.learning-hub-runner.plist -->
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>cc.unhuman.learning-hub-runner</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>NODE</string>
+    <string>--experimental-strip-types</string>
+    <string>REPO/integrations/home-runner/runner.mjs</string>
+  </array>
+  <key>WorkingDirectory</key><string>REPO</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/USER/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>ThrottleInterval</key><integer>30</integer>
+  <key>StandardOutPath</key><string>/Users/USER/Library/Logs/learning-hub-runner.log</string>
+  <key>StandardErrorPath</key><string>/Users/USER/Library/Logs/learning-hub-runner.log</string>
+</dict>
+</plist>

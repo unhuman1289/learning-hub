@@ -1,15 +1,16 @@
 "use client";
 import { PostIt } from "../../components/notebook/post-it";
 import {useLiveRefresh} from "./use-live-refresh";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { TodayItem } from "../../lib/today";
 import { buttonClass, RouteLink } from "./ui";
 import type { Route } from "./use-route";
-export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go: (r: Route) => void; onLoad?: () => void }) {
+export function TodayBoard({ learner, go, enabled, notes, loadingLegacy }: { learner: string | null; go: (r: Route) => void; enabled: boolean; notes: ReactNode[]; loadingLegacy: boolean }) {
   const [data, setData] = useState<{ items: TodayItem[]; minutes: number; targetMinutes: number } | null>(null),
     [error, setError] = useState("");
   const url = "/api/today" + (learner ? "?learner=" + encodeURIComponent(learner) : "");
   useEffect(() => {
+    if (!enabled) return;
     let alive = true;
     fetch(url, { cache: "no-store" })
       .then(async (r) => {
@@ -17,7 +18,6 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
         if (!r.ok) throw Error(x.error || "Chưa tải được kế hoạch hôm nay.");
         if (alive) {
           setData(x);
-          onLoad?.();
         }
       })
       .catch((e) => {
@@ -26,8 +26,8 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
     return () => {
       alive = false;
     };
-  }, [url, onLoad]);
-  useLiveRefresh(async()=>{const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("Chưa cập nhật được kế hoạch.");const x=await r.json() as NonNullable<typeof data>;setData(x);});
+  }, [url, enabled]);
+  useLiveRefresh(async()=>{const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw Error("Chưa cập nhật được kế hoạch.");const x=await r.json() as NonNullable<typeof data>;setData(x);},enabled);
   async function snooze(id: string) {
     setError("");
     try {
@@ -40,18 +40,18 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
     }
   }
   return (
-    <section aria-label="Việc học theo tiến độ" className="mb-5">
+    <section aria-label="Việc học theo tiến độ" >
       {error && (
         <p role="alert" className="rounded bg-paper p-3 text-accent">
           {error}
         </p>
       )}
-      {data && data.items.length > 0 && (
+      {(!!data?.items.length || notes.length > 0) ? (
         <ul className="grid gap-x-5 gap-y-7 px-1 pb-2 pt-2 sm:grid-cols-2 xl:grid-cols-3">
-          {data.items.map((i, index) => (
+          {data?.items.map((i, index) => (
             <PostIt key={i.id} color="bg-postit-yellow" index={index}>
               <p className="font-hand text-base leading-5">
-                {i.subjectTitle} · {i.minutes} phút
+                {i.subjectTitle}{i.minutes ? ` · ${i.minutes} phút` : ""}
               </p>
               <RouteLink
                 route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "subject", id: i.subjectId }}
@@ -61,7 +61,7 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
                 {i.title}
               </RouteLink>
               <p className="mt-2 font-hand text-base leading-6">{i.reason}</p>
-              {i.optional && <p className="mt-2 text-sm leading-6">Thêm nếu muốn — đã đạt mục tiêu phút hôm nay.</p>}
+              {i.optional && i.category === "exploration" && <p className="mt-2 text-sm leading-6">Thêm nếu muốn — đã đạt mục tiêu phút hôm nay.</p>}
               <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                 <RouteLink route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "subject", id: i.subjectId }} go={go} className={buttonClass("primary", "min-h-9 px-3")}>
                   {i.category === "new" ? "Bắt đầu" : i.category === "correction" ? "Xem lời phê" : i.category === "review" ? "Ôn bài" : "Học tiếp"}
@@ -74,8 +74,11 @@ export function TodayBoard({ learner, go, onLoad }: { learner: string | null; go
               </div>
             </PostIt>
           ))}
+          {notes}
         </ul>
-      )}
+      ) : !error && <p className="px-1 pb-6 pt-2 font-hand text-xl leading-8 text-oak-ink">
+        {loadingLegacy || (enabled && !data) ? "Đang mở các sổ…" : "Chọn một cuốn sổ để xin bài mới."}
+      </p>}
     </section>
   );
 }

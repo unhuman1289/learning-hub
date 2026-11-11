@@ -1,6 +1,7 @@
 import { ApiError } from '../api-error.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { enqueue, type QueueBindings } from '../ai-jobs/queue.ts';
+import { openWorkMinutesSql } from '../ai-jobs/open-work.ts';
 import { berlinDay } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { containsContactDetails } from '../automation/privacy.ts';
@@ -26,7 +27,8 @@ export function parseRequest(body: unknown): RequestInput {
   const value = body as Record<string, unknown>;
   if (Object.keys(value).some((key) => !['kind', 'subjectId', 'text', 'urgency'].includes(key))) throw bad('Yêu cầu có trường lạ.');
   if (!kinds.has(value.kind as string)) throw bad('Loại yêu cầu không hợp lệ.');
-  const text = typeof value.text === 'string' ? value.text.trim() : '';
+  const note = typeof value.text === 'string' ? value.text.trim() : '';
+  const text = !note && value.kind === 'extra_practice' ? 'Bài tiếp theo' : note;
   if (text.length < 3 || text.length > 2000) throw bad('Nội dung cần 3–2000 ký tự.');
   if (containsContactDetails(text)) throw bad('Bỏ email hoặc số điện thoại khỏi yêu cầu.');
   const subjectId = value.subjectId === undefined || value.subjectId === null ? null : String(value.subjectId);
@@ -61,11 +63,23 @@ export async function createRequest(db: EvidenceDb, bindings: QueueBindings, lea
     .bind(id, learnerId, input.subjectId, input.kind, input.text, input.urgency, createdBy, lasting ? addDays(berlinDay(now), 14) : null, stamp)
     .run();
   if (lasting) return readRequest(db, learnerId, id);
+  let tonight = input.urgency === 'tonight';
+  if (input.kind === 'extra_practice' && !tonight) {
+    const cap = await db.prepare(`SELECT
+      (SELECT count(*) FROM learning_lessons WHERE user_id=? AND assigned_date=? AND slot='extra') AS used,
+      CASE WHEN (SELECT role FROM learner_settings WHERE user_id=?)='child' THEN 2 ELSE 4 END AS cap,
+      coalesce((SELECT daily_target_minutes FROM learner_settings WHERE user_id=?),45)*1.5 AS max_minutes,
+      (${openWorkMinutesSql}) AS open_minutes`)
+      .bind(learnerId, berlinDay(now), learnerId, learnerId, learnerId)
+      .first<{ used: number; cap: number; max_minutes: number; open_minutes: number }>();
+    // Even the shortest lesson allowed by lesson-package/2 needs five minutes.
+    tonight = !!cap && (cap.used >= cap.cap || cap.open_minutes + 5 > cap.max_minutes);
+  }
   // A full queue leaves the request queued; the admin sees the job cap alert.
   const job = await enqueue(
     db,
     bindings,
-    { learnerId, kind: 'plan', purpose: 'request', subjectId: input.subjectId, refId: id, tonight: input.urgency === 'tonight' },
+    { learnerId, kind: 'plan', purpose: 'request', subjectId: input.subjectId, refId: id, tonight },
     now,
   ).catch((error) => {
     console.error('Request job not queued:', error instanceof Error ? error.message : error);
@@ -84,6 +98,8 @@ function requestView(row: Record<string, unknown>) {
     urgency: row.urgency as 'tonight' | 'now',
     byLearner: row.created_by === row.learner_id,
     status: row.status as string,
+    deferred: row.job_trigger === 'deferred',
+    jobStatus: (row.job_status as string | null) ?? null,
     activeUntil: (row.active_until as string | null) ?? null,
     resultLessonId: (row.result_lesson_id as string | null) ?? null,
     responseNote: (row.response_note as string | null) ?? null,
@@ -93,14 +109,14 @@ function requestView(row: Record<string, unknown>) {
 }
 
 export async function readRequest(db: EvidenceDb, learnerId: string, id: string) {
-  const row = await db.prepare('SELECT * FROM learner_requests WHERE id=? AND learner_id=?').bind(id, learnerId).first<Record<string, unknown>>();
+  const row = await db.prepare('SELECT r.*,j.trigger AS job_trigger,j.status AS job_status FROM learner_requests r LEFT JOIN ai_jobs j ON j.id=r.job_id WHERE r.id=? AND r.learner_id=?').bind(id, learnerId).first<Record<string, unknown>>();
   if (!row) throw new ApiError(404, 'Không tìm thấy yêu cầu.');
   return requestView(row);
 }
 
 export async function listRequests(db: EvidenceDb, learnerId: string) {
   const { results = [] } = await db
-    .prepare('SELECT * FROM learner_requests WHERE learner_id=? ORDER BY created_at DESC LIMIT 30')
+    .prepare('SELECT r.*,j.trigger AS job_trigger,j.status AS job_status FROM learner_requests r LEFT JOIN ai_jobs j ON j.id=r.job_id WHERE r.learner_id=? ORDER BY r.created_at DESC,r.rowid DESC LIMIT 30')
     .bind(learnerId)
     .all<Record<string, unknown>>();
   return results.map(requestView);

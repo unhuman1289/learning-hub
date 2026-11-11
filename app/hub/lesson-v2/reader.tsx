@@ -1,9 +1,12 @@
 "use client";
 import {useLiveRefresh} from "../use-live-refresh";
 import {feedbackForItems} from "../../../lib/feedback-history";
-import {LessonReflection} from "./reflection";
+import {LessonSummary} from "./summary";
+import {GraderOffline} from "../runner-status";
+import {RouteLink} from "../ui";
+import type {Route} from "../use-route";
 import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { Drafts } from "../lesson-page";
@@ -27,10 +30,10 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
   try {
     response = await fetch(url, { cache: "no-store", ...init });
   } catch {
-    throw new RequestError("Mất kết nối. Nháp còn trên trang; có mạng lại thì bấm Lưu nháp. Nếu đang nộp, bấm Kiểm tra lượt nộp.", 0);
+    throw new RequestError("Mất kết nối. Bài làm vẫn còn trên trang.", 0);
   }
-  const value = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new RequestError(value.error || "Chưa xác nhận thao tác.", response.status);
+  const value = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (!response.ok || !value) throw new RequestError(value?.error || "Chưa xác nhận thao tác.", response.status);
   return value;
 }
 export function LessonReader({
@@ -39,24 +42,24 @@ export function LessonReader({
   drafts,
   onLoaded,
   onCompleted,
+  go,
 }: {
   id: string;
   learner: string | null;
   drafts: Drafts;
   onLoaded?: (id: string, subject: string) => void;
+  go: (route: Route) => void;
   onCompleted?: () => Promise<void>;
 }) {
   const [lesson, setLesson] = useState<Lesson | null>(null),
-    [opened, setOpened] = useState(false),
-    [stageIndex, setStageIndex] = useState(0);
+    [view, setView] = useState<"cover" | "work" | "summary" | null>(null);
   const [answers, setAnswers] = useState<DraftAnswers>({}),
     [error, setError] = useState(""),
     [state, setState] = useState(""),
     [busy, setBusy] = useState(false),
     [history,setHistory]=useState<SubmissionView[]>([]),
     [feedbackError,setFeedbackError]=useState(""),
-    [pending, setPending] = useState(false);
-  const feedbackId = useId();
+    [pending, setPending] = useState<string | null>(null);
   const revision = useRef(0),
     latest = useRef<DraftAnswers>({}),
     saved = useRef("{}"),
@@ -124,7 +127,10 @@ export function LessonReader({
     }catch(e){if(generation.current===version)setFeedbackError((e as Error).message);}
   },[url,suffix]);
   useEffect(()=>{void Promise.resolve().then(refreshFeedback);},[refreshFeedback]);
-  useLiveRefresh(refreshFeedback,!!lesson&&!busy&&!pending);
+  const waiting = (submission?: SubmissionView) => !!submission &&
+    submission.attempts.some(a => (!a.result && !["cancelled","failed","expired"].includes(submission.job_status ?? "")) || a.dispute?.status === "rechecking");
+  const waitingForGrade = lesson?.items.some(item => waiting(feedbackForItems(history, [item.id])[0])) ?? false;
+  useLiveRefresh(refreshFeedback, !!lesson && !busy && waitingForGrade, 5000);
   const save = useCallback(async (): Promise<boolean> => {
     if (readonly || !ready.current) return false;
     if (saveInFlight.current) {
@@ -202,49 +208,59 @@ export function LessonReader({
       });
       const fresh = await json<{ lesson: Lesson }>(url);
       setLesson(fresh.lesson);
+      if (level === "solution") await refreshFeedback();
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
   }
-  async function submit() {
-    if (!lesson) return;
+  async function submit(itemId: string) {
+    if (!lesson || busy || (pending && pending !== itemId)) return;
     setBusy(true);
     setError("");
     try {
       if (!pendingSubmission.current) {
         if (!(await save())) return;
-        const stage = lesson.stages[stageIndex];
+        const item = lesson.items.find(i => i.id === itemId);
+        if (!item) return;
         pendingSubmission.current = {
           clientSubmissionId: crypto.randomUUID(),
           draftRevision: revision.current,
-          stage: stage.stage,
-          itemIds: stage.itemIds,
+          stage: item.stage,
+          itemIds: [itemId],
         };
-        setPending(true);
+        setPending(itemId);
       }
-      const response = await json<{ submission: SubmissionView }>(url + "/submissions", {
+      const request = () => json<{ submission: SubmissionView }>(url + "/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(pendingSubmission.current),
       });
+      const response = await request().catch(error => {
+        if (error instanceof RequestError && error.status >= 400 && error.status < 500) throw error;
+        // Uncertain response: the same immutable submission key lets the server return the saved attempt.
+        return request();
+      });
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
       pendingSubmission.current = null;
-      setPending(false);
-      setState("Đã nộp");
+      setPending(null);
+      setState("Đã lưu");
     } catch (e) {
       if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
         pendingSubmission.current = null;
-        setPending(false);
+        setPending(null);
+        void refreshFeedback();
       }
-      setError((e as Error).message + (pendingSubmission.current ? " Nếu kết quả chưa rõ, dùng “Kiểm tra lượt nộp” với cùng mã." : ""));
+      setError((e as Error).message + (pendingSubmission.current ? " Bấm lại ở câu này khi có mạng để kiểm tra kết quả." : ""));
     } finally {
       setBusy(false);
     }
   }
   async function complete() {
-    if (!lesson) return;
+    if (!lesson || busy || pending) return;
+    if (!lesson.completedAt && lesson.items.some(i => !history.some(s => s.attempts.some(a => a.item_id === i.id))) &&
+      !window.confirm("Bài còn câu chưa làm. Bạn muốn kết thúc bài này?")) return;
     setBusy(true);
     setError("");
     try {
@@ -256,6 +272,7 @@ export function LessonReader({
         body: JSON.stringify({ completed: !fresh.lesson.completedAt, expectedUpdated: fresh.lesson.updated }),
       });
       setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
+      setView(result.completed ? "summary" : "work");
       await onCompleted?.();
     } catch (e) {
       setError((e as Error).message);
@@ -269,141 +286,73 @@ export function LessonReader({
         {error || "Đang mở bài…"}
       </div>
     );
-  const stage = lesson.stages[stageIndex],
-    items = lesson.items.filter((item) => stage.itemIds.includes(item.id)),
-    stageHistory=feedbackForItems(history,stage.itemIds),
-    latestGraded=stageHistory.find(s=>s.attempts.some(a=>a.result)),
-    reflectionSubmission=history.find(s=>stageHistory.some(entry=>entry.id===s.id)&&s.attempts.length>0&&s.attempts.every(a=>a.result));
+  const mode = view ?? (lesson.completedAt ? "summary" : "cover");
+  const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : undefined;
+  const reflection = history.find(s => s.attempts.length > 0 && s.attempts.every(a => a.result));
+  const frozen = readonly || !!lesson.completedAt;
+  const openLesson = (next: string) => go({ view: "lesson", id: next });
   return (
-    <RuledPage className="mx-auto max-w-4xl space-y-8">
+    <RuledPage className="mx-auto max-w-4xl space-y-6">
+      <RouteLink route={{view:"subject", id:lesson.subjectId}} go={go} className={buttonClass("ghost","-ml-2")}>
+        ← {lesson.subjectTitle}
+      </RouteLink>
       {readonly && <p className="bg-rose-soft p-3">Đang xem bài của người học — chỉ đọc.</p>}
-      {!opened ? (
-        <><Cover title={lesson.title} objective={lesson.objective} why={lesson.why} minutes={lesson.estMinutes} onStart={() => setOpened(true)} />
-        {history.some(s=>s.attempts.some(a=>a.result))&&<button className={buttonClass("secondary")} onClick={()=>{const index=lesson.stages.findIndex(st=>feedbackForItems(history,st.itemIds).some(s=>s.attempts.some(a=>a.result)));if(index>=0)setStageIndex(index);setOpened(true);}}>Mở bài và xem lời phê đã lưu</button>}</>
+      {mode === "cover" ? (
+        <Cover title={lesson.title} objective={lesson.objective} why={lesson.why} minutes={lesson.estMinutes} onStart={() => setView("work")} />
       ) : (
         <>
-          <header className="space-y-3">
-            <h1 className="text-balance font-print text-3xl leading-tight sm:text-4xl">{lesson.title}</h1>
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-sm">
-              <p className="text-muted">Phần {stageIndex + 1}/{lesson.stages.length} · {lesson.estMinutes} phút dự kiến cho cả bài</p>
-              {stageHistory.length > 0 && <a href={"#" + feedbackId} className="inline-flex min-h-11 items-center font-semibold text-accent underline underline-offset-4">{latestGraded ? "Xem lời phê phần này" : "Xem bài đã nộp"}</a>}
-            </div>
-          </header>
-          <nav aria-label="Các phần của bài" className="flex flex-wrap gap-2">
-            {lesson.stages.map((s, i) => (
-              <button
-                key={s.stage}
-                aria-current={i === stageIndex ? "step" : undefined}
-                className={"min-h-11 rounded-md border px-3 py-2 text-left text-sm transition-colors " + (i === stageIndex ? "border-accent bg-rose-soft font-semibold text-accent-hover" : "border-line bg-paper text-muted hover:text-ink")}
-                onClick={() => {
-                  setStageIndex(i);
-                }}
-              >
-                {s.title ||
-                  (
-                    {
-                      retrieval: "Nhớ lại",
-                      sheet: "Tờ kiến thức",
-                      guided: "Luyện có hướng dẫn",
-                      independent: "Tự làm",
-                      read: "Đọc",
-                      analyze: "Phân tích",
-                      output: "Đầu ra",
-                      check: "Kiểm tra",
-                    } as Record<string, string>
-                  )[s.stage]}
-              </button>
-            ))}
-          </nav>
-          {stage.stage === "sheet" && (
+          <h1 className="text-balance font-print text-3xl leading-tight sm:text-4xl">{lesson.title}</h1>
+          <GraderOffline waiting={waitingForGrade} what="Câu đang chờ" />
+          {feedbackError && <p role="alert" className="bg-paper py-2">{feedbackError} <button onClick={() => void refreshFeedback()} className="underline">Tải lại lời phê</button></p>}
+          {error && <p role="alert" className="bg-paper py-2 text-accent">{error}</p>}
+          {mode === "summary" ? (
+            <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
+              reflectionId={reflection?.id} onOpen={openLesson} onHome={() => go({view:"desk"})} onReview={() => setView("work")} />
+          ) : (
             <>
-              <Sheet sheet={lesson.sheet} formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined} />
-              {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
+              {(lesson.sheet || lesson.sections.length > 0 || lesson.diagram) && (
+                <details className="bg-paper py-3">
+                  <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Kiến thức và ví dụ</summary>
+                  <div className="space-y-4">
+                    <Sheet sheet={lesson.sheet} formatText={formatText} />
+                    {lesson.sections.map((section, i) => (
+                      <section key={i}><h2 className="font-hand text-xl">{section.heading}</h2><p className="whitespace-pre-wrap leading-7">{section.text}</p></section>
+                    ))}
+                    {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
+                    {lesson.sources.map((source, i) => (
+                      <p key={i} className="text-sm text-muted"><a href={source.url} target="_blank" rel="noreferrer" className="text-accent underline">{source.title}</a> · {source.readScope} · truy cập {source.retrievedAt} · xuất bản {source.publishedAt ?? "chưa rõ"}</p>
+                    ))}
+                  </div>
+                </details>
+              )}
+              {lesson.output && <p className="bg-paper py-2">Đầu ra: {lesson.output}</p>}
+              <Stage formatText={formatText} items={lesson.items} answers={answers} disabled={busy || !!pending}
+                readOnly={frozen} onChange={change} onReveal={reveal} actions={(item) => {
+                  const past = feedbackForItems(history,[item.id]), current = past[0];
+                  const previous = past.slice(1);
+                  const answer = answers[item.id]?.answer.trim();
+                  const hasWork = (answer && (item.input !== "choice" || answer !== "[]")) || !!answers[item.id]?.attachmentIds?.length;
+                  const latestAttempt = current?.attempts[0];
+                  const changed = !latestAttempt || latestAttempt.answer !== answers[item.id]?.answer || !!answers[item.id]?.attachmentIds?.length;
+                  const canSubmit = !busy && (pending === item.id || (!pending && !waiting(current) && !!hasWork && (changed || !latestAttempt?.result)));
+                  return {
+                    onSubmit: () => void submit(item.id), canSubmit,
+                    submitLabel: current ? "Kiểm tra lại" : "Kiểm tra",
+                    feedback: current && <>
+                      <Feedback compact submission={current} items={[item]} readOnly={frozen} formatText={formatText} onRefresh={() => void refreshFeedback()} />
+                      {previous.length > 0 && <details className="border-t border-line pt-2"><summary className="cursor-pointer text-sm text-accent">Lần trước</summary>
+                        {previous.map(s => <Feedback compact key={s.id} submission={s} items={[item]} readOnly={frozen} formatText={formatText} onRefresh={() => void refreshFeedback()} />)}
+                      </details>}
+                    </>,
+                  };
+                }} />
+              <div role="status" className="min-h-6 text-sm text-muted">{state}</div>
+              {!readonly && <button className={buttonClass(lesson.completedAt ? "ghost" : "primary")} disabled={busy || !!pending} onClick={() => void complete()}>
+                {lesson.completedAt ? "Mở lại để sửa" : "Xong bài"}
+              </button>}
+              {lesson.completedAt && <button className={buttonClass("secondary")} onClick={() => setView("summary")}>Xem tổng kết</button>}
             </>
           )}
-          {stage.stage === "read" && (
-            <section className="space-y-4">
-              {lesson.sections.map((section, i) => (
-                <div key={i}>
-                  <h2 className="font-hand text-2xl">{section.heading}</h2>
-                  <p className="whitespace-pre-wrap leading-7">{section.text}</p>
-                </div>
-              ))}
-              {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
-              <ul>
-                {lesson.sources.map((source, i) => (
-                  <li key={i} className="my-3">
-                    <a href={source.url} target="_blank" rel="noreferrer" className="text-accent underline">
-                      {source.title}
-                    </a>
-                    <p className="text-sm text-muted">
-                      Đã đọc: {source.readScope} · Truy cập: {source.retrievedAt} · Xuất bản: {source.publishedAt ?? "Chưa rõ"}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          {(stage.stage === "output" || stage.stage === "independent") && lesson.output && (
-            <p className="border-l border-accent p-3">Đầu ra: {lesson.output}</p>
-          )}
-          <Stage
-            key={stage.stage}
-            formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined}
-            items={items}
-            answers={answers}
-            disabled={busy || pending}
-            readOnly={readonly}
-            onChange={change}
-            onReveal={reveal}
-          />
-          <div aria-live="polite" role="status" className="min-h-6 text-sm text-muted">
-            {state}
-          </div>
-          {error && (
-            <p role="alert" className="rounded border border-red-700 p-3">
-              {error}
-            </p>
-          )}
-          {!readonly && (
-            <div className="flex flex-wrap items-center gap-3 border-y border-line bg-paper py-4">
-              <button className={buttonClass("ghost")} disabled={busy || pending} onClick={() => void save()}>
-                Lưu nháp
-              </button>
-              {items.length > 0 && (
-                <button className={buttonClass("primary", "order-first w-full sm:w-auto")} disabled={busy || !!lesson.completedAt} onClick={() => void submit()}>
-                  {pending ? "Kiểm tra lượt nộp" : "Nộp phần này"}
-                </button>
-              )}
-              <button
-                className={buttonClass("ghost")}
-                disabled={busy || pending}
-                onClick={() => {
-                  pendingSubmission.current = null;
-                  setState("Sửa bài rồi nộp lại — lần cũ vẫn được giữ.");
-                }}
-              >
-                Sửa lại
-              </button>
-              <button className={buttonClass("ghost")} disabled={busy || pending} onClick={() => void complete()}>
-                {lesson.completedAt ? "Bỏ dấu đã học" : "Đã học xong"}
-              </button>
-            </div>
-          )}
-          <section id={feedbackId} aria-label="Lịch sử lời phê phần này" className="scroll-mt-28 space-y-4 bg-paper py-4">
-            <h2 className="font-hand text-2xl">Bài đã nộp và lời phê · {stage.title || "phần này"}</h2>
-            {feedbackError&&<p role="alert">{feedbackError} <button className="text-accent underline" onClick={()=>void refreshFeedback()}>Đọc lại lời phê</button></p>}
-            {!stageHistory.length&&<p className="text-sm text-muted">Phần này chưa có lượt nộp đã lưu. Chọn phần khác để xem lời phê của phần đó.</p>}
-            {stageHistory.map((saved,i)=><details key={saved.id} open={i===0||saved.id===latestGraded?.id} className="border-t border-line pt-3">
-              <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold text-accent">{saved.created_at?new Intl.DateTimeFormat("vi-VN",{dateStyle:"short",timeStyle:"short",timeZone:"Europe/Berlin"}).format(new Date(saved.created_at)):"Lượt nộp"} · {saved.job_status==="cancelled"?"Đã hủy lượt chấm":saved.attempts.every(a=>a.result)?"Đã có lời phê":"Đang chờ lời phê"}</summary>
-              {saved.job_status==="cancelled"&&<p className="mt-2 text-sm">Lượt chấm này đã hủy. Các lời phê ở lượt trước vẫn được giữ bên dưới.</p>}
-              <Feedback formatText={isChemistryNotebook(lesson.subjectTitle??"")?formatChemicalText:undefined} submission={saved} items={lesson.items} readOnly={readonly} onRefresh={()=>void refreshFeedback()}/>
-            </details>)}
-            {history.length>=30&&<p className="text-sm text-muted">Hiển thị 30 lượt nộp gần nhất của bài.</p>}
-          </section>
-          {!readonly&&reflectionSubmission&&<LessonReflection key={reflectionSubmission.id} submissionId={reflectionSubmission.id}/>}
-          <p className="leading-7">Tiếp theo: {lesson.nextTopic}</p>
-          <p className="text-sm text-muted">Hoàn thành do bạn đánh dấu, không phụ thuộc điểm. Bài tiếp chỉ được giao theo mốc 00:00 Berlin.</p>
         </>
       )}
     </RuledPage>

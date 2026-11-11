@@ -39,7 +39,7 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "APP_ENV": "staging",
-        "APP_VERSION": "h7-h8-unhuman-2026-10-14",
+        "APP_VERSION": "hub2-local-runner-2026-11-10",
         "DEPLOYMENT_ID": "learning-hub-staging",
         "STAGING_SPIKE_LOCKDOWN": "false",
         "APP_ORIGIN": "https://learning-hub-staging.tranvu-812.workers.dev",
@@ -100,7 +100,8 @@
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "APP_VERSION": "hub2-family-emoji-2026-11-10",
+        "APP_VERSION": "hub2-local-runner-2026-11-10",
+        "AUTOMATION_ACCESS_AUD": "12226aa41dcf2129353292351daf364eb49b0b5c27cc0b07de7099c43ce30b84",
         "HOUSEHOLD_GATE": "passphrase",
         "APP_ENV": "production",
         "AI_JOBS_DAILY_CAP": "300",

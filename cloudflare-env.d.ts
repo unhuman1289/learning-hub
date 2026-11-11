@@ -21,6 +21,7 @@ declare namespace Cloudflare {
     HUB2_ENABLED?:string;
     MCP_ENABLED?:string;
     MCP_EVENTS_ENABLED?:string;
+    GRADER_CLIENT_ID?:string;
     BETTER_AUTH_SECRET?: string;
     BOOTSTRAP_ADMIN_EMAIL?: string;
     RESEND_API_KEY?: string;

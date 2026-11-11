@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { PaperDialog } from "../app/hub/paper-dialog";
+import { ProfileSettings } from "../app/hub/profile-settings";
 
 type Profile = { id: string; displayName: string; avatar: string; role: "adult" | "child" };
 
@@ -277,9 +279,11 @@ function ManageButton({ busy, onManage }: { busy: boolean; onManage: (pin: strin
 }
 
 /** Header controls in profile mode: who is studying, switch person, manage mode on/off. */
-export function ProfileControls({ name, manage, initialAvatar }: { name: string; manage: boolean; initialAvatar: string }) {
+export function ProfileControls({ name, manage, initialAvatar, settingsLearner }: { name: string; manage: boolean; initialAvatar: string; settingsLearner?: string }) {
   const [busy, setBusy] = useState(false), [editing, setEditing] = useState(false), [avatar, setAvatar] = useState(initialAvatar);
   const editorId = useId();
+  const [settings, setSettings] = useState(false);
+  const closeSettings = useCallback(() => setSettings(false), []);
   const avatarButton = useRef<HTMLButtonElement>(null);
   function closeEditor() {
     setEditing(false);
@@ -317,8 +321,12 @@ export function ProfileControls({ name, manage, initialAvatar }: { name: string;
             onSaved={(icon) => { setAvatar(icon); closeEditor(); }}
             onClose={closeEditor}
           />
+          {settingsLearner && <button type="button" className="mt-2 min-h-11 text-sm text-accent underline" onClick={() => {setEditing(false); setSettings(true);}}>Hồ sơ</button>}
         </div>
       )}
+      {settings && settingsLearner && <PaperDialog title="Hồ sơ" labelId={editorId + "-settings"} onClose={closeSettings}>
+        <div className="text-ink"><ProfileSettings learner={settingsLearner} title="Cài đặt cá nhân" /></div>
+      </PaperDialog>}
       <span className="hidden max-w-40 truncate text-sm opacity-80 md:inline">
         {name}
         {manage ? " · quản lý" : ""}

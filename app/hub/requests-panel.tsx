@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { PaperDialog, fieldClass, labelClass } from "./paper-dialog";
 import { buttonClass, PageLabel } from "./ui";
 import { apiJson, learnerQuery } from "./api";
+import { GraderOffline } from "./runner-status";
 
 export type RequestKind = "explore" | "extra_practice" | "school_topic" | "note";
 export type RequestView = {
@@ -44,7 +45,6 @@ export function useRequests(learner: string | null) {
 
 export function RequestDialog({ kind, subjectId, learner, onClose, onSent }: { kind: RequestKind; subjectId: string | null; learner: string | null; onClose: () => void; onSent: () => void }) {
   const [text, setText] = useState(""),
-    [urgency, setUrgency] = useState<"tonight" | "now">("tonight"),
     [busy, setBusy] = useState(false),
     [error, setError] = useState("");
   const label = requestLabels[kind];
@@ -52,7 +52,7 @@ export function RequestDialog({ kind, subjectId, learner, onClose, onSent }: { k
     setBusy(true);
     setError("");
     try {
-      await apiJson(`/api/requests${learnerQuery(learner)}`, { method: "POST", json: { kind, subjectId, text, urgency } });
+      await apiJson(`/api/requests${learnerQuery(learner)}`, { method: "POST", json: { kind, subjectId, text, urgency: "now" } });
       onSent();
       onClose();
     } catch (e) {
@@ -68,13 +68,6 @@ export function RequestDialog({ kind, subjectId, learner, onClose, onSent }: { k
           Nội dung
           <textarea className={fieldClass} rows={4} minLength={3} maxLength={2000} required placeholder={label.placeholder} value={text} onChange={(e) => setText(e.target.value)} />
         </label>
-        {(kind === "explore" || kind === "extra_practice") && (
-          <fieldset>
-            <legend className={labelClass}>Khi nào</legend>
-            <label className="flex min-h-11 items-center gap-3"><input type="radio" name={"urgency-" + kind} checked={urgency === "tonight"} onChange={() => setUrgency("tonight")} /> Soạn đêm nay</label>
-            <label className="flex min-h-11 items-center gap-3"><input type="radio" name={"urgency-" + kind} checked={urgency === "now"} onChange={() => setUrgency("now")} /> Soạn ngay nếu còn lượt</label>
-          </fieldset>
-        )}
         {error && <p role="alert">{error}</p>}
         <button type="submit" className={buttonClass("primary")} disabled={busy}>{busy ? "Đang gửi…" : "Gửi"}</button>
       </form>
@@ -85,7 +78,10 @@ export function RequestDialog({ kind, subjectId, learner, onClose, onSent }: { k
 export function RequestList({ requests, subjectId }: { requests: RequestView[]; subjectId?: string }) {
   const shown = requests.filter((r) => subjectId === undefined || r.subjectId === subjectId).slice(0, 8);
   if (!shown.length) return null;
+  const waiting = shown.some((r) => r.urgency === "now" && (r.status === "queued" || r.status === "in_job"));
   return (
+    <>
+    <GraderOffline waiting={waiting} what="Yêu cầu" />
     <ul className="mt-2 grid gap-2">
       {shown.map((r) => (
         <li key={r.id} className="leading-7">
@@ -95,6 +91,7 @@ export function RequestList({ requests, subjectId }: { requests: RequestView[]; 
         </li>
       ))}
     </ul>
+    </>
   );
 }
 
@@ -104,9 +101,9 @@ export function NotebookRequests({ subjectId, learner }: { subjectId: string; le
   const [open, setOpen] = useState<RequestKind | null>(null);
   return (
     <div className="mt-7">
-      <PageLabel>Hỏi và xin thêm bài</PageLabel>
+      <PageLabel>Hỏi thêm</PageLabel>
       <div className="flex flex-wrap gap-2">
-        {(["explore", "extra_practice"] as const).map((kind) => (
+        {(["explore"] as const).map((kind) => (
           <button key={kind} type="button" className={buttonClass("secondary")} onClick={() => setOpen(kind)}>{requestLabels[kind].button}</button>
         ))}
       </div>

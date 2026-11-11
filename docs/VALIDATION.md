@@ -214,3 +214,21 @@ ChatGPT chat “Theo dõi Learning Hub” reports two automation-create failures
 ### TTL protocol compatibility — 14/10/2026
 
 User-provided expansion still contains final summaries, not raw Automation failure. Corrected subscribe lifetime validation: accept finite positive requested ttlMs, then grant at most seven days; no longer reject30-day requests before handler.260tests/typecheck/lint/contracts/build pass; staging MCP version89936c01-9f6d-40b5-9376-4ba345eea72f. This independently fixes a compatibility gap, not a proven cause of actual create failure. No automation retry, subscription created, migration or production change. Next controlled test: only kind plan, return actual task/subscription ID or tool error.
+## L1.1 Qwen on the family Mac — 10/11/2026
+
+MacBook Pro M4 Pro, 48 GB. LM Studio, model `qwen/qwen3.6-35b-a3b` (MLX, vision-capable), context 32k, TTL 15 min.
+
+- Load: 19.6 s, 27.1 GiB resident.
+- `scripts/eval-assess.mjs` on `fixtures/eval/assess/deutsch.json` (4 submissions × 4 open answers, authored; draft key not yet confirmed by the owner): mean 20.9 s per submission (~2.6k prompt tokens → ~1k output tokens), valid `assess-result/1` JSON 4/4 on the first try, result agreement 14/16, G/P/N agreement 9/10, 0 correct answers marked wrong without evidence, injection attempts 0/2 shifted, all evidence quotes verbatim.
+- With a JSON schema, LM Studio returns the reply in `reasoning_content` while the model thinks; the engine reads either field.
+- Not yet measured: photos (vision), 96 KB contexts, Codex engine. Gate E1 needs the 30-case set graded by the owner.
+- Codex engine (`gpt-6.1-sol`, ChatGPT plan; the local Codex default `gpt-5.4` is refused for ChatGPT accounts): `--output-schema` with the full assess schema produced no reply after 8 minutes, while the same prompt without it answered in 32 s. The engine now puts the schema in the prompt; the zod contracts and one repair round catch drift. Same eval: mean 31.5 s per submission, 4/4 valid JSON, 15/16 agreement, G/P/N 8/9, 1 of 2 injection cases graded differently from the draft key (reviewed below in Gate E1 with the owner's key).
+- Local end-to-end (10/11/2026, `wrangler dev` with `HOUSEHOLD_GATE=access`, local bypass): "Ai đang học?" → profile Ếch → submitted an open answer → lesson showed "Máy chấm đang tắt" → `home-runner --once` leased the job, LM Studio loaded Qwen on demand, graded in 11 s, Hub verified → feedback showed the hint only, with "Xem lời giải" and "Chấm sai?". The first run was rejected by the Hub: Qwen invented `patternId`s and once graded one answer twice. The runner now nulls unknown pattern ids and keeps one grade per answer (ids only, never a judgement), and after all engines fail it lets the Hub requeue (max three leases). Qwen also flagged a correct sentence (*Am Sonntag möchte ich ins Kino gehen.*) as wrong: a grading-quality case for the Gate E1 set.
+
+## Staging, local-runner release — 10/11/2026
+
+- Migrations 0015–0016 rehearsed on a fresh staging export (row counts unchanged: user 15, subjects 6, ai_jobs 37, learner_settings 4, attempts 20, grades 18; foreign keys and integrity clean), then applied to staging D1.
+- Branch `hub2/l-local-runner` deployed to staging: version `525400e7-325c-4b84-b44e-ce1542ea6417`. No `HOUSEHOLD_GATE` yet, so staging keeps accounts.
+- Not verified from this Mac: Cisco Umbrella on the current network re-signs `*.workers.dev`, so HTTPS checks fail here (`learn.unhuman.cc` is fine). Staging smoke tests and the runner need another network or the `learn-staging.unhuman.cc` custom domain (docs/ops/local-grader-setup.md B1).
+- Pending the owner: `AUTOMATION_CLIENTS` secret upload, custom domain, Access apps, PR #95 merge (these writes were refused by the session's permission policy).
+- Eval extended to 32 authored cases (draft key). Qwen: 8/8 valid JSON, mean 23.9 s per submission, agreement 24–26/32 across runs, G/P/N 11/19, 1/4 injection cases graded off the key, 1 non-verbatim evidence quote. Below the Gate E1 bar (≥90%); typical misses are partial→incorrect and a missing comma before *weil* graded correct.

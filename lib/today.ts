@@ -30,7 +30,7 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
     .first<{ minutes: number }>();
   const { results = [] } = await db
     .prepare(
-      `SELECT l.id,l.subject_id,l.payload,l.assigned_date,l.slot,l.est_minutes,s.title AS subject_title,s.weight,
+      `SELECT l.id,l.subject_id,l.payload,l.assigned_date,l.slot,l.est_minutes,s.title AS subject_title,s.weight,s.system_kind,
  EXISTS(SELECT 1 FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=l.id AND a.status='graded' AND g.result IN ('incorrect','partial') AND NOT EXISTS(SELECT 1 FROM attempts newer WHERE newer.lesson_id=a.lesson_id AND newer.item_id=a.item_id AND newer.attempt_no>a.attempt_no)) AS correction
  FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.user_id=? AND l.completed_at IS NULL AND s.status='active' AND (l.snoozed_until IS NULL OR l.snoozed_until<=?) AND l.package_version='2' ORDER BY l.assigned_date,l.id`,
     )
@@ -45,10 +45,10 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
     category:
       r.correction === 1
         ? 'correction'
-        : r.slot === 'review'
-          ? 'review'
-          : r.slot === 'extra'
-            ? 'exploration'
+        : r.slot === 'extra'
+          ? r.system_kind === 'explore' ? 'exploration' : 'new'
+          : r.slot === 'review'
+            ? 'review'
             : r.assigned_date === day
               ? 'new'
               : 'unfinished',
@@ -56,8 +56,10 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
     reason:
       r.correction === 1
         ? 'Có câu cần sửa lại'
-        : r.slot === 'review'
-          ? 'Bộ ôn đã được giao'
+        : r.slot === 'extra' && r.system_kind !== 'explore'
+          ? 'Bài mới'
+          : r.slot === 'review'
+            ? 'Bộ ôn đã được giao'
           : r.assigned_date === day
             ? 'Bài mới hôm nay'
             : 'Tiếp tục phần đang học',

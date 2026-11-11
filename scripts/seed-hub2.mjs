@@ -3,6 +3,7 @@ import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
 import { runLocalD1 } from './local-db.mjs';
 import { hashPassword } from 'better-auth/crypto';
+import { createHash } from 'node:crypto';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 // Local-only demo identity. This script has no remote switch, API token or cloud credentials.
 const db = memoryDb(),
@@ -25,6 +26,34 @@ for (const [id, name, role, learnerRole] of users) {
     .run(id, new Date(stamp).toISOString(), learnerRole, name);
 }
 db.sqlite.prepare('INSERT INTO guardians VALUES(?,?,?,?)').run('demo-admin', 'demo-ech', 'demo-admin', new Date(stamp).toISOString());
+// Fixtures refer to skills by key. Resolve them just as the planner does so feedback can update skill states.
+function fixtureLesson(lesson, subjectId, learnerId) {
+  const ids = new Map();
+  const addSkill = db.sqlite.prepare(`INSERT OR IGNORE INTO skills(id,subject_id,learner_id,key,name,status,origin,created_at,updated_at)
+    VALUES(?,?,?,?,?,'active','migration',?,?)`);
+  const refs = [...lesson.targetSkills, ...lesson.items.flatMap(item => [
+    ...item.skills, ...(item.rubric ?? []).flatMap(criterion => criterion.skill ? [criterion.skill] : []),
+  ])];
+  const now = new Date(stamp).toISOString();
+  for (const ref of new Set(refs)) {
+    const key = ref.replace(/^key:/, '');
+    const id = 'sk_' + createHash('sha256').update(subjectId + ':' + ref).digest('hex').slice(0, 20);
+    addSkill.run(id, subjectId, learnerId, key, key.replaceAll('-', ' '), now, now);
+    ids.set(ref, id);
+  }
+  const resolve = ref => ids.get(ref) ?? ref;
+  return {
+    ...lesson,
+    reasonRefs: lesson.reasonRefs.map(resolve),
+    targetSkills: lesson.targetSkills.map(resolve),
+    items: lesson.items.map(item => ({
+      ...item,
+      skills: item.skills.map(resolve),
+      rubric: item.rubric?.map(criterion => criterion.skill ? { ...criterion, skill: resolve(criterion.skill) } : criterion),
+    })),
+  };
+}
+
 const subjectId = 'sub_dddddddddddddddddddd';
 db.sqlite
   .prepare(
@@ -38,7 +67,7 @@ for (const [index, file] of ['deutsch-modalverb.json', 'deutsch-w-fragen.json', 
     learnerId: 'demo-ech',
     subjectId,
     day: `2026-10-${String(9 + index).padStart(2, '0')}`,
-    lesson: checked.lesson,
+    lesson: fixtureLesson(checked.lesson, subjectId, 'demo-ech'),
     id: 'les_' + String(index + 1).padStart(20, '0'),
   });
 }
@@ -58,7 +87,7 @@ for (const [index, title, file] of [
     learnerId: 'demo-ech',
     subjectId,
     day: '2026-10-13',
-    lesson: checked.lesson,
+    lesson: fixtureLesson(checked.lesson, subjectId, 'demo-ech'),
     id: 'les_' + String(index).padStart(20, '0'),
   });
 }
@@ -74,11 +103,11 @@ await insertLessonV2(db, {
   learnerId: 'demo-adult',
   subjectId: readingSubject,
   day: '2026-10-13',
-  lesson: reading.lesson,
+  lesson: fixtureLesson(reading.lesson, readingSubject, 'demo-adult'),
   id: 'les_00000000000000000007',
 });
 const literal = (x) => (x === null ? 'NULL' : typeof x === 'number' ? String(x) : "'" + String(x).replaceAll("'", "''") + "'");
-const tables = ['user', 'account', 'learner_settings', 'guardians', 'subjects', 'learning_lessons', 'lesson_items'];
+const tables = ['user', 'account', 'learner_settings', 'guardians', 'subjects', 'skills', 'learning_lessons', 'lesson_items'];
 let sql = '';
 for (const table of tables)
   for (const row of db.sqlite.prepare(`SELECT * FROM "${table}"`).all())
