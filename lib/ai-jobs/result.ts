@@ -82,7 +82,7 @@ export async function applyResult(
   if ('outcomes' in prepared) {
     const context = JSON.parse(job.context_snapshot!) as PlanContext;
     const minutes = prepared.newMinutes;
-    if (minutes)
+    if (minutes && !context.adaptive)
       guards.push(
         db
           .prepare(

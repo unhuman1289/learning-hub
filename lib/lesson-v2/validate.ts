@@ -11,6 +11,7 @@ export type ValidateOptions = {
   sensitivity?: SubjectSensitivity;
   /** Lessons written by an AI runner follow the sizes in docs/plan/LOCAL-GRADER.md D20; hand-imported lessons keep 3–25. */
   aiSizes?: boolean;
+  adaptive?: boolean;
   subjectTitle?: string;
 };
 
@@ -79,10 +80,10 @@ export function validateLessonPackage(
   const maxDifficulty = options.maxDifficulty ?? 5;
 
   const review = lesson.kind === 'review';
-  const [minItems, maxItems] = review ? [3, 10] : [3, 25];
+  const [minItems, maxItems] = options.adaptive ? [1, 25] : review ? [3, 10] : [3, 25];
   if (lesson.items.length < minItems || lesson.items.length > maxItems)
     issue('/items', 'schema', `A ${lesson.kind} lesson has ${minItems}–${maxItems} items.`);
-  else if (options.aiSizes) {
+  else if (options.aiSizes && !options.adaptive) {
     const [low, high] = AI_ITEM_RANGE[lesson.template === 'reading' && !review ? 'reading' : lesson.kind];
     if (lesson.items.length < low || lesson.items.length > high)
       issue(
@@ -94,7 +95,7 @@ export function validateLessonPackage(
     if (open > AI_MAX_OPEN_ITEMS)
       issue('/items', 'size_limit', `At most ${AI_MAX_OPEN_ITEMS} open-answer items per lesson (it has ${open}); give the others a key.`);
   }
-  if (review && lesson.estMinutes > 20) issue('/estMinutes', 'schema', 'A review set takes at most 20 minutes.');
+  if (review && !options.adaptive && lesson.estMinutes > 20) issue('/estMinutes', 'schema', 'A review set takes at most 20 minutes.');
 
   const ids = lesson.items.map((item) => item.id);
   if (new Set(ids).size !== ids.length) issue('/items', 'schema', 'Item ids must be unique.');

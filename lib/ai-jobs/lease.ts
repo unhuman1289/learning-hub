@@ -71,7 +71,7 @@ export async function leaseJobs(
       stamp = now.toISOString();
     const job = await db
       .prepare(
-        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
+        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND (adaptive=0 OR (kind='plan' AND ?=1) OR (kind='assess' AND purpose='submission' AND ?=1) OR (kind='assess' AND purpose='recheck' AND ?=1)) AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (' + placeholders(client.learnerIds) + ')' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
       )
       .bind(
         berlinDay(now),
@@ -85,6 +85,9 @@ export async function leaseJobs(
         ...triggers,
         stamp,
         vision,
+        Number(input.capabilities?.includes('adaptive-plan') ?? false),
+        Number(input.capabilities?.includes('local-grading') ?? false),
+        Number(input.capabilities?.includes('adaptive-plan') ?? false),
         berlinDay(now),
         ...(client.learnerIds ?? []),
         ...(input.subjectIds ?? []),
@@ -100,6 +103,7 @@ export async function leaseJobs(
       if (!changed.meta.changes) throw new ApiError(409, 'Lease đã thay đổi khi dựng ngữ cảnh.');
       jobs.push({
         jobId: job.id,
+        ...(job.adaptive ? { adaptive: true } : {}),
         kind: job.kind,
         purpose: job.purpose,
         trigger: job.trigger,

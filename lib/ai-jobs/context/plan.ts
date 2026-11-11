@@ -1,3 +1,4 @@
+import { decideAdaptivePlan } from '../adaptive.ts';
 import {openWorkMinutesSql} from '../open-work.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
@@ -47,7 +48,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     contextHash: 'sha256:' + '0'.repeat(64),
     learner: {
       ...learner.public,
-      targetMinutes: target,
+      targetMinutes: job.adaptive ? (job.purpose === 'daily' ? 45 : 15) : target,
       preferences: cleanPreferences(JSON.parse(String(learner.settings?.preferences ?? '{}'))),
       studyMinutes14d: study,
     },
@@ -64,11 +65,18 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     explorations: [],
     truncated: [],
   };
+  const requestMetadata = job.adaptive && job.purpose === 'request' && job.ref_id
+    ? await db.prepare('SELECT metadata FROM learner_requests WHERE id=? AND learner_id=?').bind(job.ref_id, job.learner_id).first<{ metadata: string }>()
+    : null;
   const list: Record<string, unknown>[] = [];
   for (const s of subjects) {
     const id = String(s.id),
       sensitivity = s.sensitivity as 'normal' | 'clinical' | 'child_dev',
       data = await skillContext(db, job.learner_id, id);
+    if (job.adaptive) {
+      const mode = requestMetadata?.metadata ? JSON.parse(requestMetadata.metadata).mode : 'practice';
+      context.adaptive = await decideAdaptivePlan(db, job.learner_id, id, job.learning_day, job.purpose === 'daily', mode, JSON.parse(String(s.roadmap ?? '[]')), data.skills, data.errors);
+    }
     const { results: lessons = [] } = await db
       .prepare(
         "SELECT id,json_object('title',json_extract(payload,'$.title')) AS payload,assigned_date,kind,completed_at FROM learning_lessons WHERE user_id=? AND subject_id=? AND assigned_date>=? ORDER BY assigned_date,id",

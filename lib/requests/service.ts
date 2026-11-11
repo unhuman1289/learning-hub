@@ -12,7 +12,8 @@ import { containsContactDetails } from '../automation/privacy.ts';
  * notebook's context for 14 days.
  */
 export type RequestKind = 'explore' | 'extra_practice' | 'school_topic' | 'note';
-export type RequestInput = { kind: RequestKind; subjectId: string | null; text: string; urgency: 'tonight' | 'now' };
+export type RequestMode = "learn" | "practice" | "personal";
+export type RequestInput = { kind: RequestKind; subjectId: string | null; text: string; urgency: 'tonight' | 'now'; adaptive?: { mode: RequestMode; clientRequestId: string } };
 
 export const REQUESTS_PER_HOUR = 10;
 const kinds = new Set(['explore', 'extra_practice', 'school_topic', 'note']);
@@ -25,6 +26,17 @@ export const needsGoalAccess = (kind: RequestKind) => kind === 'school_topic' ||
 export function parseRequest(body: unknown): RequestInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw bad('Yêu cầu không hợp lệ.');
   const value = body as Record<string, unknown>;
+  if (value.mode !== undefined) {
+    const { mode, clientRequestId, subjectId } = value;
+    const note = typeof value.note === 'string' ? value.note.trim() : '';
+    if (Object.keys(value).some(key => !['mode','clientRequestId','subjectId','note'].includes(key)) ||
+        (mode !== 'learn' && mode !== 'practice' && mode !== 'personal') ||
+        typeof clientRequestId !== 'string' || !/^[0-9a-f-]{36}$/i.test(clientRequestId) ||
+        typeof subjectId !== 'string' || !/^sub_[A-Za-z0-9]{6,40}$/.test(subjectId) ||
+        (mode === 'personal' ? !note || note.length > 1000 || containsContactDetails(note) : !!note))
+      throw bad('Kiểm tra nội dung yêu cầu và bỏ thông tin liên hệ.');
+    return { kind: 'extra_practice', subjectId, urgency: 'now', text: note || (mode === 'learn' ? 'Học mới' : 'Luyện tập'), adaptive: { mode, clientRequestId } };
+  }
   if (Object.keys(value).some((key) => !['kind', 'subjectId', 'text', 'urgency'].includes(key))) throw bad('Yêu cầu có trường lạ.');
   if (!kinds.has(value.kind as string)) throw bad('Loại yêu cầu không hợp lệ.');
   const note = typeof value.text === 'string' ? value.text.trim() : '';
@@ -47,6 +59,9 @@ export async function createRequest(db: EvidenceDb, bindings: QueueBindings, lea
       .first();
     if (!subject) throw new ApiError(404, 'Không tìm thấy sổ.');
   }
+  if (input.adaptive) return createAdaptiveRequest(db, bindings, learnerId, createdBy, input, input.adaptive, now);
+  if (input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID && !needsGoalAccess(input.kind))
+    throw new ApiError(409, 'Chọn Học mới, Luyện tập hoặc Cá nhân hóa trong sổ.');
   const recent = await db
     .prepare('SELECT count(*) AS n FROM learner_requests WHERE learner_id=? AND created_at>?')
     .bind(learnerId, new Date(now.getTime() - 3600000).toISOString())
@@ -89,9 +104,31 @@ export async function createRequest(db: EvidenceDb, bindings: QueueBindings, lea
   return readRequest(db, learnerId, id);
 }
 
+async function createAdaptiveRequest(db: EvidenceDb, bindings: QueueBindings, learnerId: string, createdBy: string, input: RequestInput, metadata: NonNullable<RequestInput['adaptive']>, now: Date) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(learnerId + ':' + metadata.clientRequestId));
+  const id = 'req_' + Array.from(new Uint8Array(digest).slice(0, 10), b => b.toString(16).padStart(2, '0')).join('');
+  const encoded = JSON.stringify(metadata);
+  const existing = () => db.prepare('SELECT * FROM learner_requests WHERE id=? AND learner_id=?').bind(id, learnerId).first<Record<string, unknown>>();
+  let row = await existing();
+  if (!row) {
+    if (input.subjectId !== bindings.ADAPTIVE_PILOT_SUBJECT_ID) throw new ApiError(404, 'Chưa mở cách xin bài này cho sổ.');
+    await db.prepare("INSERT OR IGNORE INTO learner_requests(id,learner_id,subject_id,kind,text,urgency,created_by,status,created_at,metadata) SELECT ?,?,?,'extra_practice',?,'now',?,'queued',?,? WHERE (SELECT count(*) FROM learner_requests WHERE learner_id=? AND metadata IS NOT NULL AND created_at>?)<20")
+      .bind(id, learnerId, input.subjectId, input.text, createdBy, now.toISOString(), encoded, learnerId, new Date(now.getTime()-600000).toISOString()).run();
+    row = await existing();
+    if (!row) throw new ApiError(429, 'Bạn vừa gửi nhiều yêu cầu. Thử lại sau ít phút.');
+  }
+  if (row.metadata !== encoded || row.subject_id !== input.subjectId || row.text !== input.text)
+    throw new ApiError(409, 'Mã gửi đã dùng cho một yêu cầu khác.');
+  if (!row.job_id && row.status === 'queued' && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID) {
+    const job = await enqueue(db, bindings, { learnerId, subjectId: input.subjectId, kind: 'plan', purpose: 'request', refId: id, adaptiveRequest: true }, now);
+    if (job.id) await db.prepare("UPDATE learner_requests SET status='in_job',job_id=? WHERE id=? AND learner_id=? AND status='queued'").bind(job.id,id,learnerId).run();
+  }
+  return readRequest(db, learnerId, id);
+}
 function requestView(row: Record<string, unknown>) {
   return {
     id: row.id as string,
+    mode: row.metadata ? (JSON.parse(String(row.metadata)) as { mode: RequestMode }).mode : null,
     subjectId: (row.subject_id as string | null) ?? null,
     kind: row.kind as RequestKind,
     text: row.text as string,
@@ -114,10 +151,10 @@ export async function readRequest(db: EvidenceDb, learnerId: string, id: string)
   return requestView(row);
 }
 
-export async function listRequests(db: EvidenceDb, learnerId: string) {
+export async function listRequests(db: EvidenceDb, learnerId: string, subjectId: string | null = null, offset = 0) {
   const { results = [] } = await db
-    .prepare('SELECT r.*,j.trigger AS job_trigger,j.status AS job_status FROM learner_requests r LEFT JOIN ai_jobs j ON j.id=r.job_id WHERE r.learner_id=? ORDER BY r.created_at DESC,r.rowid DESC LIMIT 30')
-    .bind(learnerId)
+    .prepare('SELECT r.*,j.trigger AS job_trigger,j.status AS job_status FROM learner_requests r LEFT JOIN ai_jobs j ON j.id=r.job_id WHERE r.learner_id=? AND (? IS NULL OR r.subject_id=?) ORDER BY r.created_at DESC,r.rowid DESC LIMIT 30 OFFSET ?')
+    .bind(learnerId, subjectId, subjectId, offset)
     .all<Record<string, unknown>>();
   return results.map(requestView);
 }

@@ -250,6 +250,8 @@ const subject = z
     gradingQuality14d: z.object({ aiGraded: z.number(), disputed: z.number(), overturned: z.number(), keyIssues: z.number() }).strict(),
   })
   .strict();
+import { adaptiveDecision } from "../ai-jobs/adaptive.ts";
+
 export const planContext = z
   .object({
     contract: z.literal('plan-context/1'),
@@ -277,6 +279,7 @@ export const planContext = z
       })
       .strict(),
     planningGuidance: text(2000).optional(),
+    adaptive: adaptiveDecision.optional(),
     subjects: z.array(subject).max(30),
     explorations: z
       .array(

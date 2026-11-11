@@ -40,7 +40,7 @@ export async function prepareExplorations(
   for (const request of context.explorations)
     if (!answered.has(request.requestId)) issue('/explorations', 'missing_answer', 'Cần giao bài hoặc từ chối mỗi yêu cầu trong ngữ cảnh.');
   const assigned = result.explorations.filter((e) => e.action === 'assign');
-  if (assigned.length > context.policy.extraLessonsLeftToday)
+  if (!context.adaptive && assigned.length > context.policy.extraLessonsLeftToday)
     issue('/explorations', 'over_budget', 'Hết lượt bài thêm hôm nay; để yêu cầu chờ đến mai.');
 
   for (const [index, e] of result.explorations.entries()) {
@@ -80,11 +80,14 @@ export async function prepareExplorations(
       sensitivity: known?.sensitivity ?? 'normal',
       subjectTitle:known?.title,
       aiSizes: true,
+      adaptive: !!context.adaptive,
     });
     for (const problem of checked.issues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
     if (!checked.lesson) continue;
     const lesson = checked.lesson;
-    const kinds = request.kind === 'explore' ? ['exploration'] : ['new', 'remediation', 'review'];
+    const kinds = context.adaptive
+      ? { learn: ['new'], practice: ['review', 'remediation'], personal: ['exploration'], none: [] }[context.adaptive.mode]
+      : request.kind === 'explore' ? ['exploration'] : ['new', 'remediation', 'review'];
     if (!kinds.includes(lesson.kind)) issue(path + '/lesson/kind', 'schema', `Yêu cầu này cần bài loại ${kinds.join(' hoặc ')}.`);
 
     // Skills: a known notebook resolves its own; "Khám phá" creates up to 3 skills from `key:` references.
@@ -104,6 +107,8 @@ export async function prepareExplorations(
         skillIds.set('key:' + sk.key, sk.id);
       }
     }
+    if (context.adaptive?.mode === 'learn' && !context.adaptive.targetSkills.some(id => lesson.targetSkills.some(ref => skillIds.get(ref) === id)))
+      issue(path + '/lesson', 'schema', 'Bài cần bám kỹ năng trong bước tiếp theo.');
     const refs = [...new Set(lesson.items.flatMap((i) => i.skills).concat(lesson.targetSkills))];
     const created: { id: string; key: string }[] = [];
     for (const ref of refs) {
@@ -162,8 +167,8 @@ export async function prepareExplorations(
     statements.push(
       db
         .prepare(
-          `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id)
-           SELECT ?,?,?,?,?,?,'2',?,?,'extra',?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=?)`,
+          `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id)
+           SELECT ?,?,?,?,?,?,'2',?,?,'extra',?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
         )
         .bind(
           id,
@@ -178,6 +183,7 @@ export async function prepareExplorations(
           JSON.stringify(resolved.reasonRefs),
           lesson.estMinutes,
           job.id,
+          lesson.kind === 'new' ? context.adaptive?.step?.id ?? null : null,
           ...args,
           targetId,
           job.learner_id,

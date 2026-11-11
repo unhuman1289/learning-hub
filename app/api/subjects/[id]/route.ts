@@ -1,3 +1,6 @@
+import { env } from 'cloudflare:workers';
+import { berlinDay } from '../../../../lib/daily-policy';
+import { addDays } from '../../../../lib/learner-model/rules';
 import {readSubjectSkills,readSubjectEffort} from '../../../../lib/learner-model/recompute';
 import {learnerFacts} from '../../../../lib/access';
 import { getHubUser } from '../../../../lib/auth/session';
@@ -24,7 +27,19 @@ export async function GET(req: Request, context: Context) {
     const details=await readSubjectSkills(db,learnerId,id);
     const facts=await learnerFacts(db,user,learnerId);
     if(user.id===learnerId&&facts.learnerRole==='child')details.errors=details.errors.filter(e=>e.confidence==='confirmed');
-    return Response.json({ subject: toView(await getSubject(db, learnerId, id)), ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers });
+    const day = berlinDay();
+    const { results: study = [] } = await db.prepare(
+      "SELECT day,sum(seconds)/60.0 AS minutes FROM study_time WHERE user_id=? AND day BETWEEN ? AND ? AND track IN (?,coalesce((SELECT legacy_track FROM subjects WHERE id=? AND learner_id=?),'')) GROUP BY day",
+    ).bind(learnerId,addDays(day,-13),day,id,id,learnerId).all<{ day: string; minutes: number }>();
+    const adaptive = env.ADAPTIVE_PILOT_SUBJECT_ID === id;
+    const activity = adaptive ? (await db.prepare(
+      "SELECT DISTINCT a.day,a.lesson_id AS id,json_extract(l.payload,'$.title') AS title FROM attempts a JOIN learning_lessons l ON l.id=a.lesson_id WHERE a.learner_id=? AND a.subject_id=? AND a.day BETWEEN ? AND ? ORDER BY a.day,a.lesson_id LIMIT 150",
+    ).bind(learnerId,id,addDays(day,-13),day).all<{ day: string; id: string; title: string }>()).results ?? [] : [];
+    const timeline = Array.from({length:14},(_,index) => {
+      const date = addDays(day,index-13);
+      return { day: date, minutes: study.find(row => row.day === date)?.minutes ?? 0, lessons: activity.filter(row => row.day === date) };
+    });
+    return Response.json({ timeline, subject: toView(await getSubject(db, learnerId, id)), ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers });
   } catch (error) {
     return apiFailure(error, 'Chưa tải được sổ.', headers);
   }

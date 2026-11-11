@@ -12,7 +12,7 @@ import { claudeEngine, codexEngine, qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
 import { mirrorDue, mirrorHistory } from './mirror.mjs';
 
-export const VERSION = '1.0.0';
+export const VERSION = '1.1.0';
 
 /** KEY=VALUE lines; # comments. The file must not be readable by others. */
 export function parseEnvFile(text) {
@@ -84,7 +84,7 @@ export function leaseRequest(available, onAC, { daily = false } = {}) {
         purposes,
         triggers: ['on_demand', 'deferred', ...(writer && daily ? ['scheduled'] : [])],
         max: 1,
-        capabilities: vision ? ['vision'] : [],
+        capabilities: [...(vision ? ['vision'] : []), ...(available.codex ? ['adaptive-plan'] : []), ...(available.qwen && onAC ? ['local-grading'] : [])],
         runner: {
           name: 'home-runner',
           version: VERSION,

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { getHubUser } from '../../../../../lib/auth/session';
 import { storage } from '../../../../../db/storage';
 import { apiFailure } from '../../../../../lib/api-error';
@@ -13,7 +14,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params;
     const learner = await lessonTarget(db, user, req, id, 'read_work');
     if (learner instanceof Response) return learner;
-    return Response.json({ summary: await lessonSummary(db, learner, id) }, { headers: privateHeaders });
+    return Response.json({ summary: await lessonSummary(db, learner, id), adaptive: Boolean(env.ADAPTIVE_PILOT_SUBJECT_ID && await db.prepare("SELECT 1 FROM learning_lessons WHERE id=? AND user_id=? AND subject_id=?").bind(id, learner, env.ADAPTIVE_PILOT_SUBJECT_ID).first()) }, { headers: privateHeaders });
   } catch (error) {
     return apiFailure(error, 'Chưa đọc được tổng kết.', privateHeaders);
   }

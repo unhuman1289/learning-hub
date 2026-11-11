@@ -12,10 +12,11 @@ export function LessonSummary({ lessonId, subjectId, learner, reflectionId, wait
   onReview: () => void; onHome: () => void; onOpen: (id: string) => void;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
+  const [adaptive, setAdaptive] = useState<boolean | null>(null);
   const url = `/api/lessons/${lessonId}/summary${learnerQuery(learner)}`;
   useEffect(() => {
     let live = true;
-    apiJson<{summary: LessonSummaryData}>(url).then(({summary}) => { if (live) setData(summary); })
+    apiJson<{summary: LessonSummaryData; adaptive: boolean}>(url).then(({summary, adaptive}) => { if (live) { setData(summary); setAdaptive(adaptive); } })
       .catch((e: Error) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [url, waiting]);
@@ -40,7 +41,7 @@ export function LessonSummary({ lessonId, subjectId, learner, reflectionId, wait
         {data.comments.length > 0 && <div className="space-y-2 border-t border-line pt-3"><h3 className="font-hand text-xl">Nhận xét chung</h3>{data.comments.map(comment => <p key={comment} className="whitespace-pre-wrap break-words">{comment}</p>)}</div>}
         {!learner && reflectionId && <LessonReflection key={reflectionId} submissionId={reflectionId} minutes={data.minutes} />}
       </>}
-      {!learner && <NewLessonRequest subjectId={subjectId} onOpen={onOpen} />}
+      {!learner && adaptive === false && <NewLessonRequest subjectId={subjectId} onOpen={onOpen} />}
       <div className="flex flex-wrap gap-3">
         <button onClick={onReview} className={buttonClass("secondary")}>Xem lại bài</button>
         <button onClick={onHome} className={buttonClass("ghost")}>Về bàn học</button>

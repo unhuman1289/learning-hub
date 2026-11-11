@@ -1,7 +1,7 @@
 "use client";
 
 import {SkillProgress} from "./skill-progress";
-import { NotebookRequests } from "./requests-panel";
+
 import { LessonList } from "./lesson-v2/list";
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
@@ -32,15 +32,10 @@ export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }:
       <RuledPage>
         <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
         <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
-        {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} canRequest={subject.status === "active" || subject.status === "setup"} />}
-        {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} />}
-        {hub2 && <details className="mt-5 border-t border-line bg-paper py-3">
-          <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Bài đã học</summary>
-          <LessonList subjectId={id} learner={shelf.learner} go={go} history />
-        </details>}
+        {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
+        {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
         <details className="border-t border-line bg-paper py-3">
           <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Thêm</summary>
-          {hub2 && (subject.status === "active" || subject.status === "setup") && <NotebookRequests subjectId={id} learner={shelf.learner} />}
           {!shelf.learner && <RouteLink route={{view:"notes"}} go={go} className={buttonClass("ghost")}>Ghi chú và nhật ký</RouteLink>}
         </details>
         <details className="border-t border-line bg-paper py-3">

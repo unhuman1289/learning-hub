@@ -1,7 +1,8 @@
 "use client";
 import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useState } from "react";
-import { buttonClass } from "./ui";
+import { buttonClass, RouteLink } from "./ui";
+import type { Route } from "./use-route";
 const masteryText: Record<string, string> = {
   not_assessed: "Chưa đánh giá",
   introduced: "Đã tiếp cận",
@@ -23,7 +24,7 @@ type Skill = {
   state_revision: number | null;
   status:string; attempts_total:number|null;
 };
-type ProgressData={skills:Skill[];errors:Pattern[];effort:{minutes:number;days:number;attempts:number;retries:number}|null;subject:{level:string;progressSummary?:string;progressUpdatedAt?:string|null;roadmap:{title:string;objective:string;situation:string;skills:string[];mode:string}[]}};
+type ProgressData={timeline?:{day:string;minutes:number;lessons?:{id:string;title:string}[]}[];skills:Skill[];errors:Pattern[];effort:{minutes:number;days:number;attempts:number;retries:number}|null;subject:{level:string;progressSummary?:string;progressUpdatedAt?:string|null;roadmap:{title:string;objective:string;situation:string;skills:string[];mode:string}[]}};
 type Pattern = { id: string; label: string; confidence: string; status: string };
 /** Deutsch notebooks group skills and errors by G/P/N, from the skill key prefix and the error label prefix (L3.2). */
 const facets = [
@@ -55,11 +56,12 @@ function FacetSummary({ skills, errors }: { skills: Skill[]; errors: Pattern[] }
     </dl>
   );
 }
-function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId: string; learner?: string | null; canEdit?: boolean; showPath?: boolean }) {
+function Progress({ subjectId, learner, canEdit, go, showPath = true }: { subjectId: string; learner?: string | null; canEdit?: boolean; go?: (route: Route) => void; showPath?: boolean }) {
   const [data, setData] = useState<ProgressData | null>(null),
     [error, setError] = useState(""),
     [note, setNote] = useState(""),
     [saving, setSaving] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<string>();
   const url = "/api/subjects/" + subjectId + (learner ? "?learner=" + encodeURIComponent(learner) : "");
   async function load() {
     const r = await fetch(url, { cache: "no-store" }),
@@ -132,6 +134,22 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
               </> : <p className="text-sm text-muted">Chưa có lộ trình cho sổ này.</p>}
             </section>
           )}
+          {data.timeline && <section aria-label="Nhịp học 14 ngày">
+            <h3 className="font-semibold">Nhịp học 14 ngày</h3>
+            <div className="grid grid-cols-[repeat(14,minmax(0,1fr))] items-end gap-1">
+              {data.timeline.map(({day, minutes}) => <button type="button" key={day} onClick={() => setSelectedDay(day)} aria-pressed={selectedDay === day}
+                className="grid h-28 min-w-0 content-end text-center text-xs"
+                title={`${day}: ${Math.round(minutes)} phút`} aria-label={`${day}: ${Math.round(minutes)} phút`}>
+                <span aria-hidden="true" className="rounded-t bg-accent" style={{height: Math.max(2, 80*minutes/Math.max(1, ...data.timeline!.map(row => row.minutes)))}} />
+                <span aria-hidden="true">{day.slice(-2)}</span>
+              </button>)}
+            </div>
+            {selectedDay && <div className="mt-2 text-sm">
+              <p>{selectedDay} · {Math.round(data.timeline.find(row => row.day === selectedDay)?.minutes ?? 0)} phút</p>
+              {go && data.timeline.find(row => row.day === selectedDay)?.lessons?.map(lesson => <RouteLink key={lesson.id}
+                route={{view:"lesson",id:lesson.id}} go={go} className="block underline">{lesson.title}</RouteLink>)}
+            </div>}
+          </section>}
           {data.effort && <section aria-label="Cố gắng trong 14 ngày"><h3 className="font-semibold">Cố gắng trong 14 ngày</h3><p>{Math.round(data.effort.minutes)} phút đã đo · {data.effort.days} ngày học · {data.effort.attempts} lần trả lời · {data.effort.retries} lần làm lại</p><p className="text-sm text-muted">Cố gắng và mức thành thạo được theo dõi riêng.</p></section>}
           <h3 className="font-semibold">Kỹ năng đang học và cần ôn</h3>
           {!data.skills.length && <p>Chưa có kỹ năng được giao.</p>}
@@ -146,6 +164,7 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
                   </strong>
                   <span>{masteryText[s.mastery ?? "not_assessed"]}</span>
                 </div>
+                <meter className="w-full" min={0} max={3} value={s.dim_application ?? 0} aria-label={`Bằng chứng vận dụng: ${s.name}`} />
                 <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
                   {[
                     ["Hiểu", s.dim_knowledge],

@@ -141,6 +141,13 @@
       "when": 1794398400000,
       "tag": "0019_runners",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1794402000000,
+      "tag": "0020_adaptive_pilot",
+      "breakpoints": true
     }
   ]
 }
