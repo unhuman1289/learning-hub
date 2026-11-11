@@ -7,12 +7,13 @@ import { NotebookRequests } from "../requests-panel";
 import { HistoryPanel } from "../history-panel";
 import { NewLessonRequest } from "../new-lesson-request";
 import { buttonClass, RouteLink } from "../ui";
+import { useLiveRefresh } from "../use-live-refresh";
 import { MarginDate } from "../../../components/notebook/paper";
 import { pencil, pencilLink, shortDay, skillLabel } from "../paper-bits";
 import type { Route } from "../use-route";
 
 type LessonRow = { id: string; title: string; completedAt: string | null; assignedDate: string; kind: string; slot: string; reason: string; minutes: number | null; skill: string | null };
-type Notebook = { lessons: LessonRow[]; nextOffset: number | null; adaptive: boolean; day: string; nightly: { status: string; outcome: string | null } | null };
+type Notebook = { lessons: LessonRow[]; nextOffset: number | null; adaptive: boolean; day: string; nightly: { status: string; outcome: string | null } | null; initial: { status: string } | null; setup: boolean };
 type Props = { subjectId: string; learner: string | null; go: (route: Route) => void; canRequest?: boolean; history?: boolean; showBoth?: boolean };
 
 function NotebookLessons({ subjectId, learner, go, canRequest = false, history = false, showBoth = false }: Props) {
@@ -30,11 +31,9 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
     return () => { alive = false; };
   }, [subjectId, learner, version]);
   const nightlyStatus = notebook?.nightly?.status;
-  useEffect(() => {
-    if (nightlyStatus !== "queued" && nightlyStatus !== "leased") return;
-    const timer = window.setInterval(() => { if (!document.hidden) refresh(); }, 5000);
-    return () => window.clearInterval(timer);
-  }, [nightlyStatus, refresh]);
+  const initialStatus = notebook?.initial?.status;
+  const pending = [nightlyStatus, initialStatus].some(status => status === "queued" || status === "leased");
+  useLiveRefresh(async () => refresh(), !history && pending, 5000);
   if (error && !notebook) return <p role="alert">{error}</p>;
   if (!notebook) return <p role="status">Đang đọc bài trong sổ…</p>;
   const rows = [...new Map([...older, ...notebook.lessons].map(row => [row.id, row])).values()];
@@ -56,8 +55,8 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
   }
   const open = rows.filter(row => !row.completedAt);
   const primary = open.find(row => row.slot === "primary") ?? rows.find(row => row.slot === "primary" && row.assignedDate === notebook.day);
-  const extras = open.filter(row => row.slot !== "primary");
-  const kindLabel = (row: LessonRow) => row.kind === "new" ? "Học mới" : row.kind === "exploration" ? "Cá nhân hóa" : row.kind === "review" ? "Ôn tập" : "Luyện tập";
+  const extras = open.filter(row => row.id !== primary?.id);
+  const kindLabel = (row: LessonRow) => row.kind === "diagnostic" ? "Bài đầu tiên" : row.kind === "new" ? "Học mới" : row.kind === "exploration" ? "Cá nhân hóa" : row.kind === "review" ? "Ôn tập" : "Luyện tập";
   const done = rows.filter(row => row.completedAt).sort((a,b) => b.completedAt!.localeCompare(a.completedAt!));
   const historyList = (
     <>
@@ -79,24 +78,38 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
     </>
   );
   if (history) return historyList;
-  if (notebook.adaptive && showBoth) return <>
+  const firstLessonStatus = initialStatus === "leased"
+    ? "Đang soạn lộ trình và bài đầu tiên…"
+    : initialStatus === "queued" ? "Bài đầu tiên đang chờ máy soạn nhận."
+    : initialStatus ? "Chưa lưu được bài đầu tiên." : "Chưa xếp được lượt soạn bài đầu tiên.";
+  const emptyStatus = notebook.setup ? firstLessonStatus
+    : nightlyStatus === "queued" || nightlyStatus === "leased" ? "Bài hôm nay chưa soạn xong."
+    : nightlyStatus === "succeeded" ? "Bạn đã xong phần hôm nay."
+    : notebook.adaptive ? "Chưa có bài chính. Xin một bài bằng thẻ ở mép trang."
+    : open.length === 0 ? "Sổ không còn bài đang mở." : null;
+  if (showBoth) return <>
     <section aria-label="Bài hôm nay">
       {primary ? <>
-        <p className={pencil}>{primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Học tiếp"}{primary.assignedDate === notebook.day && primary.reason ? ` · ${primary.reason}` : ""}</p>
+        <p className={pencil}>{primary.kind === "diagnostic" ? "Bài đầu tiên" : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Học tiếp"}{primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason ? ` · ${primary.reason}` : ""}</p>
         <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4">
           <p className="text-lg font-semibold">{primary.title}</p>
           <RouteLink route={{view:"lesson",id:primary.id}} go={go} className={buttonClass("primary")}>Mở bài</RouteLink>
         </div>
-      </> : <p role="status" className={pencil}>{nightlyStatus === "queued" || nightlyStatus === "leased" ? "Bài hôm nay chưa soạn xong." : nightlyStatus === "succeeded" ? "Bạn đã xong phần hôm nay." : "Chưa có bài chính. Xin một bài bằng thẻ ở mép trang."}</p>}
-      {canRequest && <AdaptiveRequests edge subjectId={subjectId} learner={learner} go={go} onSaved={refresh} />}
+      </> : emptyStatus && <p role="status" className={pencil}>{emptyStatus}</p>}
+      {canRequest && !notebook.setup && (notebook.adaptive
+        ? <AdaptiveRequests edge subjectId={subjectId} learner={learner} go={go} onSaved={refresh} />
+        : !open.length && !learner && <NewLessonRequest subjectId={subjectId} onOpen={id => go({view:"lesson", id})} />)}
       {extras.length > 0 && <>
-        <p className={pencil}>Bài xin thêm đang mở</p>
+        <p className={pencil}>Bài khác đang mở</p>
         <ul>{extras.map(row => <li key={row.id}>
           <RouteLink route={{view:"lesson",id:row.id}} go={go} className="underline decoration-rule underline-offset-4 hover:decoration-accent">{row.title}</RouteLink>
           {row.minutes ? <span className={pencil}> · {row.minutes} phút</span> : null}
         </li>)}</ul>
       </>}
     </section>
+    {canRequest && !notebook.setup && !notebook.adaptive && <details>
+      <summary className="min-h-11 cursor-pointer">Yêu cầu khác</summary><NotebookRequests subjectId={subjectId} learner={learner} />
+    </details>}
     <details className="mt-7"><summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Bài đã học</summary>{historyList}</details>
   </>;
   return <>
@@ -111,8 +124,6 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
         {canRequest && !learner && <NewLessonRequest subjectId={subjectId} onOpen={id=>go({view:"lesson",id})} />}
       </>}
     </section>
-    {showBoth && canRequest && <details><summary className="min-h-11 cursor-pointer">Yêu cầu khác</summary><NotebookRequests subjectId={subjectId} learner={learner} /></details>}
-    {showBoth && <details className="mt-7"><summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Bài đã học</summary>{historyList}</details>}
   </>;
 }
 export function LessonList(props: Props) {
