@@ -72,6 +72,7 @@ const lessonListPath = '/api/subjects/' + subject.id + '/lessons';
 const setupList = await call(lessonListPath, 'GET', undefined, admin);
 assert.equal(setupList.status, 200);
 assert.equal(setupList.body.setup, true);
+assert.equal(setupList.body.adaptive, true);
 assert.equal(setupList.body.initial.status, 'queued');
 assert.deepEqual(setupList.body.lessons, []);
 assert.equal((await call(lessonListPath, 'GET', undefined, other)).status, 404);
@@ -92,6 +93,7 @@ assert.equal((await call('/api/lessons/' + imported.body.lessonId, 'GET', undefi
 const activeList = await call(lessonListPath, 'GET', undefined, admin);
 assert.equal(activeList.body.setup, false);
 assert.equal(activeList.body.initial, null);
+assert.equal(activeList.body.adaptive, true);
 assert.equal(activeList.body.lessons[0].id, imported.body.lessonId);
 // Keep the rejected large-body probe last: Wrangler's dev proxy aborts a following POST after an unread denied body.
 assert.equal((await call('/api/admin/lessons/import', 'POST', packageInput, relogin)).status, 403);

@@ -2,6 +2,7 @@ import type { EvidenceDb } from '../evidence/submit.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
+import { usesAdaptivePlan } from '../subjects/sql.ts';
 export type QueueBindings = {
   AI_LOCAL_ONLY?: string;
   ADAPTIVE_PILOT_SUBJECT_ID?: string;
@@ -53,14 +54,23 @@ export async function enqueue(
     refId?: string | null;
     /** Stable scheduler invocation identity; retries reuse it, later checks can create another daily job. */
     dailyRunId?: string;
+    manualRunId?: string;
     adaptiveRequest?: boolean;
     /** Wait for the nightly runner instead of asking for an answer now. */
     tonight?: boolean;
   },
   now = new Date(),
 ) {
+  const subject = input.subjectId && (input.purpose === 'daily' || input.adaptiveRequest)
+    ? await db.prepare('SELECT id,legacy_track FROM subjects WHERE id=? AND learner_id=?')
+      .bind(input.subjectId, input.learnerId).first<{ id: string; legacy_track: string | null }>()
+    : null;
+  const adaptive = input.kind === 'assess'
+    ? !!input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID
+    : !!subject && usesAdaptivePlan(subject.id, subject.legacy_track, bindings.ADAPTIVE_PILOT_SUBJECT_ID);
   const day = berlinDay(now),
     stamp = now.toISOString(),
+    dailyKey = input.manualRunId ? 'manual:' + input.manualRunId : adaptive ? day : input.dailyRunId ?? stamp,
     dedupe =
       input.kind +
       ':' +
@@ -68,8 +78,7 @@ export async function enqueue(
       ':' +
       input.learnerId +
       ':' +
-      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + (input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID ? day : input.dailyRunId ?? stamp) : (input.refId ?? input.subjectId ?? day));
-  const adaptive = Boolean(input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID && (input.kind === 'assess' || input.purpose === 'daily' || input.adaptiveRequest));
+      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + dailyKey : (input.refId ?? input.subjectId ?? day));
   const existing = await db
     .prepare('SELECT id,status,trigger,kind,purpose,priority FROM ai_jobs WHERE dedupe_key=?')
     .bind(dedupe)
@@ -186,9 +195,15 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
   // One plan job per notebook keeps each lease, context and apply within the Free CPU and D1 query budget.
   const { results = [] } = await db
     .prepare(
-      "SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version='2' AND (s.id<>? AND l.completed_at IS NULL OR s.id=? AND l.slot='primary' AND (l.completed_at IS NULL OR l.completed_at>=? OR l.assigned_date=?))) ORDER BY s.learner_id, s.weight DESC, s.id",
+      `SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id
+       WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(
+         SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version='2'
+         AND CASE WHEN s.legacy_track IS NULL OR s.id=? THEN
+           l.slot='primary' AND (l.completed_at IS NULL OR l.completed_at>=? OR l.assigned_date=?)
+         ELSE l.completed_at IS NULL END
+       ) ORDER BY s.learner_id,s.weight DESC,s.id`,
     )
-    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now))
+    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now))
     .all<{ id: string; learner_id: string }>();
   // One notebook's failure (daily cap, D1 hiccup) must not stop the others.
   let failed = 0;

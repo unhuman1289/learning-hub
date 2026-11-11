@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {memoryDb} from './d1-adapter.mjs';
 import {createManualPlan,readManualPlan} from '../lib/ai-jobs/manual-plan.ts';
 const first='11111111-1111-4111-8111-111111111111',second='22222222-2222-4222-8222-222222222222';
-function seed(db,id,owner,title='Deutsch',status='active',enabled=1){db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,ai_enabled,created_by,created_at,updated_at) VALUES(?,?,?,'skill',?,?,?,'t','t')").run(id,owner,title,status,enabled,owner);}
+function seed(db,id,owner,title='Deutsch',status='active',enabled=1){db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,ai_enabled,created_by,created_at,updated_at,legacy_track) VALUES(?,?,?,'skill',?,?,?,'t','t',?)").run(id,owner,title,status,enabled,owner,title);}
 test('manual plans select learner notebook, allow multiple same-day runs and reuse the same request after midnight or archive',async()=>{
  const db=memoryDb();seed(db,'de','owner');seed(db,'other','someone');seed(db,'archived','owner','AI','archived',0);
  const now=new Date('2026-10-14T12:00:00Z'),a=await createManualPlan(db,{},'owner',first,undefined,now),b=await createManualPlan(db,{},'owner',second,undefined,now);

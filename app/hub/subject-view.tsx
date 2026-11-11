@@ -96,7 +96,7 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
           <textarea value={instructions} maxLength={4000} rows={6} onChange={(event) => { setInstructions(event.target.value); setState("idle"); }} className={fieldClass} />
         </label>
       )}
-{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Tự chuẩn bị bài mới qua đêm khi sổ đã học hết bài.</label>}
+{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Tự chuẩn bị bài lúc 00:00 giờ Đức khi đã xong bài chính.</label>}
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>

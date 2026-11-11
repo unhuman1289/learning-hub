@@ -2,7 +2,9 @@
 import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./ui";
+import { apiJson } from "./api";
 type ApiBody = { error?: string; eventDispatchEnabled?: boolean; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
+type PlanNotebook = { id: string; title: string; aiEnabled: boolean; status: string };
 type Job = {
   id: string;
   learner_id: string;
@@ -20,24 +22,28 @@ export function AiJobsPanel() {
     [error, setError] = useState(""),
     [eventDispatchEnabled, setEventDispatchEnabled] = useState(false),
     [notice,setNotice]=useState(""),
-    [pending,setPending]=useState<{learner:string;requestId:string}|null>(null),
+    [pending,setPending]=useState<{learner:string;requestId:string;subjectId:string}|null>(null),
     [status, setStatus] = useState(""),
     [kind, setKind] = useState(""),
     [learner, setLearner] = useState(""),
     [learners, setLearners] = useState<{ id: string; name: string }[]>([]),
+    [planShelf, setPlanShelf] = useState<{ learner: string; notebooks: PlanNotebook[] } | null>(null),
+    [planSubjectId, setPlanSubjectId] = useState(""),
     [detail, setDetail] = useState<unknown>(null),
     [busy, setBusy] = useState(false);
   const creating=useRef(false);
+  const notebooks = planShelf?.learner === learner ? planShelf.notebooks : [];
+  const subjectId = notebooks.length === 1 ? notebooks[0].id : planSubjectId;
   async function createPlan(){
-    if(creating.current||(!learner&&!pending))return;
+    if(creating.current||(!subjectId&&!pending))return;
     creating.current=true;setBusy(true);setError("");setNotice("");
-    const request=pending??{learner,requestId:crypto.randomUUID()};
+    const request=pending??{learner,subjectId,requestId:crypto.randomUUID()};
     let uncertain=true;
     setPending(request);
     try{
       const r=pending
         ? await fetch('/api/admin/ai-jobs?'+new URLSearchParams({learnerFilter:request.learner,requestId:request.requestId}),{cache:'no-store'})
-        : await fetch('/api/admin/ai-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({learnerId:request.learner,purpose:'daily',requestId:request.requestId})});
+        : await fetch('/api/admin/ai-jobs',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({learnerId:request.learner,subjectId:request.subjectId,purpose:'daily',requestId:request.requestId})});
       const x=await r.json() as {error?:string;job?:{id?:string}};
       if(!r.ok){if(r.status>=400&&r.status<500){setPending(null);uncertain=false;}throw Error(x.error||'Chưa xác nhận lượt soạn.');}
       if(!x.job?.id)throw Error('Chưa tìm thấy lượt đã lưu. Chỉ kiểm tra lại, không gửi thêm yêu cầu tạo.');
@@ -80,6 +86,16 @@ export function AiJobsPanel() {
       .then((x) => setLearners(x.learners ?? []))
       .catch(() => {});
   }, []);
+  useEffect(() => {
+    if (!learner) return;
+    let alive = true;
+    apiJson<{ subjects: PlanNotebook[] }>("/api/subjects?" + new URLSearchParams({ learner }))
+      .then(({ subjects }) => {
+        if (alive) setPlanShelf({ learner, notebooks: subjects.filter(subject => subject.status === "active" && subject.aiEnabled) });
+      })
+      .catch((cause: Error) => { if (alive) setError(cause.message); });
+    return () => { alive = false; };
+  }, [learner]);
   useLiveRefresh(async()=>{await refresh();const selected=detail as {id?:string}|null;if(selected?.id)await inspect(selected.id);},!busy);
   async function action(id: string) {
     setBusy(true);
@@ -127,7 +143,7 @@ export function AiJobsPanel() {
       <div className="flex flex-wrap gap-3">
         <label>
           Người học
-          <select value={learner} onChange={(e) => setLearner(e.target.value)} className="ml-2 max-w-full rounded border border-line bg-paper p-2">
+          <select value={learner} onChange={(e) => { setLearner(e.target.value); setPlanSubjectId(""); setPlanShelf(null); }} className="ml-2 max-w-full rounded border border-line bg-paper p-2">
             <option value="">Tất cả</option>
             {learners.map((l) => (
               <option key={l.id} value={l.id}>
@@ -154,15 +170,22 @@ export function AiJobsPanel() {
           </select>
         </label>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {notebooks.length > 1 && <label>
+          Sổ cần soạn
+          <select value={planSubjectId} onChange={e => setPlanSubjectId(e.target.value)} className="ml-2 max-w-full rounded border border-line bg-paper p-2">
+            <option value="">Chọn sổ</option>
+            {notebooks.map(notebook => <option key={notebook.id} value={notebook.id}>{notebook.title}</option>)}
+          </select>
+        </label>}
         <button className={buttonClass("secondary")} onClick={() => void refresh().catch((e) => setError(e.message))}>
           Tải lại
         </button>
-        <button disabled={busy||(!learner&&!pending)} className={buttonClass("primary")} onClick={()=>void createPlan()}>
+        <button disabled={busy||(!subjectId&&!pending)} className={buttonClass("primary")} onClick={()=>void createPlan()}>
           {pending?'Kiểm tra lượt vừa tạo':'Tạo lượt soạn'}
         </button>
       </div>
-      <p className="text-sm text-muted">Tự chuẩn bị lúc 00:00 giờ Đức, hoặc chọn người học rồi tạo lượt khi cần. Không giới hạn một lượt mỗi ngày. Bài chưa xong được giữ nguyên.</p>
+      <p className="text-sm text-muted">Tự chuẩn bị lúc 00:00 giờ Đức. Bạn có thể chọn sổ và tạo thêm lượt khi cần.</p>
       {notice&&<p role="status" className="text-sm text-muted">{notice}</p>}
       {error && (
         <p role="alert" className="text-accent">

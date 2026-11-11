@@ -2,6 +2,7 @@ import { env } from 'cloudflare:workers';
 import { berlinDay } from '../../../../../lib/daily-policy';
 import { getHubUser } from '../../../../../lib/auth/session';
 import { storage } from '../../../../../db/storage';
+import { usesAdaptivePlan } from '../../../../../lib/subjects/sql';
 import { resolveLearner } from '../../../../../lib/access';
 import { privateHeaders } from '../../../../../lib/lesson-v2/route-helpers';
 export const dynamic = 'force-dynamic';
@@ -13,7 +14,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   const db = storage(),
     learner = await resolveLearner(db, user, req, 'read_work');
   if (learner instanceof Response) return learner;
-  const subject = await db.prepare('SELECT status FROM subjects WHERE id=? AND learner_id=?').bind(id, learner).first<{ status: string }>();
+  const subject = await db.prepare('SELECT status,legacy_track FROM subjects WHERE id=? AND learner_id=?').bind(id, learner).first<{ status: string; legacy_track: string | null }>();
   if (!subject) return Response.json({ error: 'Not found' }, { status: 404, headers: privateHeaders });
   const offset = Math.max(0, Math.min(10000, Number.parseInt(new URL(req.url).searchParams.get('offset') ?? '0', 10) || 0));
   const initial = subject.status === 'setup' && offset === 0
@@ -26,7 +27,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     )
     .bind(learner, id, offset)
     .all();
-  const adaptive = env.ADAPTIVE_PILOT_SUBJECT_ID === id;
+  const adaptive = usesAdaptivePlan(id, subject.legacy_track, env.ADAPTIVE_PILOT_SUBJECT_ID);
   const day = berlinDay();
   const nightly = adaptive ? await db.prepare("SELECT status,outcome FROM ai_jobs WHERE learner_id=? AND subject_id=? AND adaptive=1 AND purpose='daily' AND learning_day=? ORDER BY created_at DESC LIMIT 1").bind(learner,id,day).first<{ status: string; outcome: string | null }>() : null;
   return Response.json({

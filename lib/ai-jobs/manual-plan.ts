@@ -16,5 +16,5 @@ export async function createManualPlan(db:EvidenceDb,bindings:QueueBindings,lear
   if(results.length!==1)throw new ApiError(400,results.length?'Cần chọn sổ khi người học có nhiều sổ đang bật soạn bài.':'Người học chưa có sổ đang bật soạn bài.');
   selected=results[0].id;
  }
- return enqueue(db,bindings,{learnerId,subjectId:selected,kind:'plan',purpose:'daily',dailyRunId:'manual:'+requestId},now);
+ return enqueue(db,bindings,{learnerId,subjectId:selected,kind:'plan',purpose:'daily',manualRunId:requestId},now);
 }
