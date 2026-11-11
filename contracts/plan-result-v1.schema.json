@@ -1400,6 +1400,37 @@
             },
             "description": "Đề xuất 5–10 bài tiếp theo theo mục tiêu, kỹ năng, tình huống; có thể cập nhật cả khi no_action. Không phải bài đã giao."
           },
+          "notebookSetup": {
+            "type": "object",
+            "properties": {
+              "template": {
+                "type": "string",
+                "enum": [
+                  "skill",
+                  "reading"
+                ]
+              },
+              "level": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "curriculum": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "instructions": {
+                "type": "string",
+                "maxLength": 4000
+              }
+            },
+            "required": [
+              "template",
+              "level",
+              "curriculum",
+              "instructions"
+            ],
+            "additionalProperties": false
+          },
           "requestsHandled": {
             "maxItems": 20,
             "type": "array",

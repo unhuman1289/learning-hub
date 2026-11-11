@@ -974,3 +974,32 @@ test('manual Học mới advances the same roadmap that the nightly planner read
   const next = JSON.parse((await readJob(db, night.jobId)).context_snapshot);
   assert.equal(next.adaptive.step.title, 'Xác nhận lịch');
 });
+
+test('initial plan fills notebook settings without overwriting the learning brief or existing details', async () => {
+  const db = seed();
+  db.sqlite.prepare("UPDATE subjects SET status='setup',goal=?,level='',curriculum=?,instructions='' WHERE id=?")
+    .run('Ôn phân số để thi, thích bài tập ngắn', 'Sách đã chọn', subject);
+  const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
+  const [lease] = await leaseJobs(db, client, input, 'test', now);
+  assert.equal(lease.jobId, job.id);
+  const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
+  const result = plan(context, { ...structuredClone(fixture), kind: 'diagnostic' });
+  const [settings] = result.subjects;
+  const firstSkill = settings.skillChanges[0];
+  settings.skillChanges.push(...Array.from({ length: 7 }, (_, index) => ({
+    ...firstSkill, key: 'step-' + index, name: 'Kỹ năng ' + index, pathOrder: index + 2,
+  })));
+  settings.roadmap = Array.from({ length: 5 }, (_, index) => ({
+    title: 'Bước ' + index, objective: 'Luyện tập', situation: 'Bài tập ngắn',
+    skills: ['key:' + firstSkill.key], mode: 'new',
+  }));
+  settings.notebookSetup = { template: 'reading', level: 'Chưa đánh giá', curriculum: 'Đề xuất khác', instructions: 'Ưu tiên bài tập ngắn.' };
+  const saved = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+  assert.equal(saved.status, 200, JSON.stringify(saved));
+  const notebook = db.sqlite.prepare('SELECT template,goal,level,curriculum,instructions,roadmap,status FROM subjects WHERE id=?').get(subject);
+  assert.deepEqual({ ...notebook, roadmap: JSON.parse(notebook.roadmap).length }, {
+    template: 'reading', goal: 'Ôn phân số để thi, thích bài tập ngắn', level: 'Chưa đánh giá',
+    curriculum: 'Sách đã chọn', instructions: 'Ưu tiên bài tập ngắn.', roadmap: 5, status: 'active',
+  });
+  db.sqlite.close();
+});

@@ -355,6 +355,8 @@ Mọi hợp đồng có trường `contract` mang tên và phiên bản. Server 
 - `skillChanges` chịu các giới hạn `allowNewTopics` và `maxNewSkillsPerWeek`. Kỹ năng `add` dùng được ngay bằng `key:<key>` trong bài cùng kết quả.
 - Planner không gửi được `goal`, `limits`, `status` hay `weight`: các trường đó không có trong schema.
 
+Với lượt `initial`, `subjects[].notebookSetup` có thể đề xuất `template`, `level`, `curriculum` và `instructions`. Hub lưu cùng lộ trình và bài chẩn đoán cho sổ đang thiết lập, giữ nguyên mô tả học và các trường chữ người học đã điền. Trình độ chưa biết ghi “Chưa đánh giá”, giáo trình chưa biết để trống.
+
 ### 6.4 `assess-context/1`
 
 ```jsonc

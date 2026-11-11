@@ -1,11 +1,12 @@
 "use client";
 
+import { DeskDecor, DeviceDate, FurnitureDecor } from "./desk-decor";
 import { DeskProgress } from "./desk-progress";
 import { PostIt } from "../../components/notebook/post-it";
 import {TodayBoard} from "./today-board";
 import { ContactBook } from "./guardian/contact-book";
 import { AlertCircle } from "lucide-react";
-import { Bookcase, GardenWindow, OakDesk, Shelf } from "../../components/notebook/house";
+import { Bookcase, OakDesk, Shelf } from "../../components/notebook/house";
 import { NotebookCover } from "../../components/notebook/paper";
 import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
@@ -44,7 +45,6 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   const readOnly = viewing.id !== null;
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
-  const date = new Intl.DateTimeFormat("vi-VN", { weekday: "long", day: "numeric", month: "long", timeZone: "Europe/Berlin" }).format(new Date());
   // The desk only holds lessons that still need attention.
   const visibleTracks=hub2?trackIds.filter(track=>shelf.subjects?.some(s=>s.legacyTrack===track)):trackIds;
   const lessons = visibleTracks.flatMap((track) => {
@@ -76,9 +76,9 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8">
       {/* Entering the study: a greeting by the garden window. */}
-      <section className="grid items-end gap-6 md:grid-cols-[minmax(0,1fr)_15rem]">
+      <section className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:gap-6">
         <div>
-          <p className="font-hand text-xl text-accent first-letter:uppercase">{date}</p>
+          <DeviceDate />
           <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{readOnly ? `Kệ của ${viewedName}` : `Chào ${name}.`}</h1>
           {viewing.learners.length > 1 && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem kệ của
@@ -90,12 +90,15 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
             </label>
           )}
         </div>
-        <GardenWindow className="hidden h-36 md:block" />
+        <DeskDecor />
       </section>
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <OakDesk drawers className="min-w-0">
-          <h2 className="px-1 pb-4 font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
+          <div className="mb-4 flex items-center justify-between gap-2 px-1">
+            <h2 className="font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
+            <FurnitureDecor place="desk" />
+          </div>
           <TodayBoard key={viewing.id ?? "self"} learner={viewing.id} go={go} enabled={hub2} notes={notes} loadingLegacy={loading} />
           {daily.error && (
             <p role="alert" className="mt-5 flex gap-2 rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">
@@ -107,6 +110,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
 
         <Bookcase
           className="lg:sticky lg:top-24"
+          counterDecoration={<FurnitureDecor place="bookcase" />}
           title={<><h2 className="font-print text-xl font-medium">Tủ sách</h2><span className="text-sm opacity-80">Lấy một cuốn sổ</span></>}
         >
           {shelf.subjects === null && <p className="col-span-full px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}

@@ -31,7 +31,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     }
     if (context.adaptive && job.purpose === 'request') {
       if (s.action !== 'no_action' || s.primaryLesson || s.reviewSet || s.skillChanges.length ||
-          s.roadmap || s.requestsHandled.length || s.masteryProposals.length)
+          s.roadmap || s.notebookSetup || s.requestsHandled.length || s.masteryProposals.length)
         issue(path, 'schema', 'Bài xin thêm chỉ được ghi qua yêu cầu của lượt này.');
       outcomes.push({ subjectId: s.subjectId, status: 'no_action', lessonIds: [], reason: context.adaptive.reason });
       continue;
@@ -63,6 +63,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             context.adaptive.mode !== 'practice' || !['review', 'remediation'].includes(s.primaryLesson.kind))))
         issue(path + '/primaryLesson', 'schema', 'Bài chính phải đúng quyết định của Hub.');
     }
+    const setup = s.notebookSetup;
+    if (setup && (job.purpose !== 'initial' || current.status !== 'setup' ||
+        s.action !== 'assign' || !s.roadmap || s.primaryLesson?.kind !== 'diagnostic'))
+      issue(path + '/notebookSetup', 'schema', 'Chỉ điền thiết lập cho sổ mới cùng lộ trình và bài đầu tiên.');
     if (s.action === 'issue') {
       outcomes.push({ subjectId: s.subjectId, status: 'rejected', lessonIds: [], reason: s.reason });
       continue;
@@ -72,6 +76,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     const text = [
       s.reason,
       s.progressSummary,
+      ...(setup ? [setup.level, setup.curriculum, setup.instructions] : []),
       ...(s.roadmap??[]).flatMap(step=>[step.title,step.objective,step.situation]),
       ...s.skillChanges.flatMap((x) => ['name' in x ? x.name : '', 'description' in x ? x.description : '', 'reason' in x ? x.reason : '']),
       ...s.masteryProposals.map((x) => x.reason),
@@ -353,6 +358,16 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           )
           .bind(clamped.mastery, p.reason, p.skillId, job.learner_id, ...gateValues),
       );
+    }
+    if (setup && s.primaryLesson) {
+      statements.push(db.prepare(
+        `UPDATE subjects SET template=?,
+           level=coalesce(nullif(level,''),?), curriculum=coalesce(nullif(curriculum,''),?),
+           instructions=coalesce(nullif(instructions,''),?)
+         WHERE id=? AND learner_id=? AND ${gate}
+           AND EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=? AND user_id=? AND subject_id=? AND slot='primary')`,
+      ).bind(setup.template, setup.level.trim(), setup.curriculum.trim(), setup.instructions.trim(),
+        s.subjectId, job.learner_id, ...gateValues, job.id, job.learner_id, s.subjectId));
     }
     for (const r of s.requestsHandled) {
       if (!c.requests.some((x) => x.requestId === r.requestId)) issue(path + '/requestsHandled', 'unknown_reference', 'Yêu cầu ngoài ngữ cảnh.');
