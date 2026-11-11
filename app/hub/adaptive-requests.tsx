@@ -90,7 +90,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
   }
 
   return <div>
-    <div className={cx("flex flex-wrap gap-2 py-1.5", edge && "sm:absolute sm:right-0 sm:top-7 sm:translate-x-2 sm:flex-col sm:items-end sm:gap-3 sm:py-0")}>
+    <div className={cx("flex flex-wrap gap-2 py-1.5", edge && "md:flex-col md:items-end md:gap-3 md:py-0")}>
       {modes.map(mode => mode === "personal"
         ? <button key={mode} type="button" ref={personalButton} aria-expanded={personal} className={cx(flag, flagColor[mode])} onClick={() => setPersonal(!personal)}>{labels[mode]}</button>
         : <button key={mode} type="button" disabled={busy} className={cx(flag, flagColor[mode])} onClick={() => void send(mode)}>{labels[mode]}</button>)}
