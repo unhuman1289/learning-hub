@@ -46,17 +46,20 @@ export function userPrompt(context, repair) {
   ].join('\n');
 }
 
-/** Engines that may take this job, in order. Qwen grades first answers; ChatGPT (Codex) rechecks and writes lessons. */
+/**
+ * Engines that may take this job, in order. Qwen grades first answers; ChatGPT (Codex) rechecks and writes lessons.
+ * Owner decision 11/11/2026: when ChatGPT is out (plan limit, timeout, refusal) the local Qwen always takes over,
+ * on battery too, so nothing waits for a quota to reset.
+ */
 export function engineChain(lease, context, engines, { onAC }) {
   const photos = (context.attempts ?? []).some((a) => a.attachments?.some((img) => !img.expired));
   const usable = (e) => e && (!photos || e.vision);
+  const firstAnswer = lease.kind === 'assess' && lease.purpose === 'submission';
   if (lease.adaptive)
-    return (lease.kind === 'assess' && lease.purpose === 'submission' ? [onAC ? engines.qwen : null] : [engines.codex]).filter(usable);
-  if (lease.kind === 'plan' && lease.purpose === 'initial') return [engines.codex].filter(usable);
-  const order =
-    lease.kind === 'assess' && lease.purpose === 'submission'
-      ? [onAC ? engines.qwen : null, engines.codex, engines.claude]
-      : [engines.codex, engines.claude];
+    return (firstAnswer ? [onAC ? engines.qwen : null, engines.codex, onAC ? null : engines.qwen] : [engines.codex, engines.qwen]).filter(usable);
+  const order = firstAnswer
+    ? [onAC ? engines.qwen : null, engines.codex, engines.claude, onAC ? null : engines.qwen]
+    : [engines.codex, engines.claude, engines.qwen];
   return order.filter(usable);
 }
 

@@ -73,9 +73,10 @@ export async function onACPower(exec = promisify(execFile)) {
  * jobs the Hub queues at 00:00 Berlin, so lessons, progress and roadmap update without a ChatGPT task.
  */
 export function leaseRequest(available, onAC, { daily = false } = {}) {
-  const grader = (available.qwen && onAC) || available.codex || available.claude;
-  const writer = available.codex || available.claude;
-  const purposes = [...(grader ? ['submission'] : []), ...(writer ? ['recheck', 'request', ...(available.codex ? ['initial'] : []), ...(daily ? ['daily'] : [])] : [])];
+  const grader = available.qwen || available.codex || available.claude;
+  // Qwen writes and rechecks too when ChatGPT is out (see engineChain).
+  const writer = available.codex || available.claude || available.qwen;
+  const purposes = [...(grader ? ['submission'] : []), ...(writer ? ['recheck', 'request', 'initial', ...(daily ? ['daily'] : [])] : [])];
   const kinds = [...(purposes.some((p) => p === 'submission' || p === 'recheck') ? ['assess'] : []), ...(writer ? ['plan'] : [])];
   const vision = !!(available.codex || (available.qwen && onAC && available.qwenVision));
   return purposes.length
@@ -84,7 +85,7 @@ export function leaseRequest(available, onAC, { daily = false } = {}) {
         purposes,
         triggers: ['on_demand', 'deferred', ...(writer && daily ? ['scheduled'] : [])],
         max: 1,
-        capabilities: [...(vision ? ['vision'] : []), ...(available.codex ? ['adaptive-plan'] : []), ...(available.qwen && onAC ? ['local-grading'] : [])],
+        capabilities: [...(vision ? ['vision'] : []), ...(available.codex || available.qwen ? ['adaptive-plan'] : []), ...(available.qwen && onAC ? ['local-grading'] : [])],
         runner: {
           name: 'home-runner',
           version: VERSION,
