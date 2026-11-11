@@ -77,6 +77,7 @@ function generationSchema(kind, context, schema) {
   subjects.maxItems = context.subjects.length;
   const item = subjects.items;
   item.required.push('roadmap', 'notebookSetup');
+  item.properties.notebookSetup.required.push('goal');
   item.properties.action = { const: 'assign' };
   item.properties.skillChanges.minItems = 8;
   item.properties.skillChanges.maxItems = 8;

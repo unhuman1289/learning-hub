@@ -86,6 +86,7 @@ export const planResult = z
             roadmap: roadmap.optional(),
             notebookSetup: z.object({
               template: z.enum(['skill', 'reading']),
+              goal: text(2000).optional(),
               level: text(200),
               curriculum: text(500),
               instructions: text(4000),

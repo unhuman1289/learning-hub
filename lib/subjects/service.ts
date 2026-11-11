@@ -7,7 +7,7 @@ export type Db = { prepare(sql: string): Stmt };
 
 export type SubjectView = {
   id: string; title: string; template: SubjectRow['template']; sensitivity: SubjectRow['sensitivity']; goal: string; level: string;
-  curriculum: string; instructions: string; limits: SubjectLimits; weight: number; status: SubjectRow['status']; aiEnabled: boolean;
+  curriculum: string; instructions: string; openingBrief: string | null; limits: SubjectLimits; weight: number; status: SubjectRow['status']; aiEnabled: boolean;
   legacyTrack: SubjectRow['legacy_track']; progressSummary: string; progressUpdatedAt: string | null; revision: number;
   roadmap?: {title:string;objective:string;situation:string;skills:string[];mode:string}[];
   skillCount: number; createdAt: string; updatedAt: string;
@@ -16,7 +16,7 @@ export type SubjectView = {
 export function toView(row: SubjectRow & { skill_count?: number }): SubjectView {
   return {
     id: row.id, title: row.title, template: row.template, sensitivity: row.sensitivity, goal: row.goal, level: row.level,
-    curriculum: row.curriculum, instructions: row.instructions ?? '', limits: JSON.parse(row.limits) as SubjectLimits, weight: row.weight, status: row.status,
+    curriculum: row.curriculum, openingBrief: row.opening_brief, instructions: row.instructions ?? '', limits: JSON.parse(row.limits) as SubjectLimits, weight: row.weight, status: row.status,
     roadmap: JSON.parse(row.roadmap ?? '[]'),
     aiEnabled: row.ai_enabled === 1, legacyTrack: row.legacy_track, progressSummary: row.progress_summary,
     progressUpdatedAt: row.progress_updated_at, revision: row.revision, skillCount: Number(row.skill_count ?? 0),
@@ -42,7 +42,7 @@ export async function createSubject(db: Db, learnerId: string, createdBy: string
   const stamp = now.toISOString();
   try {
     await db.prepare(insertSubjectSql).bind(id, learnerId, input.title, input.template, input.sensitivity, input.goal, input.level, input.curriculum,
-      JSON.stringify(input.limits), input.weight, input.legacyTrack ? 'active' : 'setup', input.legacyTrack ?? null, createdBy, stamp, stamp).run();
+      JSON.stringify(input.limits), input.weight, input.legacyTrack ? 'active' : 'setup', input.legacyTrack ?? null, createdBy, stamp, stamp, input.legacyTrack ? null : input.goal || null).run();
   } catch (error) {
     if (String(error).includes('UNIQUE')) throw new ApiError(409, input.legacyTrack ? 'Sổ này đã có trên kệ.' : 'Đã có sổ cùng tên.');
     throw error;

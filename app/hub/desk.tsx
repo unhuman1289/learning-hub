@@ -15,7 +15,8 @@ import { NotebookCover } from "../../components/notebook/paper";
 import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
-import { buttonClass, RouteLink } from "./ui";
+import { postitAction } from "./paper-bits";
+import { RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { Route } from "./use-route";
 
@@ -76,7 +77,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
                       : <RouteLink route={route} go={go} className="pencil-underline mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</RouteLink>}
                     <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                       <span className="font-hand text-base opacity-75">{isNew ? "Bài mới hôm nay" : `Đang học · nhận ${shortDate(lesson.assignedDate)}`}</span>
-                      {!readOnly && <RouteLink route={route} go={go} className={buttonClass("primary", "min-h-9 px-3")}>{isNew ? "Bắt đầu" : "Học tiếp"}</RouteLink>}
+                      {!readOnly && <RouteLink route={route} go={go} className={postitAction}>{isNew ? "Bắt đầu" : "Học tiếp"}</RouteLink>}
                     </div>
                   </PostIt>
                 );

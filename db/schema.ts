@@ -76,7 +76,7 @@ export const guardians = sqliteTable('guardians', {
 export const subjects = sqliteTable('subjects', {
  id:text('id').primaryKey(),learnerId:text('learner_id').notNull(),title:text('title').notNull(),template:text('template').notNull(),
  sensitivity:text('sensitivity').notNull().default('normal'),goal:text('goal').notNull().default(''),level:text('level').notNull().default(''),
- curriculum:text('curriculum').notNull().default(''),limits:text('limits').notNull(),weight:integer('weight').notNull().default(3),
+ curriculum:text('curriculum').notNull().default(''),openingBrief:text('opening_brief'),limits:text('limits').notNull(),weight:integer('weight').notNull().default(3),
  status:text('status').notNull().default('setup'),aiEnabled:integer('ai_enabled').notNull().default(0),legacyTrack:text('legacy_track'),
  progressSummary:text('progress_summary').notNull().default(''),progressUpdatedAt:text('progress_updated_at'),revision:integer('revision').notNull().default(0),
  createdBy:text('created_by').notNull(),createdAt:text('created_at').notNull(),updatedAt:text('updated_at').notNull(),

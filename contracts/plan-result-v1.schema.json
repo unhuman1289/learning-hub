@@ -1410,6 +1410,10 @@
                   "reading"
                 ]
               },
+              "goal": {
+                "type": "string",
+                "maxLength": 2000
+              },
               "level": {
                 "type": "string",
                 "maxLength": 200
