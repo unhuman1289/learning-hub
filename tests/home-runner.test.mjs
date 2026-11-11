@@ -9,7 +9,7 @@ import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
 import { submitLesson } from '../lib/evidence/submit.ts';
 import { assessResult } from '../lib/contracts/ai-common.ts';
-import { processJob, userPrompt, systemPrompt } from '../integrations/home-runner/job.mjs';
+import { processJob, userPrompt, systemPrompt, normalizePlan } from '../integrations/home-runner/job.mjs';
 import { strictSchema, stripOptionalNulls, parseJsonReply } from '../integrations/home-runner/schema.mjs';
 import { childEnv, codexEngine, qwenEngine } from '../integrations/home-runner/engines.mjs';
 import { leaseRequest, pollDelay, parseEnvFile, runOnce } from '../integrations/home-runner/runner.mjs';
@@ -263,6 +263,25 @@ test('Qwen sends the HTTPS pattern without the unsupported starts_with format', 
   });
   await qwen.run({ system: 's', user: 'u', schema: { type: 'object', properties: { link } } });
   assert.equal(link.format, 'starts_with');
+});
+
+test('lesson normalization keeps generated answers and places every item in one allowed stage', () => {
+  const lesson = structuredClone(fixture);
+  const item = lesson.items.find(question => question.key?.type === 'choice');
+  assert(item);
+  item.input = 'short';
+  lesson.stages = [
+    { stage: 'sheet', itemIds: [item.id] },
+    { stage: 'guided', itemIds: [item.id, 'i99', item.id] },
+    { stage: 'check', itemIds: lesson.items.filter(question => question !== item).map(question => question.id) },
+  ];
+  const normalized = normalizePlan({ subjects: [], explorations: [{ lesson }] }).explorations[0].lesson;
+  assert.deepEqual(normalized.stages.map(stage => stage.stage), ['sheet', 'guided', 'independent']);
+  assert.deepEqual(normalized.stages.flatMap(stage => stage.itemIds).sort(), lesson.items.map(question => question.id).sort());
+  const corrected = normalized.items.find(question => question.id === item.id);
+  assert.equal(corrected.input, 'choice');
+  assert.deepEqual(corrected.key, item.key);
+  assert.deepEqual(corrected.choices, item.choices);
 });
 
 test('the user prompt marks the context as data and carries repair errors', () => {

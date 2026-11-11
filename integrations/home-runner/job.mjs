@@ -47,6 +47,8 @@ function generationSchema(kind, context, schema) {
     subjects.maxItems = context.subjects.length;
     Object.assign(subjects.items.properties, {
       action: { const: 'no_action' },
+      reason: { const: context.adaptive.reason },
+      progressSummary: { const: '' },
       primaryLesson: { type: 'null' },
       reviewSet: { type: 'null' },
       skillChanges: { type: 'array', maxItems: 0 },
@@ -79,11 +81,75 @@ function generationSchema(kind, context, schema) {
   item.properties.skillChanges.minItems = 8;
   item.properties.skillChanges.maxItems = 8;
   item.properties.primaryLesson = item.properties.primaryLesson.anyOf.find(branch => branch.type === 'object');
-  item.properties.primaryLesson.properties.kind = { const: 'diagnostic' };
-  item.properties.primaryLesson.properties.items.minItems = 5;
-  item.properties.primaryLesson.properties.items.maxItems = 8;
+  const lesson = item.properties.primaryLesson.properties;
+  lesson.kind = { const: 'diagnostic' };
+  lesson.template = { const: 'skill' };
+  lesson.sheet = lesson.sheet.anyOf.find(branch => branch.type === 'object');
+  lesson.items.minItems = 5;
+  lesson.items.maxItems = 8;
+  lesson.items.items.required.push('key');
   item.properties.reviewSet = { type: 'null' };
   return initial;
+}
+
+function compactPlanContext(context) {
+  return {
+    ...context,
+    subjects: context.subjects.map(subject => ({
+      ...subject,
+      goal: subject.goal.slice(0, 1800),
+      instructions: subject.instructions.slice(0, 1500),
+      progressSummary: subject.progressSummary.slice(0, 600),
+      learnerReflections: subject.learnerReflections?.slice(0, 3).map(note => ({ ...note, note: note.note.slice(0, 300) })),
+      skills: subject.skills.map(({ skillId, key, name, pathOrder, prerequisites, status, mastery, stuckOn, nextReviewDay, reviewKind }) => ({
+        skillId, key, name, pathOrder, prerequisites, status, mastery, stuckOn, nextReviewDay, reviewKind,
+      })),
+      errorPatterns: subject.errorPatterns.filter(error => error.status !== 'resolved').slice(0, 6)
+        .map(error => ({ ...error, examples: error.examples.slice(0, 1).map(example => example.slice(0, 160)) })),
+      recentLessons: subject.recentLessons.slice(-4).map(lesson => ({
+        ...lesson, items: lesson.items.slice(0, 4),
+      })),
+    })),
+  };
+}
+
+function normalizeLesson(lesson) {
+  const review = lesson.kind === 'review';
+  const allowed = review ? ['retrieval', 'independent'] : lesson.template === 'skill'
+    ? ['retrieval', 'sheet', 'guided', 'independent'] : ['read', 'analyze', 'output'];
+  const defaultStage = !review && lesson.template === 'reading' ? 'analyze' : 'independent';
+  const itemIds = new Set(lesson.items.map(item => item.id));
+  const placed = new Set();
+  const stages = [];
+  for (const stage of lesson.stages) {
+    if (!allowed.includes(stage.stage) || stages.some(saved => saved.stage === stage.stage)) continue;
+    const ids = ['sheet', 'read'].includes(stage.stage) ? [] :
+      stage.itemIds.filter(id => itemIds.has(id) && !placed.has(id) && placed.add(id));
+    stages.push({ ...stage, itemIds: ids });
+  }
+  const unplaced = [...itemIds].filter(id => !placed.has(id));
+  if (unplaced.length) {
+    const target = stages.find(stage => stage.stage === defaultStage);
+    if (target) target.itemIds.push(...unplaced);
+    else stages.push({ stage: defaultStage, itemIds: unplaced });
+  }
+  return {
+    ...lesson,
+    stages,
+    items: lesson.items.map(item => item.key?.type === 'choice' && item.choices?.length ? { ...item, input: 'choice' } : item),
+  };
+}
+
+export function normalizePlan(plan) {
+  return {
+    ...plan,
+    subjects: plan.subjects.map(subject => ({
+      ...subject,
+      primaryLesson: subject.primaryLesson && normalizeLesson(subject.primaryLesson),
+      reviewSet: subject.reviewSet && normalizeLesson(subject.reviewSet),
+    })),
+    explorations: plan.explorations.map(request => ({ ...request, lesson: request.lesson && normalizeLesson(request.lesson) })),
+  };
 }
 
 export function userPrompt(context, repair) {
@@ -150,6 +216,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
   try {
     const contract = contractFor(lease.kind);
     const schema = generationSchema(lease.kind, context, contract.json);
+    const promptContext = lease.kind === 'plan' ? compactPlanContext(context) : context;
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
     for (let round = 0; round < 2; round++) {
@@ -158,7 +225,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         const out = await qwen.run({
           system: systemPrompt(lease.kind, lease.purpose) + (context.adaptive ?
             '\n\nPilot Deutsch: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
-          user: userPrompt(context, repair),
+          user: userPrompt(promptContext, repair),
           schema,
           images,
         });
@@ -175,7 +242,8 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         log({ jobId: lease.jobId, engine: qwen.name, event: 'contract_error', errors: repair.slice(0, 10).map((e) => e.path) });
         continue;
       }
-      const dry = await hub.result(lease, local.data, true);
+      const validResult = lease.kind === 'plan' ? normalizePlan(local.data) : local.data;
+      const dry = await hub.result(lease, validResult, true);
       if (dry.status === 422) {
         repair = dry.body?.errors ?? [];
         lastError = qwen.name + ': Hub từ chối (' + repair.map((e) => e.code).join(',') + ')';
@@ -183,10 +251,13 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         log({ jobId: lease.jobId, engine: qwen.name, event: 'dry_run_422', errors: repair.slice(0, 10).map((e) => e.code + ' ' + e.path) });
         continue;
       }
-      await submit(hub, lease, local.data);
+      await submit(hub, lease, validResult);
       const verified = await hub.state(lease.jobId);
       if (verified.status !== 'succeeded') throw Error('Hub chưa xác nhận kết quả (' + verified.status + ').');
-      log({ jobId: lease.jobId, engine: qwen.name, event: 'succeeded', ms: result.usage.ms });
+      const lessonCount = lease.kind === 'plan' && verified.outcome
+        ? (verified.outcome.extraLessonIds?.length || verified.outcome.subjects?.flatMap(subject => subject.lessonIds).length || 0)
+        : undefined;
+      log({ jobId: lease.jobId, engine: qwen.name, event: 'succeeded', lessonCount, ms: result.usage.ms });
       return { jobId: lease.jobId, status: 'succeeded', engine: qwen.name };
     }
     await hub.fail(lease, lastError, true);
