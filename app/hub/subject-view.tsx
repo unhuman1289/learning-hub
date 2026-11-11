@@ -31,8 +31,8 @@ export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }:
     <div className="mx-auto grid w-full max-w-4xl gap-6">
       <RouteLink route={{ view: "desk" }} go={go} className="inline-flex items-center gap-1.5 self-start text-sm text-accent hover:underline"><ArrowLeft size={16} aria-hidden="true" /> Về phòng học</RouteLink>
       <RuledPage>
-        <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
-        <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
+        {subject.status !== "active" && <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>}
+        <h1 className="mb-3 break-words font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
         {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
         {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
         <details className="mt-7">
