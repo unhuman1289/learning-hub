@@ -230,7 +230,7 @@ test('runOnce leases nothing when no engine answers and asks only for work it ca
   await runOnce(hub, { qwen: up, codex: null, claude: null }, { power: async () => true });
   assert.deepEqual(hub.input.purposes, ['submission']);
   assert.deepEqual(hub.input.kinds, ['assess']);
-  assert.deepEqual(hub.input.capabilities, []);
+  assert.deepEqual(hub.input.capabilities, ['local-grading']);
 });
 
 test('lease requests, poll schedule and env file parsing', () => {
@@ -238,7 +238,7 @@ test('lease requests, poll schedule and env file parsing', () => {
   const all = leaseRequest({ qwen: true, codex: true, claude: false }, true);
   assert.deepEqual(all.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(all.kinds, ['assess', 'plan']);
-  assert.deepEqual(all.capabilities, ['vision']);
+  assert.deepEqual(all.capabilities, ['vision', 'adaptive-plan', 'local-grading']);
   assert.deepEqual(all.triggers, ['on_demand', 'deferred']);
   const nightly = leaseRequest({ qwen: true, codex: true, claude: false }, true, { daily: true });
   assert.deepEqual(nightly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);

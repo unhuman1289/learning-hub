@@ -6,6 +6,10 @@ Thuộc bộ [Learning Hub 2.0](README.md). Áp dụng cho bài soạn tay, cho 
 - Phần đo được (số câu, độ khó, chống lặp, thành thạo, lịch ôn, điều kiện bài kết nối) do server kiểm ([AI-API §6](AI-API.md#6-hợp-đồng), [DATA-MODEL §3–4](DATA-MODEL.md#3-luật-thuần-hàm-có-test)).
 - Phần ở đây là phán đoán sư phạm mà server không kiểm được.
 
+## Pilot Deutsch
+
+Trong pilot, Hub chọn bước, kỹ năng và lý do theo bằng chứng. Bài chính lúc 00:00 Berlin hướng tới 45 phút. Bài xin thêm qua Học mới, Luyện tập hoặc Cá nhân hóa hướng tới 15 phút. Từ 1 đến 25 câu tùy đầu ra. Một bài viết dài có thể chỉ cần một câu. Mỗi câu giữ rubric hoặc đáp án, gợi ý và lời giải. Chấm câu mở bằng Qwen, chấm lại theo yêu cầu bằng Codex CLI. Xem [plan pilot](../plan/DEUTSCH-ADAPTIVE-PILOT.md).
+
 ## 1. Nguyên tắc
 
 **Học để làm được, không phải để hoàn thành nhiều bài.**

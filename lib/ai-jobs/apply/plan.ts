@@ -29,6 +29,13 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       issue(path, 'unknown_reference', 'Sổ không thuộc ngữ cảnh.');
       continue;
     }
+    if (context.adaptive && job.purpose === 'request') {
+      if (s.action !== 'no_action' || s.primaryLesson || s.reviewSet || s.skillChanges.length ||
+          s.roadmap || s.requestsHandled.length || s.masteryProposals.length)
+        issue(path, 'schema', 'Bài xin thêm chỉ được ghi qua yêu cầu của lượt này.');
+      outcomes.push({ subjectId: s.subjectId, status: 'no_action', lessonIds: [], reason: context.adaptive.reason });
+      continue;
+    }
     const current = await db
       .prepare('SELECT revision,status,ai_enabled FROM subjects WHERE id=? AND learner_id=?')
       .bind(s.subjectId, job.learner_id)
@@ -48,6 +55,13 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     ) {
       outcomes.push({ subjectId: s.subjectId, status: 'stale', lessonIds: [], reason: 'Sổ hoặc bài đang học đã thay đổi.' });
       continue;
+    }
+    if (context.adaptive) {
+      if (s.roadmap || s.reviewSet || s.requestsHandled.length) issue(path, 'schema', 'Giữ lộ trình và chỉ giao đúng bài của lượt này.');
+      if (s.primaryLesson && (job.purpose !== 'daily' || !current.ai_enabled || current.status !== 'active' ||
+          (context.adaptive.mode === 'learn' ? s.primaryLesson.kind !== 'new' :
+            context.adaptive.mode !== 'practice' || !['review', 'remediation'].includes(s.primaryLesson.kind))))
+        issue(path + '/primaryLesson', 'schema', 'Bài chính phải đúng quyết định của Hub.');
     }
     if (s.action === 'issue') {
       outcomes.push({ subjectId: s.subjectId, status: 'rejected', lessonIds: [], reason: s.reason });
@@ -133,7 +147,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     statements.push(
       db
         .prepare(
-          `UPDATE subjects SET revision=revision+1,progress_summary=?,progress_updated_at=?,updated_at=?,status=CASE WHEN status='setup' THEN 'active' ELSE status END WHERE id=? AND learner_id=? AND revision=? AND coalesce((SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND completed_at IS NULL ORDER BY assigned_date DESC,updated DESC LIMIT 1),'')=? AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?) ${sqlEligibility}`,
+          `UPDATE subjects SET revision=revision+1,progress_summary=?,progress_updated_at=?,updated_at=?,status=CASE WHEN status='setup' THEN 'active' ELSE status END WHERE id=? AND learner_id=? AND revision=? ${context.adaptive && s.primaryLesson ? "AND status='active' AND ai_enabled=1" : ''} AND coalesce((SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND completed_at IS NULL ORDER BY assigned_date DESC,updated DESC LIMIT 1),'')=? AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?) ${sqlEligibility}`,
         )
         .bind(
           s.progressSummary,
@@ -206,13 +220,16 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true });
+      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       const l = checked.lesson,
         slotKind = field === 'reviewSet' ? 'review' : 'primary';
-      if ((field === 'reviewSet' && l.kind !== 'review') || (field === 'primaryLesson' && ['review', 'exploration'].includes(l.kind)))
+      if ((field === 'reviewSet' && l.kind !== 'review') || (field === 'primaryLesson' && (l.kind === 'exploration' || (!context.adaptive && l.kind === 'review'))))
         issue(path + '/' + field, 'schema', 'Loại bài không khớp slot.');
+      if (context.adaptive?.mode === 'learn' && !context.adaptive.targetSkills.some(id => l.targetSkills.includes(id) ||
+          l.targetSkills.some(ref => c.skills.find(skill => 'key:' + skill.key === ref)?.skillId === id)))
+        issue(path + '/' + field, 'schema', 'Bài cần bám kỹ năng trong bước tiếp theo.');
       if (field === 'primaryLesson' && !c.slot.eligibleForPrimary) issue(path + '/' + field, 'not_eligible', 'Bài trước chưa xong trước 00:00.');
       if (field === 'reviewSet' && !c.slot.eligibleForReview) issue(path + '/' + field, 'slot_taken', 'Bộ ôn đang mở hoặc đã giao hôm nay.');
       const used = l.items
@@ -268,7 +285,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       statements.push(
         db
           .prepare(
-            `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id) SELECT ?,?,?,?,?,?,'2',?,?,?,?,?,?,? WHERE ${guards}`,
+            `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id) SELECT ?,?,?,?,?,?,'2',?,?,?,?,?,?,?,? WHERE ${guards}`,
           )
           .bind(
             id,
@@ -280,10 +297,11 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             l.template,
             l.kind,
             slotKind,
-            l.why,
+            context.adaptive?.reason ?? l.why,
             JSON.stringify(resolved.reasonRefs),
             l.estMinutes,
             job.id,
+            l.kind === 'new' ? context.adaptive?.step?.id ?? null : null,
             ...guardParams,
           ),
       );
@@ -346,7 +364,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     }
     outcomes.push({ subjectId: s.subjectId, status: s.action === 'no_action' ? 'no_action' : 'applied', lessonIds, reason: s.reason });
   }
-  if (newMinutes > 0 && context.policy.openMinutesNow + newMinutes > context.policy.maxOpenMinutes)
+  if (!context.adaptive && newMinutes > 0 && context.policy.openMinutesNow + newMinutes > context.policy.maxOpenMinutes)
     issue('/subjects', 'over_budget', 'Bài đang mở và bài mới vượt 1,5 lần thời gian mục tiêu.');
   return { errors, statements, outcomes, savedIds, newMinutes };
 }

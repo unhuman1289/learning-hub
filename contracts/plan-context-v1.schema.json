@@ -143,6 +143,83 @@
       "type": "string",
       "maxLength": 2000
     },
+    "adaptive": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "learn",
+            "practice",
+            "personal",
+            "none"
+          ]
+        },
+        "minutes": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 15
+            },
+            {
+              "type": "number",
+              "const": 45
+            }
+          ]
+        },
+        "step": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "skills": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "skills"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "targetSkills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "needsScaffold": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "minutes",
+        "step",
+        "targetSkills",
+        "needsScaffold",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
     "subjects": {
       "maxItems": 30,
       "type": "array",

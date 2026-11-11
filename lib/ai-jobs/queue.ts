@@ -3,6 +3,7 @@ import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 export type QueueBindings = {
+  ADAPTIVE_PILOT_SUBJECT_ID?: string;
   EVENT_DISPATCHER?:{dispatch(jobId:string):Promise<{delivered:number}>};
   AI_JOBS_DAILY_CAP?: string;
   AI_QUEUE?: { send(body: unknown): Promise<unknown> };
@@ -51,6 +52,7 @@ export async function enqueue(
     refId?: string | null;
     /** Stable scheduler invocation identity; retries reuse it, later checks can create another daily job. */
     dailyRunId?: string;
+    adaptiveRequest?: boolean;
     /** Wait for the nightly runner instead of asking for an answer now. */
     tonight?: boolean;
   },
@@ -65,7 +67,8 @@ export async function enqueue(
       ':' +
       input.learnerId +
       ':' +
-      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + (input.dailyRunId??stamp) : (input.refId ?? input.subjectId ?? day));
+      (input.purpose === 'daily' ? (input.subjectId ? input.subjectId + ':' : '') + (input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID ? day : input.dailyRunId ?? stamp) : (input.refId ?? input.subjectId ?? day));
+  const adaptive = Boolean(input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID && (input.kind === 'assess' || input.purpose === 'daily' || input.adaptiveRequest));
   const existing = await db
     .prepare('SELECT id,status,trigger,kind,purpose,priority FROM ai_jobs WHERE dedupe_key=?')
     .bind(dedupe)
@@ -92,7 +95,7 @@ export async function enqueue(
         Number(budget.assessPerDay ?? 60)
       : input.purpose === 'recheck'
         ? Number(budget.recheckPerDay ?? (adult ? 10 : 5))
-        : input.purpose === 'request'
+        : input.purpose === 'request' && !adaptive
           ? Number(budget.requestNowPerDay ?? (adult ? 3 : 2))
           : Infinity;
   if ((used?.n ?? 0) >= limit) {
@@ -121,8 +124,8 @@ export async function enqueue(
   // Bound both system and per-learner budgets in SQL to prevent concurrent requests exceeding caps.
   const result = await db
     .prepare(
-      `INSERT OR IGNORE INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,ref_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at,needs_vision)
- SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<?`,
+      `INSERT OR IGNORE INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,ref_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at,needs_vision,adaptive)
+ SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<?`,
     )
     .bind(
       id,
@@ -144,6 +147,7 @@ export async function enqueue(
       stamp,
       expires,
       vision,
+      Number(adaptive),
       day,
       cap,
     )
@@ -154,9 +158,9 @@ export async function enqueue(
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
-  if(created&&bindings.EVENT_DISPATCHER)
+  if(created&&!adaptive&&bindings.EVENT_DISPATCHER)
     await bindings.EVENT_DISPATCHER.dispatch(saved.id).catch(()=>console.error('Event dispatch unavailable; queued job retained.'));
-  if (created && saved.trigger === 'on_demand')
+  if (created && !adaptive && saved.trigger === 'on_demand')
     await dispatchJob(bindings, saved, now).catch(() => console.error('Dispatch unavailable; queued job retained.'));
   return { ...saved, created };
 }
@@ -180,8 +184,9 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
   // One plan job per notebook keeps each lease, context and apply within the Free CPU and D1 query budget.
   const { results = [] } = await db
     .prepare(
-      "SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version='2' AND l.completed_at IS NULL) ORDER BY s.learner_id, s.weight DESC, s.id",
+      "SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version='2' AND (s.id<>? AND l.completed_at IS NULL OR s.id=? AND l.slot='primary' AND (l.completed_at IS NULL OR l.completed_at>=? OR l.assigned_date=?))) ORDER BY s.learner_id, s.weight DESC, s.id",
     )
+    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now))
     .all<{ id: string; learner_id: string }>();
   // One notebook's failure (daily cap, D1 hiccup) must not stop the others.
   let failed = 0;

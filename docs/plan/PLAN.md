@@ -1085,6 +1085,10 @@ OAuth, MCP, lưu bài giả/đọc lại, refresh và thu hồi đã đạt trê
 
 Chi tiết: [AI-RUNNERS](../ops/AI-RUNNERS.md), [Deutsch curriculum](../curricula/deutsch-unhuman.md), [H8 scope](../curricula/h8-expansion.md), [VALIDATION](../VALIDATION.md). Không có model call trả phí hoặc task ChatGPT cloud nào được tạo trong đợt này.
 
+## Pilot Deutsch thích ứng
+
+[Plan pilot Deutsch](DEUTSCH-ADAPTIVE-PILOT.md) quy định nghiệm thu bổ sung cho H8.3. Sau khi xác minh Qwen và baseline, triển khai ba lát theo §5 của plan pilot. Bài chính lúc 00:00 Berlin chỉ bị bài chính còn dở chặn. Lượt Học mới, Luyện tập và Cá nhân hóa tạo bài thêm. Chỉ bật cho Deutsch của unhuman sau khi xác minh bản sao D1 và runner.
+
 ## Điều chỉnh H7–H8 ngày 14/10/2026
 
 Quyết định mới thay mọi yêu cầu model API/key/chi phí API và SLA chấm tức thì ở các mô tả cũ. Soạn và chấm dùng thuê bao ChatGPT qua direct MCP. Pilot vẫn Deutsch unhuman; Cardio đã gỡ khỏi unhuman, không gỡ khỏi người khác. Toán 7/KHTN 7 theo **Kết nối tri thức với cuộc sống**, bộ thống nhất từ năm học 2026–2027 theo Quyết định 3588/QĐ-BGDĐT (26/12/2025). Chưa có tiến độ lớp hay gold phụ huynh duyệt; chưa bật AI cho trẻ.

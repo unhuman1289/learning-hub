@@ -41,7 +41,7 @@ export function parseResolution(body: unknown): Resolution {
   return { decision: 'set', result: body.result as 'correct' | 'partial' | 'incorrect', score, feedback, note };
 }
 
-type AttemptRow = { id: string; skill_ids: string; status: string; current_grade_id: string | null; lesson_id: string; item_id: string };
+type AttemptRow = { id: string; subject_id: string; skill_ids: string; status: string; current_grade_id: string | null; lesson_id: string; item_id: string };
 
 async function recomputeAttemptSkills(db: EvidenceDb, learnerId: string, skillIds: string, now: Date) {
   for (const skillId of JSON.parse(skillIds) as string[]) await recomputeSkill(db, learnerId, skillId, now);
@@ -58,7 +58,7 @@ export async function createDispute(
   now = new Date(),
 ) {
   const attempt = await db
-    .prepare('SELECT id,skill_ids,status,current_grade_id,lesson_id,item_id FROM attempts WHERE id=? AND learner_id=?')
+    .prepare('SELECT id,subject_id,skill_ids,status,current_grade_id,lesson_id,item_id FROM attempts WHERE id=? AND learner_id=?')
     .bind(attemptId, learnerId)
     .first<AttemptRow>();
   if (!attempt) throw new ApiError(404, 'Không tìm thấy câu đã làm.');
@@ -93,7 +93,7 @@ export async function createDispute(
     // One AI recheck per answer; after that, or without budget, a parent or admin decides.
     const job = rechecked
       ? null
-      : await enqueue(db, bindings, { learnerId, kind: 'assess', purpose: 'recheck', refId: id }, now).catch((error) => {
+      : await enqueue(db, bindings, { learnerId, kind: 'assess', purpose: 'recheck', refId: id, subjectId: attempt.subject_id }, now).catch((error) => {
           console.error('Recheck job not queued:', error instanceof Error ? error.message : error);
           return null;
         });

@@ -5,6 +5,7 @@ import { readSubjectSkills } from '../../learner-model/recompute.ts';
 import { canAdvance } from '../../daily-policy.ts';
 import type { SubjectSensitivity } from '../../subjects/sql.ts';
 export type Job = {
+  adaptive?: number;
   id: string;
   kind: 'plan' | 'assess';
   purpose: string;
@@ -83,7 +84,7 @@ export async function skillContext(db: EvidenceDb, learnerId: string, subjectId:
       },
       exposure14d: JSON.parse(String(s.recent_exposure ?? '{}')),
       stuckOn: s.stuck_on ?? null,
-      nextReviewDay: s.next_review_day ?? null,
+      nextReviewDay: typeof s.next_review_day === 'string' ? s.next_review_day : null,
       reviewKind: s.review_kind ?? null,
       maintained: s.maintained === 1,
     })),

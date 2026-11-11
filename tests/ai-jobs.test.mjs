@@ -895,3 +895,55 @@ test('a practice request waits until tomorrow if there is no room for even a sho
   assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
   db.sqlite.close();
 });
+
+test('adaptive requests deduplicate concurrently and legacy clients cannot lease them', async () => {
+  const db = seed();
+  const bindings = { ADAPTIVE_PILOT_SUBJECT_ID: subject };
+  const data = { subjectId: subject, mode: 'personal', clientRequestId: crypto.randomUUID(), note: 'Viết email đổi lịch' };
+  const [first, second] = await Promise.all([
+    createRequest(db, bindings, learner, learner, parseRequest(data), now),
+    createRequest(db, bindings, learner, learner, parseRequest(data), now),
+  ]);
+  assert.equal(first.id, second.id);
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM ai_jobs').get().n, 1);
+  await assert.rejects(createRequest(db, bindings, learner, learner, parseRequest({ ...data, note: 'Viết email xin nghỉ' }), now), { status: 409 });
+  assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
+  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['adaptive-plan'] }, 'test', now);
+  assert.equal(lease.adaptive, true);
+  const job = await readJob(db, lease.jobId);
+  assert.equal(JSON.parse(job.context_snapshot).adaptive.mode, 'personal');
+});
+
+test('adaptive nightly queue uses one Berlin-day key', async () => {
+  const db = seed();
+  const bindings = { ADAPTIVE_PILOT_SUBJECT_ID: subject };
+  await queueDaily(db, bindings, new Date('2026-10-24T22:00:00.000Z'));
+  await queueDaily(db, bindings, new Date('2026-10-24T22:00:20.000Z'));
+  const rows = db.sqlite.prepare('SELECT adaptive, learning_day FROM ai_jobs').all();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].learning_day, '2026-10-25');
+  assert.equal(rows[0].adaptive, 1);
+});
+
+test('adaptive personal request saves a one-item lesson and does not block the nightly job', async () => {
+  const db = seed();
+  const bindings = { ADAPTIVE_PILOT_SUBJECT_ID: subject };
+  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at)
+    VALUES('sk_aaaaaaaaaaaaaaaaaaaa',?,?,'modalverb-infinitiv','Modalverb','',1,'[]','active','ai',?,?)`).run(subject, learner, now.toISOString(), now.toISOString());
+  const request = await createRequest(db, bindings, learner, learner, parseRequest({
+    subjectId: subject, mode: 'personal', note: 'Luyện modal verb khi hẹn lịch', clientRequestId: crypto.randomUUID(),
+  }), now);
+  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['adaptive-plan'] }, 'test', now);
+  const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
+  const result = plan(context, null);
+  const lesson = { ...structuredClone(fixture), kind: 'exploration', estMinutes: 15, items: [fixture.items[0]],
+    stages: [{ stage: 'retrieval', itemIds: ['i1'] }] };
+  result.explorations = [{ requestId: request.id, action: 'assign', subjectId: subject, lesson, reason: 'Luyện theo tình huống đã chọn.' }];
+  const checked = await applyResult(db, client, lease.jobId, lease.leaseToken, result, true, now);
+  assert.equal(checked.status, 200, JSON.stringify(checked));
+  const saved = await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now);
+  assert.equal(saved.status, 200, JSON.stringify(saved));
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM learning_lessons WHERE slot='extra'").get().n, 1);
+  await queueDaily(db, bindings, new Date('2026-10-13T22:00:00Z'));
+  assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily'").get().n, 1);
+});

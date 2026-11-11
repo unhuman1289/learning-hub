@@ -50,6 +50,8 @@ export function userPrompt(context, repair) {
 export function engineChain(lease, context, engines, { onAC }) {
   const photos = (context.attempts ?? []).some((a) => a.attachments?.some((img) => !img.expired));
   const usable = (e) => e && (!photos || e.vision);
+  if (lease.adaptive)
+    return (lease.kind === 'assess' && lease.purpose === 'submission' ? [onAC ? engines.qwen : null] : [engines.codex]).filter(usable);
   const order =
     lease.kind === 'assess' && lease.purpose === 'submission'
       ? [onAC ? engines.qwen : null, engines.codex, engines.claude]
@@ -110,7 +112,8 @@ export async function processJob(hub, lease, engines, { onAC = true, log = () =>
         let result;
         try {
           const out = await engine.run({
-            system: systemPrompt(lease.kind, lease.purpose),
+            system: systemPrompt(lease.kind, lease.purpose) + (context.adaptive ?
+              '\n\nPilot Deutsch: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step, giữ nguyên roadmap. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Với request, giao bài qua explorations; subjects dùng no_action. Với mode none, không tạo bài.' : ''),
             user: userPrompt(context, repair),
             schema: contract.json,
             images: engine.vision ? images : [],

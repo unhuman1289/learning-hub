@@ -7,6 +7,10 @@ Khi được duyệt, plan này thay các phần sau, còn lại của [PLAN.md]
 - PLAN H7.2–H7.5 và [AI-API §9.2](../hub2/AI-API.md#92-r2-worker-chấm-bài): Worker chấm bài dùng key Anthropic.
 - PLAN H1.6, H1.8 và các quyết định D14, D15: tài khoản riêng từng người, quyền phụ huynh.
 
+## Điều chỉnh cho pilot Deutsch
+
+Lịch soạn bài chính bắt đầu 00:00 Berlin qua Hub và runner trên Mac. Codex CLI soạn bài chính và các lượt Học mới, Luyện tập, Cá nhân hóa. Bài chính khoảng 45 phút, bài thêm khoảng 15 phút, mỗi bài 1–25 câu. Qwen chấm câu mở khi Mac cắm sạc. Khi Qwen chưa sẵn sàng, lượt chấm tiếp tục chờ. Codex CLI chỉ chấm lại khi có yêu cầu. Xem [plan pilot](DEUTSCH-ADAPTIVE-PILOT.md).
+
 ## 0. Tóm tắt
 
 - **Mục tiêu:** một giao diện cho cả nhà, **không có tài khoản**. Mỗi người là một **hồ sơ** có:

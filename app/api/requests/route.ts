@@ -4,7 +4,7 @@ import { storage } from '../../../db/storage';
 import { canAccessLearner, denied, resolveLearner } from '../../../lib/access';
 import { apiFailure } from '../../../lib/api-error';
 import { privateHeaders } from '../../../lib/lesson-v2/route-helpers';
-import { createRequest, listRequests, needsGoalAccess, parseRequest } from '../../../lib/requests/service';
+import { createRequest, listRequests, needsGoalAccess, parseRequest, readRequest } from '../../../lib/requests/service';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: Request) {
@@ -14,7 +14,12 @@ export async function GET(req: Request) {
     const db = storage(),
       learner = await resolveLearner(db, user, req, 'read_work');
     if (learner instanceof Response) return learner;
-    return Response.json({ requests: await listRequests(db, learner) }, { headers: privateHeaders });
+    const params = new URL(req.url).searchParams;
+    const id = params.get('id');
+    const subjectId = params.get('subjectId');
+    const offset = Math.max(0, Math.min(10000, Number.parseInt(params.get('offset') ?? '0', 10) || 0));
+    if (id) return Response.json({ request: await readRequest(db, learner, id) }, { headers: privateHeaders });
+    return Response.json({ requests: await listRequests(db, learner, subjectId, offset) }, { headers: privateHeaders });
   } catch (e) {
     return apiFailure(e, 'Chưa tải được yêu cầu.', privateHeaders);
   }
