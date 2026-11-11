@@ -15,10 +15,7 @@ export function systemPrompt(kind, purpose) {
   prompts ??= {
     assess: body('integrations/runner-prompts/assess-local.md'),
     recheck: body('integrations/runner-prompts/assess-local.md') + '\n\n' + body('integrations/runner-prompts/assess-recheck.md'),
-    plan:
-      body('integrations/runner-prompts/plan-request.md') +
-      '\n\n# LESSON-DESIGN.md\n\n' +
-      readFileSync(new URL('docs/hub2/LESSON-DESIGN.md', root), 'utf8'),
+    plan: body('integrations/runner-prompts/plan-request.md'),
   };
   return kind === 'plan' ? prompts.plan : purpose === 'recheck' ? prompts.recheck : prompts.assess;
 }
@@ -30,7 +27,20 @@ export function contractFor(kind) {
 }
 
 function generationSchema(kind, context, schema) {
-  if (kind === 'plan' && context.adaptive && context.purpose === 'request') {
+  if (kind !== 'plan') return schema;
+  if (context.subjects.length === 1) {
+    schema = structuredClone(schema);
+    const [subject] = context.subjects;
+    const subjects = schema.properties.subjects;
+    subjects.minItems = 1;
+    subjects.maxItems = 1;
+    Object.assign(subjects.items.properties, {
+      subjectId: { const: subject.subjectId },
+      expectedRevision: { const: subject.revision },
+      expectedOpenPrimaryLessonId: { const: subject.slot.openPrimaryLessonId },
+    });
+  }
+  if (context.adaptive && context.purpose === 'request') {
     const request = structuredClone(schema);
     const subjects = request.properties.subjects;
     subjects.minItems = context.subjects.length;
@@ -57,7 +67,7 @@ function generationSchema(kind, context, schema) {
     }
     return request;
   }
-  if (kind !== 'plan' || context.purpose !== 'initial' || !context.subjects?.length ||
+  if (context.purpose !== 'initial' || !context.subjects.length ||
       !context.subjects.every(subject => subject.slot.eligibleForPrimary && !subject.skills.length)) return schema;
   const initial = structuredClone(schema);
   const subjects = initial.properties.subjects;

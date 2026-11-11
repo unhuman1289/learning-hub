@@ -271,7 +271,7 @@ test('the user prompt marks the context as data and carries repair errors', () =
   assert.match(p, /contextHash = "sha256:abc"/);
   assert.match(p, /"code":"schema"/);
   assert.match(systemPrompt('assess', 'recheck'), /recheckDecision/);
-  assert.match(systemPrompt('plan', 'request'), /# LESSON-DESIGN\.md/);
+  assert.match(systemPrompt('plan', 'request'), /Chỉ dùng ID có thật/);
 });
 
 test('strict schema for Codex: optional fields become nullable and nulls are removed again', () => {
