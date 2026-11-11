@@ -58,20 +58,23 @@ export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
 }
 
 export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSubject; shelf: ShelfApi; hub2?: boolean }) {
-  const [goal, setGoal] = useState(subject.goal);
-  const [level, setLevel] = useState(subject.level);
-  const [curriculum, setCurriculum] = useState(subject.curriculum);
-  const [instructions, setInstructions] = useState(subject.instructions ?? "");
-  const [aiEnabled,setAiEnabled]=useState(subject.aiEnabled);
+  type Draft = Partial<Pick<ShelfSubject, "goal" | "level" | "curriculum" | "instructions" | "aiEnabled">>;
+  const [draft, setDraft] = useState<Draft>({});
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState("");
-  const changed = goal !== subject.goal || level !== subject.level || curriculum !== subject.curriculum || instructions !== (subject.instructions ?? "") || aiEnabled!==subject.aiEnabled;
+  const changed = Object.entries(draft).some(([field, value]) => value !== subject[field as keyof Draft]);
+
+  function edit(fields: Draft) {
+    setDraft(current => ({ ...current, ...fields }));
+    setState("idle");
+  }
 
   async function save() {
     setState("saving");
     setError("");
     try {
-      await shelf.update(subject.id, { revision: subject.revision, goal, level, curriculum, ...(hub2 ? { instructions } : {}), aiEnabled });
+      await shelf.update(subject.id, { revision: subject.revision, ...draft });
+      setDraft(current => current === draft ? {} : current);
       setState("saved");
     } catch (cause) {
       setError((cause as Error).message);
@@ -82,21 +85,21 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
   return (
     <form className="mt-4 grid gap-7" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <label className={labelClass}>Mục tiêu
-        <textarea value={goal} maxLength={2000} rows={3} onChange={(event) => { setGoal(event.target.value); setState("idle"); }} className={fieldClass} />
+        <textarea value={draft.goal ?? subject.goal} maxLength={2000} rows={3} onChange={(event) => edit({ goal: event.target.value })} className={fieldClass} />
       </label>
       <label className={labelClass}>Trình độ hiện tại
-        <input value={level} maxLength={200} onChange={(event) => { setLevel(event.target.value); setState("idle"); }} className={fieldClass} />
+        <input value={draft.level ?? subject.level} maxLength={200} onChange={(event) => edit({ level: event.target.value })} className={fieldClass} />
       </label>
       <label className={labelClass}>Chương trình
-        <input value={curriculum} maxLength={500} onChange={(event) => { setCurriculum(event.target.value); setState("idle"); }} className={fieldClass} />
+        <input value={draft.curriculum ?? subject.curriculum} maxLength={500} onChange={(event) => edit({ curriculum: event.target.value })} className={fieldClass} />
       </label>
 {hub2 && (
         <label className={labelClass}>Prompt của sổ
           <span className="text-sm font-normal text-muted">Hướng dẫn riêng cho người soạn và chấm bài của sổ này, ví dụ bối cảnh, tỉ lệ chủ đề, cách sửa bài. Luật của Hub vẫn được áp dụng.</span>
-          <textarea value={instructions} maxLength={4000} rows={6} onChange={(event) => { setInstructions(event.target.value); setState("idle"); }} className={fieldClass} />
+          <textarea value={draft.instructions ?? subject.instructions} maxLength={4000} rows={6} onChange={(event) => edit({ instructions: event.target.value })} className={fieldClass} />
         </label>
       )}
-{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={aiEnabled} disabled={subject.status!=="active"} onChange={e=>{setAiEnabled(e.target.checked);setState("idle");}}/> Tự chuẩn bị bài lúc 00:00 giờ Đức khi đã xong bài chính.</label>}
+{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.aiEnabled ?? subject.aiEnabled} disabled={subject.status!=="active"} onChange={e => edit({ aiEnabled: e.target.checked })}/> Tự chuẩn bị bài lúc 00:00 giờ Đức khi đã xong bài chính.</label>}
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>
