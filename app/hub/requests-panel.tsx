@@ -81,7 +81,7 @@ export function RequestList({ requests, subjectId }: { requests: RequestView[]; 
   const waiting = shown.some((r) => r.urgency === "now" && (r.status === "queued" || r.status === "in_job"));
   return (
     <>
-    <GraderOffline waiting={waiting} what="Yêu cầu" />
+    <GraderOffline waiting={waiting} />
     <ul className="mt-2 grid gap-2">
       {shown.map((r) => (
         <li key={r.id} className="leading-7">

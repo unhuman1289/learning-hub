@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock } from "./lubeck/window";
 import { DeskProgress } from "./desk-progress";
+import { LearnedLessons } from "./learned-lessons";
+import { PaperDialog } from "./paper-dialog";
+import { ProfileSettings } from "./profile-settings";
 import { PostIt } from "../../components/notebook/post-it";
 import {TodayBoard} from "./today-board";
 import { ContactBook } from "./guardian/contact-book";
@@ -47,6 +50,8 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   const clock = useBerlinClock();
   // How dark it is outside the window; after dusk the desk lamp comes on.
   const [darkness, setDarkness] = useState(0);
+  const [drawer, setDrawer] = useState<"learned" | "settings" | null>(null);
+  const selfId = viewing.learners.find((item) => item.relation === "self")?.id;
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
   // The desk only holds lessons that still need attention.
@@ -100,7 +105,10 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         <div className="min-w-0">
         {/* The window sits on the wall directly above the desk; its sill meets the desk top. */}
         <LubeckWindow clock={clock} onDarkness={setDarkness} className="mx-auto max-w-[44rem]" />
-        <OakDesk drawers lamp={darkness * 0.5}>
+        <OakDesk lamp={darkness * 0.5} drawers={hub2 ? [
+          { label: "Bài đã học", onOpen: () => setDrawer("learned") },
+          ...(!readOnly && selfId ? [{ label: "Cài đặt", onOpen: () => setDrawer("settings") }] : []),
+        ] : true}>
           <div className="mb-4 flex items-end justify-between gap-2 px-1">
             <h2 className="font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
             <SeasonItem place="desk" month={clock?.month} />
@@ -138,6 +146,12 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
           {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm text-cabinet-ink">Kệ còn trống.</p>}
         </Bookcase>
       </div>
+      {drawer === "learned" && <PaperDialog title="Bài đã học" labelId="drawer-learned" onClose={() => setDrawer(null)}>
+        <LearnedLessons subjects={shelf.subjects ?? []} learner={viewing.id} go={(route) => { setDrawer(null); go(route); }} />
+      </PaperDialog>}
+      {drawer === "settings" && selfId && <PaperDialog title="Cài đặt" labelId="drawer-settings" onClose={() => setDrawer(null)}>
+        <ProfileSettings learner={selfId} title="Hồ sơ của tôi" />
+      </PaperDialog>}
       {hub2 && <DeskProgress key={viewing.id ?? "self"} subjects={shelf.subjects ?? []} learner={viewing.id} go={go} />}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}

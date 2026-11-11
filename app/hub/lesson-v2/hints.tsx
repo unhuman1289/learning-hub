@@ -1,51 +1,34 @@
 "use client";
 import type { ItemView } from "../../../lib/lesson-v2/store";
-import { buttonClass } from "../ui";
-export function Hints({
-  item,
-  disabled,
-  onReveal,
-  formatText = (text:string)=>text,
-}: {
-  formatText?:(text:string)=>string;
-  item: ItemView;
-  disabled: boolean;
-  onReveal: (level: "hint1" | "hint2" | "solution") => void;
-}) {
+import { pencil, pencilLink } from "../paper-bits";
+
+type Reveal = (level: "hint1" | "hint2" | "solution") => void;
+const confirmSolution = () => window.confirm("Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?");
+
+/** Pencilled asides beside the check button: the next hint, then the solution. */
+export function HintLinks({ item, disabled, onReveal }: { item: ItemView; disabled: boolean; onReveal: Reveal }) {
+  const shown = item.revealed.hints.length;
+  const next = shown < item.hintCount ? (shown === 0 ? "hint1" : "hint2") : null;
   return (
-    <div className="mt-4 space-y-3">
-      <div className="flex flex-wrap gap-2">
-        {item.hintCount >= 1 && (
-          <button disabled={disabled} className={buttonClass("ghost")} onClick={() => onReveal("hint1")}>
-            Gợi ý 1
-          </button>
-        )}
-        {item.hintCount >= 2 && (
-          <button disabled={disabled} className={buttonClass("ghost")} onClick={() => onReveal("hint2")}>
-            Gợi ý 2
-          </button>
-        )}
-        <button
-          disabled={disabled}
-          className={buttonClass("ghost")}
-          onClick={() => {
-            if (window.confirm("Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?")) onReveal("solution");
-          }}
-        >
-          Xem lời giải
-        </button>
-      </div>
-      {item.revealed.hints.map((hint, i) => (
-        <p key={i} className="rounded bg-rose-soft p-3">
-          {formatText(hint)}
-        </p>
-      ))}
-      {item.revealed.solution && (
-        <div className="border border-line p-4">
-          <p className="whitespace-pre-wrap">{formatText(item.revealed.solution)}</p>
-          <p>{item.revealed.explanation&&formatText(item.revealed.explanation)}</p>
-        </div>
+    <span className="flex flex-wrap items-center gap-x-4">
+      {next && <button type="button" disabled={disabled} className={pencilLink} onClick={() => onReveal(next)}>Gợi ý</button>}
+      {!item.revealed.solution && (
+        <button type="button" disabled={disabled} className={pencilLink} onClick={() => { if (confirmSolution()) onReveal("solution"); }}>Lời giải</button>
       )}
-    </div>
+    </span>
+  );
+}
+
+export function Revealed({ item, formatText = (text: string) => text }: { item: ItemView; formatText?: (text: string) => string }) {
+  return (
+    <>
+      {item.revealed.hints.map((hint, i) => <p key={i} className={pencil}>Gợi ý {i + 1}: {formatText(hint)}</p>)}
+      {item.revealed.solution && (
+        <p className="whitespace-pre-wrap font-hand text-[19px] leading-7">
+          Lời giải: {formatText(item.revealed.solution)}
+          {item.revealed.explanation && <span className="block text-muted">{formatText(item.revealed.explanation)}</span>}
+        </p>
+      )}
+    </>
   );
 }

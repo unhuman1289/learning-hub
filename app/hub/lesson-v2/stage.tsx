@@ -25,7 +25,7 @@ export function Stage({
 }) {
   const [index, setIndex] = useState(0);
   return (
-    <section aria-label="Câu hỏi" className="space-y-4">
+    <section aria-label="Câu hỏi">
       {items.map((item, i) => (
         <div key={item.id} className={i === index ? "" : "hidden md:block"}>
           <ItemCard

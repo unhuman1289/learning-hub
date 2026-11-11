@@ -1,5 +1,6 @@
 "use client";
 
+import { WindowPreview } from "./lubeck/preview";
 import { Download } from "lucide-react";
 import { WoodFrame } from "../../components/notebook/house";
 import PendingApprovals from "../../components/pending-approvals";
@@ -40,6 +41,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
         <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>
         {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}
       </WoodFrame>
+      <WoodFrame label="Xem thử cửa sổ"><WindowPreview /></WoodFrame>
       <WoodFrame label="Dữ liệu lưu trữ">
         <h2 className="font-print text-2xl font-medium">Dữ liệu lưu trữ</h2>
         <p className="mt-2 text-sm text-muted">Tải bản sao dữ liệu workspace cũ dưới dạng JSON.</p>

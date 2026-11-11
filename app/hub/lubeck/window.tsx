@@ -28,12 +28,18 @@ export function useBerlinClock(interval = 30000) {
  * The study window: old Lübeck at this hour, in today's weather and this month's dress. Decoration only,
  * hidden from assistive technology. `onDarkness` lets the room light its lamp after dusk.
  */
-export function LubeckWindow({ clock, onDarkness, className }: { clock: BerlinClock | undefined; onDarkness?: (darkness: number) => void; className?: string }) {
+export function LubeckWindow({ clock, onDarkness, className, weather }: {
+  clock: BerlinClock | undefined; onDarkness?: (darkness: number) => void; className?: string;
+  /** Preview only: show this weather instead of asking for today's. */
+  weather?: Weather;
+}) {
   const svg = useRef<SVGSVGElement>(null);
   const draw = useRef<ReturnType<typeof mountScene>>(null);
   const [ambient, setAmbient] = useState<Ambient>({ weather: null, moon: null });
 
+  const previewing = weather !== undefined;
   useEffect(() => {
+    if (previewing) return;
     let alive = true;
     const load = () => {
       if (document.hidden) return;
@@ -51,7 +57,7 @@ export function LubeckWindow({ clock, onDarkness, className }: { clock: BerlinCl
       alive = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [previewing]);
 
   useEffect(() => {
     if (!svg.current || !clock) return;
@@ -61,11 +67,11 @@ export function LubeckWindow({ clock, onDarkness, className }: { clock: BerlinCl
       month: clock.month,
       day: clock.day,
       offsetHours: clock.offsetHours,
-      weather: ambient.weather ?? typicalWeather(clock.month),
-      moon: ambient.moon,
+      weather: weather ?? ambient.weather ?? typicalWeather(clock.month),
+      moon: previewing ? null : ambient.moon,
     });
     onDarkness?.(darkness);
-  }, [clock, ambient, onDarkness]);
+  }, [clock, ambient, onDarkness, weather, previewing]);
 
   return <svg ref={svg} aria-hidden="true" viewBox="26 12 628 336" className={className} style={{ display: "block", width: "100%" }} />;
 }

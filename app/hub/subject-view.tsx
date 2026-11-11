@@ -34,8 +34,8 @@ export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }:
         <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
         {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
         {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
-        <details className="border-t border-line bg-paper py-3">
-          <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Cài đặt sổ</summary>
+        <details className="mt-7">
+          <summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Cài đặt sổ</summary>
           {canEdit ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
         </details>
       </RuledPage>
