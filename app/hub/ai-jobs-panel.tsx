@@ -2,7 +2,7 @@
 import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./ui";
-type ApiBody = { error?: string; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
+type ApiBody = { error?: string; eventDispatchEnabled?: boolean; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
 type Job = {
   id: string;
   learner_id: string;
@@ -18,6 +18,7 @@ type Job = {
 export function AiJobsPanel() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [error, setError] = useState(""),
+    [eventDispatchEnabled, setEventDispatchEnabled] = useState(false),
     [notice,setNotice]=useState(""),
     [pending,setPending]=useState<{learner:string;requestId:string}|null>(null),
     [status, setStatus] = useState(""),
@@ -53,6 +54,7 @@ export function AiJobsPanel() {
       x = (await r.json()) as ApiBody;
     if (!r.ok) throw Error(x.error || "Chưa tải được nhật ký.");
     setJobs(x.jobs);
+    setEventDispatchEnabled(Boolean(x.eventDispatchEnabled));
   }
   useEffect(() => {
     let alive = true;
@@ -60,7 +62,10 @@ export function AiJobsPanel() {
       .then(async (r) => {
         const x = (await r.json()) as ApiBody;
         if (!r.ok) throw Error(x.error || "Chưa tải được nhật ký.");
-        if (alive) setJobs(x.jobs);
+        if (alive) {
+          setJobs(x.jobs);
+          setEventDispatchEnabled(Boolean(x.eventDispatchEnabled));
+        }
       })
       .catch((e) => {
         if (alive) setError(e.message);
@@ -117,7 +122,7 @@ export function AiJobsPanel() {
     <section aria-label="Lượt soạn và chấm" className="grid gap-4">
       <h2 className="font-print text-2xl">Lượt soạn và chấm</h2>
       <p className="text-sm text-muted">
-        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. Soạn bài qua ChatGPT và chấm câu mở là hai kết nối riêng.
+        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. {eventDispatchEnabled ? "Có thể gửi sự kiện cho lượt đang chờ." : "Máy ở nhà tự nhận lượt soạn và chấm."}
       </p>
       <div className="flex flex-wrap gap-3">
         <label>
@@ -183,7 +188,7 @@ export function AiJobsPanel() {
                 Huỷ lượt
               </button>
             )}
-            {j.status==='queued'&&<button disabled={busy} className={buttonClass('secondary','ml-2 mt-2')} onClick={()=>void dispatch(j.id)}>Gửi thông báo</button>}
+            {eventDispatchEnabled&&j.status==='queued'&&<button disabled={busy} className={buttonClass('secondary','ml-2 mt-2')} onClick={()=>void dispatch(j.id)}>Gửi thông báo</button>}
           </li>
         ))}
       </ul>

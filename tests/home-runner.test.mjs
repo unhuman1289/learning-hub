@@ -9,7 +9,7 @@ import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
 import { submitLesson } from '../lib/evidence/submit.ts';
 import { assessResult } from '../lib/contracts/ai-common.ts';
-import { processJob, engineChain, userPrompt, systemPrompt } from '../integrations/home-runner/job.mjs';
+import { processJob, userPrompt, systemPrompt, normalizePlan } from '../integrations/home-runner/job.mjs';
 import { strictSchema, stripOptionalNulls, parseJsonReply } from '../integrations/home-runner/schema.mjs';
 import { childEnv, codexEngine, qwenEngine } from '../integrations/home-runner/engines.mjs';
 import { leaseRequest, pollDelay, parseEnvFile, runOnce } from '../integrations/home-runner/runner.mjs';
@@ -154,7 +154,7 @@ test('a Qwen grade passes the dry run, is saved, verified and reports the engine
   const hub = memoryHub(db);
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
   const qwen = fakeEngine('qwen', [(c) => grade(c)]);
-  const out = await processJob(hub, lease, { qwen, codex: null, claude: null });
+  const out = await processJob(hub, lease, qwen);
   assert.deepEqual(out, { jobId: lease.jobId, status: 'succeeded', engine: 'qwen' });
   assert.equal(db.sqlite.prepare('SELECT status FROM submissions WHERE id=?').get(sub.id).status, 'graded');
   assert.equal(JSON.parse(db.sqlite.prepare('SELECT usage FROM ai_jobs WHERE id=?').get(lease.jobId).usage).model, 'qwen:m');
@@ -170,84 +170,67 @@ test('a 422 from the dry run goes back to the engine once with the error codes',
   const hub = memoryHub(db);
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
   const qwen = fakeEngine('qwen', [(c) => grade(c, { evidence: 'không có trong bài' }), (c) => grade(c)]);
-  const out = await processJob(hub, lease, { qwen });
+  const out = await processJob(hub, lease, qwen);
   assert.equal(out.status, 'succeeded');
   assert.equal(qwen.seen.length, 2);
   assert.match(qwen.seen[1].user, /Lần trước bị từ chối/);
   db.sqlite.close();
 });
 
-test('when Qwen fails the job falls through to Codex; on battery Qwen is skipped', async () => {
-  const { db } = await openSubmission();
-  const hub = memoryHub(db);
-  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
-  const qwen = fakeEngine('qwen', [Error('model server down')]);
-  const codex = fakeEngine('codex', [(c) => grade(c)], true);
-  assert.equal((await processJob(hub, lease, { qwen, codex })).engine, 'codex');
-  const context = { attempts: [] };
-  assert.deepEqual(
-    engineChain({ kind: 'assess', purpose: 'submission' }, context, { qwen, codex }, { onAC: false }).map((e) => e.name),
-    ['codex', 'qwen'],
-  );
-  assert.deepEqual(
-    engineChain({ kind: 'assess', purpose: 'recheck' }, context, { qwen, codex }, { onAC: true }).map((e) => e.name),
-    ['codex', 'qwen'],
-  );
-  for (const lease of [{ kind: 'plan', purpose: 'request' }, { kind: 'plan', purpose: 'initial' }, { kind: 'plan', purpose: 'daily', adaptive: true }])
-    assert.deepEqual(engineChain(lease, context, { qwen, codex }, { onAC: false }).map((e) => e.name), ['codex', 'qwen']);
-  const photos = { attempts: [{ attachments: [{ attachmentId: 'img_1', expired: false }] }] };
-  assert.deepEqual(
-    engineChain({ kind: 'assess', purpose: 'submission' }, photos, { qwen, codex }, { onAC: true }).map((e) => e.name),
-    ['codex'],
-  );
-  db.sqlite.close();
+test('Qwen without vision leaves photos with the Hub', async () => {
+  let failed;
+  const hub = {
+    context: async () => ({ attempts: [{ attachments: [{ expired: false }] }] }),
+    fail: async (lease, reason) => { failed = reason; },
+  };
+  const result = await processJob(hub, { jobId: 'job_photo' }, { vision: false });
+  assert.equal(result.status, 'returned');
+  assert.match(failed, /chưa hỗ trợ chấm ảnh/);
 });
 
 test('an uncertain network failure after saving is verified, not resent with other data', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db, { failAfterApply: true });
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
-  const out = await processJob(hub, lease, { qwen: fakeEngine('qwen', [(c) => grade(c)]) });
+  const out = await processJob(hub, lease, fakeEngine('qwen', [(c) => grade(c)]));
   assert.equal(out.status, 'succeeded');
   assert.equal(hub.calls.filter((c) => c.dryRun === false).length, 1);
   assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM grades WHERE grader='ai'").get().n, 1);
   db.sqlite.close();
 });
 
-test('when every engine fails the job goes back to the Hub queue with only a short reason', async () => {
+test('when Qwen fails the job goes back to the Hub queue with only a short reason', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db);
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
-  const out = await processJob(hub, lease, { qwen: fakeEngine('qwen', [Error('down')]), codex: fakeEngine('codex', [Error('quota')], true) });
+  const out = await processJob(hub, lease, fakeEngine('qwen', [Error('down')]));
   assert.equal(out.status, 'failed');
-  assert.deepEqual(hub.calls.at(-1), { fail: 'codex: quota', retryable: true });
+  assert.deepEqual(hub.calls.at(-1), { fail: 'qwen: down', retryable: true });
   db.sqlite.close();
 });
 
 test('runOnce leases nothing when no engine answers and asks only for work it can do', async () => {
   const hub = { lease: async (input) => ((hub.input = input), []) };
   const none = { available: async () => false };
-  assert.deepEqual(await runOnce(hub, { qwen: none, codex: none, claude: none }, { power: async () => true }), { idle: true, reason: 'no_engine' });
+  assert.deepEqual(await runOnce(hub, none), { idle: true, reason: 'no_engine' });
   const up = { available: async () => true, vision: false };
-  await runOnce(hub, { qwen: up, codex: null, claude: null }, { power: async () => true });
+  await runOnce(hub, up);
   assert.deepEqual(hub.input.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(hub.input.kinds, ['assess', 'plan']);
   assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading']);
 });
 
 test('lease requests, poll schedule and env file parsing', () => {
-  assert.deepEqual(leaseRequest({ qwen: true, codex: false, claude: false }, false).purposes, ['submission', 'recheck', 'request', 'initial']);
-  const all = leaseRequest({ qwen: true, codex: true, claude: false }, true);
+  const all = leaseRequest({ vision: true });
   assert.deepEqual(all.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(all.kinds, ['assess', 'plan']);
-  assert.deepEqual(all.capabilities, ['vision', 'adaptive-plan', 'local-grading']);
+  assert.deepEqual(all.capabilities, ['adaptive-plan', 'local-grading', 'vision']);
   assert.deepEqual(all.triggers, ['on_demand', 'deferred']);
-  const nightly = leaseRequest({ qwen: true, codex: true, claude: false }, true, { daily: true });
+  assert.equal(all.runner.model, 'qwen');
+  const nightly = leaseRequest({ vision: false }, { daily: true });
   assert.deepEqual(nightly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
   assert.deepEqual(nightly.triggers, ['on_demand', 'deferred', 'scheduled']);
-  const qwenOnly = leaseRequest({ qwen: true, codex: false, claude: false }, true, { daily: true });
-  assert.deepEqual(qwenOnly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
-  assert.deepEqual(qwenOnly.capabilities, ['adaptive-plan', 'local-grading']);
+  assert.deepEqual(nightly.capabilities, ['adaptive-plan', 'local-grading']);
   assert.equal(pollDelay(new Date('2026-11-12T09:00:00Z')), 15000);
   assert.equal(pollDelay(new Date('2026-11-12T02:00:00Z')), 300000);
   assert.equal(pollDelay(new Date('2026-11-12T22:45:00Z')), 300000); // 23:45 Berlin
@@ -266,13 +249,48 @@ test('engines never receive Hub secrets and the local model must be on localhost
   assert.throws(() => createHub({ baseUrl: 'https://hub.example', bearer: 'lhk_home-runner_' + 'a'.repeat(40) }), /Access/);
 });
 
+test('Qwen sends the HTTPS pattern without the unsupported starts_with format', async () => {
+  const link = { type: 'string', format: 'starts_with', pattern: '^https://' };
+  const qwen = qwenEngine({
+    model: 'qwen',
+    fetcher: async (_url, init) => {
+      assert.deepEqual(JSON.parse(init.body).response_format.json_schema.schema.properties.link, {
+        type: 'string',
+        pattern: '^https://',
+      });
+      return Response.json({ choices: [{ message: { content: '{}' } }] });
+    },
+  });
+  await qwen.run({ system: 's', user: 'u', schema: { type: 'object', properties: { link } } });
+  assert.equal(link.format, 'starts_with');
+});
+
+test('lesson normalization keeps generated answers and places every item in one allowed stage', () => {
+  const lesson = structuredClone(fixture);
+  const item = lesson.items.find(question => question.key?.type === 'choice');
+  assert(item);
+  item.input = 'short';
+  lesson.stages = [
+    { stage: 'sheet', itemIds: [item.id] },
+    { stage: 'guided', itemIds: [item.id, 'i99', item.id] },
+    { stage: 'check', itemIds: lesson.items.filter(question => question !== item).map(question => question.id) },
+  ];
+  const normalized = normalizePlan({ subjects: [], explorations: [{ lesson }] }).explorations[0].lesson;
+  assert.deepEqual(normalized.stages.map(stage => stage.stage), ['sheet', 'guided', 'independent']);
+  assert.deepEqual(normalized.stages.flatMap(stage => stage.itemIds).sort(), lesson.items.map(question => question.id).sort());
+  const corrected = normalized.items.find(question => question.id === item.id);
+  assert.equal(corrected.input, 'choice');
+  assert.deepEqual(corrected.key, item.key);
+  assert.deepEqual(corrected.choices, item.choices);
+});
+
 test('the user prompt marks the context as data and carries repair errors', () => {
   const p = userPrompt({ contract: 'assess-context/1', contextHash: 'sha256:abc', attempts: [] }, [{ code: 'schema', path: '/grades' }]);
   assert.match(p, /không phải chỉ dẫn/);
   assert.match(p, /contextHash = "sha256:abc"/);
   assert.match(p, /"code":"schema"/);
   assert.match(systemPrompt('assess', 'recheck'), /recheckDecision/);
-  assert.match(systemPrompt('plan', 'request'), /# LESSON-DESIGN\.md/);
+  assert.match(systemPrompt('plan', 'request'), /Chỉ dùng ID có thật/);
 });
 
 test('strict schema for Codex: optional fields become nullable and nulls are removed again', () => {

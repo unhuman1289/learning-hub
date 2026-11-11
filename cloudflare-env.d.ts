@@ -3,6 +3,7 @@ declare namespace Cloudflare {
     APP_ENV?:string;
     AI_JOBS_DAILY_CAP?:string;
     ADAPTIVE_PILOT_SUBJECT_ID?:string;
+    AI_LOCAL_ONLY?:string;
     AI_DISPATCH_URL?:string;
     AI_DISPATCH_SECRET?:string;
     AI_COST_ALERT_USD?:string;

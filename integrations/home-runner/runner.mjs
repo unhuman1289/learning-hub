@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 // Learning Hub home runner: asks the Hub for work every 15 s by day (5 min at night), one job at a time.
 // Start: node --experimental-strip-types integrations/home-runner/runner.mjs [--once] [--config <file>]
-import { execFile, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { promisify } from 'node:util';
 import { createHub } from './hub.mjs';
-import { claudeEngine, codexEngine, qwenEngine } from './engines.mjs';
+import { qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
 import { mirrorDue, mirrorHistory } from './mirror.mjs';
 
-export const VERSION = '1.2.0';
+export const VERSION = '1.3.0';
 
 /** KEY=VALUE lines; # comments. The file must not be readable by others. */
 export function parseEnvFile(text) {
@@ -38,8 +37,6 @@ export function loadConfig(file = join(homedir(), '.config/learning-hub/home-run
         ([k]) =>
           k.startsWith('HUB_') ||
           k.startsWith('QWEN_') ||
-          k.startsWith('CODEX_') ||
-          k.startsWith('CLAUDE_') ||
           k.startsWith('RUNNER_') ||
           k.startsWith('DRIVE_'),
       ),
@@ -59,67 +56,26 @@ export function pollDelay(now = new Date(), { dayMs = 15000, nightMs = 300000 } 
   return m >= 360 && m < 1410 ? dayMs : nightMs;
 }
 
-export async function onACPower(exec = promisify(execFile)) {
-  if (process.platform !== 'darwin') return true;
-  try {
-    return /AC Power/.test((await exec('pmset', ['-g', 'batt'])).stdout);
-  } catch {
-    return true;
-  }
-}
-
-/**
- * Purposes to ask for, given which engines answer right now. With `daily`, the writer also takes the nightly plan
- * jobs the Hub queues at 00:00 Berlin, so lessons, progress and roadmap update without a ChatGPT task.
- */
-export function leaseRequest(available, onAC, { daily = false } = {}) {
-  const grader = available.qwen || available.codex || available.claude;
-  // Qwen writes and rechecks too when ChatGPT is out (see engineChain).
-  const writer = available.codex || available.claude || available.qwen;
-  const purposes = [...(grader ? ['submission'] : []), ...(writer ? ['recheck', 'request', 'initial', ...(daily ? ['daily'] : [])] : [])];
-  const kinds = [...(purposes.some((p) => p === 'submission' || p === 'recheck') ? ['assess'] : []), ...(writer ? ['plan'] : [])];
-  const vision = !!(available.codex || (available.qwen && onAC && available.qwenVision));
-  return purposes.length
-    ? {
-        kinds,
-        purposes,
-        triggers: ['on_demand', 'deferred', ...(writer && daily ? ['scheduled'] : [])],
-        max: 1,
-        capabilities: [...(vision ? ['vision'] : []), ...(available.codex || available.qwen ? ['adaptive-plan'] : []), ...(available.qwen && onAC ? ['local-grading'] : [])],
-        runner: {
-          name: 'home-runner',
-          version: VERSION,
-          model: Object.keys(available)
-            .filter((k) => available[k] && k !== 'qwenVision')
-            .join('+'),
-        },
-      }
-    : null;
+export function leaseRequest(qwen, { daily = false } = {}) {
+  return {
+    kinds: ['assess', 'plan'],
+    purposes: ['submission', 'recheck', 'request', 'initial', ...(daily ? ['daily'] : [])],
+    triggers: ['on_demand', 'deferred', ...(daily ? ['scheduled'] : [])],
+    max: 1,
+    capabilities: ['adaptive-plan', 'local-grading', ...(qwen.vision ? ['vision'] : [])],
+    runner: { name: 'home-runner', version: VERSION, model: 'qwen' },
+  };
 }
 
 const log = (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), ...entry }));
 
-export async function runOnce(hub, engines, { power = onACPower, daily = false } = {}) {
-  const onAC = await power();
-  const available = {
-    qwen: engines.qwen ? await engines.qwen.available() : false,
-    qwenVision: !!engines.qwen?.vision,
-    codex: engines.codex ? await engines.codex.available() : false,
-    claude: engines.claude ? await engines.claude.available() : false,
-  };
-  const request = leaseRequest(available, onAC, { daily });
-  if (!request) return { idle: true, reason: 'no_engine' };
-  const [lease] = await hub.lease(request);
+export async function runOnce(hub, qwen, { daily = false } = {}) {
+  if (!await qwen.available()) return { idle: true, reason: 'no_engine' };
+  const [lease] = await hub.lease(leaseRequest(qwen, { daily }));
   if (!lease) return { idle: true };
-  // Keep the Mac awake while a job runs; caffeinate exits with this process.
   const awake = process.platform === 'darwin' ? spawn('caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore' }) : null;
   try {
-    return await processJob(
-      hub,
-      lease,
-      { qwen: available.qwen ? engines.qwen : null, codex: available.codex ? engines.codex : null, claude: available.claude ? engines.claude : null },
-      { onAC, log },
-    );
+    return await processJob(hub, lease, qwen, { log });
   } finally {
     awake?.kill();
   }
@@ -132,21 +88,18 @@ export function buildFromConfig(config) {
     accessClientId: config.HUB_ACCESS_CLIENT_ID,
     accessClientSecret: config.HUB_ACCESS_CLIENT_SECRET,
   });
-  const off = (v) => v === '0' || v === 'off' || v === 'false';
-  const engines = {
-    qwen: off(config.QWEN_ENABLED)
-      ? null
-      : qwenEngine({ baseUrl: config.QWEN_BASE_URL, model: config.QWEN_MODEL ?? 'qwen/qwen3.6-35b-a3b', vision: config.QWEN_VISION === '1' }),
-    codex: off(config.CODEX_ENABLED) ? null : codexEngine({ bin: config.CODEX_BIN ?? 'codex', model: config.CODEX_MODEL || 'gpt-6.1-sol' }),
-    claude: off(config.CLAUDE_ENABLED ?? '0') ? null : claudeEngine({ bin: config.CLAUDE_BIN ?? 'claude', model: config.CLAUDE_MODEL || undefined }),
-  };
-  return { hub, engines, daily: config.RUNNER_DAILY !== '0' };
+  const qwen = qwenEngine({
+    baseUrl: config.QWEN_BASE_URL,
+    model: config.QWEN_MODEL ?? 'qwen/qwen3.6-35b-a3b',
+    vision: config.QWEN_VISION === '1',
+  });
+  return { hub, qwen, daily: config.RUNNER_DAILY !== '0' };
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const config = loadConfig(args.includes('--config') ? args[args.indexOf('--config') + 1] : undefined);
-  const { hub, engines, daily } = buildFromConfig(config);
+  const { hub, qwen, daily } = buildFromConfig(config);
   let stop = false,
     backoff = 0,
     mirroredDay = null;
@@ -167,7 +120,7 @@ async function main() {
         await mirrorHistory(hub, mirror, log);
         mirroredDay = day;
       }
-      const outcome = await runOnce(hub, engines, { daily });
+      const outcome = await runOnce(hub, qwen, { daily });
       if (!outcome.idle) log({ event: 'job', ...outcome });
       backoff = 0;
       delay = outcome.idle ? pollDelay() : 1000;

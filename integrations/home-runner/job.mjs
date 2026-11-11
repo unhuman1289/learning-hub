@@ -15,10 +15,7 @@ export function systemPrompt(kind, purpose) {
   prompts ??= {
     assess: body('integrations/runner-prompts/assess-local.md'),
     recheck: body('integrations/runner-prompts/assess-local.md') + '\n\n' + body('integrations/runner-prompts/assess-recheck.md'),
-    plan:
-      body('integrations/runner-prompts/plan-request.md') +
-      '\n\n# LESSON-DESIGN.md\n\n' +
-      readFileSync(new URL('docs/hub2/LESSON-DESIGN.md', root), 'utf8'),
+    plan: body('integrations/runner-prompts/plan-request.md'),
   };
   return kind === 'plan' ? prompts.plan : purpose === 'recheck' ? prompts.recheck : prompts.assess;
 }
@@ -27,6 +24,139 @@ let schemas;
 export function contractFor(kind) {
   schemas ??= { assess: { zod: assessResult, json: z.toJSONSchema(assessResult) }, plan: { zod: planResult, json: z.toJSONSchema(planResult) } };
   return schemas[kind];
+}
+
+function generationSchema(kind, context, schema) {
+  if (kind !== 'plan') return schema;
+  if (context.subjects.length === 1) {
+    schema = structuredClone(schema);
+    const [subject] = context.subjects;
+    const subjects = schema.properties.subjects;
+    subjects.minItems = 1;
+    subjects.maxItems = 1;
+    Object.assign(subjects.items.properties, {
+      subjectId: { const: subject.subjectId },
+      expectedRevision: { const: subject.revision },
+      expectedOpenPrimaryLessonId: { const: subject.slot.openPrimaryLessonId },
+    });
+  }
+  if (context.adaptive && context.purpose === 'request') {
+    const request = structuredClone(schema);
+    const subjects = request.properties.subjects;
+    subjects.minItems = context.subjects.length;
+    subjects.maxItems = context.subjects.length;
+    Object.assign(subjects.items.properties, {
+      action: { const: 'no_action' },
+      reason: { const: context.adaptive.reason },
+      progressSummary: { const: '' },
+      primaryLesson: { type: 'null' },
+      reviewSet: { type: 'null' },
+      skillChanges: { type: 'array', maxItems: 0 },
+      masteryProposals: { type: 'array', maxItems: 0 },
+      requestsHandled: { type: 'array', maxItems: 0 },
+    });
+    delete subjects.items.properties.roadmap;
+    delete subjects.items.properties.notebookSetup;
+    const explorations = request.properties.explorations;
+    explorations.minItems = context.explorations.length;
+    explorations.maxItems = context.explorations.length;
+    const kinds = { learn: ['new'], practice: ['review', 'remediation'], personal: ['exploration'] }[context.adaptive.mode];
+    if (kinds) {
+      explorations.items.properties.action = { const: 'assign' };
+      const lesson = explorations.items.properties.lesson.anyOf.find(branch => branch.type === 'object');
+      lesson.properties.kind = { enum: kinds };
+      explorations.items.properties.lesson = lesson;
+    }
+    return request;
+  }
+  if (context.purpose !== 'initial' || !context.subjects.length ||
+      !context.subjects.every(subject => subject.slot.eligibleForPrimary && !subject.skills.length)) return schema;
+  const initial = structuredClone(schema);
+  const subjects = initial.properties.subjects;
+  subjects.minItems = context.subjects.length;
+  subjects.maxItems = context.subjects.length;
+  const item = subjects.items;
+  item.required.push('roadmap', 'notebookSetup');
+  item.properties.action = { const: 'assign' };
+  item.properties.skillChanges.minItems = 8;
+  item.properties.skillChanges.maxItems = 8;
+  item.properties.primaryLesson = item.properties.primaryLesson.anyOf.find(branch => branch.type === 'object');
+  const lesson = item.properties.primaryLesson.properties;
+  lesson.kind = { const: 'diagnostic' };
+  lesson.template = { const: 'skill' };
+  lesson.sheet = lesson.sheet.anyOf.find(branch => branch.type === 'object');
+  lesson.items.minItems = 5;
+  lesson.items.maxItems = 6;
+  const question = lesson.items.items;
+  question.required.push('key');
+  question.properties.input = { const: 'short' };
+  delete question.properties.choices;
+  delete question.properties.rubric;
+  const keys = question.properties.key;
+  keys.oneOf = keys.oneOf.filter(branch => branch.properties.type.const !== 'choice');
+  keys.oneOf.find(branch => branch.properties.type.const === 'text').properties.accepted.maxItems = 1;
+  item.properties.reviewSet = { type: 'null' };
+  return initial;
+}
+
+function compactPlanContext(context) {
+  return {
+    ...context,
+    subjects: context.subjects.map(subject => ({
+      ...subject,
+      goal: subject.goal.slice(0, 1800),
+      instructions: subject.instructions.slice(0, 1500),
+      progressSummary: subject.progressSummary.slice(0, 600),
+      learnerReflections: subject.learnerReflections?.slice(0, 3).map(note => ({ ...note, note: note.note.slice(0, 300) })),
+      skills: subject.skills.map(({ skillId, key, name, pathOrder, prerequisites, status, mastery, stuckOn, nextReviewDay, reviewKind }) => ({
+        skillId, key, name, pathOrder, prerequisites, status, mastery, stuckOn, nextReviewDay, reviewKind,
+      })),
+      errorPatterns: subject.errorPatterns.filter(error => error.status !== 'resolved').slice(0, 6)
+        .map(error => ({ ...error, examples: error.examples.slice(0, 1).map(example => example.slice(0, 160)) })),
+      recentLessons: subject.recentLessons.slice(-4).map(lesson => ({
+        ...lesson, items: lesson.items.slice(0, 4),
+      })),
+    })),
+  };
+}
+
+function normalizeLesson(lesson) {
+  const review = lesson.kind === 'review';
+  const allowed = review ? ['retrieval', 'independent'] : lesson.template === 'skill'
+    ? ['retrieval', 'sheet', 'guided', 'independent'] : ['read', 'analyze', 'output'];
+  const defaultStage = !review && lesson.template === 'reading' ? 'analyze' : 'independent';
+  const itemIds = new Set(lesson.items.map(item => item.id));
+  const placed = new Set();
+  const stages = [];
+  for (const stage of lesson.stages) {
+    if (!allowed.includes(stage.stage) || stages.some(saved => saved.stage === stage.stage)) continue;
+    const ids = ['sheet', 'read'].includes(stage.stage) ? [] :
+      stage.itemIds.filter(id => itemIds.has(id) && !placed.has(id) && placed.add(id));
+    stages.push({ ...stage, itemIds: ids });
+  }
+  const unplaced = [...itemIds].filter(id => !placed.has(id));
+  if (unplaced.length) {
+    const target = stages.find(stage => stage.stage === defaultStage);
+    if (target) target.itemIds.push(...unplaced);
+    else stages.push({ stage: defaultStage, itemIds: unplaced });
+  }
+  return {
+    ...lesson,
+    stages,
+    items: lesson.items.map(item => item.key?.type === 'choice' && item.choices?.length ? { ...item, input: 'choice' } : item),
+  };
+}
+
+export function normalizePlan(plan) {
+  return {
+    ...plan,
+    subjects: plan.subjects.map(subject => ({
+      ...subject,
+      primaryLesson: subject.primaryLesson && normalizeLesson(subject.primaryLesson),
+      reviewSet: subject.reviewSet && normalizeLesson(subject.reviewSet),
+    })),
+    explorations: plan.explorations.map(request => ({ ...request, lesson: request.lesson && normalizeLesson(request.lesson) })),
+  };
 }
 
 export function userPrompt(context, repair) {
@@ -44,23 +174,6 @@ export function userPrompt(context, repair) {
       ? ['', 'Lần trước bị từ chối vì các lỗi sau. Sửa đúng những chỗ này, giữ nguyên phần còn lại:', JSON.stringify(repair).slice(0, 8000)]
       : []),
   ].join('\n');
-}
-
-/**
- * Engines that may take this job, in order. Qwen grades first answers; ChatGPT (Codex) rechecks and writes lessons.
- * Owner decision 11/11/2026: when ChatGPT is out (plan limit, timeout, refusal) the local Qwen always takes over,
- * on battery too, so nothing waits for a quota to reset.
- */
-export function engineChain(lease, context, engines, { onAC }) {
-  const photos = (context.attempts ?? []).some((a) => a.attachments?.some((img) => !img.expired));
-  const usable = (e) => e && (!photos || e.vision);
-  const firstAnswer = lease.kind === 'assess' && lease.purpose === 'submission';
-  if (lease.adaptive)
-    return (firstAnswer ? [onAC ? engines.qwen : null, engines.codex, onAC ? null : engines.qwen] : [engines.codex, engines.qwen]).filter(usable);
-  const order = firstAnswer
-    ? [onAC ? engines.qwen : null, engines.codex, engines.claude, onAC ? null : engines.qwen]
-    : [engines.codex, engines.claude, engines.qwen];
-  return order.filter(usable);
 }
 
 /**
@@ -96,11 +209,11 @@ function finalize(json, context, usage, kind) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function processJob(hub, lease, engines, { onAC = true, log = () => {}, heartbeatMs = 3 * 60000 } = {}) {
+export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000 } = {}) {
   const context = await hub.context(lease);
-  const chain = engineChain(lease, context, engines, { onAC });
-  if (!chain.length) {
-    await hub.fail(lease, 'Không có engine phù hợp trên máy chấm', true);
+  const hasPhotos = (context.attempts ?? []).some(a => a.attachments?.some(img => !img.expired));
+  if (hasPhotos && !qwen.vision) {
+    await hub.fail(lease, 'Qwen chưa hỗ trợ chấm ảnh trên máy này.', true);
     return { jobId: lease.jobId, status: 'returned' };
   }
   const images = [];
@@ -109,48 +222,51 @@ export async function processJob(hub, lease, engines, { onAC = true, log = () =>
   const timer = setInterval(() => hub.heartbeat(lease).catch(() => {}), heartbeatMs);
   try {
     const contract = contractFor(lease.kind);
+    const schema = generationSchema(lease.kind, context, contract.json);
+    const promptContext = lease.kind === 'plan' ? compactPlanContext(context) : context;
     let lastError = 'Engine không trả kết quả hợp lệ';
-    for (const engine of chain) {
-      let repair = null;
-      for (let round = 0; round < 2; round++) {
-        let result;
-        try {
-          const out = await engine.run({
-            system: systemPrompt(lease.kind, lease.purpose) + (context.adaptive ?
-              '\n\nPilot Deutsch: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step, giữ nguyên roadmap. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Với request, giao bài qua explorations; subjects dùng no_action. Với mode none, không tạo bài.' : ''),
-            user: userPrompt(context, repair),
-            schema: contract.json,
-            images: engine.vision ? images : [],
-          });
-          result = finalize(out.json, context, out.usage, lease.kind);
-        } catch (error) {
-          lastError = engine.name + ': ' + (error instanceof Error ? error.message : String(error));
-          log({ jobId: lease.jobId, engine: engine.name, event: 'engine_error' });
-          break; // next engine
-        }
-        const local = contract.zod.safeParse(result);
-        if (!local.success) {
-          repair = local.error.issues.slice(0, 20).map((i) => ({ path: i.path.join('/'), message: i.message }));
-          lastError = engine.name + ': kết quả sai hợp đồng';
-          log({ jobId: lease.jobId, engine: engine.name, event: 'contract_error', errors: repair.slice(0, 10).map((e) => e.path) });
-          continue;
-        }
-        const dry = await hub.result(lease, local.data, true);
-        if (dry.status === 422) {
-          repair = dry.body?.errors ?? [];
-          lastError = engine.name + ': Hub từ chối (' + repair.map((e) => e.code).join(',') + ')';
-          // Codes and JSON paths only; Hub messages may quote ids but never the learner's answer.
-          log({ jobId: lease.jobId, engine: engine.name, event: 'dry_run_422', errors: repair.slice(0, 10).map((e) => e.code + ' ' + e.path) });
-          continue;
-        }
-        await submit(hub, lease, local.data);
-        const verified = await hub.state(lease.jobId);
-        if (verified.status !== 'succeeded') throw Error('Hub chưa xác nhận kết quả (' + verified.status + ').');
-        log({ jobId: lease.jobId, engine: engine.name, event: 'succeeded', ms: result.usage.ms });
-        return { jobId: lease.jobId, status: 'succeeded', engine: engine.name };
+    let repair = null;
+    for (let round = 0; round < 2; round++) {
+      let result;
+      try {
+        const out = await qwen.run({
+          system: systemPrompt(lease.kind, lease.purpose) + (context.adaptive ?
+            '\n\nPilot Deutsch: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
+          user: userPrompt(promptContext, repair),
+          schema,
+          images,
+        });
+        result = finalize(out.json, context, out.usage, lease.kind);
+      } catch (error) {
+        lastError = qwen.name + ': ' + (error instanceof Error ? error.message : String(error));
+        log({ jobId: lease.jobId, engine: qwen.name, event: 'engine_error' });
+        break;
       }
+      const local = contract.zod.safeParse(result);
+      if (!local.success) {
+        repair = local.error.issues.slice(0, 20).map((i) => ({ path: i.path.join('/'), message: i.message }));
+        lastError = qwen.name + ': kết quả sai hợp đồng';
+        log({ jobId: lease.jobId, engine: qwen.name, event: 'contract_error', errors: repair.slice(0, 10).map((e) => e.path) });
+        continue;
+      }
+      const validResult = lease.kind === 'plan' ? normalizePlan(local.data) : local.data;
+      const dry = await hub.result(lease, validResult, true);
+      if (dry.status === 422) {
+        repair = dry.body?.errors ?? [];
+        lastError = qwen.name + ': Hub từ chối (' + repair.map((e) => e.code).join(',') + ')';
+        // Codes and JSON paths only; Hub messages may quote ids but never the learner's answer.
+        log({ jobId: lease.jobId, engine: qwen.name, event: 'dry_run_422', errors: repair.slice(0, 10).map((e) => e.code + ' ' + e.path) });
+        continue;
+      }
+      await submit(hub, lease, validResult);
+      const verified = await hub.state(lease.jobId);
+      if (verified.status !== 'succeeded') throw Error('Hub chưa xác nhận kết quả (' + verified.status + ').');
+      const lessonCount = lease.kind === 'plan' && verified.outcome
+        ? (verified.outcome.extraLessonIds?.length || verified.outcome.subjects?.flatMap(subject => subject.lessonIds).length || 0)
+        : undefined;
+      log({ jobId: lease.jobId, engine: qwen.name, event: 'succeeded', lessonCount, ms: result.usage.ms });
+      return { jobId: lease.jobId, status: 'succeeded', engine: qwen.name };
     }
-    // Every engine tried. Models are not deterministic, so let the Hub requeue it; it stops after three leases.
     await hub.fail(lease, lastError, true);
     return { jobId: lease.jobId, status: 'failed', error: lastError };
   } finally {

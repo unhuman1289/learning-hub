@@ -322,6 +322,17 @@ test('dispatch is authenticated with HMAC and includes only job metadata', async
   assert.match(sent.headers['X-LH-Signature'], /^sha256:[a-f0-9]{64}$|^sha256=[a-f0-9]{64}$/);
   assert(!sent.body.includes(learner));
 });
+test('local-only jobs remain queued for the runner without external dispatch', async () => {
+  const sent = [];
+  const job = await enqueue(seed(), {
+    AI_LOCAL_ONLY: 'true',
+    AI_QUEUE: { send: async () => { sent.push('queue'); } },
+    EVENT_DISPATCHER: { dispatch: async () => { sent.push('event'); return { delivered: 1 }; } },
+  }, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
+  assert.equal(job.status, 'queued');
+  assert.deepEqual(sent, []);
+});
+
 test('closed-only one wrong submission skips AI; open answers queue assess', async () => {
   const { db, lesson } = await assigned();
   await saveDraft(

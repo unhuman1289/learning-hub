@@ -58,6 +58,7 @@ export function qwenEngine({
       const response = await fetcher(url.href.replace(/\/$/, '') + '/chat/completions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // Zod emits a nonstandard format for startsWith. LM Studio accepts its equivalent pattern.
         body: JSON.stringify({
           model,
           temperature: 0.2,
@@ -67,7 +68,7 @@ export function qwenEngine({
             { role: 'user', content: images.length ? content : user },
           ],
           response_format: { type: 'json_schema', json_schema: { name: 'result', schema } },
-        }),
+        }, (key, value) => key === 'format' && value === 'starts_with' ? undefined : value),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (!response.ok) throw Error('Local model HTTP ' + response.status);
