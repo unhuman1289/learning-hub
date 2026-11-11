@@ -91,11 +91,17 @@ export function qwenEngine({
 /** Codex CLI signed in with the family's ChatGPT plan: `codex exec` with a JSON Schema for the final message. */
 // --output-schema hangs on the large assess/plan schemas (measured 10/11/2026: no reply after 8 min, 32 s without it),
 // so by default the schema goes into the prompt and the shared zod contracts plus one repair round catch drift.
-export function codexEngine({ bin = 'codex', model, timeoutMs = 10 * 60000, runner = run, env = process.env, outputSchema = false }) {
+/** After ChatGPT says the plan limit is reached, Codex sits out this long and Qwen takes the work. */
+export const CODEX_REST_MS = 60 * 60000;
+const USAGE_LIMIT = /usage limit|rate limit|quota|too many requests|429/i;
+
+export function codexEngine({ bin = 'codex', model, timeoutMs = 6 * 60000, runner = run, env = process.env, outputSchema = false, now = () => Date.now() }) {
+  let restUntil = 0;
   return {
     name: 'codex',
     vision: true,
     async available() {
+      if (now() < restUntil) return false;
       try {
         await runner(bin, ['--version'], { input: '', timeoutMs: 10000, env: childEnv(env) });
         return true;
@@ -135,7 +141,12 @@ export function codexEngine({ bin = 'codex', model, timeoutMs = 10 * 60000, runn
             '\n\nJSON Schema của kết quả:\n' +
             JSON.stringify(schema) +
             '\n\nChỉ trả về đúng một đối tượng JSON theo schema này, không kèm chữ nào khác. Không chạy lệnh hay đọc tệp.';
-        await runner(bin, args, { input, cwd: dir, timeoutMs, env: childEnv(env) });
+        try {
+          await runner(bin, args, { input, cwd: dir, timeoutMs, env: childEnv(env) });
+        } catch (error) {
+          if (USAGE_LIMIT.test(error instanceof Error ? error.message : String(error))) restUntil = now() + CODEX_REST_MS;
+          throw error;
+        }
         const json = stripOptionalNulls(schema, parseJsonReply(await readFile(join(dir, 'out.json'), 'utf8')));
         return { json, usage: { model: 'codex:' + (model ?? 'default'), inputTokens: 0, outputTokens: 0, ms: Date.now() - started } };
       } finally {

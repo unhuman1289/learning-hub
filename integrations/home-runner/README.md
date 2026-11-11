@@ -4,12 +4,14 @@ Chương trình nền trên MacBook của nhà ([plan L1.3](../../docs/plan/LOCA
 
 | Việc | Engine |
 | --- | --- |
-| Chấm câu mở (`assess submission`) | Qwen qua LM Studio khi cắm sạc; Codex khi chạy pin hoặc Qwen lỗi |
-| Chấm lại khi phản đối (`assess recheck`) | Codex (thuê bao ChatGPT) |
-| Soạn theo yêu cầu, bài đầu của sổ mới (`plan request`, `initial`) | Codex |
+| Chấm câu mở (`assess submission`) | Qwen qua LM Studio khi cắm sạc; khi chạy pin thì Codex trước, Qwen sau |
+| Chấm lại khi phản đối (`assess recheck`) | Codex (thuê bao ChatGPT); Qwen nếu Codex không làm được |
+| Soạn theo yêu cầu, bài đầu của sổ mới (`plan request`, `initial`) | Codex; Qwen nếu Codex không làm được |
 | Soạn bài hằng ngày (`plan daily`, Hub xếp lúc 00:00 Berlin), kèm tiến độ và lộ trình của sổ | Codex khi `RUNNER_DAILY=1` (mặc định). Đặt `0` nếu muốn để ChatGPT làm qua MCP |
 
 Mac tắt hoặc ngủ thì việc nằm chờ. Trang bài hiện "Máy chấm đang tắt"; trang Quản trị báo khi máy vắng quá 30 phút.
+
+**Khi ChatGPT không làm được** (hết hạn mức gói, quá 6 phút, kết quả bị Hub từ chối): việc chuyển ngay sang Qwen trên máy, kể cả khi chạy pin. Nếu ChatGPT báo hết hạn mức, Codex nghỉ 1 giờ và Qwen nhận mọi việc trong thời gian đó (quyết định 11/11/2026).
 
 ## Cài đặt
 

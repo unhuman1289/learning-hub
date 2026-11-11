@@ -187,12 +187,14 @@ test('when Qwen fails the job falls through to Codex; on battery Qwen is skipped
   const context = { attempts: [] };
   assert.deepEqual(
     engineChain({ kind: 'assess', purpose: 'submission' }, context, { qwen, codex }, { onAC: false }).map((e) => e.name),
-    ['codex'],
+    ['codex', 'qwen'],
   );
   assert.deepEqual(
     engineChain({ kind: 'assess', purpose: 'recheck' }, context, { qwen, codex }, { onAC: true }).map((e) => e.name),
-    ['codex'],
+    ['codex', 'qwen'],
   );
+  for (const lease of [{ kind: 'plan', purpose: 'request' }, { kind: 'plan', purpose: 'initial' }, { kind: 'plan', purpose: 'daily', adaptive: true }])
+    assert.deepEqual(engineChain(lease, context, { qwen, codex }, { onAC: false }).map((e) => e.name), ['codex', 'qwen']);
   const photos = { attempts: [{ attachments: [{ attachmentId: 'img_1', expired: false }] }] };
   assert.deepEqual(
     engineChain({ kind: 'assess', purpose: 'submission' }, photos, { qwen, codex }, { onAC: true }).map((e) => e.name),
@@ -228,13 +230,13 @@ test('runOnce leases nothing when no engine answers and asks only for work it ca
   assert.deepEqual(await runOnce(hub, { qwen: none, codex: none, claude: none }, { power: async () => true }), { idle: true, reason: 'no_engine' });
   const up = { available: async () => true, vision: false };
   await runOnce(hub, { qwen: up, codex: null, claude: null }, { power: async () => true });
-  assert.deepEqual(hub.input.purposes, ['submission']);
-  assert.deepEqual(hub.input.kinds, ['assess']);
-  assert.deepEqual(hub.input.capabilities, ['local-grading']);
+  assert.deepEqual(hub.input.purposes, ['submission', 'recheck', 'request', 'initial']);
+  assert.deepEqual(hub.input.kinds, ['assess', 'plan']);
+  assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading']);
 });
 
 test('lease requests, poll schedule and env file parsing', () => {
-  assert.equal(leaseRequest({ qwen: true, codex: false, claude: false }, false), null);
+  assert.deepEqual(leaseRequest({ qwen: true, codex: false, claude: false }, false).purposes, ['submission', 'recheck', 'request', 'initial']);
   const all = leaseRequest({ qwen: true, codex: true, claude: false }, true);
   assert.deepEqual(all.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(all.kinds, ['assess', 'plan']);
@@ -243,7 +245,9 @@ test('lease requests, poll schedule and env file parsing', () => {
   const nightly = leaseRequest({ qwen: true, codex: true, claude: false }, true, { daily: true });
   assert.deepEqual(nightly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
   assert.deepEqual(nightly.triggers, ['on_demand', 'deferred', 'scheduled']);
-  assert.deepEqual(leaseRequest({ qwen: true, codex: false, claude: false }, true, { daily: true }).purposes, ['submission']);
+  const qwenOnly = leaseRequest({ qwen: true, codex: false, claude: false }, true, { daily: true });
+  assert.deepEqual(qwenOnly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
+  assert.deepEqual(qwenOnly.capabilities, ['adaptive-plan', 'local-grading']);
   assert.equal(pollDelay(new Date('2026-11-12T09:00:00Z')), 15000);
   assert.equal(pollDelay(new Date('2026-11-12T02:00:00Z')), 300000);
   assert.equal(pollDelay(new Date('2026-11-12T22:45:00Z')), 300000); // 23:45 Berlin
@@ -377,4 +381,21 @@ test('Drive copy: once per Berlin day after 03:00, atomic files, only listed pro
   assert.deepEqual((await readdir(dir)).sort(), ['lich-su-prf_a.md', 'lich-su-prf_b.md']);
   assert.equal(await readFile(join(dir, 'lich-su-prf_a.md'), 'utf8'), '# Lịch sử prf_a');
   await rm(dir, { recursive: true });
+});
+
+test('after ChatGPT reports its usage limit Codex rests an hour so Qwen takes the work', async () => {
+  let clock = 1_000_000;
+  const engine = codexEngine({
+    now: () => clock,
+    env: {},
+    runner: async (_bin, args) => {
+      if (args[0] === '--version') return;
+      throw Error("codex exited 1: ERROR: You've hit your usage limit.");
+    },
+  });
+  assert.equal(await engine.available(), true);
+  await assert.rejects(engine.run({ system: 's', user: 'u', schema: { type: 'object' } }), /usage limit/);
+  assert.equal(await engine.available(), false);
+  clock += 61 * 60000;
+  assert.equal(await engine.available(), true);
 });
