@@ -30,7 +30,7 @@ const leaseBody = z
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
     capabilities: z
       .array(z.enum(['vision', 'adaptive-plan', 'local-grading']))
-      .max(1)
+      .max(3)
       .optional(),
   })
   .strict();
