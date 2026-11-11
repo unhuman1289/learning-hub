@@ -86,8 +86,15 @@ function generationSchema(kind, context, schema) {
   lesson.template = { const: 'skill' };
   lesson.sheet = lesson.sheet.anyOf.find(branch => branch.type === 'object');
   lesson.items.minItems = 5;
-  lesson.items.maxItems = 8;
-  lesson.items.items.required.push('key');
+  lesson.items.maxItems = 6;
+  const question = lesson.items.items;
+  question.required.push('key');
+  question.properties.input = { const: 'short' };
+  delete question.properties.choices;
+  delete question.properties.rubric;
+  const keys = question.properties.key;
+  keys.oneOf = keys.oneOf.filter(branch => branch.properties.type.const !== 'choice');
+  keys.oneOf.find(branch => branch.properties.type.const === 'text').properties.accepted.maxItems = 1;
   item.properties.reviewSet = { type: 'null' };
   return initial;
 }
