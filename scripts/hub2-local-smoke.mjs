@@ -68,6 +68,13 @@ assert.equal(restored.lastSubmission.id, retry.body.submission.id);
 const created = await call('/api/subjects', 'POST', { title: 'QA import ' + crypto.randomUUID().slice(0, 8), template: 'skill' }, admin);
 assert.equal(created.status, 201);
 const subject = created.body.subject;
+const lessonListPath = '/api/subjects/' + subject.id + '/lessons';
+const setupList = await call(lessonListPath, 'GET', undefined, admin);
+assert.equal(setupList.status, 200);
+assert.equal(setupList.body.setup, true);
+assert.equal(setupList.body.initial.status, 'queued');
+assert.deepEqual(setupList.body.lessons, []);
+assert.equal((await call(lessonListPath, 'GET', undefined, other)).status, 404);
 assert.equal((await call('/api/subjects/' + subject.id, 'PATCH', { revision: subject.revision, status: 'active' }, admin)).status, 200);
 const packageInput = {
   learnerId: 'demo-admin',
@@ -82,6 +89,10 @@ const imported = await call('/api/admin/lessons/import', 'POST', packageInput, a
 assert.equal(imported.status, 201);
 assert.equal((await call('/api/admin/lessons/import', 'POST', packageInput, admin)).status, 409);
 assert.equal((await call('/api/lessons/' + imported.body.lessonId, 'GET', undefined, admin)).status, 200);
+const activeList = await call(lessonListPath, 'GET', undefined, admin);
+assert.equal(activeList.body.setup, false);
+assert.equal(activeList.body.initial, null);
+assert.equal(activeList.body.lessons[0].id, imported.body.lessonId);
 // Keep the rejected large-body probe last: Wrangler's dev proxy aborts a following POST after an unread denied body.
 assert.equal((await call('/api/admin/lessons/import', 'POST', packageInput, relogin)).status, 403);
 console.log(
