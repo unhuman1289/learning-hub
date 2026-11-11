@@ -35,10 +35,6 @@ export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }:
         {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
         {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
         <details className="border-t border-line bg-paper py-3">
-          <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Thêm</summary>
-          {!shelf.learner && <RouteLink route={{view:"notes"}} go={go} className={buttonClass("ghost")}>Ghi chú và nhật ký</RouteLink>}
-        </details>
-        <details className="border-t border-line bg-paper py-3">
           <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Cài đặt sổ</summary>
           {canEdit ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
         </details>
