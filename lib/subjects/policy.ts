@@ -2,7 +2,7 @@ import { ApiError } from '../api-error.ts';
 import { learningTracks, type LearningTrack } from '../daily-policy.ts';
 import { DEFAULT_LIMITS, legacyTrackDefaults, type SubjectLimits, type SubjectSensitivity, type SubjectStatus, type SubjectTemplate } from './sql.ts';
 
-/** Fields a learner (adult), guardian or admin may set; AI jobs never write these (docs/hub2 README §4). */
+/** Fields a learner, guardian or admin may set. The initial plan may fill missing notebook details. */
 export type SubjectInput = {
   title: string; template: SubjectTemplate; sensitivity: SubjectSensitivity; goal: string; level: string;
   curriculum: string; limits: SubjectLimits; weight: number; legacyTrack?: LearningTrack;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { learningTracks } from "../../lib/daily-policy";
 import { coverTitle, trackInfo } from "./model";
 import { PaperDialog, fieldClass, labelClass } from "./paper-dialog";
@@ -16,22 +16,31 @@ export function NewNotebookDialog({ shelf, forName, onClose, onCreated }: {
 }) {
   const onShelf = new Set((shelf.subjects ?? []).map((item) => item.legacyTrack).filter(Boolean));
   const prepared = learningTracks.filter((track) => !onShelf.has(track));
-  const [kind, setKind] = useState<"topic" | "prepared">("topic");
+  const [usePrepared, setUsePrepared] = useState(false);
+  const titleField = useRef<HTMLInputElement>(null);
+  const preparedField = useRef<HTMLSelectElement>(null);
   const [legacyTrack, setLegacyTrack] = useState<string>(prepared[0] ?? "");
+  const selectedTrack = prepared.find(track => track === legacyTrack) ?? prepared[0];
   const [title, setTitle] = useState("");
-  const [template, setTemplate] = useState<"skill" | "reading">("skill");
   const [goal, setGoal] = useState("");
-  const [level, setLevel] = useState("");
-  const [curriculum, setCurriculum] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
+  function switchNotebookType() {
+    const next = !usePrepared;
+    setUsePrepared(next);
+    requestAnimationFrame(() => (next ? preparedField : titleField).current?.focus());
+  }
+
+  const canSubmit = usePrepared ? !!selectedTrack : !!title.trim() && !!goal.trim();
+
   async function submit() {
+    if (busy || !canSubmit) return;
     setBusy(true);
     setError("");
-    const input: NewSubject = kind === "prepared"
-      ? { legacyTrack, goal, level }
-      : { title, template, goal, level, curriculum };
+    const input: NewSubject = usePrepared
+      ? { legacyTrack: selectedTrack }
+      : { title: title.trim(), goal: goal.trim() };
     try {
       const created = await shelf.create(input);
       onCreated(created);
@@ -43,46 +52,40 @@ export function NewNotebookDialog({ shelf, forName, onClose, onCreated }: {
 
   return (
     <PaperDialog title={forName ? `Sổ mới cho ${forName}` : "Mở sổ mới"} labelId="new-notebook-title" onClose={onClose}>
-      <form className="grid gap-7" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
-        {prepared.length > 0 && (
-          <fieldset className="grid gap-1">
-            <legend className={labelClass}>Loại sổ</legend>
-            <label className="flex items-center gap-2 leading-7"><input type="radio" name="kind" checked={kind === "topic"} onChange={() => setKind("topic")} /> Chủ đề mới</label>
-            <label className="flex items-center gap-2 leading-7"><input type="radio" name="kind" checked={kind === "prepared"} onChange={() => setKind("prepared")} /> Sổ có sẵn bài nền</label>
-          </fieldset>
-        )}
-        {kind === "prepared" ? (
+      <form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+        {usePrepared ? (
           <label className={labelClass}>Sổ có sẵn
-            <select value={legacyTrack} onChange={(event) => setLegacyTrack(event.target.value)} className={fieldClass}>
+            <select ref={preparedField} value={selectedTrack ?? ""} onChange={(event) => setLegacyTrack(event.target.value)} className={fieldClass}>
               {prepared.map((track) => <option key={track} value={track}>{coverTitle[track]} · {trackInfo(track).title}</option>)}
             </select>
           </label>
         ) : (
-          <>
-            <label className={labelClass}>Tên sổ
-              <input required value={title} maxLength={80} placeholder="Ví dụ: Toán 7" onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
-            </label>
-            <label className={labelClass}>Cách học
-              <select value={template} onChange={(event) => setTemplate(event.target.value as "skill" | "reading")} className={fieldClass}>
-                <option value="skill">Luyện kỹ năng (nhớ lại, phiếu, luyện, tự làm)</option>
-                <option value="reading">Đọc và phân tích (nguồn, câu hỏi, sản phẩm)</option>
-              </select>
-            </label>
-            <label className={labelClass}>Chương trình
-              <input value={curriculum} maxLength={500} placeholder="Ví dụ: Chương trình GDPT 2018 (Việt Nam), lớp 7" onChange={(event) => setCurriculum(event.target.value)} className={fieldClass} />
-            </label>
-          </>
+          <label className={labelClass}>Tên sổ
+            <input ref={titleField} required value={title} maxLength={80} placeholder="Ví dụ: Toán 7" onChange={(event) => setTitle(event.target.value)} className={fieldClass} />
+          </label>
         )}
-        <label className={labelClass}>Mục tiêu
-          <textarea value={goal} maxLength={2000} rows={3} placeholder="Học để làm được gì?" onChange={(event) => setGoal(event.target.value)} className={fieldClass} />
-        </label>
-        <label className={labelClass}>Trình độ hiện tại
-          <input value={level} maxLength={200} placeholder="Ví dụ: A2, đã học tới chương 3" onChange={(event) => setLevel(event.target.value)} className={fieldClass} />
-        </label>
+        {!usePrepared && (
+          <div>
+            <label className={labelClass}>Bạn muốn học gì?
+              <textarea required value={goal} maxLength={2000} rows={3}
+                aria-describedby="new-notebook-hint"
+                placeholder="Ví dụ: Ôn phân số lớp 7 bằng bài tập ngắn, theo sách Kết nối tri thức."
+                onChange={(event) => setGoal(event.target.value)} className={fieldClass} />
+            </label>
+            <p id="new-notebook-hint" className="mt-1 text-sm leading-6 text-muted">Bạn có thể ghi mục tiêu, cách muốn học, trình độ hoặc tên sách. ChatGPT sẽ lập lộ trình và soạn bài đầu tiên.</p>
+          </div>
+        )}
         {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
-        <div className="flex flex-wrap justify-end gap-3">
-          <button type="button" onClick={onClose} className={buttonClass("ghost")}>Huỷ</button>
-          <button type="submit" disabled={busy || (kind === "topic" ? !title.trim() : !legacyTrack)} className={buttonClass("primary")}>{busy ? "Đang mở…" : "Mở sổ"}</button>
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+          {prepared.length > 0 && (
+            <button type="button" disabled={busy} onClick={switchNotebookType} className="min-h-11 text-left text-sm font-medium text-accent-hover hover:underline">
+              {usePrepared ? "Tạo sổ theo chủ đề mới" : "Dùng sổ có sẵn"}
+            </button>
+          )}
+          <div className="ml-auto flex flex-wrap justify-end gap-2">
+            <button type="button" onClick={onClose} className={buttonClass("ghost")}>Huỷ</button>
+            <button type="submit" disabled={busy || !canSubmit} className={buttonClass("primary")}>{busy ? "Đang mở…" : "Mở sổ"}</button>
+          </div>
         </div>
       </form>
     </PaperDialog>

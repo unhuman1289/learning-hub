@@ -35,7 +35,7 @@ export function WoodFrame({ children, className, label }: { children: ReactNode;
  * white bead-board doors below.
  * Each child is one compartment; its own shelf board joins the neighbours' into a continuous shelf.
  */
-export function Bookcase({ title, children, className }: { title: ReactNode; children: ReactNode; className?: string }) {
+export function Bookcase({ title, children, className, counterDecoration }: { title: ReactNode; children: ReactNode; className?: string; counterDecoration?: ReactNode }) {
   return (
     <section aria-label="Tủ sách" className={cx("shadow-furniture", className)}>
       {/* Crown moulding */}
@@ -47,7 +47,9 @@ export function Bookcase({ title, children, className }: { title: ReactNode; chi
         </div>
       </div>
       {/* Oak counter top over the lower cupboard */}
-      <div className="bg-oak relative z-[1] -mx-1.5 h-3.5 rounded-[2px] border-b-2 border-oak-dark shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]" />
+      <div className="bg-oak relative z-[1] -mx-1.5 h-3.5 rounded-[2px] border-b-2 border-oak-dark shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]">
+        {counterDecoration && <div className="pointer-events-none absolute bottom-1 right-4">{counterDecoration}</div>}
+      </div>
       {/* Lower cupboard with bead-board doors */}
       <div className="bg-cabinet grid grid-cols-2 gap-2 px-2.5 pb-2.5 pt-2.5 [perspective:700px] sm:px-3.5">
         {[0, 1].map((index) => (

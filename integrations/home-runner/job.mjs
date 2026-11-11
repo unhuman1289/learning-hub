@@ -52,6 +52,7 @@ export function engineChain(lease, context, engines, { onAC }) {
   const usable = (e) => e && (!photos || e.vision);
   if (lease.adaptive)
     return (lease.kind === 'assess' && lease.purpose === 'submission' ? [onAC ? engines.qwen : null] : [engines.codex]).filter(usable);
+  if (lease.kind === 'plan' && lease.purpose === 'initial') return [engines.codex].filter(usable);
   const order =
     lease.kind === 'assess' && lease.purpose === 'submission'
       ? [onAC ? engines.qwen : null, engines.codex, engines.claude]

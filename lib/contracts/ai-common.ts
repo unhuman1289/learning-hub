@@ -84,6 +84,12 @@ export const planResult = z
             masteryProposals: z.array(proposal).max(40),
             progressSummary: text(3000),
             roadmap: roadmap.optional(),
+            notebookSetup: z.object({
+              template: z.enum(['skill', 'reading']),
+              level: text(200),
+              curriculum: text(500),
+              instructions: text(4000),
+            }).strict().optional(),
             requestsHandled: z.array(z.object({ requestId: z.string(), status: z.enum(['done', 'declined']), note: text(1000) }).strict()).max(20),
           })
           .strict(),

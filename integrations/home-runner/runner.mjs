@@ -12,7 +12,7 @@ import { claudeEngine, codexEngine, qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
 import { mirrorDue, mirrorHistory } from './mirror.mjs';
 
-export const VERSION = '1.1.0';
+export const VERSION = '1.2.0';
 
 /** KEY=VALUE lines; # comments. The file must not be readable by others. */
 export function parseEnvFile(text) {
@@ -75,7 +75,7 @@ export async function onACPower(exec = promisify(execFile)) {
 export function leaseRequest(available, onAC, { daily = false } = {}) {
   const grader = (available.qwen && onAC) || available.codex || available.claude;
   const writer = available.codex || available.claude;
-  const purposes = [...(grader ? ['submission'] : []), ...(writer ? ['recheck', 'request', 'initial', ...(daily ? ['daily'] : [])] : [])];
+  const purposes = [...(grader ? ['submission'] : []), ...(writer ? ['recheck', 'request', ...(available.codex ? ['initial'] : []), ...(daily ? ['daily'] : [])] : [])];
   const kinds = [...(purposes.some((p) => p === 'submission' || p === 'recheck') ? ['assess'] : []), ...(writer ? ['plan'] : [])];
   const vision = !!(available.codex || (available.qwen && onAC && available.qwenVision));
   return purposes.length
