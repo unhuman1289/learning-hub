@@ -3,7 +3,8 @@ import { cx } from "./paper";
 
 /** Oak desk top: boards with a front edge. Paper and notebooks lie on it. */
 /** `lamp` (0–1) is how much the desk lamp shows: a warm pool of light on the boards after dusk. */
-export function OakDesk({ children, className, drawers = false, lamp = 0 }: { children: ReactNode; className?: string; drawers?: boolean; lamp?: number }) {
+export function OakDesk({ children, className, drawers = false, lamp = 0 }: { children: ReactNode; className?: string; drawers?: boolean | { label: string; onOpen: () => void }[]; lamp?: number }) {
+  const labelled = Array.isArray(drawers) ? drawers : [];
   return (
     <div className={cx("rounded-[6px] shadow-furniture", className)}>
       <div className="bg-oak-planks relative rounded-t-[6px] p-2.5 sm:p-5">
@@ -14,11 +15,20 @@ export function OakDesk({ children, className, drawers = false, lamp = 0 }: { ch
       <div className="bg-oak h-2.5 border-y border-oak-dark/70 brightness-90" />
       {drawers ? (
         <div className="bg-oak-v grid grid-cols-2 gap-2 rounded-b-[6px] px-2.5 pb-2.5 pt-2 sm:grid-cols-3 sm:px-5">
-          {[0, 1, 2].map((index) => (
-            <div key={index} className={cx("relative grid h-10 place-items-center rounded-[3px] bg-oak shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),inset_0_2px_5px_rgb(60_40_20/0.25)] transition-[translate,box-shadow] duration-300 ease-out hover:translate-y-1.5 hover:shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),0_6px_8px_-4px_rgb(0_0_0/0.5)]", index === 2 && "hidden sm:grid")}>
-              <span className="size-2.5 rounded-full bg-iron shadow-[0_1px_1px_rgb(255_255_255/0.35)]" />
-            </div>
-          ))}
+          {[0, 1, 2].map((index) => {
+            const drawer = labelled[index];
+            const face = cx("relative grid h-10 place-items-center rounded-[3px] bg-oak shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),inset_0_2px_5px_rgb(60_40_20/0.25)] transition-[translate,box-shadow] duration-300 ease-out hover:translate-y-1.5 hover:shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),0_6px_8px_-4px_rgb(0_0_0/0.5)]", index === 2 && "hidden sm:grid");
+            // A labelled drawer opens something; its brass plate says what is inside.
+            return drawer ? (
+              <button key={index} type="button" onClick={drawer.onOpen} className={cx(face, "min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper")}>
+                <span className="rounded-[2px] border border-oak-dark/60 bg-[#c9a24a] px-2.5 font-hand text-[15px] leading-5 text-[#3b2410] shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]">{drawer.label}</span>
+              </button>
+            ) : (
+              <div key={index} className={face}>
+                <span className="size-2.5 rounded-full bg-iron shadow-[0_1px_1px_rgb(255_255_255/0.35)]" />
+              </div>
+            );
+          })}
         </div>
       ) : <div className="bg-oak-v h-2 rounded-b-[6px]" />}
     </div>

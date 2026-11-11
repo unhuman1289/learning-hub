@@ -177,6 +177,15 @@
   line-height: 1.75rem;
 }
 
+/* Squared paper (kariert, 5 mm) for the progress sheet; text keeps a two-square line so marks sit on the grid. */
+@utility bg-graph {
+  background-color: var(--color-paper);
+  background-image:
+    linear-gradient(to right, var(--color-rule) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--color-rule) 1px, transparent 1px);
+  background-size: 1.125rem 1.125rem;
+}
+
 /* Lines only, scrolling with the text, for answers written "on the page". */
 @utility bg-lines {
   background-color: transparent;

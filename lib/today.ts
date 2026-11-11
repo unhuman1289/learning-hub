@@ -83,7 +83,7 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
         title: r.n + ' kỹ năng đến hạn ôn',
         category: 'review',
         minutes: 0,
-        reason: 'Mở lộ trình để xem; bộ ôn mới chỉ hiện khi đã được giao.',
+        reason: 'Xin một bài luyện tập để ôn lại.',
         optional: false,
         assignedDay: null,
         weight: r.weight,

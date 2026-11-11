@@ -1,5 +1,6 @@
 "use client";
 import type { ItemView } from "../../../lib/lesson-v2/store";
+import { pencil, RedPen, ResultStamp } from "../paper-bits";
 import { DisputeControl, type DisputeState } from "./dispute-dialog";
 function answerLabel(answer: string, item?: ItemView) {
   if (item?.input !== "choice") return answer;
@@ -30,68 +31,44 @@ export type SubmissionView = {
     dispute?: DisputeState;
   }[];
 };
+const stopped = (status?: string | null) => ["cancelled", "expired", "failed"].includes(status ?? "");
+
+/**
+ * The teacher's marks under an answer: a stamp, a remark in red pen and, when it may be shown, the correction.
+ * `earlier` renders an older try, with the answer that was handed in.
+ */
 export function Feedback({
   submission,
   items = [],
   readOnly = false,
   onRefresh,
   formatText = (text:string)=>text,
-  onRevealSolution,
-  compact = false,
+  earlier = false,
 }: {
   formatText?:(text:string)=>string;
   submission: SubmissionView | null;
   items?: ItemView[];
   readOnly?: boolean;
   onRefresh?: () => void;
-  compact?: boolean;
-  onRevealSolution?: (itemId: string) => void;
+  earlier?: boolean;
 }) {
   if (!submission) return null;
   return (
-    <section aria-label="Lời phê" className="space-y-6 py-4">
-      {!compact && <h2 className="font-hand text-2xl">Lời phê</h2>}
-      {submission.summary && (
-        <div className="border-l-4 border-accent pl-4">
-          <h3 className="font-semibold">Nhận xét chung</h3>
-          <p className="whitespace-pre-wrap break-words leading-7">{formatText(submission.summary)}</p>
-        </div>
-      )}
+    <section aria-label={earlier ? "Lần làm trước" : "Lời phê"}>
       {submission.attempts.map((a) => (
-        <div key={a.id} className="space-y-3 border-l border-accent pl-4">
-          <h3 className="font-semibold">
-            Lần {a.attempt_no} ·{" "}
-            {a.result === "correct" ? "Đúng" : a.result === "partial" ? "Đúng một phần" : a.result === "incorrect" ? "Cần sửa" : ['cancelled','expired','failed'].includes(submission.job_status ?? '')?"Chưa chấm":"Đang chờ chấm"}
-          </h3>
-          <p className="whitespace-pre-wrap break-words leading-7">
-            Bài đã nộp:{" "}
-            {formatText(answerLabel(
-              a.answer,
-              items.find((i) => i.id === a.item_id),
-            ))}
-          </p>
-          {a.feedback && <p className="whitespace-pre-wrap break-words leading-7 text-accent">{formatText(a.feedback)}</p>}
-          {a.correction && <p className="whitespace-pre-wrap break-words leading-7">Lời giải: {formatText(a.correction)}</p>}
-          {a.correctionHidden && (
-            <p className="text-sm text-muted">
-              Thử sửa lại câu này trước; bản sửa sẽ hiện nếu lần sau vẫn chưa đúng.{" "}
-              {!readOnly && onRevealSolution && (
-                <button
-                  type="button"
-                  className="underline underline-offset-2"
-                  onClick={() => {
-                    if (window.confirm("Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?")) onRevealSolution(a.item_id);
-                  }}
-                >
-                  Xem lời giải
-                </button>
-              )}
-            </p>
-          )}
-          {!a.result && <p className="text-sm text-muted">{['cancelled','expired','failed'].includes(submission.job_status ?? '')?"Câu trả lời đã lưu nhưng lượt chấm đã dừng.":"Câu trả lời đã lưu, đang chờ nhận lời phê."}</p>}
-          {a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} onChanged={onRefresh} />}
+        <div key={a.id}>
+          {earlier && <p className={pencil}>Lần {a.attempt_no}: {formatText(answerLabel(a.answer, items.find((i) => i.id === a.item_id)))}</p>}
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <ResultStamp result={a.result} />
+            {a.feedback && <RedPen className="min-w-0 flex-1 basis-60">{formatText(a.feedback)}</RedPen>}
+          </div>
+          {a.correction && <RedPen>✎ {formatText(a.correction)}</RedPen>}
+          {a.correctionHidden && <p className={pencil}>Thử sửa lại trước; bản sửa sẽ hiện nếu lần sau vẫn chưa đúng.</p>}
+          {!a.result && <p className={pencil}>{stopped(submission.job_status) ? "Câu trả lời đã lưu nhưng lượt chấm đã dừng." : "Đã lưu. Đang chờ thầy cô chấm…"}</p>}
+          {!earlier && a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} onChanged={onRefresh} />}
         </div>
       ))}
+      {!earlier && submission.summary && <RedPen className="mt-7">{formatText(submission.summary)}</RedPen>}
     </section>
   );
 }

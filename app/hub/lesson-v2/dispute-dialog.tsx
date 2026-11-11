@@ -1,5 +1,6 @@
 "use client";
 
+import { pencil, pencilLink } from "../paper-bits";
 import { useState } from "react";
 import { PaperDialog, fieldClass, labelClass } from "../paper-dialog";
 import { buttonClass } from "../ui";
@@ -75,20 +76,20 @@ export function DisputeControl({ attemptId, dispute, readOnly, onChanged }: { at
   }
 
   return (
-    <div className="mt-2 space-y-1 text-sm">
+    <div className="flex flex-wrap items-baseline gap-x-4">
       {dispute && (
-        <p role="status" className="text-muted">
+        <p role="status" className={pencil}>
           {statusText[dispute.status] ?? "Đang xem lại."}
           {dispute.note ? ` ${dispute.note}` : ""}
         </p>
       )}
       {!readOnly && (!dispute || finished) && (
-        <button type="button" className={buttonClass("ghost")} onClick={() => setOpen(true)}>
+        <button type="button" className={pencilLink} onClick={() => setOpen(true)}>
           Chấm sai?
         </button>
       )}
       {!readOnly && dispute && (dispute.status === "upheld" || dispute.status === "open") && (
-        <button type="button" className={buttonClass("ghost")} disabled={busy} onClick={() => void escalate()}>
+        <button type="button" className={pencilLink} disabled={busy} onClick={() => void escalate()}>
           Nhờ phụ huynh xem
         </button>
       )}

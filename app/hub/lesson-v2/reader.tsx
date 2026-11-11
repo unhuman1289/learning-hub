@@ -4,6 +4,7 @@ import {feedbackForItems} from "../../../lib/feedback-history";
 import {LessonSummary} from "./summary";
 import {GraderOffline} from "../runner-status";
 import {RouteLink} from "../ui";
+import {pencil, pencilLink} from "../paper-bits";
 import type {Route} from "../use-route";
 import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -12,7 +13,6 @@ import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { Drafts } from "../lesson-page";
 import { RuledPage } from "../../../components/notebook/paper";
 import { buttonClass } from "../ui";
-import { Cover } from "./cover";
 import { Sheet } from "./sheet";
 import { Stage } from "./stage";
 import { Feedback, type SubmissionView } from "./feedback";
@@ -52,7 +52,7 @@ export function LessonReader({
   onCompleted?: () => Promise<void>;
 }) {
   const [lesson, setLesson] = useState<Lesson | null>(null),
-    [view, setView] = useState<"cover" | "work" | "summary" | null>(null);
+    [view, setView] = useState<"work" | "summary" | null>(null);
   const [answers, setAnswers] = useState<DraftAnswers>({}),
     [error, setError] = useState(""),
     [state, setState] = useState(""),
@@ -286,37 +286,39 @@ export function LessonReader({
         {error || "Đang mở bài…"}
       </div>
     );
-  const mode = view ?? (lesson.completedAt ? "summary" : "cover");
+  const mode = view ?? (lesson.completedAt ? "summary" : "work");
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : undefined;
   const reflection = history.find(s => s.attempts.length > 0 && s.attempts.every(a => a.result));
   const frozen = readonly || !!lesson.completedAt;
   const openLesson = (next: string) => go({ view: "lesson", id: next });
   return (
-    <RuledPage className="mx-auto max-w-4xl space-y-6">
-      <RouteLink route={{view:"subject", id:lesson.subjectId}} go={go} className={buttonClass("ghost","-ml-2")}>
+    <RuledPage className="mx-auto max-w-4xl">
+      <RouteLink route={{view:"subject", id:lesson.subjectId}} go={go} className={pencilLink}>
         ← {lesson.subjectTitle}
       </RouteLink>
-      {readonly && <p className="bg-rose-soft p-3">Đang xem bài của người học — chỉ đọc.</p>}
-      {mode === "cover" ? (
-        <Cover title={lesson.title} objective={lesson.objective} why={lesson.why} minutes={lesson.estMinutes} onStart={() => setView("work")} />
-      ) : (
+      {readonly && <p className={pencil}>Đang xem bài của người học — chỉ đọc.</p>}
+      {(
         <>
-          <h1 className="text-balance font-print text-3xl leading-tight sm:text-4xl">{lesson.title}</h1>
-          <GraderOffline waiting={waitingForGrade} what="Câu đang chờ" />
-          {feedbackError && <p role="alert" className="bg-paper py-2">{feedbackError} <button onClick={() => void refreshFeedback()} className="underline">Tải lại lời phê</button></p>}
-          {error && <p role="alert" className="bg-paper py-2 text-accent">{error}</p>}
+          <h1 className="relative top-2.5 text-balance font-print text-[2rem] font-medium leading-[3.5rem]">{lesson.title}</h1>
+          {mode === "work" && <>
+            <p>{lesson.objective}</p>
+            <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
+          </>}
+          <GraderOffline waiting={waitingForGrade} />
+          {feedbackError && <p role="alert">{feedbackError} <button onClick={() => void refreshFeedback()} className={pencilLink}>Tải lại lời phê</button></p>}
+          {error && <p role="alert" className="text-brick">{error}</p>}
           {mode === "summary" ? (
             <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
-              reflectionId={reflection?.id} onOpen={openLesson} onHome={() => go({view:"desk"})} onReview={() => setView("work")} />
+              reflectionId={reflection?.id} onOpen={openLesson} go={go} onHome={() => go({view:"desk"})} onReview={() => setView("work")} />
           ) : (
             <>
               {(lesson.sheet || lesson.sections.length > 0 || lesson.diagram) && (
-                <details className="bg-paper py-3">
-                  <summary className="min-h-11 cursor-pointer font-hand text-xl text-accent">Kiến thức và ví dụ</summary>
-                  <div className="space-y-4">
+                <details className="mt-7">
+                  <summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Kiến thức và ví dụ</summary>
+                  <div>
                     <Sheet sheet={lesson.sheet} formatText={formatText} />
                     {lesson.sections.map((section, i) => (
-                      <section key={i}><h2 className="font-hand text-xl">{section.heading}</h2><p className="whitespace-pre-wrap leading-7">{section.text}</p></section>
+                      <section key={i} className="mt-7"><h2 className="font-hand text-xl leading-7">{section.heading}</h2><p className="whitespace-pre-wrap">{section.text}</p></section>
                     ))}
                     {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
                     {lesson.sources.map((source, i) => (
@@ -325,7 +327,8 @@ export function LessonReader({
                   </div>
                 </details>
               )}
-              {lesson.output && <p className="bg-paper py-2">Đầu ra: {lesson.output}</p>}
+              {lesson.output && <p className="mt-7">Đầu ra: {lesson.output}</p>}
+              <div className="h-7" />
               <Stage formatText={formatText} items={lesson.items} answers={answers} disabled={busy || !!pending}
                 readOnly={frozen} onChange={change} onReveal={reveal} actions={(item) => {
                   const past = feedbackForItems(history,[item.id]), current = past[0];
@@ -339,18 +342,19 @@ export function LessonReader({
                     onSubmit: () => void submit(item.id), canSubmit,
                     submitLabel: current ? "Kiểm tra lại" : "Kiểm tra",
                     feedback: current && <>
-                      <Feedback compact submission={current} items={[item]} readOnly={frozen} formatText={formatText} onRefresh={() => void refreshFeedback()} />
-                      {previous.length > 0 && <details className="border-t border-line pt-2"><summary className="cursor-pointer text-sm text-accent">Lần trước</summary>
-                        {previous.map(s => <Feedback compact key={s.id} submission={s} items={[item]} readOnly={frozen} formatText={formatText} onRefresh={() => void refreshFeedback()} />)}
+                      <Feedback submission={current} items={[item]} readOnly={frozen} formatText={formatText} onRefresh={() => void refreshFeedback()} />
+                      {previous.length > 0 && <details><summary className={pencilLink + " cursor-pointer"}>Lần trước</summary>
+                        {previous.map(s => <Feedback earlier key={s.id} submission={s} items={[item]} readOnly={frozen} formatText={formatText} />)}
                       </details>}
                     </>,
                   };
                 }} />
-              <div role="status" className="min-h-6 text-sm text-muted">{state}</div>
-              {!readonly && <button className={buttonClass(lesson.completedAt ? "ghost" : "primary")} disabled={busy || !!pending} onClick={() => void complete()}>
-                {lesson.completedAt ? "Mở lại để sửa" : "Xong bài"}
-              </button>}
-              {lesson.completedAt && <button className={buttonClass("secondary")} onClick={() => setView("summary")}>Xem tổng kết</button>}
+              <div className="flex h-14 flex-wrap items-center gap-x-5">
+                {!readonly && !lesson.completedAt && <button className={buttonClass("primary")} disabled={busy || !!pending} onClick={() => void complete()}>Xong bài</button>}
+                {!readonly && lesson.completedAt && <button className={pencilLink} disabled={busy || !!pending} onClick={() => void complete()}>Mở lại để sửa</button>}
+                {lesson.completedAt && <button className={pencilLink} onClick={() => setView("summary")}>Xem tổng kết</button>}
+                <span role="status" className={pencil}>{state}</span>
+              </div>
             </>
           )}
         </>

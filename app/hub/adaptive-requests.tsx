@@ -2,18 +2,34 @@
 
 import { useEffect, useRef, useState } from "react";
 import { apiJson } from "./api";
+import { cx } from "../../components/notebook/paper";
+import { clockTime, pencil, pencilLink } from "./paper-bits";
 import { buttonClass, RouteLink } from "./ui";
 import type { Route } from "./use-route";
 
 type Mode = "learn" | "practice" | "personal";
-type RequestRow = { id: string; mode: Mode | null; text: string; status: string; jobStatus: string | null; resultLessonId: string | null; responseNote: string | null };
+type RequestRow = { id: string; mode: Mode | null; text: string; status: string; jobStatus: string | null; resultLessonId: string | null; responseNote: string | null; createdAt: string };
 type Input = { mode: Mode; clientRequestId: string; subjectId: string; note: string };
 const labels = { learn: "Học mới", practice: "Luyện tập", personal: "Cá nhân hóa" };
+const modes: Mode[] = ["learn", "practice", "personal"];
+const flagColor = { learn: "bg-postit-yellow", practice: "bg-postit-mint", personal: "bg-postit-rose" };
+/** A request flag: a strip of coloured paper stuck to the page. */
+const flag = "min-h-11 rounded-[2px] px-4 font-hand text-lg leading-7 text-postit-ink shadow-[0_3px_6px_-3px_rgb(0_0_0/0.45)] transition-transform hover:-translate-y-0.5 disabled:opacity-60 sm:hover:translate-y-0 sm:hover:-translate-x-1";
+const DAY = 24 * 60 * 60 * 1000;
+/** One line per kind of request: whatever is still being written, else the newest result or failure of the last day. */
+function current(rows: RequestRow[], now: number) {
+  return modes.flatMap(mode => {
+    const mine = rows.filter(row => row.mode === mode);
+    const row = mine.find(waiting) ?? mine.find(item => now - Date.parse(item.createdAt) < DAY);
+    return row ? [row] : [];
+  });
+}
 const waiting = (row: RequestRow) => !row.resultLessonId && ["queued", "in_job"].includes(row.status) &&
   !["failed", "expired", "cancelled"].includes(row.jobStatus ?? "");
 
-export function AdaptiveRequests({ subjectId, learner, go, onSaved }: {
-  subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void;
+/** `edge` hangs the three request flags on the page edge like index tabs (notebook page); otherwise they sit in the text. */
+export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false }: {
+  subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; edge?: boolean;
 }) {
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [personal, setPersonal] = useState(false);
@@ -21,7 +37,6 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved }: {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [attempt, setAttempt] = useState<Input>();
-  const [page, setPage] = useState(0);
   const inflight = useRef(false);
   const personalButton = useRef<HTMLButtonElement>(null);
   const seen = useRef(new Set<string>());
@@ -38,7 +53,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved }: {
         if (!active) return;
         if (requests.some(row => row.resultLessonId && !seen.current.has(row.id))) onSaved();
         requests.forEach(row => { if (row.resultLessonId) seen.current.add(row.id); });
-        setRows(requests);
+        setRows(current(requests, Date.now()));
       } catch (cause) {
         if (active) setError((cause as Error).message);
       }
@@ -63,7 +78,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved }: {
     setAttempt(input);
     try {
       const { request } = await apiJson<{ request: RequestRow }>(postUrl, { method: "POST", json: input });
-      setRows(current => [request, ...current.filter(row => row.id !== request.id)]);
+      setRows(shown => [request, ...shown.filter(row => row.mode !== request.mode)]);
       setAttempt(undefined);
       if (mode === "personal") { setPersonal(false); setNote(""); personalButton.current?.focus(); }
     } catch (cause) {
@@ -74,34 +89,32 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved }: {
     }
   }
 
-  return <div className="space-y-3">
-    <div className="flex flex-wrap gap-2">
-      <button type="button" disabled={busy} className={buttonClass("primary")} onClick={() => void send("learn")}>Học mới</button>
-      <button type="button" disabled={busy} className={buttonClass("ghost")} onClick={() => void send("practice")}>Luyện tập</button>
-      <button type="button" ref={personalButton} aria-expanded={personal} className={buttonClass("ghost")} onClick={() => setPersonal(!personal)}>Cá nhân hóa</button>
+  return <div>
+    <div className={cx("flex flex-wrap gap-2 py-1.5", edge && "sm:absolute sm:right-0 sm:top-7 sm:translate-x-2 sm:flex-col sm:items-end sm:gap-3 sm:py-0")}>
+      {modes.map(mode => mode === "personal"
+        ? <button key={mode} type="button" ref={personalButton} aria-expanded={personal} className={cx(flag, flagColor[mode])} onClick={() => setPersonal(!personal)}>{labels[mode]}</button>
+        : <button key={mode} type="button" disabled={busy} className={cx(flag, flagColor[mode])} onClick={() => void send(mode)}>{labels[mode]}</button>)}
     </div>
-    {personal && <form className="grid gap-2" onSubmit={event => { event.preventDefault(); void send("personal"); }}>
-      <label>Hôm nay bạn muốn luyện gì?
-        <textarea className="block w-full rounded border border-line p-2" autoFocus required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="Ví dụ: Viết email dời lịch họp." />
+    {personal && <form onSubmit={event => { event.preventDefault(); void send("personal"); }}>
+      <label className="block">Hôm nay bạn muốn luyện gì?
+        <textarea className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 placeholder:text-muted/70 focus:outline-none focus-visible:shadow-[inset_3px_0_0_var(--color-accent)]" rows={2} autoFocus required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="Ví dụ: viết email dời lịch họp." />
       </label>
-      <span className="text-sm text-muted">{note.length}/1000</span>
-      <div className="flex gap-2">
-        <button className={buttonClass("primary")} disabled={busy || !note.trim()}>Soạn bài</button>
-        <button type="button" className={buttonClass("ghost")} onClick={() => { setPersonal(false); personalButton.current?.focus(); }}>Đóng</button>
+      <div className="flex h-14 items-center gap-4">
+        <button className={buttonClass("secondary", "min-h-9")} disabled={busy || !note.trim()}>Soạn bài</button>
+        <button type="button" className={pencilLink} onClick={() => { setPersonal(false); personalButton.current?.focus(); }}>Đóng</button>
       </div>
     </form>}
-    {error && <p role="alert">{error} {attempt && <button type="button" disabled={busy} className={buttonClass("ghost")} onClick={() => void send(attempt.mode, attempt)}>Gửi lại</button>}</p>}
-    <ul aria-live="polite" className="grid gap-2">
-      {rows.slice(0, 3 + page * 10).map(row => <li key={row.id}>
-        {row.mode && <strong>{labels[row.mode]} · </strong>}
-        {row.resultLessonId ? <>Bài đã sẵn sàng. <RouteLink route={{view:"lesson",id:row.resultLessonId}} go={go} className={buttonClass("ghost")}>Mở bài</RouteLink></>
-          : waiting(row) ? row.jobStatus === "leased" ? "Đang soạn bài…" : row.jobStatus ? "Đang chờ soạn." : "Đã nhận yêu cầu."
-          : <>{row.responseNote || "Chưa soạn được bài."} {row.mode && <button type="button" disabled={busy} className={buttonClass("ghost")} onClick={() => {
+    {error && <p role="alert" className="text-brick">{error} {attempt && <button type="button" disabled={busy} className={pencilLink} onClick={() => void send(attempt.mode, attempt)}>Gửi lại</button>}</p>}
+    <ul aria-live="polite">
+      {rows.map(row => <li key={row.id} className={pencil}>
+        {row.mode && labels[row.mode]} · {clockTime(row.createdAt)} ·{" "}
+        {row.resultLessonId ? <>bài đã sẵn sàng. <RouteLink route={{view:"lesson",id:row.resultLessonId}} go={go} className={pencilLink}>Mở bài</RouteLink></>
+          : waiting(row) ? row.jobStatus === "leased" ? "đang soạn bài…" : "đã nhận, đang chờ soạn."
+          : <>{row.responseNote || "chưa soạn được bài."} {row.mode && <button type="button" disabled={busy} className={pencilLink} onClick={() => {
               if (row.mode === "personal") { setNote(row.text); setPersonal(true); }
               else if (row.mode) void send(row.mode);
             }}>Thử lại</button>}</>}
       </li>)}
     </ul>
-    {rows.length > 3 + page * 10 && <button type="button" className={buttonClass("ghost")} onClick={() => setPage(page + 1)}>Xem thêm lượt</button>}
   </div>;
 }

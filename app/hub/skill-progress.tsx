@@ -1,8 +1,9 @@
 "use client";
 import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useState } from "react";
-import { buttonClass, RouteLink } from "./ui";
 import type { Route } from "./use-route";
+import { fieldClass } from "./paper-dialog";
+import { Dots, masteryDots, pencil, pencilLink, shortDay, skillLabel } from "./paper-bits";
 const masteryText: Record<string, string> = {
   not_assessed: "Chưa đánh giá",
   introduced: "Đã tiếp cận",
@@ -26,42 +27,14 @@ type Skill = {
 };
 type ProgressData={timeline?:{day:string;minutes:number;lessons?:{id:string;title:string}[]}[];skills:Skill[];errors:Pattern[];effort:{minutes:number;days:number;attempts:number;retries:number}|null;subject:{level:string;progressSummary?:string;progressUpdatedAt?:string|null;roadmap:{title:string;objective:string;situation:string;skills:string[];mode:string}[]}};
 type Pattern = { id: string; label: string; confidence: string; status: string };
-/** Deutsch notebooks group skills and errors by G/P/N, from the skill key prefix and the error label prefix (L3.2). */
-const facets = [
-  ["g", "Ngữ pháp"],
-  ["p", "Dấu câu, chính tả"],
-  ["n", "Độ tự nhiên"],
-] as const;
+/** Deutsch skills carry a G/P/N facet in the key prefix (grammar, punctuation, naturalness). */
 export const skillFacet = (key?: string) => /^([gpn])-/.exec(key ?? "")?.[1] ?? null;
-export const errorFacet = (label: string) => /^([GPN]):/.exec(label)?.[1]?.toLowerCase() ?? null;
-function FacetSummary({ skills, errors }: { skills: Skill[]; errors: Pattern[] }) {
-  if (!skills.some((s) => skillFacet(s.key))) return null;
-  return (
-    <dl className="grid grid-cols-3 gap-2 text-sm">
-      {facets.map(([facet, name]) => {
-        const group = skills.filter((s) => skillFacet(s.key) === facet);
-        const open = errors.filter((e) => e.status !== "resolved" && errorFacet(e.label) === facet).length;
-        return (
-          <div key={facet} className="rounded border border-line p-2">
-            <dt className="font-semibold">
-              {facet.toUpperCase()} · {name}
-            </dt>
-            <dd>
-              {group.filter((s) => s.mastery === "demonstrated").length}/{group.length} kỹ năng đã tự làm được
-            </dd>
-            <dd>{open ? open + " lỗi cần chú ý" : "Không có lỗi đang mở"}</dd>
-          </div>
-        );
-      })}
-    </dl>
-  );
-}
-function Progress({ subjectId, learner, canEdit, go, showPath = true }: { subjectId: string; learner?: string | null; canEdit?: boolean; go?: (route: Route) => void; showPath?: boolean }) {
+function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId: string; learner?: string | null; canEdit?: boolean; go?: (route: Route) => void; showPath?: boolean }) {
   const [data, setData] = useState<ProgressData | null>(null),
     [error, setError] = useState(""),
     [note, setNote] = useState(""),
     [saving, setSaving] = useState(false);
-  const [selectedDay, setSelectedDay] = useState<string>();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin" }).format(new Date());
   const url = "/api/subjects/" + subjectId + (learner ? "?learner=" + encodeURIComponent(learner) : "");
   async function load() {
     const r = await fetch(url, { cache: "no-store" }),
@@ -108,121 +81,67 @@ function Progress({ subjectId, learner, canEdit, go, showPath = true }: { subjec
       setSaving(false);
     }
   }
+  const skills = data?.skills.filter((s) => s.status !== "retired") ?? [];
+  const openErrors = data?.errors.filter((e) => e.status !== "resolved") ?? [];
+  const heading = "mt-7 font-hand text-xl leading-7 text-accent";
   return (
-    <section aria-label="Lộ trình và tiến bộ" className="my-6 grid gap-4 rounded border border-line bg-paper p-4">
-      <h2 className="font-hand text-2xl">Kỹ năng, cố gắng và lộ trình</h2>
-      {error && (
-        <p role="alert" className="text-accent">
-          {error}
-        </p>
-      )}
-      {!data && !error && <p role="status">Đang đọc tiến độ đã lưu…</p>}
+    <section aria-label="Lộ trình và tiến bộ">
+      {error && <p role="alert" className="text-brick">{error} <button className={pencilLink} onClick={() => void load().catch((e) => setError(e.message))}>Tải lại</button></p>}
+      {!data && !error && <p role="status" className={pencil}>Đang đọc tiến độ đã lưu…</p>}
       {data && (
         <>
           {showPath && (
-            <section className="space-y-3 bg-paper py-3" aria-label="Tiến độ">
-              <h3 className="font-semibold">Tiến độ</h3>
+            <section aria-label="Tiến độ">
+              <h2 className={heading}>Tiến độ{data.subject.progressUpdatedAt ? ` · ${shortDay(data.subject.progressUpdatedAt)}` : ""}</h2>
               {data.subject.progressSummary && <p className="whitespace-pre-wrap">{data.subject.progressSummary}</p>}
               {data.subject.roadmap?.length ? <>
-                <h4 className="text-sm font-semibold">Bước tiếp theo</h4>
-                <ol className="list-decimal space-y-1 pl-5">
-                  {data.subject.roadmap.slice(0,3).map((step,i)=><li key={i}>{step.title} · {step.objective}</li>)}
+                <p className={pencil}>Các bước tiếp theo</p>
+                <ol>
+                  {data.subject.roadmap.slice(0,3).map((step,i)=><li key={i}><span className="font-hand text-xl text-accent">{i+1}.</span> {step.title} <span className="text-muted">· {step.objective}</span></li>)}
                 </ol>
-                {data.subject.roadmap.length > 3 && <details><summary className="min-h-11 cursor-pointer py-2 text-accent">Xem các bước còn lại</summary>
-                  <ol start={4} className="list-decimal space-y-2 pl-5">{data.subject.roadmap.slice(3).map((step,i)=><li key={i}>{step.title} · {step.objective}</li>)}</ol>
+                {data.subject.roadmap.length > 3 && <details><summary className={pencilLink + " cursor-pointer"}>Xem các bước còn lại</summary>
+                  <ol>{data.subject.roadmap.slice(3).map((step,i)=><li key={i}><span className="font-hand text-xl text-accent">{i+4}.</span> {step.title} <span className="text-muted">· {step.objective}</span></li>)}</ol>
                 </details>}
-              </> : <p className="text-sm text-muted">Chưa có lộ trình cho sổ này.</p>}
+              </> : !data.subject.progressSummary && <p className={pencil}>Lộ trình sẽ có sau bài đầu tiên.</p>}
             </section>
           )}
-          {data.timeline && <section aria-label="Nhịp học 14 ngày">
-            <h3 className="font-semibold">Nhịp học 14 ngày</h3>
-            <div className="grid grid-cols-[repeat(14,minmax(0,1fr))] items-end gap-1">
-              {data.timeline.map(({day, minutes}) => <button type="button" key={day} onClick={() => setSelectedDay(day)} aria-pressed={selectedDay === day}
-                className="grid h-28 min-w-0 content-end text-center text-xs"
-                title={`${day}: ${Math.round(minutes)} phút`} aria-label={`${day}: ${Math.round(minutes)} phút`}>
-                <span aria-hidden="true" className="rounded-t bg-accent" style={{height: Math.max(2, 80*minutes/Math.max(1, ...data.timeline!.map(row => row.minutes)))}} />
-                <span aria-hidden="true">{day.slice(-2)}</span>
-              </button>)}
-            </div>
-            {selectedDay && <div className="mt-2 text-sm">
-              <p>{selectedDay} · {Math.round(data.timeline.find(row => row.day === selectedDay)?.minutes ?? 0)} phút</p>
-              {go && data.timeline.find(row => row.day === selectedDay)?.lessons?.map(lesson => <RouteLink key={lesson.id}
-                route={{view:"lesson",id:lesson.id}} go={go} className="block underline">{lesson.title}</RouteLink>)}
-            </div>}
-          </section>}
-          {data.effort && <section aria-label="Cố gắng trong 14 ngày"><h3 className="font-semibold">Cố gắng trong 14 ngày</h3><p>{Math.round(data.effort.minutes)} phút đã đo · {data.effort.days} ngày học · {data.effort.attempts} lần trả lời · {data.effort.retries} lần làm lại</p><p className="text-sm text-muted">Cố gắng và mức thành thạo được theo dõi riêng.</p></section>}
-          <h3 className="font-semibold">Kỹ năng đang học và cần ôn</h3>
-          {!data.skills.length && <p>Chưa có kỹ năng được giao.</p>}
-          <FacetSummary skills={data.skills} errors={data.errors} />
-          <ul className="grid gap-3">
-            {data.skills.filter(s=>s.status!=="retired").map((s) => (
-              <li key={s.id} className="border-b border-line pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong>
-                    {skillFacet(s.key) && <span className="mr-1 text-sm text-muted">{skillFacet(s.key)!.toUpperCase()}</span>}
-                    {s.name}
-                  </strong>
-                  <span>{masteryText[s.mastery ?? "not_assessed"]}</span>
-                </div>
-                <meter className="w-full" min={0} max={3} value={s.dim_application ?? 0} aria-label={`Bằng chứng vận dụng: ${s.name}`} />
-                <dl className="mt-2 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-                  {[
-                    ["Hiểu", s.dim_knowledge],
-                    ["Nhận diện", s.dim_recognition],
-                    ["Vận dụng", s.dim_application],
-                    ["Ghi nhớ", s.dim_retention],
-                  ].map(([name, n]) => (
-                    <div key={name}>
-                      <dt>{name}</dt>
-                      <dd>{s.mastery===null || s.mastery==="not_assessed" ? "Chưa đủ bằng chứng" : `${n ?? 0}/3`}</dd>
-                    </div>
-                  ))}
-                </dl>
-                {s.next_review_day && <p className="mt-1 text-sm">Ôn lại: {s.next_review_day}</p>}
-                {canEdit && (
-                  <label className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-                    Đặt trạng thái{" "}
-                    <select
-                      aria-label={"Đặt trạng thái " + s.name}
-                      disabled={saving}
-                      value={s.mastery ?? "not_assessed"}
-                      onChange={(e) => void setMastery(s, e.target.value)}
-                      className="rounded border border-line bg-paper px-2 py-1"
-                    >
-                      {Object.entries(masteryText).map(([k, v]) => (
-                        <option key={k} value={k}>
-                          {v}
-                        </option>
-                      ))}
+          <h2 className={heading}>Kỹ năng</h2>
+          {!skills.length && <p className={pencil}>Chưa có kỹ năng nào.</p>}
+          <ul>
+            {skills.map((s) => {
+              const due = s.mastery === "needs_review" || (!!s.next_review_day && s.next_review_day <= today);
+              return (
+                <li key={s.id} className="flex flex-wrap items-center gap-x-3">
+                  <Dots value={masteryDots[s.mastery ?? "not_assessed"] ?? 0} label={masteryText[s.mastery ?? "not_assessed"]} />
+                  <span className="min-w-0 flex-1 break-words">
+                    {skillFacet(s.key) && <span className="mr-1.5 font-hand text-accent">{skillFacet(s.key)!.toUpperCase()}</span>}
+                    {skillLabel(s.name)}
+                  </span>
+                  <span className={pencil}>{due ? "cần ôn" : s.next_review_day ? `ôn lại ${shortDay(s.next_review_day)}` : masteryText[s.mastery ?? "not_assessed"].toLowerCase()}</span>
+                  {canEdit && (
+                    <select aria-label={"Đặt trạng thái " + skillLabel(s.name)} disabled={saving} value={s.mastery ?? "not_assessed"} onChange={(e) => void setMastery(s, e.target.value)} className="h-7 border-0 border-b border-rule bg-transparent text-sm">
+                      {Object.entries(masteryText).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                     </select>
-                  </label>
-                )}
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+          {canEdit && skills.length > 0 && (
+            <label className="block text-sm text-muted">Lý do khi đặt trạng thái bằng tay
+              <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className={fieldClass} />
+            </label>
+          )}
+          <h2 className={heading}>Lỗi lặp</h2>
+          {!openErrors.length && <p className={pencil}>Chưa ghi nhận lỗi lặp nào.</p>}
+          <ul>
+            {openErrors.map((e) => (
+              // Noted like a teacher's margin remark; a suspected pattern is written in pencil until confirmed.
+              <li key={e.id} className={e.confidence === "suspected" ? pencil : "font-hand text-[19px] leading-7 text-brick"}>
+                {e.label.replace(/^[GPN]:\s*/, "")}{e.status === "improving" ? " · đang cải thiện" : ""}{e.confidence === "suspected" ? " · đang theo dõi" : ""}
               </li>
             ))}
           </ul>
-          {canEdit && (
-            <label className="grid gap-1 text-sm">
-              Lý do đặt trạng thái bằng tay
-              <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className="rounded border border-line bg-paper p-2" />
-            </label>
-          )}
-          <h3 className="font-semibold">Điểm cần cải thiện</h3>
-          {!data.errors.some(e=>e.status!=="resolved")&&<p className="text-sm">Chưa ghi nhận mẫu lỗi đang mở; điều này không có nghĩa là đã thành thạo.</p>}
-          <ul className="text-sm">
-            {data.errors
-              .filter((e) => e.status !== "resolved")
-              .map((e) => (
-                <li key={e.id}>
-                  {e.confidence === "suspected" ? "Nghi ngờ: " : ""}
-                  {e.label} — {e.status === "improving" ? "đang cải thiện" : "cần chú ý"}
-                </li>
-              ))}
-          </ul>
-          {error && (
-            <button className={buttonClass("secondary")} onClick={() => void load().catch((e) => setError(e.message))}>
-              Tải lại
-            </button>
-          )}
         </>
       )}
     </section>
