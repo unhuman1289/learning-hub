@@ -155,7 +155,7 @@ Viết 11/11/2026, dựa trên `main` @ `9317f67`. Nguồn: audit giao diện c�
 - `history-panel.tsx:65` đổi `text-red-800 dark:text-red-300` → `text-brick`.
 - `notebook-view.tsx:104` bọc tab "Mục tiêu" (hub2) trong `RuledPage`.
 
-**Test:** `scripts/check-targets.mjs` (chạy bằng Playwright đã có trong devDependencies? nếu chưa có thì dùng trình duyệt của phiên làm việc) đo mọi `a,button,summary,input,select,textarea,[role=button]` hiển thị ≥ 44×44 trên 4 trang chính ở 375px; in danh sách vi phạm. Không đưa vào CI nếu không có trình duyệt trong CI.
+**Test:** `scripts/check-targets.js`, một đoạn script dán vào console của trình duyệt (repo chưa có Playwright, không thêm dependency): đo mọi `a,button,summary,input,select,textarea,[role=button]` đang hiển thị, in những phần tử nhỏ hơn 44×44. Chạy trên bàn, sổ, bài, tổng kết ở 375px và ghi kết quả vào PR. Không đưa vào CI.
 
 **Đạt khi:** 0 vi phạm 44px trên bàn, sổ, bài, tổng kết; không còn `window.confirm` trong `app/`; chế độ tối giấy màu kem, chữ trên giấy tương phản ≥ 4.5:1.
 
