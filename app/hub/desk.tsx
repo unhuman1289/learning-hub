@@ -1,6 +1,7 @@
 "use client";
 
-import { DeskDecor, DeviceDate, FurnitureDecor } from "./desk-decor";
+import { useState } from "react";
+import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock } from "./lubeck/window";
 import { DeskProgress } from "./desk-progress";
 import { PostIt } from "../../components/notebook/post-it";
 import {TodayBoard} from "./today-board";
@@ -43,6 +44,9 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
+  const clock = useBerlinClock();
+  // How dark it is outside the window; after dusk the desk lamp comes on.
+  const [darkness, setDarkness] = useState(0);
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
   // The desk only holds lessons that still need attention.
@@ -76,9 +80,9 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8">
       {/* Entering the study: a greeting by the garden window. */}
-      <section className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 sm:gap-6">
-        <div>
-          <DeviceDate />
+      <section className="flex items-center gap-4">
+        <CalendarLeaf clock={clock} />
+        <div className="min-w-0">
           <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{readOnly ? `Kệ của ${viewedName}` : `Chào ${name}.`}</h1>
           {viewing.learners.length > 1 && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem kệ của
@@ -90,14 +94,16 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
             </label>
           )}
         </div>
-        <DeskDecor />
       </section>
 
       <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
-        <OakDesk drawers className="min-w-0">
-          <div className="mb-4 flex items-center justify-between gap-2 px-1">
+        <div className="min-w-0">
+        {/* The window sits on the wall directly above the desk; its sill meets the desk top. */}
+        <LubeckWindow clock={clock} onDarkness={setDarkness} className="mx-auto max-w-[44rem]" />
+        <OakDesk drawers lamp={darkness * 0.5}>
+          <div className="mb-4 flex items-end justify-between gap-2 px-1">
             <h2 className="font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
-            <FurnitureDecor place="desk" />
+            <SeasonItem place="desk" month={clock?.month} />
           </div>
           <TodayBoard key={viewing.id ?? "self"} learner={viewing.id} go={go} enabled={hub2} notes={notes} loadingLegacy={loading} />
           {daily.error && (
@@ -107,10 +113,11 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
             </p>
           )}
         </OakDesk>
+        </div>
 
         <Bookcase
           className="lg:sticky lg:top-24"
-          counterDecoration={<FurnitureDecor place="bookcase" />}
+          counterDecoration={<SeasonItem place="shelf" month={clock?.month} />}
           title={<><h2 className="font-print text-xl font-medium">Tủ sách</h2><span className="text-sm opacity-80">Lấy một cuốn sổ</span></>}
         >
           {shelf.subjects === null && <p className="col-span-full px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}

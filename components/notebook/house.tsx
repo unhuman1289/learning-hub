@@ -2,10 +2,14 @@ import type { ReactNode } from "react";
 import { cx } from "./paper";
 
 /** Oak desk top: boards with a front edge. Paper and notebooks lie on it. */
-export function OakDesk({ children, className, drawers = false }: { children: ReactNode; className?: string; drawers?: boolean }) {
+/** `lamp` (0–1) is how much the desk lamp shows: a warm pool of light on the boards after dusk. */
+export function OakDesk({ children, className, drawers = false, lamp = 0 }: { children: ReactNode; className?: string; drawers?: boolean; lamp?: number }) {
   return (
     <div className={cx("rounded-[6px] shadow-furniture", className)}>
-      <div className="bg-oak-planks rounded-t-[6px] p-2.5 sm:p-5">{children}</div>
+      <div className="bg-oak-planks relative rounded-t-[6px] p-2.5 sm:p-5">
+        {lamp > 0 && <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-t-[6px] bg-[radial-gradient(ellipse_at_50%_45%,rgb(255_213_138/0.55),transparent_70%)] transition-opacity duration-1000" style={{ opacity: lamp }} />}
+        <div className="relative">{children}</div>
+      </div>
       {/* Front edge of the desk top. */}
       <div className="bg-oak h-2.5 border-y border-oak-dark/70 brightness-90" />
       {drawers ? (
@@ -76,22 +80,6 @@ export function Shelf({ children }: { children: ReactNode }) {
     <div className="flex min-w-0 flex-col justify-end">
       <div className="px-2 sm:px-3">{children}</div>
       <div className="bg-oak mt-0 h-3 border-b-2 border-oak-dark/70 shadow-[0_4px_6px_-2px_rgb(0_0_0/0.45)]" />
-    </div>
-  );
-}
-
-/** Black steel-framed garden window, purely decorative. */
-export function GardenWindow({ className }: { className?: string }) {
-  return (
-    <div aria-hidden="true" className={cx("relative overflow-hidden rounded-[2px] border-[6px] border-iron bg-[linear-gradient(to_bottom,var(--color-glass)_0%,var(--color-glass)_45%,var(--color-garden)_100%)] shadow-furniture", className)}>
-      {/* Tree crowns and hedge, softly blurred like the view through glass. */}
-      <div className="absolute -left-6 top-6 size-28 animate-sway rounded-full bg-garden opacity-80 blur-md" />
-      <div className="absolute right-4 top-2 size-24 animate-sway rounded-full bg-garden opacity-70 blur-md [animation-delay:-3s]" />
-      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-garden opacity-90 blur-[2px]" />
-      {/* Mullions */}
-      <div className="absolute inset-0 grid grid-cols-3 grid-rows-3">
-        {Array.from({ length: 9 }, (_, index) => <span key={index} className="border-[2px] border-iron" />)}
-      </div>
     </div>
   );
 }
