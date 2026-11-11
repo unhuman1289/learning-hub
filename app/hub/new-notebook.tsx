@@ -72,7 +72,7 @@ export function NewNotebookDialog({ shelf, forName, onClose, onCreated }: {
                 placeholder="Ví dụ: Ôn phân số lớp 7 bằng bài tập ngắn, theo sách Kết nối tri thức."
                 onChange={(event) => setGoal(event.target.value)} className={fieldClass} />
             </label>
-            <p id="new-notebook-hint" className="mt-1 text-sm leading-6 text-muted">Bạn có thể ghi mục tiêu, cách muốn học, trình độ hoặc tên sách. ChatGPT sẽ lập lộ trình và soạn bài đầu tiên.</p>
+            <p id="new-notebook-hint" className="mt-1 text-sm leading-6 text-muted">Bạn có thể ghi mục tiêu, cách muốn học, trình độ hoặc tên sách. Hub sẽ lập lộ trình và soạn bài đầu tiên.</p>
           </div>
         )}
         {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}

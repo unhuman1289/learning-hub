@@ -70,6 +70,8 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     }
     if (path.join('/') === 'schema' && req.method === 'GET') return Response.json({ contracts: contractSchemas() }, { headers });
     if (path.join('/') === 'jobs/lease' && req.method === 'POST') {
+      if (env.AI_LOCAL_ONLY === 'true' && client.id !== (env.GRADER_CLIENT_ID ?? 'home-runner'))
+        throw new ApiError(403, 'Lượt xử lý chỉ dành cho máy ở nhà.');
       const input = leaseBody.safeParse(body);
       if (!input.success) throw new ApiError(400, 'Lease request không hợp lệ.');
       return Response.json({ jobs: await leaseJobs(db, client, input.data, env.ENVIRONMENT ?? 'unknown') }, { headers });
