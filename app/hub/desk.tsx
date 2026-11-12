@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { skyClock } from "../../lib/lubeck/sky";
 import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock, useDeviceClock } from "./lubeck/window";
 import { DeskProgress } from "./desk-progress";
 import { LearnedLessons } from "./learned-lessons";
@@ -54,9 +55,10 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
-  // The sky is Lübeck's; the date and the greeting are the learner's own.
-  const clock = useBerlinClock();
+  // The date, the hour and the greeting are the learner's own; sun, moon and weather are Lübeck's.
+  const lubeck = useBerlinClock();
   const deviceDay = useDeviceClock();
+  const clock = useMemo(() => (lubeck && deviceDay ? skyClock(lubeck, deviceDay) : undefined), [lubeck, deviceDay]);
   // How dark it is outside the window; after dusk the desk lamp comes on.
   const [darkness, setDarkness] = useState(0);
   const [drawer, setDrawer] = useState<"learned" | "settings" | null>(null);

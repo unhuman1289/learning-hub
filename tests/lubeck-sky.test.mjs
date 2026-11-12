@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { berlinClock, computedMoonPhase, dayOfYear, mix, moonIllumination, moonProgress, skyState, sunTimes, typicalWeather } from '../lib/lubeck/sky.ts';
+import { skyClock, berlinClock, computedMoonPhase, dayOfYear, mix, moonIllumination, moonProgress, skyState, sunTimes, typicalWeather } from '../lib/lubeck/sky.ts';
 import { moonFromMet, readAmbient, weatherFromOpenMeteo } from '../lib/lubeck/ambient.ts';
 
 const near = (actual, expected, tolerance) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} is not within ${tolerance} of ${expected}`);
@@ -94,4 +94,16 @@ test("the device clock follows the device's own zone, not Berlin's", async () =>
   } finally {
     if (before === undefined) delete process.env.TZ; else process.env.TZ = before;
   }
+});
+
+test("the window is drawn at the learner's hour against Lübeck's sunset", () => {
+  const berlin = { hour: 14.5, month: 11, day: 12, offsetHours: 1, weekday: 'Thứ năm' };
+  const device = { hour: 20.5, month: 11, day: 12, offsetHours: 7, weekday: 'Thứ năm' };
+  const clock = skyClock(berlin, device);
+  assert.equal(clock.hour, 20.5);
+  assert.equal(clock.offsetHours, 1);
+  const sun = sunTimes(dayOfYear(clock.month, clock.day), clock.offsetHours);
+  assert.ok(sun.set < 17 && sun.set > 15, `Lübeck sunset on 12 Nov is about 16:00, got ${sun.set}`);
+  assert.equal(skyState(clock.hour, sun, 0.5).day, false);
+  assert.equal(skyState(14.5, sun, 0.5).day, true);
 });
