@@ -102,6 +102,14 @@ export function deviceClock(now: Date): BerlinClock {
   };
 }
 
+/**
+ * The clock the study window is drawn with: the learner's own date and hour, set against Lübeck's day. Sunrise and
+ * sunset stay Lübeck's (they are computed in Lübeck clock hours, so `offsetHours` is Berlin's), weather and moon stay Lübeck's.
+ */
+export function skyClock(berlin: BerlinClock, device: BerlinClock): BerlinClock {
+  return { ...device, offsetHours: berlin.offsetHours };
+}
+
 /** Used until /api/ambient answers, and whenever it fails. */
 export function typicalWeather(month: number): Weather {
   if (month === 12 || month <= 2) return { cloud: 0.92, rain: false, snow: true, fog: 0 };
