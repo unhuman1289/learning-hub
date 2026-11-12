@@ -1,3 +1,5 @@
+import { callKnowledgeTool,routeKnowledge } from '../../../../../lib/knowledge/tools';
+import {readBoundedText} from '../../../../../lib/mcp/body';
 import { sendAlertDigest } from '../../../../../lib/alerts';
 import { env } from 'cloudflare:workers';
 import { z } from 'zod/v4';
@@ -56,10 +58,21 @@ function contractSchemas() {
 async function route(req: Request, context: { params: Promise<{ path: string[] }> }) {
   if (env.HUB2_ENABLED !== 'true') return Response.json({ error: 'Not found' }, { status: 404, headers });
   try {
+    const { path } = await context.params;
+    if(path[0]==='knowledge'){
+      const auth=await authorizeAutomation(req,env,'knowledge:write');
+      if('response' in auth)return auth.response;
+      if(auth.client.scopes.some(scope=>scope!=='knowledge:write'))throw new ApiError(403,'Cần kết nối chỉ có quyền tri thức.');
+      const raw=req.method==='POST'?await readBoundedText(req,512*1024):'';
+      if(raw===null)throw new ApiError(413,'Body vượt 512 KB.');
+      let payload:unknown={};
+      try{if(raw)payload=JSON.parse(raw);}catch{throw new ApiError(400,'JSON không hợp lệ.');}
+      const call=routeKnowledge(req.method,path.slice(1),new URL(req.url),payload);
+      return Response.json(await callKnowledgeTool(storage(),{clientId:'rest:'+auth.client.id},call.name,call.input),{headers});
+    }
     let auth = await authorizeAutomation(req, env, 'jobs:plan');
     if ('response' in auth && auth.response.status === 403) auth = await authorizeAutomation(req, env, 'jobs:assess');
     if ('response' in auth) return auth.response;
-    const { path } = await context.params;
     const db = storage();
     const token = req.headers.get('X-Lease-Token');
     let client = auth.client;

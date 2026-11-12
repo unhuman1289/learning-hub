@@ -90,3 +90,23 @@ test('MCP grading skips queued jobs containing images without claiming or exposi
  assert.deepEqual((await callPlannerTool(db,principal,'hub2_lease_assess',{},'test',at)).jobs,[]);
  assert.equal(db.sqlite.prepare("SELECT status FROM ai_jobs WHERE kind='assess'").get().status,'queued');db.sqlite.close();
 });
+
+import {knowledgePrincipal,callKnowledgeTool,knowledgeTools} from '../lib/knowledge/tools.ts';
+test('Knowledge OAuth requires an active adult administrator and current consent',async()=>{
+ const db=seed();
+ await assert.rejects(knowledgePrincipal(db,'owner','chatgpt-qa',['hub:knowledge']),{status:403});
+ db.sqlite.prepare("UPDATE user SET role='admin' WHERE id='owner'").run();
+ await assert.rejects(knowledgePrincipal(db,'owner','chatgpt-qa',['hub:knowledge']),{status:403});
+ db.sqlite.prepare("UPDATE oauthConsent SET scopes=?").run('["hub:knowledge"]');
+ await assert.rejects(knowledgePrincipal(db,'owner','chatgpt-qa',['hub:plan']),{status:403});
+ const client=await knowledgePrincipal(db,'owner','chatgpt-qa',['hub:knowledge']);
+ assert.deepEqual(Object.keys(client),['clientId']);
+ await assert.rejects(plannerPrincipal(db,'owner','chatgpt-qa',['hub:knowledge']),{status:403});
+ const writes=db.sqlite.prepare('SELECT total_changes() AS n').get().n;
+ for(const [name,tool] of Object.entries(knowledgeTools))if(tool.read)
+   await callKnowledgeTool(db,client,name,name==='search'?{query:'Deutsch',subjectId:'none'}:{});
+ assert.equal(db.sqlite.prepare('SELECT total_changes() AS n').get().n,writes);
+ db.sqlite.prepare("INSERT INTO learner_settings(user_id,role,updated) VALUES('owner','child','t')").run();
+ await assert.rejects(knowledgePrincipal(db,'owner','chatgpt-qa',['hub:knowledge']),{status:403});
+ db.sqlite.close();
+});

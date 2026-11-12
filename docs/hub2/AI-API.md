@@ -605,3 +605,23 @@ Cookie Better Auth, kiểm tra origin như `/api/study`, JSON, `no-store`. Quy�
 ## Quyết định thay luồng model ngày 14/10/2026
 
 Không dùng Anthropic/OpenAI API. Các mô tả Worker gọi model/key/chi phí/SLA cũ trong tài liệu này là thiết kế đã bị thay thế. Runner là ChatGPT thuê bao qua direct MCP, scope riêng hub:assess; xem docs/ops/AI-RUNNERS.md. Hợp đồng assess-result/1 và server atomic writer vẫn dùng; usage subscription-unmetered không phải telemetry.
+
+## Knowledge
+
+MCP dùng scope OAuth `hub:knowledge` và kiểm tra tài khoản admin, app và consent còn hoạt động. REST dưới `/api/automation/v2/knowledge` dùng client chỉ có scope `knowledge:write`. Kết nối Knowledge độc lập với quyền xử lý bài.
+
+| MCP | REST | Ví dụ đầu vào MCP |
+|---|---|---|
+| `hub2_kb_inventory` | GET inventory | `{}` |
+| `hub2_kb_gaps` | GET gaps | `{"status":"open","limit":10}` |
+| `hub2_kb_search` | GET search | `{"subjectId":"sub_example","query":"Nebensatz","k":5}` |
+| `hub2_kb_history` | GET history | `{"limit":20}` |
+| `hub2_kb_stage` | POST versions | `{"reason":"Bổ sung nguồn ngữ pháp"}` |
+| `hub2_kb_upsert_source` | POST sources/upsert | `{"versionId":"draft","clientChangeId":"change-1","source":{"url":"https://example.org/grammar","title":"Grammar","publisher":"Example Institute","sourceType":"official_doc","retrievedAt":"2026-11-12T12:00:00Z","readScope":"partial","language":"de"},"notes":[{"heading":"Nebensatz","body":"Das Verb steht am Ende."}],"links":[{"subjectId":"sub_example"}]}` |
+| `hub2_kb_deprecate_source` | POST sources/deprecate | `{"versionId":"draft","clientChangeId":"change-2","sourceId":"old","supersededBy":"new","reason":"Có bản cập nhật"}` |
+| `hub2_kb_add_probe` | POST probes | `{"versionId":"draft","clientChangeId":"change-3","subjectId":"sub_example","query":"Nebensatz","expectSourceId":"new","gapId":"gap"}` |
+| `hub2_kb_activate` | POST versions/{id}/activate | `{"versionId":"draft"}` |
+| `hub2_kb_rollback` | POST rollback | `{"toSeq":1,"reason":"Khôi phục ghi chú đã kiểm"}` |
+| `hub2_kb_resolve_gap` | POST gaps/resolve | `{"gapId":"gap","status":"resolved","versionSeq":2,"note":"Đã kiểm tra nguồn","clientChangeId":"change-4"}` |
+
+422 báo payload sai, nguồn thiếu trường bắt buộc hoặc có dấu hiệu chứa dữ liệu riêng tư. 409 báo bản nháp đã đổi, mã ghi bị dùng lại với nội dung khác, hoặc vượt giới hạn của bản nháp. Khi chưa rõ kết quả ghi, kiểm tra lịch sử và mã thay đổi. Xem [hướng dẫn thử K0](../ops/KNOWLEDGE-MAINTAINER.md). Trạng thái thực tế của lịch R1 vẫn cần kiểm tra trong ChatGPT Scheduled.
