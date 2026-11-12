@@ -163,7 +163,7 @@ Ghi kết quả vào `docs/VALIDATION.md`. Không đạt thì dùng dự phòng,
 
 ### 7.2 Một tác vụ, hai nhiệm vụ
 
-- **Lịch:** hằng ngày 04:30 Europe/Berlin, sau lượt soạn đêm.
+- **Lịch:** hằng ngày 01:00 Europe/Berlin, sau lượt soạn đêm.
 - **Prompt:** lưu trong repo tại `integrations/runner-prompts/knowledge-maintainer.md`. Tác vụ ChatGPT chỉ chứa hướng dẫn ngắn: "đọc và làm theo prompt trong repo (bản dán kèm)". Không có secret nào trong prompt, vì OAuth nằm ở connector.
 - **Mỗi lần chạy:**
   1. `hub2_kb_inventory`, rồi `hub2_kb_gaps`: lấy gap `high` trước, tối đa 10 gap.
@@ -208,7 +208,7 @@ Mỗi PR chạy `npm run test`, `typecheck`, `lint`, `contracts:check`, `build`,
 1. Sao lưu D1 production, rồi áp `0023_knowledge.sql`.
 2. Deploy K1–K4.
 3. Trong ChatGPT: thêm connector `https://learn.unhuman.cc/mcp` và đồng ý scope `hub:knowledge` bằng tài khoản admin. Người dùng tự làm phần đăng nhập.
-4. Tạo scheduled task 04:30 Berlin theo §7.2. Chạy tay lượt đầu, kiểm tra trang "Tri thức" và một bài Qwen soạn sau đó có dùng ghi chú KB.
+4. Tạo scheduled task 01:00 Berlin theo §7.2. Chạy tay lượt đầu, kiểm tra trang "Tri thức" và một bài Qwen soạn sau đó có dùng ghi chú KB.
 5. Theo dõi một tuần:
    - Bản kích hoạt hỏng.
    - Gap mở lâu.
