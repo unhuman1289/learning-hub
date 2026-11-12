@@ -65,9 +65,12 @@ export async function PATCH(req: Request, context: Context) {
     const { id } = await context.params;
     if (!SUBJECT_ID.test(id)) return Response.json({ error: 'Not found' }, { status: 404, headers });
     const db = storage();
-    const learnerId = await resolveLearner(db, user, req, 'edit_goals');
-    if (learnerId instanceof Response) return learnerId;
     const patch = parseSubjectPatch(await req.json());
+    // Deleting a notebook is open to the learner (a child included); every other change stays with a guardian.
+    const deleting = patch.status === 'archived' && Object.keys(patch).every(key => ['revision', 'status', 'aiEnabled'].includes(key));
+    if (deleting) patch.aiEnabled = false;
+    const learnerId = await resolveLearner(db, user, req, deleting ? 'manage_notebooks' : 'edit_goals');
+    if (learnerId instanceof Response) return learnerId;
     if (patch.limits) {
       const subject = await getSubject(db, learnerId, id);
       const previous = JSON.parse(subject.limits).package ?? 2;

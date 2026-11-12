@@ -6,18 +6,18 @@ import { fileURLToPath } from 'node:url';
 import { decideAccess, canAccessLearner, resolveLearner } from '../lib/access.ts';
 import { memoryDb } from './d1-adapter.mjs';
 
-const actions = ['read_progress', 'read_work', 'edit_work', 'edit_goals', 'edit_settings', 'resolve_dispute', 'edit_workspace'];
+const actions = ['read_progress', 'read_work', 'edit_work', 'edit_goals', 'edit_settings', 'resolve_dispute', 'edit_workspace', 'manage_notebooks'];
 const adultFacts = { learnerRole: 'adult', viewerIsGuardian: false };
 const childFacts = { learnerRole: 'child', viewerIsGuardian: false };
 
 // Expected matrix from docs/hub2/DATA-MODEL.md §5 (1 = allowed), in the order of `actions`.
 const matrix = {
-  'adult self': [{ id: 'vu' }, 'vu', adultFacts, [1, 1, 1, 1, 1, 0, 1]],
-  'child self': [{ id: 'ech' }, 'ech', childFacts, [1, 1, 1, 0, 0, 0, 1]],
-  guardian: [{ id: 'ly' }, 'ech', { learnerRole: 'child', viewerIsGuardian: true }, [1, 1, 0, 1, 1, 1, 0]],
-  admin: [{ id: 'vu', role: 'admin' }, 'ly', adultFacts, [1, 1, 0, 1, 1, 1, 0]],
-  'other learner': [{ id: 'ly' }, 'vu', adultFacts, [0, 0, 0, 0, 0, 0, 0]],
-  'other learner viewing a child': [{ id: 'bot' }, 'ech', childFacts, [0, 0, 0, 0, 0, 0, 0]],
+  'adult self': [{ id: 'vu' }, 'vu', adultFacts, [1, 1, 1, 1, 1, 0, 1, 1]],
+  'child self': [{ id: 'ech' }, 'ech', childFacts, [1, 1, 1, 0, 0, 0, 1, 1]],
+  guardian: [{ id: 'ly' }, 'ech', { learnerRole: 'child', viewerIsGuardian: true }, [1, 1, 0, 1, 1, 1, 0, 1]],
+  admin: [{ id: 'vu', role: 'admin' }, 'ly', adultFacts, [1, 1, 0, 1, 1, 1, 0, 1]],
+  'other learner': [{ id: 'ly' }, 'vu', adultFacts, [0, 0, 0, 0, 0, 0, 0, 0]],
+  'other learner viewing a child': [{ id: 'bot' }, 'ech', childFacts, [0, 0, 0, 0, 0, 0, 0, 0]],
 };
 
 for (const [name, [viewer, learnerId, facts, expected]] of Object.entries(matrix)) {

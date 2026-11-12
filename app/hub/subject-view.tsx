@@ -6,16 +6,16 @@ import { Book } from "./notebook/book";
 import { NotebookToday } from "./notebook/today";
 import { Contents } from "./notebook/contents";
 import { useBook } from "./notebook/use-book";
-import { SubjectFacts, SubjectForm } from "./notebook/settings";
+import { DeleteNotebook, SubjectFacts, SubjectForm } from "./notebook/settings";
 import { BookProgress } from "./notebook/progress";
 import { HistoryPanel } from "./history-panel";
 import { words } from "./words";
 
-export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfApi; canEdit: boolean; canManage: boolean; go: (route: Route) => void; hub2?: boolean }) {
+export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfApi; canEdit: boolean; canDelete?: boolean; canManage: boolean; go: (route: Route) => void; hub2?: boolean }) {
   return <SubjectBook key={props.id + ":" + (props.shelf.learner ?? "self")} {...props} />;
 }
 
-function SubjectBook({ id, page = "hom-nay", shelf, canEdit, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
+function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
   const subject = shelf.subjects?.find((item) => item.id === id);
   const child = shelf.learners.find(learner => shelf.learner ? learner.id === shelf.learner : learner.relation === "self")?.role === "child";
   const data = useBook(id, shelf.learner, hub2);
@@ -32,6 +32,7 @@ function SubjectBook({ id, page = "hom-nay", shelf, canEdit, go, hub2 = false }:
       {canEdit && !child && subject.status !== "archived"
         ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
       {hub2 && !child && <HistoryPanel subjectId={id} learner={shelf.learner} />}
+      {canDelete && subject.status !== "archived" && <DeleteNotebook subject={subject} shelf={shelf} onDeleted={() => go({ view: "desk" })} />}
     </>}
   </Book>;
 }

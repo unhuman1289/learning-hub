@@ -10,7 +10,8 @@ export type AccessAction =
   | 'edit_goals' // goal, level, limits, notebook status
   | 'edit_settings' // daily minutes, budgets, nickname
   | 'resolve_dispute'
-  | 'edit_workspace'; // notes, journal, project milestones
+  | 'edit_workspace' // notes, journal, project milestones
+  | 'manage_notebooks'; // open a notebook, or delete (archive) one; children may do this for themselves
 
 export type Viewer = { id: string; role?: string | null };
 export type LearnerFacts = { learnerRole: 'adult' | 'child'; viewerIsGuardian: boolean };
@@ -18,9 +19,9 @@ export type LearnerFacts = { learnerRole: 'adult' | 'child'; viewerIsGuardian: b
 type Relation = 'self' | 'guardian' | 'admin' | 'other';
 
 const allowed: Record<Exclude<Relation, 'other'>, ReadonlySet<AccessAction>> = {
-  self: new Set(['read_progress', 'read_work', 'edit_work', 'edit_goals', 'edit_settings', 'edit_workspace']),
-  guardian: new Set(['read_progress', 'read_work', 'edit_goals', 'edit_settings', 'resolve_dispute']),
-  admin: new Set(['read_progress', 'read_work', 'edit_goals', 'edit_settings', 'resolve_dispute']),
+  self: new Set(['read_progress', 'read_work', 'edit_work', 'edit_goals', 'edit_settings', 'edit_workspace', 'manage_notebooks']),
+  guardian: new Set(['read_progress', 'read_work', 'edit_goals', 'edit_settings', 'resolve_dispute', 'manage_notebooks']),
+  admin: new Set(['read_progress', 'read_work', 'edit_goals', 'edit_settings', 'resolve_dispute', 'manage_notebooks']),
 };
 
 function relation(viewer: Viewer, learnerId: string, facts: LearnerFacts): Relation {

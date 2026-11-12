@@ -178,9 +178,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
               </button>
             </Shelf>
           )}
-          {shelf.subjects?.length === 0 && !canOpenNotebook && <p className="col-span-full px-1 text-sm leading-6 text-cabinet-ink">
-            {readOnly || !shelf.self ? "Kệ còn trống." : "Kệ còn trống. Nhờ người lớn mở sổ cho bạn: họ chọn hồ sơ của bạn rồi bấm “+ Sổ mới”."}
-          </p>}
+          
         </Bookcase>
       </div>
       {drawer === "learned" && <PaperDialog title="Bài đã học" labelId="drawer-learned" onClose={() => setDrawer(null)}>
