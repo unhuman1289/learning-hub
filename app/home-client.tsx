@@ -16,7 +16,9 @@ import { StudyMeter } from "./hub/study-meter";
 import { useStudyClock } from "./hub/use-study-clock";
 import { RouteLink, buttonClass } from "./hub/ui";
 import { useDaily } from "./hub/use-daily";
-import { useRoute, type Route } from "./hub/use-route";
+import { routeHref, useRoute, type Route } from "./hub/use-route";
+import { bookForLegacy } from "./hub/legacy-route";
+
 import { useWorkspace, type WorkspaceApi } from "./hub/use-workspace";
 import { useShelf } from "./hub/use-shelf";
 import { NewNotebookDialog } from "./hub/new-notebook";
@@ -26,13 +28,18 @@ import { isTrack, trackInfo } from "./hub/model";
 
 export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
-  const { route, go } = useRoute();
+  const { route: requested, go } = useRoute();
   const workspace = useWorkspace();
   const daily = useDaily();
   // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
   const [viewingId, setViewingId] = useState<string | null>(null);
   const viewedDaily = useDaily(viewingId, viewingId !== null);
   const shelf = useShelf(viewingId);
+  // An old notebook address shows the same notebook's book; the address bar follows without adding history.
+  const route = (hub2Enabled ? bookForLegacy(requested, shelf.subjects) : null) ?? requested;
+  useEffect(() => {
+    if (route !== requested && route.view === "book") window.history.replaceState({}, "", routeHref(route));
+  }, [route, requested]);
   const [newNotebook, setNewNotebook] = useState(false);
   const viewedRole = viewingId ? shelf.learners.find((item) => item.id === viewingId)?.role : shelf.self?.role;
   // Children study in notebooks a guardian opens for them; adults, guardians and admins may open one.
@@ -119,7 +126,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
         )}
         {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
         {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
-        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} hub2={hub2Enabled} />}
+        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>
 
@@ -143,7 +150,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
           onCreated={(subject) => {
             setNewNotebook(false);
             if (viewingId) return;
-            go(subject.legacyTrack ? { view: "notebook", track: subject.legacyTrack, tab: "bai" } : { view: "book", id: subject.id });
+            go(hub2Enabled || !subject.legacyTrack ? { view: "book", id: subject.id } : { view: "notebook", track: subject.legacyTrack, tab: "bai" });
           }}
         />
       )}

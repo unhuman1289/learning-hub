@@ -251,7 +251,9 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
     let draft;
-    for (let round = 0; round < 2; round++) {
+    // A lesson with a few repeated or wrong items usually needs two corrections; grading needs one.
+    const rounds = lease.kind === 'plan' ? 3 : 2;
+    for (let round = 0; round < rounds; round++) {
       let result;
       try {
         const out = await qwen.run({

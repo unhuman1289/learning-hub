@@ -1,9 +1,6 @@
 "use client";
 
-import {SkillProgress} from "./skill-progress";
-import { LessonList } from "./lesson-v2/list";
 import { Book } from "./notebook/book";
-import {SubjectForm,SubjectFacts} from "./notebook/settings";
 import type {ShelfApi} from "./use-shelf";
 import { SketchIcon } from "./sketch-icons";
 import { MarginDate, RuledPage, StickyNote, cx } from "../../components/notebook/paper";
@@ -12,17 +9,13 @@ import { googleDocs } from "../google-docs";
 import { type FormRequest } from "./document-form";
 import { LessonPage, type Drafts } from "./lesson-page";
 import { coverTitle, notebookPages, shortDate, trackInfo, type Page, type TrackId } from "./model";
-import { PaperSummary } from "./paper-bits";
 import { buttonClass, PageLabel, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { NotebookTab, Route } from "./use-route";
 import type { WorkspaceApi } from "./use-workspace";
 
-export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts, openForm, shelf,canEdit, canManage, hub2 = false }: {
+export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts, openForm, shelf }: {
   shelf?:ShelfApi;
-  canEdit?:boolean;
-  canManage?:boolean;
-  hub2?: boolean;
   track: TrackId;
   tab: NotebookTab;
   pageId?: string;
@@ -61,15 +54,12 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
         <CoverFlip key={track} title={coverTitle[track]} />
         {tab === "muc-luc" && toc}
         <div className="min-w-0">
-          {tab==="bai" && hub2 && subject && shelf && <RuledPage className="space-y-4">
-            <LessonList subjectId={subject.id} learner={shelf.learner} go={go} canRequest={!shelf.learner && (subject.status==="active" || subject.status==="setup")} />
-          </RuledPage>}
-          {tab === "bai" && (pageId || !hub2 || !subject) && (
+          {tab === "bai" && (
             current
               ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} readOnly={readOnly} />
               : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ hiện ở đây khi sẵn sàng."}</p></RuledPage>
           )}
-          {tab === "muc-tieu" && (subject&&shelf?<RuledPage><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit&&!readOnly&&!child?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><PaperSummary>Bài đã học</PaperSummary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</RuledPage>:<GoalsPage track={track} workspace={workspace} />)}
+          {tab === "muc-tieu" && <GoalsPage track={track} workspace={workspace} />}
           {tab === "tai-lieu" && <DocsPage track={track} workspace={workspace} openForm={openForm} readOnly={readOnly} child={!!child} />}
         </div>
       </div>
