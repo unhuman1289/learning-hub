@@ -5,6 +5,8 @@ import { memoryDb } from './d1-adapter.mjs';
 import { insertLessonV2, itemView, readLessonV2 } from '../lib/lesson-v2/store.ts';
 import { parseDraft, reveal, saveDraft, snooze } from '../lib/lesson-v2/actions.ts';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
+import { parseSubmission, submitLesson } from '../lib/evidence/submit.ts';
+import { todayFor } from '../lib/today.ts';
 import { resolveLearner } from '../lib/access.ts';
 
 const fixture = validateLessonPackage(JSON.parse(readFileSync(new URL('../fixtures/contracts/lesson-v2/deutsch-modalverb.json', import.meta.url), 'utf8'))).lesson;
@@ -71,4 +73,51 @@ test('distractor error labels stay hidden until the item is graded', () => {
   assert(item);
   assert(!JSON.stringify(itemView(item, 'retrieval', undefined, false)).includes('errorLabel'));
   assert(JSON.stringify(itemView(item, 'retrieval', undefined, true)).includes('errorLabel'));
+});
+
+
+test('one request saves the draft and submits, with idempotent replay and revision checks', async () => {
+  const { db, id } = await seeded();
+  const input = {
+    clientSubmissionId: '00000000-0000-4000-8000-000000000001',
+    draftRevision: 0, itemIds: ['i2'], answers: { i2: { answer: 'Lena kann heute Suppe kochen.' } },
+  };
+  const bad = { ...input, answers: { ...input.answers, i99: { answer: 'other item' } } };
+  assert.equal(await status(submitLesson(db, 'ech', id, parseSubmission(bad))), 400);
+  assert.equal((await readLessonV2(db, 'ech', id)).draftRevision, 0);
+  const first = await submitLesson(db, 'ech', id, parseSubmission(input));
+  const replay = await submitLesson(db, 'ech', id, parseSubmission(input));
+  assert.equal(replay.id, first.id);
+  assert.equal(replay.replayed, true);
+  assert.equal(first.attempts[0].answer, input.answers.i2.answer);
+  const lesson = await readLessonV2(db, 'ech', id);
+  assert.equal(lesson.draftRevision, 1);
+  assert.deepEqual(lesson.draft, input.answers);
+  assert.equal(await status(submitLesson(db, 'ech', id, parseSubmission({
+    ...input, clientSubmissionId: '00000000-0000-4000-8000-000000000002',
+  }))), 409);
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM submissions').get().n, 1);
+  db.sqlite.close();
+});
+
+
+test('today reads its four independent datasets in one concurrent round', async () => {
+  const { db } = await seeded();
+  const pending = [];
+  const hold = read => new Promise(resolve => pending.push(() => resolve(read())));
+  const counted = {
+    prepare(sql) {
+      return {
+        bind(...args) {
+          const stmt = db.prepare(sql).bind(...args);
+          return { first: () => hold(() => stmt.first()), all: () => hold(() => stmt.all()) };
+        },
+      };
+    },
+  };
+  const today = todayFor(counted, 'ech', new Date('2026-10-12T12:00:00Z'), 'ly');
+  assert.equal(pending.length, 4);
+  pending.forEach(release => release());
+  assert.equal((await today).items.length, 1);
+  db.sqlite.close();
 });

@@ -50,7 +50,7 @@ export function useShelf(learner: string | null) {
     return () => { current = false; };
   }, []);
 
-  useLiveRefresh(load);
+  useLiveRefresh(load, true, null);
 
   const create = useCallback(async (input: NewSubject) => {
     const body = await readJson<{ subject: ShelfSubject }>(await fetch(`/api/subjects${query(learner)}`, {

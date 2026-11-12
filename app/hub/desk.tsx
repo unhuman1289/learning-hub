@@ -78,7 +78,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
     const value = await fetchToday(todayUrl);
     setTodayData({ url: todayUrl, value });
     setTodayError("");
-  }, hub2);
+  }, hub2, null);
   useEffect(() => {
     try {
       if (sessionStorage.getItem("lh-postits-day") === today) return;

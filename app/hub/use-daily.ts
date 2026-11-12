@@ -31,7 +31,7 @@ export function useDaily(learner: string | null = null, enabled = true) {
     void Promise.resolve().then(() => { setData(null); return load(); });
   }, [load, enabled]);
 
-  useLiveRefresh(load, enabled);
+  useLiveRefresh(load, enabled, null);
 
   const save = useCallback(async (lesson: DailyLesson, response: string, completed: boolean) => {
     setBusyId(lesson.id);

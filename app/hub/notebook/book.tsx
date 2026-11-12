@@ -1,7 +1,7 @@
 "use client";
 
 
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 import { OakDesk } from "../../../components/notebook/house";
 import { MiniCover, RuledPage } from "../../../components/notebook/paper";
 import { RouteLink } from "../ui";
@@ -68,7 +68,19 @@ export function Book({ title, go, children, paged = false, ...current }: {
   </div>;
 }
 
+const wideScreen = () => window.matchMedia("(min-width: 80rem)");
+function subscribeWidth(update: () => void) {
+  const media = wideScreen();
+  media.addEventListener("change", update);
+  return () => media.removeEventListener("change", update);
+}
+
 function WindowStrip() {
+  const visible = useSyncExternalStore(subscribeWidth, () => wideScreen().matches, () => false);
+  return visible ? <WindowScene /> : null;
+}
+
+function WindowScene() {
   const clock = useSkyClock();
   return <div className="h-20 overflow-hidden [&>svg]:-translate-y-18"><LubeckWindow clock={clock} /></div>;
 }

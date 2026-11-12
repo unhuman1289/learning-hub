@@ -1,3 +1,4 @@
+import { parseDraft } from '../lesson-v2/actions.ts';
 import { recomputeSubmission } from '../learner-model/recompute.ts';
 import { ApiError } from '../api-error.ts';
 import type { Db } from '../subjects/service.ts';
@@ -9,14 +10,14 @@ import { autoGrade, autoGradeStructured } from './autograde.ts';
 import { hasLessonAnswer, parseStructuredAnswer } from '../lesson-v2/answer.ts';
 import { evidenceStrength } from './strength.ts';
 export type EvidenceDb = Db & { batch(statements: unknown[]): Promise<unknown> };
-export type SubmissionInput = { clientSubmissionId: string; draftRevision: number; stage: string | null; itemIds: string[] | null };
+export type SubmissionInput = { clientSubmissionId: string; draftRevision: number; stage: string | null; itemIds: string[] | null; answers?: DraftAnswers };
 const stages = ['retrieval', 'guided', 'independent', 'analyze', 'output', 'check'];
 const makeId = (prefix: string) => prefix + Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => b.toString(16).padStart(2, '0')).join('');
 export function parseSubmission(value: unknown): SubmissionInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiError(400, 'Dữ liệu nộp bài không hợp lệ.');
   const x = value as Record<string, unknown>;
   if (
-    Object.keys(x).some((k) => !['clientSubmissionId', 'draftRevision', 'stage', 'itemIds'].includes(k)) ||
+    Object.keys(x).some((k) => !['clientSubmissionId', 'draftRevision', 'stage', 'itemIds', 'answers'].includes(k)) ||
     typeof x.clientSubmissionId !== 'string' ||
     !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(x.clientSubmissionId) ||
     !Number.isInteger(x.draftRevision) ||
@@ -40,6 +41,7 @@ export function parseSubmission(value: unknown): SubmissionInput {
     draftRevision: x.draftRevision as number,
     stage: (x.stage as string) ?? null,
     itemIds: (x.itemIds as string[]) ?? null,
+    ...(x.answers === undefined ? {} : { answers: parseDraft({ revision: x.draftRevision, answers: x.answers }).answers }),
   };
 }
 async function requestHash(input: SubmissionInput) {
@@ -109,7 +111,9 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     if (existing.lesson_id !== lessonId || existing.request_hash !== hash) throw new ApiError(409, 'Mã lượt nộp đã dùng với dữ liệu khác.');
     return { ...(await readSubmission(db, learnerId, existing.id)), replayed: true };
   }
-  const lesson = await db
+  const since = new Date(now.getTime() - 60000).toISOString();
+  const [lesson, rate, { results: all = [] }, { results: latest = [] }] = await Promise.all([
+    db
     .prepare(
       `SELECT l.subject_id,l.draft,l.draft_revision,l.support,l.kind,l.completed_at,s.sensitivity FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version IN ('2','3')`,
     )
@@ -122,24 +126,33 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       kind: string;
       completed_at: string | null;
       sensitivity: 'normal' | 'clinical' | 'child_dev';
-    }>();
+    }>(),
+    db
+    .prepare('SELECT COUNT(*) AS n FROM submissions WHERE learner_id=? AND created_at>?')
+    .bind(learnerId, since)
+    .first<{ n: number }>(),
+    db
+    .prepare('SELECT item_id,stage,payload,skill_ids,activity FROM lesson_items WHERE lesson_id=? AND learner_id=?')
+    .bind(lessonId, learnerId)
+    .all<{ item_id: string; stage: string; payload: string; skill_ids: string; activity: string }>(),
+    db
+    .prepare(
+      `SELECT a.item_id,a.id,a.attempt_no,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+       WHERE a.lesson_id=? AND a.learner_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
+    )
+    .bind(lessonId, learnerId)
+    .all<{ item_id: string; id: string; attempt_no: number; support: string; result: string | null; correction: string | null }>(),
+  ]);
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
   if (lesson.completed_at) throw new ApiError(409, 'Bỏ dấu đã học trước khi nộp sửa lại.');
   if (lesson.draft_revision !== input.draftRevision) throw new ApiError(409, 'Nháp đã thay đổi. Lưu lại nháp trước khi nộp.');
-  const since = new Date(now.getTime() - 60000).toISOString();
-  const rate = await db
-    .prepare('SELECT COUNT(*) AS n FROM submissions WHERE learner_id=? AND created_at>?')
-    .bind(learnerId, since)
-    .first<{ n: number }>();
   if ((rate?.n ?? 0) >= 30) throw new ApiError(429, 'Bạn vừa nộp nhiều lần. Thử lại sau một phút.');
-  const { results: all = [] } = await db
-    .prepare('SELECT item_id,stage,payload,skill_ids,activity FROM lesson_items WHERE lesson_id=? AND learner_id=?')
-    .bind(lessonId, learnerId)
-    .all<{ item_id: string; stage: string; payload: string; skill_ids: string; activity: string }>();
   const selected = all.filter((row) => (!input.stage || row.stage === input.stage) && (!input.itemIds || input.itemIds.includes(row.item_id)));
   if (!selected.length || (input.itemIds && selected.length !== input.itemIds.length))
     throw new ApiError(400, 'Câu không thuộc bài hoặc giai đoạn này.');
-  const draft = JSON.parse(lesson.draft) as DraftAnswers,
+  if (input.answers && Object.keys(input.answers).some(item => !all.some(row => row.item_id === item)))
+    throw new ApiError(400, 'Nháp có câu không thuộc bài này.');
+  const draft = input.answers ?? JSON.parse(lesson.draft) as DraftAnswers,
     support = JSON.parse(lesson.support) as Record<string, RevealLevel>;
   const id = makeId('subm_'),
     stamp = now.toISOString();
@@ -167,14 +180,11 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         since,
       ),
   ];
-  // Latest attempt of every selected item in one query (Free allows ~50 D1 queries per request).
-  const { results: latest = [] } = await db
-    .prepare(
-      `SELECT a.item_id,a.id,a.attempt_no,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
-       WHERE a.lesson_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
-    )
-    .bind(lessonId)
-    .all<{ item_id: string; id: string; attempt_no: number; support: string; result: string | null; correction: string | null }>();
+  if (input.answers) {
+    statements.push(db.prepare(`UPDATE learning_lessons SET draft=?, draft_revision=draft_revision+1, updated=?
+      WHERE id=? AND user_id=? AND ${gate}`)
+      .bind(JSON.stringify(draft), stamp, lessonId, learnerId, id));
+  }
   let pending = false;
   for (const row of selected) {
     const item = JSON.parse(row.payload) as LessonItemAny,

@@ -7,12 +7,14 @@ export type NotebookLessonRow = {
   solutionsSeen: number; correction: number; firstMonth: string;
 };
 
-export async function readNotebookLessons(db: EvidenceDb, learner: string, subject: string, all: boolean, offset: number) {
+export async function readNotebookLessons(db: EvidenceDb, learner: string, subject: string, all: boolean, offset: number, openOnly = false) {
   const limit = all ? 400 : 50;
   const { results = [] } = await db.prepare(`
     WITH page AS (
-      SELECT l.*, substr(min(assigned_date) OVER (),1,7) firstMonth
-      FROM learning_lessons l WHERE user_id=? AND subject_id=? AND package_version IN ('2','3')
+      SELECT l.*, substr((SELECT min(history.assigned_date) FROM learning_lessons history
+        WHERE history.user_id=l.user_id AND history.subject_id=l.subject_id
+          AND history.package_version IN ('2','3')),1,7) firstMonth
+      FROM learning_lessons l WHERE user_id=? AND subject_id=? AND package_version IN ('2','3') AND (?=0 OR completed_at IS NULL)
       ORDER BY CASE WHEN ?=1 THEN assigned_date END DESC, completed_at IS NOT NULL,
         coalesce(completed_at,updated) DESC,id DESC
       LIMIT ? OFFSET ?
@@ -42,7 +44,7 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
     FROM page l LEFT JOIN counts c ON c.lesson_id=l.id
     ORDER BY CASE WHEN ?=1 THEN l.assigned_date END DESC, l.completed_at IS NOT NULL,
       coalesce(l.completed_at,l.updated) DESC,l.id DESC
-  `).bind(learner, subject, Number(all), limit + 1, offset, Number(all)).all<NotebookLessonRow>();
+  `).bind(learner, subject, Number(openOnly), Number(all), limit + 1, offset, Number(all)).all<NotebookLessonRow>();
   const hasMore = results.length > limit;
   let end = limit;
   if (all && hasMore) {
