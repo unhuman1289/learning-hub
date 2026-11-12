@@ -117,7 +117,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
             hub2={hub2Enabled}
           />
         )}
-        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
+        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
         {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} hub2={hub2Enabled} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}

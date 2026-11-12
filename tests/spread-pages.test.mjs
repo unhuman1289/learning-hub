@@ -10,3 +10,9 @@ for (const size of [1, 3, 6, 10, 25]) test(`keeps ${size} questions intact and t
   assert.deepEqual(pages.at(-1), [blocks.at(-1)]);
   if (size >= 3) assert.deepEqual(pages.find(page => page.includes(items[2])), [items[2]]);
 });
+
+test("measured feedback growth moves intact questions onto another page", () => {
+  const items = ["a", "b", "c"].map(id => ({ id, kind: "item" }));
+  const pages = pageBlocks(items, 3, { heights: { a: 130, b: 240, c: 130 }, limit: 380 });
+  assert.deepEqual(pages, [[items[0]], [items[1]], [items[2]]]);
+});

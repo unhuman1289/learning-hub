@@ -42,6 +42,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 export function LessonReader({
   id,
   child = false,
+  correction: openCorrection = false,
   learner,
   drafts,
   onLoaded,
@@ -52,6 +53,7 @@ export function LessonReader({
   learner: string | null;
   drafts: Drafts;
   child?: boolean;
+  correction?: boolean;
   onLoaded?: (id: string, subject: string) => void;
   go: (route: Route) => void;
   onCompleted?: () => Promise<void>;
@@ -302,7 +304,7 @@ export function LessonReader({
   const openLesson = (next: string) => go({ view: "lesson", id: next });
   const doneIds = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
   const firstUnanswered = lesson.items.findIndex(item => !doneIds.has(item.id));
-  const correction = lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? ""));
+  const correction = openCorrection ? lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
   const startAt = lesson.completedAt ? "summary" : correction >= 0 ? `cau-${correction + 1}`
     : firstUnanswered >= 0 ? `cau-${firstUnanswered + 1}` : "summary";
   const blocks: SpreadBlock[] = [{ id: "head", kind: "head", node: <>
@@ -363,7 +365,7 @@ export function LessonReader({
     <GraderOffline waiting={waitingForGrade} />
     {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}
     {error && <p role="alert" className="text-brick">{error}</p>}
-    <Spread blocks={blocks} startAt={startAt} jump={pageJump} storageKey={`lh-lesson-page:${cacheKey}`} />
+    <Spread blocks={blocks} startAt={startAt} preferStart={correction >= 0} jump={pageJump} storageKey={`lh-lesson-page:${cacheKey}`} />
   </div>;
 
   function jump(block: string) {

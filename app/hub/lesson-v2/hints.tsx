@@ -1,4 +1,5 @@
 "use client";
+import { Lightbulb } from "lucide-react";
 import { useState } from "react";
 import { PaperConfirm } from "../paper-confirm";
 import type { ItemView } from "../../../lib/lesson-v2/store";
@@ -12,9 +13,13 @@ export function HintLinks({ item, disabled, onReveal }: { item: ItemView; disabl
   const shown = item.revealed.hints.length;
   const next = shown < item.hintCount ? (shown === 0 ? "hint1" : "hint2") : null;
   return (
-    <div className="flex flex-wrap items-center gap-x-4">
-      {next && <button type="button" disabled={disabled} className={pencilLink} onClick={() => onReveal(next)}>{shown === 0 ? "Gợi ý" : "Gợi ý tiếp"}</button>}
-      {!item.revealed.solution && (
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4">
+      {next && (shown === 0
+        ? <button type="button" disabled={disabled} aria-label="Gợi ý" title="Gợi ý"
+            className="question-hint grid size-11 shrink-0 place-items-center bg-postit-yellow text-postit-ink disabled:opacity-50"
+            onClick={() => onReveal(next)}><Lightbulb size={19} aria-hidden="true" /></button>
+        : <button type="button" disabled={disabled} className={pencilLink} onClick={() => onReveal(next)}>Gợi ý tiếp</button>)}
+      {!next && !item.revealed.solution && (
         <button type="button" disabled={disabled} className={pencilLink} onClick={() => setConfirm(true)}>Lời giải</button>
       )}
       <PaperConfirm open={confirm && !disabled} message="Mở lời giải thì câu này tính là có trợ giúp. Vẫn mở?"
