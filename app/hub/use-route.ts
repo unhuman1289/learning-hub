@@ -2,14 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { findStaticTrack, isTrack, type TrackId } from "./model";
+import { findStaticTrack, isTrack, type TrackId } from "./model.ts";
 
 export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "tai-lieu";
+export type BookPage = "muc-luc" | "hom-nay" | "tien-do" | "cai-dat";
 export type Route =
   | { view: "desk" }
   | { view: "admin" }
   | { view: "notebook"; track: TrackId; tab: NotebookTab; page?: string }
-  | { view: "subject"; id: string }
+  | { view: "book"; id: string; page?: BookPage }
   | { view: "lesson"; id: string };
 
 const tabs: NotebookTab[] = ["bai", "muc-luc", "muc-tieu", "tai-lieu"];
@@ -29,7 +30,10 @@ export function parseRoute(search: string): Route {
     return { view: "notebook", track, tab: tab && tabs.includes(tab) ? tab : "bai", page: params.get("bai") ?? undefined };
   }
   const subject = params.get("sach");
-  if (subject && /^sub_[0-9a-f]{20}$/.test(subject)) return { view: "subject", id: subject };
+  if (subject && /^sub_[0-9a-f]{20}$/.test(subject)) {
+    const page = params.get("trang");
+    return { view: "book", id: subject, page: page === "muc-luc" || page === "tien-do" || page === "cai-dat" ? page : "hom-nay" };
+  }
   const page = params.get("trang");
   if (page === "quan-tri") return { view: "admin" };
   return { view: "desk" };
@@ -39,7 +43,10 @@ export function routeHref(route: Route) {
   const params = new URLSearchParams();
   if (route.view === "lesson") params.set("bai2",route.id);
   if (route.view === "admin") params.set("trang", "quan-tri");
-  if (route.view === "subject") params.set("sach", route.id);
+  if (route.view === "book") {
+    params.set("sach", route.id);
+    if (route.page && route.page !== "hom-nay") params.set("trang", route.page);
+  }
   if (route.view === "notebook") {
     params.set("so", route.track);
     if (route.tab !== "bai") params.set("tab", route.tab);
@@ -51,9 +58,12 @@ export function routeHref(route: Route) {
 
 /** Which physical action a navigation looks like; drives the CSS view transitions in globals.css. */
 function transitionKind(from: Route, to: Route): "open" | "close" | "turn" | "fade" {
+  if (from.view === "desk" && (to.view === "book" || to.view === "lesson")) return "open";
+  if ((from.view === "book" || from.view === "lesson") && to.view === "desk") return "close";
+  if ((from.view === "book" || from.view === "lesson") && (to.view === "book" || to.view === "lesson")) return "turn";
   if (to.view === "notebook" && (from.view !== "notebook" || from.track !== to.track)) return "open";
   if (from.view === "notebook" && to.view !== "notebook") return "close";
-  if (from.view === "notebook" && to.view === "notebook" && to.tab === "bai" && from.page !== to.page) return "turn";
+  if (from.view === "notebook" && to.view === "notebook" && (from.tab !== to.tab || from.page !== to.page)) return "turn";
   return "fade";
 }
 

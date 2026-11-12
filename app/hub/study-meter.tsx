@@ -40,12 +40,12 @@ export function StudyMeter({ clock, labelFor }: { clock: StudyClock; labelFor: (
         aria-describedby="study-meter-note"
         aria-label={`Đã học hôm nay ${minutes} trên ${targetMinutes} phút${counting ? ", đang tính giờ" : ""}. Đổi mục tiêu`}
         onClick={() => setEditing((open) => !open)}
-        className="flex h-9 items-center gap-2 rounded-[3px] bg-paper/85 px-2.5 text-ink shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] transition-colors hover:bg-paper"
+        className="flex min-h-11 items-center gap-2 rounded-[3px] bg-paper/85 px-2.5 text-ink-paper shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] transition-colors hover:bg-paper"
       >
         {/* The hourglass keeps turning over while time is being counted. */}
-        <Hourglass size={15} aria-hidden="true" className={cx(reached ? "text-ok" : "text-accent", counting && "animate-hourglass")} />
+        <Hourglass size={15} aria-hidden="true" className={cx(reached ? "text-ok" : "text-accent-paper", counting && "animate-hourglass")} />
         <span className="grid gap-1">
-          <span className="text-xs font-semibold leading-none tabular-nums">{minutes}<span className="font-normal text-muted">/{targetMinutes} phút</span></span>
+          <span className="text-xs font-semibold leading-none tabular-nums">{minutes}<span className="font-normal text-muted-paper">/{targetMinutes} phút</span></span>
           {/* A tiny ruler with a tick at each quarter of the target; it grows a little every few seconds. */}
           <span className="relative block h-1.5 w-16 overflow-hidden rounded-[1px] bg-line [background-image:repeating-linear-gradient(to_right,transparent_0_calc(25%-1px),var(--color-muted)_calc(25%-1px)_25%)] sm:w-20">
             <span className={cx("absolute inset-y-0 left-0 transition-[width] duration-[5000ms] ease-linear", reached ? "bg-ok" : "bg-accent")} style={{ width: `${percent}%` }} />
@@ -69,7 +69,7 @@ export function StudyMeter({ clock, labelFor }: { clock: StudyClock; labelFor: (
             </ul>
           ) : <p className="mt-1 font-hand text-base leading-5 opacity-80">Chưa mở cuốn sổ nào hôm nay.</p>}
           <p className="mt-2 border-t border-postit-ink/20 pt-2 text-xs leading-5 opacity-80">
-            {counting ? "Đang tính giờ cho cuốn sổ đang mở. " : ""}Tự tính khi một cuốn sổ đang mở, lưu theo tài khoản và ngày; tạm dừng khi rời tab hoặc 10 phút không thao tác. Bấm để đổi mục tiêu.
+            Đồng hồ chạy khi bạn mở sổ. Bấm để đổi mục tiêu.
           </p>
           {clock.error && <p className="mt-1 text-xs font-semibold text-brick">{clock.error} Sẽ thử lưu lại.</p>}
         </div>
@@ -142,8 +142,8 @@ function TargetEditor({ clock, onDone }: { clock: StudyClock; onDone: () => void
       {!valid && <p className="mt-2 text-xs text-brick">Từ 5 đến 720 phút.</p>}
       {error && <p role="alert" className="mt-2 text-xs font-semibold text-brick">{error}</p>}
       <div className="mt-3 flex items-center gap-2">
-        <button type="submit" disabled={!valid || busy} className={buttonClass("primary", "min-h-9 px-3")}>{busy ? "Đang lưu…" : "Lưu mục tiêu"}</button>
-        <button type="button" onClick={onDone} className="min-h-9 px-2 text-sm text-postit-ink underline-offset-2 hover:underline">Huỷ</button>
+        <button type="submit" disabled={!valid || busy} className={buttonClass("primary", "min-h-11 px-3")}>{busy ? "Đang lưu…" : "Lưu mục tiêu"}</button>
+        <button type="button" onClick={onDone} className="min-h-11 px-2 text-sm text-postit-ink underline-offset-2 hover:underline">Huỷ</button>
       </div>
     </form>
   );

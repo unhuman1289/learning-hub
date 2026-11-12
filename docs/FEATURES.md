@@ -99,3 +99,9 @@ Lộ trình Deutsch, scope H8, bộ eval dự thảo và runbook đã có. Chưa
 ## Quyết định 14/10/2026: chỉ dùng thuê bao
 
 Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; chấm chuyển sang direct MCP với scope riêng hub:assess. Cần cấp lại OAuth và nghiệm thu bài nộp thật. Không cam kết chấm tức thì hoặc task cloud khi chưa kiểm thật. Toán 7/KHTN 7 theo Kết nối tri thức từ 2026–2027; chưa bật AI cho trẻ. Production không đổi.
+
+### Giao diện sổ theo trang
+
+- Bàn học dùng lời chào theo giờ Berlin và lời khích lệ từ tiến độ đã lưu. Khi xem bàn của người khác, chỉ hiện tên người học.
+- Sổ chủ đề có Mục lục, Hôm nay, Tiến độ và Cài đặt. Link bài cũ vẫn mở trực tiếp. Người lớn tải lịch sử từ Cài đặt sổ.
+- Bài v2 có trang Ghi nhớ, câu hỏi và Tổng kết. Mở một trang trên điện thoại hoặc hai trang trên máy tính. Lật bằng nút, bàn phím hoặc vuốt. Lưu và chấm dùng hợp đồng hiện hành.

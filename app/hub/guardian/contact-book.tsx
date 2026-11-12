@@ -13,8 +13,8 @@ import { ProfileSettings } from "../profile-settings";
 
 type Settings = { dailyTargetMinutes: number; aiBudget: Record<string, number> | null };
 const budgetFields = [
-  ["assessPerDay", "Lượt chấm mỗi ngày"],
-  ["recheckPerDay", "Lượt chấm lại mỗi ngày"],
+  ["assessPerDay", "Số lần chấm mỗi ngày"],
+  ["recheckPerDay", "Số lần chấm lại mỗi ngày"],
   ["requestNowPerDay", "Yêu cầu soạn ngay mỗi ngày"],
 ] as const;
 
@@ -68,7 +68,7 @@ export function ContactBook({ learner, name, subjects }: { learner: string; name
             </select>
           </label>
           <button type="button" className={buttonClass("secondary")} disabled={!subjectId} onClick={() => setOpen({ kind: "school_topic", subjectId })}>Tuần này ở trường</button>
-          <button type="button" className={buttonClass("secondary")} disabled={!subjectId} onClick={() => setOpen({ kind: "note", subjectId })}>Dặn planner</button>
+          <button type="button" className={buttonClass("secondary")} disabled={!subjectId} onClick={() => setOpen({ kind: "note", subjectId })}>Lời dặn</button>
         </div>
       ) : <p className="text-muted">Chưa có sổ đang học.</p>}
       {requests.requests && <RequestList requests={requests.requests} />}

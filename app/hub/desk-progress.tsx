@@ -25,14 +25,14 @@ export function DeskProgress({ subjects, learner, go }: { subjects: ShelfSubject
   const active = notebooks.find((subject) => subject.id === picked) ?? notebooks.find((subject) => subject.status === "active") ?? notebooks[0];
   if (!active) return null;
   return (
-    <section aria-label="Tiến độ theo sổ" className="bg-graph relative mx-auto w-full max-w-3xl -rotate-[0.4deg] rounded-[2px] p-[1.125rem] pt-[2.25rem] leading-9 text-ink shadow-page sm:px-[2.25rem]">
+    <section aria-label="Tiến độ theo sổ" className="bg-graph relative mx-auto w-full max-w-3xl -rotate-[0.4deg] rounded-[2px] p-4 pt-[2.25rem] leading-9 text-ink shadow-page sm:px-[2.25rem]">
       {/* Bulldog clip holding the sheet. */}
       <span aria-hidden="true" className="absolute -top-3 left-10 h-8 w-16 rounded-[3px] bg-iron shadow-[0_2px_3px_rgb(0_0_0/0.4)] before:absolute before:inset-x-3 before:top-1.5 before:h-1 before:rounded-full before:bg-white/25" />
       {notebooks.length > 1 && (
         <div role="group" aria-label="Chọn sổ" className="flex flex-wrap gap-x-5">
           {notebooks.map((subject) => (
             <button key={subject.id} type="button" aria-pressed={subject.id === active.id} onClick={() => setPicked(subject.id)}
-              className={cx("font-hand text-xl leading-9", subject.id === active.id ? "text-accent-hover underline decoration-2 underline-offset-4" : "text-muted hover:text-ink")}>
+              className={cx("min-h-11 min-w-11 font-hand text-xl leading-9", subject.id === active.id ? "text-accent-hover underline decoration-2 underline-offset-4" : "text-muted hover:text-ink")}>
               {subject.title}
             </button>
           ))}
@@ -61,22 +61,22 @@ function Sheet({ subject, learner, go, single }: { subject: ShelfSubject; learne
 
   const totals = data.days.reduce((sum, day) => ({ seconds: sum.seconds + day.seconds, active: sum.active + Number(day.seconds > 0), correct: sum.correct + day.correct, graded: sum.graded + day.graded }), { seconds: 0, active: 0, correct: 0, graded: 0 });
   const selected = data.days.find((day) => day.day === selectedDay);
-  const route: Route = subject.legacyTrack ? { view: "notebook", track: subject.legacyTrack, tab: "muc-tieu" } : { view: "subject", id: subject.id };
+  const route: Route = subject.legacyTrack ? { view: "notebook", track: subject.legacyTrack, tab: "muc-tieu" } : { view: "book", id: subject.id, page: "tien-do" };
   return (
     <div className="grid gap-x-[2.25rem] sm:grid-cols-[auto_minmax(0,1fr)]">
       <div>
-        <h2 className="font-hand text-xl leading-9 text-accent">{single ? `${subject.title} · ` : ""}Nhịp học 14 ngày</h2>
+        <h2 className="font-hand text-xl leading-9 text-accent">{single ? `${subject.title} · ` : ""}Ngày đã học</h2>
         {/* Each column is a day; squares sit on the paper's own grid. */}
-        <div className="grid h-[4.5rem] grid-cols-[repeat(14,1.125rem)]" aria-label="Phút học mỗi ngày">
-          {data.days.map((day) => (
+        <div className="grid h-[4.5rem] grid-cols-7 sm:grid-cols-[repeat(14,1.75rem)]" aria-label="Phút học mỗi ngày">
+          {data.days.map((day, index) => (
             <button type="button" key={day.day} aria-pressed={selectedDay === day.day} aria-label={`${shortDay(day.day)}, ${minutes(day.seconds)}`} onClick={() => setSelectedDay(day.day)}
-              className={cx("flex flex-col-reverse outline-offset-0 hover:bg-rose-soft/60 focus-visible:outline-2 focus-visible:outline-accent", selectedDay === day.day && "bg-rose-soft")}>
+              className={cx("flex min-h-11 flex-col-reverse hover:bg-rose-soft/60 focus-visible:outline-2 focus-visible:outline-accent", index < 7 && "hidden sm:flex", selectedDay === day.day && "bg-rose-soft")}>
               {Array.from({ length: squares(day.seconds) }, (_, i) => <span key={i} aria-hidden="true" className="h-[1.125rem] border border-paper bg-accent/85" />)}
             </button>
           ))}
         </div>
         <p className={cx(pencil, "flex justify-between leading-9")}>
-          <span>{shortDay(data.days[0].day)}</span>
+          <span className="hidden sm:inline">{shortDay(data.days[0].day)}</span><span className="sm:hidden">{shortDay(data.days[7].day)}</span>
           <span role="status">{selected ? `${shortDay(selected.day)} · ${minutes(selected.seconds)}${selected.graded ? ` · ${selected.correct}/${selected.graded} đúng ngay` : ""}` : `${minutes(totals.seconds)} · ${totals.active} ngày`}</span>
           <span>hôm nay</span>
         </p>

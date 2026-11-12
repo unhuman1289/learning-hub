@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { words } from "./words";
 import { apiJson } from "./api";
 import { cx } from "../../components/notebook/paper";
 import { clockTime, pencil, pencilLink } from "./paper-bits";
@@ -10,7 +11,7 @@ import type { Route } from "./use-route";
 type Mode = "learn" | "practice" | "personal";
 type RequestRow = { id: string; mode: Mode | null; text: string; status: string; jobStatus: string | null; resultLessonId: string | null; responseNote: string | null; createdAt: string };
 type Input = { mode: Mode; clientRequestId: string; subjectId: string; note: string };
-const labels = { learn: "Học mới", practice: "Luyện tập", personal: "Cá nhân hóa" };
+const labels = { learn: words.request.new, practice: words.request.practice, personal: words.request.own };
 const modes: Mode[] = ["learn", "practice", "personal"];
 const flagColor = { learn: "bg-postit-yellow", practice: "bg-postit-mint", personal: "bg-postit-rose" };
 /** A request flag: a strip of coloured paper stuck to the page. */
@@ -97,21 +98,21 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
         : <button key={mode} type="button" disabled={busy} className={cx(flagStyle, flagColor[mode])} onClick={() => void send(mode)}>{labels[mode]}</button>)}
     </div>
     {personal && <form onSubmit={event => { event.preventDefault(); void send("personal"); }}>
-      <label className="block">Hôm nay bạn muốn luyện gì?
-        <textarea className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 placeholder:text-muted/70 focus:outline-none focus-visible:shadow-[inset_3px_0_0_var(--color-accent)]" rows={2} autoFocus required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="Ví dụ: viết email dời lịch họp." />
+      <label className="block">{words.request.ownPrompt}
+        <textarea className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 placeholder:text-muted/70 focus:border-b-2 focus:border-accent-paper" rows={2} autoFocus required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="Ví dụ: phân số, viết thư cho bạn." />
       </label>
       <div className="flex h-14 items-center gap-4">
-        <button className={buttonClass("secondary", "min-h-9")} disabled={busy || !note.trim()}>Soạn bài</button>
+        <button className={buttonClass("secondary", "min-h-11")} disabled={busy || !note.trim()}>{words.request.title}</button>
         <button type="button" className={pencilLink} onClick={() => { setPersonal(false); personalButton.current?.focus(); }}>Đóng</button>
       </div>
     </form>}
-    {error && <p role="alert" className="text-brick">{error} {attempt && <button type="button" disabled={busy} className={pencilLink} onClick={() => void send(attempt.mode, attempt)}>Gửi lại</button>}</p>}
+    {error && <p role="alert" className="text-brick">{error} {attempt && <button type="button" disabled={busy} className={pencilLink} onClick={() => void send(attempt.mode, attempt)}>{words.action.retry}</button>}</p>}
     <ul aria-live="polite">
       {rows.map(row => <li key={row.id} className={pencil}>
         {row.mode && labels[row.mode]} · {clockTime(row.createdAt)} ·{" "}
-        {row.resultLessonId ? <>bài đã sẵn sàng. <RouteLink route={{view:"lesson",id:row.resultLessonId}} go={go} className={pencilLink}>Mở bài</RouteLink></>
-          : waiting(row) ? row.jobStatus === "leased" ? "đang soạn bài…" : "đã nhận, đang chờ soạn."
-          : <>{row.responseNote || "chưa soạn được bài."} {row.mode && <button type="button" disabled={busy} className={pencilLink} onClick={() => {
+        {row.resultLessonId ? <>{words.status.ready} <RouteLink route={{view:"lesson",id:row.resultLessonId}} go={go} className={pencilLink}>Mở bài</RouteLink></>
+          : waiting(row) ? words.status.writing
+          : <>{row.responseNote || words.status.notWritten} {row.mode && <button type="button" disabled={busy} className={pencilLink} onClick={() => {
               if (row.mode === "personal") { setNote(row.text); setPersonal(true); }
               else if (row.mode) void send(row.mode);
             }}>Thử lại</button>}</>}

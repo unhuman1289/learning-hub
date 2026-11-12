@@ -90,10 +90,10 @@ const MONTHS = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Th�
 /** Tear-off calendar leaf with today's date in Lübeck. */
 export function CalendarLeaf({ clock }: { clock: BerlinClock | undefined }) {
   return (
-    <time className="grid w-[4.5rem] shrink-0 overflow-hidden rounded-[3px] bg-paper text-center text-ink shadow-page" aria-label={clock ? `${clock.weekday}, ngày ${clock.day} ${MONTHS[clock.month - 1].toLowerCase()}` : undefined}>
+    <time className="grid w-[4.5rem] shrink-0 overflow-hidden rounded-[3px] bg-paper text-center text-ink-paper shadow-page" aria-label={clock ? `${clock.weekday}, ngày ${clock.day} ${MONTHS[clock.month - 1].toLowerCase()}` : undefined}>
       <span className="bg-brick py-0.5 text-xs font-semibold text-white">{clock ? MONTHS[clock.month - 1] : " "}</span>
       <span className="font-print text-[2rem] font-medium leading-9 tabular-nums">{clock?.day ?? " "}</span>
-      <span className="pb-1 text-[11px] leading-4 text-muted">{clock?.weekday ?? " "}</span>
+      <span className="pb-1 text-sm leading-5 text-muted-paper">{clock?.weekday ?? " "}</span>
     </time>
   );
 }

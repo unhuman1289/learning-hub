@@ -103,7 +103,7 @@ export function DocumentForm({ request, workspace, onClose }: { request: FormReq
               <button type="submit" disabled={!workspace.loaded || !title.trim()} className={buttonClass("primary")}>Lưu vào sổ</button>
               <button type="button" onClick={onClose} className={buttonClass("ghost")}>Huỷ</button>
             </div>
-            <p className="text-sm leading-7 text-muted">Không ghi thông tin định danh bệnh nhân.</p>
+            <p className="text-sm leading-7 text-muted">Đừng ghi tên, địa chỉ hay giấy tờ của bệnh nhân.</p>
           </form>
         </RuledPage>
       </section>

@@ -17,10 +17,10 @@ export function OakDesk({ children, className, drawers = false, lamp = 0 }: { ch
         <div className="bg-oak-v grid grid-cols-2 gap-2 rounded-b-[6px] px-2.5 pb-2.5 pt-2 sm:grid-cols-3 sm:px-5">
           {[0, 1, 2].map((index) => {
             const drawer = labelled[index];
-            const face = cx("relative grid h-10 place-items-center rounded-[3px] bg-oak shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),inset_0_2px_5px_rgb(60_40_20/0.25)] transition-[translate,box-shadow] duration-300 ease-out hover:translate-y-1.5 hover:shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),0_6px_8px_-4px_rgb(0_0_0/0.5)]", index === 2 && "hidden sm:grid");
+            const face = cx("relative grid h-10 place-items-center rounded-[3px] bg-oak shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),inset_0_2px_5px_rgb(60_40_20/0.25)] transition-[translate,box-shadow] duration-300 ease-out ", index === 2 && "hidden sm:grid");
             // A labelled drawer opens something; its brass plate says what is inside.
             return drawer ? (
-              <button key={index} type="button" onClick={drawer.onOpen} className={cx(face, "min-h-11 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper")}>
+              <button key={index} type="button" onClick={drawer.onOpen} className={cx(face, "min-h-11 hover:translate-y-1.5 focus-visible:translate-y-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper")}>
                 <span className="rounded-[2px] border border-oak-dark/60 bg-[#c9a24a] px-2.5 font-hand text-[15px] leading-5 text-[#3b2410] shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]">{drawer.label}</span>
               </button>
             ) : (
@@ -56,7 +56,7 @@ export function Bookcase({ title, children, className, counterDecoration }: { ti
       <div className="bg-oak relative z-[1] -mx-2 h-4 rounded-t-[4px] border-b-4 border-oak-dark/60 shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]" />
       <div className="bg-cabinet px-2.5 pb-3 pt-3 sm:px-3.5">
         <div className="mb-3 flex items-baseline justify-between gap-3 px-1 text-cabinet-ink">{title}</div>
-        <div className="grid grid-cols-3 gap-y-4 rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)] sm:grid-cols-3 lg:grid-cols-2">
+        <div className="grid grid-cols-2 gap-y-4 min-[400px]:grid-cols-3 rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)] sm:grid-cols-3 lg:grid-cols-2">
           {children}
         </div>
       </div>
@@ -67,11 +67,11 @@ export function Bookcase({ title, children, className, counterDecoration }: { ti
       {/* Lower cupboard with bead-board doors */}
       <div className="bg-cabinet grid grid-cols-2 gap-2 px-2.5 pb-2.5 pt-2.5 [perspective:700px] sm:px-3.5">
         {[0, 1].map((index) => (
-          /* The dark inside of the cupboard shows when a door swings ajar on hover. */
+          /* Closed cabinet doors are decorative. */
           <div key={index} className="group/door rounded-[2px] bg-iron/85">
             <div className={cx(
               "bg-beadboard relative h-20 rounded-[2px] shadow-[inset_0_0_0_4px_var(--color-cabinet),inset_0_0_0_5px_rgb(60_40_20/0.22)] transition-transform duration-500 ease-[cubic-bezier(0.3,1.2,0.5,1)]",
-              index === 0 ? "origin-left group-hover/door:[transform:rotateY(-24deg)]" : "origin-right group-hover/door:[transform:rotateY(24deg)]",
+              index === 0 ? "origin-left " : "origin-right ",
             )}>
               <span className={cx("absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-iron", index === 0 ? "right-3" : "left-3")} />
             </div>

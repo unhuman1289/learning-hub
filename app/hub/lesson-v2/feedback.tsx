@@ -44,6 +44,7 @@ export function Feedback({
   onRefresh,
   formatText = (text:string)=>text,
   earlier = false,
+  child = false,
 }: {
   formatText?:(text:string)=>string;
   submission: SubmissionView | null;
@@ -51,6 +52,7 @@ export function Feedback({
   readOnly?: boolean;
   onRefresh?: () => void;
   earlier?: boolean;
+  child?: boolean;
 }) {
   if (!submission) return null;
   return (
@@ -64,8 +66,8 @@ export function Feedback({
           </div>
           {a.correction && <RedPen>✎ {formatText(a.correction)}</RedPen>}
           {a.correctionHidden && <p className={pencil}>Thử sửa lại trước; bản sửa sẽ hiện nếu lần sau vẫn chưa đúng.</p>}
-          {!a.result && <p className={pencil}>{stopped(submission.job_status) ? "Câu trả lời đã lưu nhưng lượt chấm đã dừng." : "Đã lưu. Đang chờ thầy cô chấm…"}</p>}
-          {!earlier && a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} onChanged={onRefresh} />}
+          {!a.result && <p className={pencil}>{stopped(submission.job_status) ? "Bài đã lưu, sẽ có lời phê sau." : "Đang chấm…"}</p>}
+          {!earlier && a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} child={child} onChanged={onRefresh} />}
         </div>
       ))}
       {!earlier && submission.summary && <RedPen className="mt-7">{formatText(submission.summary)}</RedPen>}

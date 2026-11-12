@@ -8,6 +8,27 @@ export function LessonReflection({submissionId, minutes}:{submissionId:string; m
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
  const url=`/api/submissions/${submissionId}/reflection`;
  useEffect(()=>{let alive=true;fetch(url,{cache:"no-store"}).then(async r=>{const x=await r.json() as {error?:string;reflection?:Reflection};if(!r.ok)throw Error(x.error || "Chưa xác nhận góp ý.");if(alive){if(x.reflection)setValue(x.reflection);setReady(true);}}).catch(e=>{if(alive)setMessage(e.message);});return()=>{alive=false;};},[url]);
- async function save(e:React.FormEvent){e.preventDefault();setBusy(true);setMessage("");try{const r=await fetch(url,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...value,minutes:Math.max(1,Math.min(720,minutes))})}),x=await r.json() as {error?:string;revision:number};if(!r.ok)throw Error(x.error || "Chưa xác nhận góp ý.");setValue(v=>({...v,revision:x.revision}));setMessage("Đã lưu góp ý cho lần soạn tiếp theo. Bài và điểm hiện tại giữ nguyên.");}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
- return <details className="mt-8 border-t border-line pt-4"><summary className="cursor-pointer font-hand text-xl text-accent">Góp ý sau khi đọc lời phê và sửa bài</summary><form onSubmit={save} className="mt-4 grid gap-4"><p className="text-sm text-muted">Góp ý giúp điều chỉnh bài sau. Thời gian lấy từ đồng hồ học của sổ.</p><div className="grid gap-4 sm:grid-cols-2"><label className={labelClass}>Độ khó<select className={fieldClass} value={value.difficulty} onChange={e=>setValue(v=>({...v,difficulty:e.target.value as Reflection['difficulty']}))}><option value="easy">Quá dễ</option><option value="fit">Vừa sức</option><option value="hard">Quá khó</option></select></label><label className={labelClass}>Hữu ích<select className={fieldClass} value={value.usefulness} onChange={e=>setValue(v=>({...v,usefulness:e.target.value as Reflection['usefulness']}))}><option value="useful">Có ích</option><option value="mixed">Một phần</option><option value="not_useful">Chưa hữu ích</option></select></label></div><label className={labelClass}>Bạn muốn bài sau điều chỉnh gì?<textarea className={fieldClass} rows={3} maxLength={1500} value={value.note} onChange={e=>setValue(v=>({...v,note:e.target.value}))} placeholder="Phần nào thiếu giải thích? Muốn luyện tình huống nào?"/></label><button className={buttonClass("secondary")} disabled={!ready||busy}>{busy?"Đang lưu…":"Lưu góp ý"}</button>{message&&<p role="status">{message}</p>}</form></details>;
+ async function save(e:React.FormEvent){e.preventDefault();setBusy(true);setMessage("");try{const r=await fetch(url,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...value,minutes:Math.max(1,Math.min(720,minutes))})}),x=await r.json() as {error?:string;revision:number};if(!r.ok)throw Error(x.error || "Chưa xác nhận góp ý.");setValue(v=>({...v,revision:x.revision}));setMessage("Đã lưu.");}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
+ const difficulty = [["easy", "Dễ"], ["fit", "Vừa"], ["hard", "Khó"]] as const;
+ const usefulness = [["useful", "Có ích"], ["mixed", "Bình thường"], ["not_useful", "Chưa có ích"]] as const;
+ return <section className="mt-8 border-t border-line pt-4">
+   <h3 className="font-hand text-xl text-accent">Góp ý cho bài sau</h3>
+   <form onSubmit={save} className="mt-3 grid gap-3">
+     <fieldset><legend className={labelClass}>Độ khó</legend><div className="flex flex-wrap gap-2">
+       {difficulty.map(([id, label]) => <label key={id} className="flex min-h-11 items-center gap-2 rounded-full px-3 has-[:checked]:bg-rose-soft">
+         <input type="radio" name="difficulty" value={id} checked={value.difficulty === id} onChange={() => setValue(v => ({ ...v, difficulty: id }))} />{label}
+       </label>)}
+     </div></fieldset>
+     <fieldset><legend className={labelClass}>Mức hữu ích</legend><div className="flex flex-wrap gap-2">
+       {usefulness.map(([id, label]) => <label key={id} className="flex min-h-11 items-center gap-2 rounded-full px-3 has-[:checked]:bg-rose-soft">
+         <input type="radio" name="usefulness" value={id} checked={value.usefulness === id} onChange={() => setValue(v => ({ ...v, usefulness: id }))} />{label}
+       </label>)}
+     </div></fieldset>
+     <label className={labelClass}>Bạn muốn bài sau đổi gì?
+       <input className={fieldClass + " min-h-11"} maxLength={1500} value={value.note} onChange={e => setValue(v => ({ ...v, note: e.target.value }))} />
+     </label>
+     <button className={buttonClass("secondary", "justify-self-start")} disabled={!ready || busy}>{busy ? "Đang lưu…" : "Lưu"}</button>
+     {message && <p role="status">{message}</p>}
+   </form>
+ </section>;
 }

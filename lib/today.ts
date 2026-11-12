@@ -1,4 +1,5 @@
 import type { EvidenceDb } from './evidence/submit.ts';
+import { berlinHour, greetingFor, readGreetingFacts } from "./greeting.ts";
 import { berlinDay } from './daily-policy.ts';
 export type TodayItem = {
   id: string;
@@ -10,6 +11,7 @@ export type TodayItem = {
   minutes: number;
   reason: string;
   optional: boolean;
+  hasWork?: boolean;
   assignedDay: string | null;
 };
 const rank = { correction: 0, review: 1, unfinished: 2, new: 3, exploration: 4 };
@@ -18,12 +20,12 @@ export function sortToday(rows: (TodayItem & { weight?: number })[], minutes: nu
     .sort((a, b) => rank[a.category] - rank[b.category] || (b.weight ?? 0) - (a.weight ?? 0) || a.id.localeCompare(b.id, 'en'))
     .map((r) => ({ ...r, optional: minutes >= target }));
 }
-export async function todayFor(db: EvidenceDb, learner: string, now = new Date()) {
+export async function todayFor(db: EvidenceDb, learner: string, now = new Date(), viewer = learner) {
   const day = berlinDay(now),
     setting = await db
-      .prepare('SELECT daily_target_minutes FROM learner_settings WHERE user_id=?')
+      .prepare('SELECT st.daily_target_minutes, st.role, coalesce(st.display_name,u.name) name FROM "user" u LEFT JOIN learner_settings st ON st.user_id=u.id WHERE u.id=?')
       .bind(learner)
-      .first<{ daily_target_minutes: number }>();
+      .first<{ daily_target_minutes: number | null; name: string; role: string | null }>();
   const study = await db
     .prepare('SELECT coalesce(sum(seconds),0)/60.0 AS minutes FROM study_time WHERE user_id=? AND day=?')
     .bind(learner, day)
@@ -31,7 +33,8 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
   const { results = [] } = await db
     .prepare(
       `SELECT l.id,l.subject_id,l.payload,l.assigned_date,l.slot,l.est_minutes,s.title AS subject_title,s.weight,s.system_kind,
- EXISTS(SELECT 1 FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=l.id AND a.status='graded' AND g.result IN ('incorrect','partial') AND NOT EXISTS(SELECT 1 FROM attempts newer WHERE newer.lesson_id=a.lesson_id AND newer.item_id=a.item_id AND newer.attempt_no>a.attempt_no)) AS correction
+ EXISTS(SELECT 1 FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=l.id AND a.status='graded' AND g.result IN ('incorrect','partial') AND NOT EXISTS(SELECT 1 FROM attempts newer WHERE newer.lesson_id=a.lesson_id AND newer.item_id=a.item_id AND newer.attempt_no>a.attempt_no)) AS correction,
+ EXISTS(SELECT 1 FROM attempts a WHERE a.lesson_id=l.id) AS has_work
  FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.user_id=? AND l.completed_at IS NULL AND s.status='active' AND (l.snoozed_until IS NULL OR l.snoozed_until<=?) AND l.package_version='2' ORDER BY l.assigned_date,l.id`,
     )
     .bind(learner, day)
@@ -59,11 +62,12 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
         : r.slot === 'extra' && r.system_kind !== 'explore'
           ? 'Bài mới'
           : r.slot === 'review'
-            ? 'Bộ ôn đã được giao'
+            ? 'Ôn lại'
           : r.assigned_date === day
             ? 'Bài mới hôm nay'
-            : 'Tiếp tục phần đang học',
+            : 'Làm tiếp bài hôm trước',
     optional: false,
+    hasWork: r.has_work === 1,
     assignedDay: String(r.assigned_date),
     weight: Number(r.weight),
   }));
@@ -80,18 +84,26 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
         lessonId: null,
         subjectId: r.subject_id,
         subjectTitle: r.title,
-        title: r.n + ' kỹ năng đến hạn ôn',
+        title: 'Ôn lại ' + r.n + ' kỹ năng',
         category: 'review',
         minutes: 0,
-        reason: 'Xin một bài luyện tập để ôn lại.',
+        reason: '',
         optional: false,
         assignedDay: null,
         weight: r.weight,
       });
+  const minutes = study?.minutes ?? 0;
+  const targetMinutes = setting?.daily_target_minutes ?? 45;
+  const name = setting?.name ?? "bạn";
+  const greeting = viewer === learner
+    ? greetingFor({ ...await readGreetingFacts(db, learner, now), minutesToday: minutes, targetMinutes },
+      { name, day, hour: berlinHour(now), role: setting?.role ?? "adult" })
+    : { hello: `Bàn của ${name}`, cheer: null, kind: null };
   return {
+    greeting,
     day,
-    minutes: study?.minutes ?? 0,
-    targetMinutes: setting?.daily_target_minutes ?? 45,
-    items: sortToday(rows, study?.minutes ?? 0, setting?.daily_target_minutes ?? 45),
+    minutes,
+    targetMinutes,
+    items: sortToday(rows, minutes, targetMinutes),
   };
 }

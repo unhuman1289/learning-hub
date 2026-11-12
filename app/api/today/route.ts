@@ -12,7 +12,7 @@ export async function GET(req: Request) {
     const db = storage(),
       learner = await resolveLearner(db, user, req, 'read_progress');
     if (learner instanceof Response) return learner;
-    return Response.json(await todayFor(db, learner), { headers });
+    return Response.json(await todayFor(db, learner, new Date(), user.id), { headers });
   } catch (e) {
     return apiFailure(e, 'Chưa tải được việc học hôm nay.', headers);
   }
