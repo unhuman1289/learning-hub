@@ -15,6 +15,8 @@ import { ContactBook } from "./guardian/contact-book";
 import { SketchIcon } from "./sketch-icons";
 import { Bookcase, OakDesk, Shelf } from "../../components/notebook/house";
 import { NotebookCover } from "../../components/notebook/paper";
+import { SpineShelves, type SpineBook } from "../../components/notebook/spine-shelf";
+import { SPINE_FROM } from "../../components/notebook/shelf-rows";
 import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
@@ -93,6 +95,28 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   });
   const v2Lessons=daily.data?.v2Active??[];
   const loading = !daily.data && !daily.error;
+  // From three notebooks on they stand spine-out; one or two lie face-out as before.
+  const subjects = shelf.subjects ?? [];
+  const spineOut = subjects.length >= SPINE_FROM;
+  const spineBooks: SpineBook[] = subjects.map((subject) => {
+    if (subject.legacyTrack && !hub2) {
+      const track = subject.legacyTrack;
+      const current = notebookPages(track, daily.data).active;
+      return {
+        id: subject.id, title: coverTitle[track], status: current && !current.completedAt ? "đang học" : "chưa có bài",
+        route: readOnly ? null : { view: "notebook", track, tab: "bai" }, transition: coverTransition[track],
+      };
+    }
+    return {
+      id: subject.id, title: subject.title, status: v2Lessons.some(l => l.subjectId === subject.id) ? "đang học" : "chưa có bài",
+      route: { view: "book", id: subject.id }, transition: `cover-${subject.id}`,
+    };
+  });
+  // The cupboard doors open the two things that used to be desk drawers.
+  const doors = hub2 ? [
+    { label: "Bài đã học", onOpen: () => setDrawer("learned") },
+    ...(!readOnly && selfId ? [{ label: "Cài đặt", onOpen: () => setDrawer("settings") }] : []),
+  ] : [];
   const notes = lessons.map(({ track, lesson }, index) => {
                 const route: Route = { view: "notebook", track, tab: "bai", page: lesson.id };
                 const isNew = lesson.assignedDate === today && !lesson.response.trim();
@@ -135,10 +159,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         <div className="min-w-0">
         {/* The window sits on the wall directly above the desk; its sill meets the desk top. */}
         <LubeckWindow clock={clock} onDarkness={setDarkness} className="mx-auto max-w-[44rem]" />
-        <OakDesk lamp={darkness * 0.5} drawers={hub2 ? [
-          { label: "Bài đã học", onOpen: () => setDrawer("learned") },
-          ...(!readOnly && selfId ? [{ label: "Cài đặt", onOpen: () => setDrawer("settings") }] : []),
-        ] : true}>
+        <OakDesk lamp={darkness * 0.5}>
           <div className="mb-4 flex items-end justify-between gap-2 px-1">
             <h2 className="font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
             <SeasonItem place="desk" month={clock?.month} />
@@ -159,19 +180,23 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         </div>
 
         <Bookcase
-          className="lg:sticky lg:top-24"
+          // Two shelves of spines still fit the screen; more than that scroll with the page.
+          className={!spineOut || subjects.length < 15 ? "lg:sticky lg:top-24" : undefined}
+          doors={doors}
+          rows={spineOut}
           counterDecoration={<SeasonItem place="shelf" month={clock?.month} />}
           title={<><h2 className="font-print text-xl font-medium">Tủ sách</h2><span className="text-sm opacity-80">Lấy một cuốn sổ</span></>}
         >
           {shelf.subjects === null && <p className="col-span-full px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}
-          {(shelf.subjects ?? []).map((subject) => (
+          {spineOut && <SpineShelves books={spineBooks} go={go} onNew={canOpenNotebook ? onNewNotebook : null} />}
+          {!spineOut && subjects.map((subject) => (
             <Shelf key={subject.id}>
               {subject.legacyTrack && !hub2
                 ? <PreparedNotebook track={subject.legacyTrack} daily={daily} readOnly={readOnly} go={go} />
                 : <TopicNotebook subject={subject} hasLesson={v2Lessons.some(l=>l.subjectId===subject.id)} go={go} />}
             </Shelf>
           ))}
-          {canOpenNotebook && (
+          {!spineOut && canOpenNotebook && (
             <Shelf>
               <button type="button" onClick={onNewNotebook} className="grid aspect-[3/4] w-full place-items-center rounded-[3px_8px_8px_3px] border-2 border-dashed border-cabinet-ink/40 p-2 text-center hover:border-accent hover:bg-paper/40">
                 <span className="font-hand text-lg leading-6 text-cabinet-ink/80">+ Sổ mới</span>
