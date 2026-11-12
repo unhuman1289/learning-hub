@@ -393,7 +393,7 @@ Ngoài ra:
    - **Tiếng Trung** (yêu cầu "học từ đầu, nói chuyện khi du lịch", kỳ vọng `zh-hsk`):
      - lượt mở sổ trả 8 bước (pinyin, chào hỏi, số đếm, 是/不, hỏi đường, gọi món, 吗/呢, thời gian);
      - chẩn đoán đúng hết bước 1–2, sai bước 3 → bước 1–2 `placed`, bài đầu là intro bước 3;
-     - qua bước 3, 4, 5 → vào bước 6, còn 3 bước `planned`; đã `extend` lúc vào bước 4 nên còn 6;
+     - qua bước 3, vào bước 4 → còn 4 bước `planned` (5–8) → `extend` 3 bước, còn 7; vào bước 7 → `extend` lần nữa;
      - ghi "theo giáo trình Hán ngữ quyển 1" → `custom`, không dùng `zh-hsk`;
      - bước "Gọi món" thiếu nguồn → một gap `topic_key='zh-hsk'`.
 2. Chạy thật trên staging rồi production, với runner `--once`:
