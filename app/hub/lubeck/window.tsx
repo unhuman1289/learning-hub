@@ -39,6 +39,24 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
 
   const previewing = weather !== undefined;
   useEffect(() => {
+    const windowSvg = svg.current;
+    if (!windowSvg) return;
+    let inView = true;
+    const syncMotion = () => windowSvg.toggleAttribute("data-motion-paused", document.hidden || !inView);
+    const observer = new IntersectionObserver(([entry]) => {
+      inView = entry.isIntersecting;
+      syncMotion();
+    });
+    observer.observe(windowSvg);
+    document.addEventListener("visibilitychange", syncMotion);
+    syncMotion();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", syncMotion);
+    };
+  }, []);
+
+  useEffect(() => {
     if (previewing) return;
     let alive = true;
     const load = () => {
@@ -73,7 +91,7 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
     onDarkness?.(darkness);
   }, [clock, ambient, onDarkness, weather, previewing]);
 
-  return <svg ref={svg} aria-hidden="true" viewBox="26 12 628 336" className={className} style={{ display: "block", width: "100%" }} />;
+  return <svg ref={svg} aria-hidden="true" viewBox="26 12 628 336" className={`lhw-window ${className ?? ""}`} style={{ display: "block", width: "100%" }} />;
 }
 
 /** This month's small object for the desk or the bookcase. */

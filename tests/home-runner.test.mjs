@@ -177,6 +177,40 @@ test('a 422 from the dry run goes back to the engine once with the error codes',
   db.sqlite.close();
 });
 
+test('a rejected lesson goes back to Qwen with the draft and exact question path', async () => {
+  const context = {
+    contract: 'plan-context/1', contextHash: 'sha256:' + '0'.repeat(64), purpose: 'daily', subjects: [],
+  };
+  const lesson = structuredClone(fixture);
+  const draft = {
+    contract: 'plan-result/1', contextHash: context.contextHash, summary: 'Bài mới', subjects: [],
+    explorations: [{ requestId: 'req_0123456789abcdefabcd', action: 'assign', subjectId: subject, lesson, reason: 'Luyện thêm.' }],
+    usage: { model: 'test', inputTokens: 0, outputTokens: 0, ms: 0 },
+  };
+  const fixed = structuredClone(draft);
+  fixed.explorations[0].lesson.items[1].prompt = 'Nói một câu về việc dời lịch khám.';
+  const qwen = fakeEngine('qwen', [() => draft, () => fixed]);
+  const calls = [];
+  const path = '/explorations/0/lesson/items/1/prompt';
+  const hub = {
+    context: async () => context,
+    async result(_lease, body, dryRun) {
+      calls.push({ body, dryRun });
+      return calls.length === 1
+        ? { status: 422, body: { errors: [{ path, code: 'duplicate_item', message: 'Câu đã dùng trong 90 ngày.' }] } }
+        : { status: 200 };
+    },
+    state: async () => ({ status: 'succeeded', outcome: { extraLessonIds: ['saved-lesson'] } }),
+    fail: async () => assert.fail('Expected the fixed draft to be saved'),
+  };
+  assert.equal((await processJob(hub, { kind: 'plan', jobId: 'job_plan' }, qwen)).status, 'succeeded');
+  assert.match(qwen.seen[1].user, new RegExp(path));
+  const rejected = JSON.parse(qwen.seen[1].user.split('<rejected_draft>\n')[1].split('\n</rejected_draft>')[0]);
+  assert.deepEqual(rejected.explorations[0].lesson, calls[0].body.explorations[0].lesson);
+  assert.deepEqual(calls.map(call => call.dryRun), [true, true, false]);
+  assert.deepEqual(calls[2].body.explorations[0].lesson.items[0], calls[0].body.explorations[0].lesson.items[0]);
+});
+
 test('Qwen without vision leaves photos with the Hub', async () => {
   let failed;
   const hub = {

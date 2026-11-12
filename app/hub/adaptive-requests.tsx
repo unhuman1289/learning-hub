@@ -96,15 +96,19 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, icons = fals
       {modes.map(mode => {
         const row = rows.find(item => item.mode === mode);
         const ready = row?.resultLessonId;
+        const pending = !!row && waiting(row);
         const icon = <><span className="relative mx-auto grid size-14 place-items-center rounded border border-rule bg-paper text-ink-paper">
           <RequestIcon mode={mode} />{ready && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-brick" />}
         </span><span>{labels[mode]}</span></>;
         return <div key={mode} className="min-w-0 font-hand">
           {ready ? <RouteLink route={{ view: "lesson", id: ready }} go={go} aria-label={labels[mode] + " · Mở bài"}>{icon}</RouteLink>
             : <button type="button" ref={mode === "personal" ? personalButton : undefined} aria-expanded={mode === "personal" ? personal : undefined}
-                className="w-full disabled:opacity-60" disabled={busy || !!row && waiting(row)}
+                aria-label={row && !pending ? words.action.retry + " · " + labels[mode] : undefined}
+                className="w-full disabled:opacity-60" disabled={busy || pending}
                 onClick={() => mode === "personal" ? setPersonal(!personal) : void send(mode)}>{icon}</button>}
-          {row && <p role="status" className="text-sm leading-snug text-muted">{clockTime(row.createdAt)} · {ready ? words.status.ready : waiting(row) ? words.status.writing : "Thử lại"}</p>}
+          {row && <p role="status" className="text-sm leading-snug text-muted">
+            {ready ? words.status.ready : pending ? words.status.writing : row.responseNote || words.status.notWritten}
+          </p>}
         </div>;
       })}
     </div> : <div className="flex flex-wrap gap-2 py-1.5">

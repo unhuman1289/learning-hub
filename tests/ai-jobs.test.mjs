@@ -985,6 +985,11 @@ test('manual Học mới advances the same roadmap that the nightly planner read
   assert.equal(context.adaptive.step.title, 'Sắp lịch');
   const result = plan(context, null);
   result.explorations = [{ requestId: request.id, action: 'assign', subjectId: subject, lesson: { ...fixture, estMinutes: 15 }, reason: 'Bước tiếp theo.' }];
+  const duplicate = structuredClone(result);
+  duplicate.explorations[0].lesson.items[1].prompt = duplicate.explorations[0].lesson.items[0].prompt;
+  const rejected = await applyResult(db, client, lease.jobId, lease.leaseToken, duplicate, true, now);
+  assert.equal(rejected.status, 422);
+  assert.equal(rejected.errors.find(error => error.code === 'duplicate_item')?.path, '/explorations/0/lesson/items/1/prompt');
   const saved = await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now);
   assert.equal(saved.status, 200, JSON.stringify(saved));
   const midnight = new Date('2026-10-13T22:00:00Z');

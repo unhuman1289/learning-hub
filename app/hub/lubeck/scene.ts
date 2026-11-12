@@ -9,6 +9,8 @@ export type SceneState = { hour: number; month: number; day: number; offsetHours
 
 const R = Math.PI / 180;
 const GROUND = 250;
+const WEATHER_TILE = 340;
+const LANDSCAPE_TILE = 700;
 type Attr = string;
 const rect = (x: number, y: number, w: number, h: number, a: Attr) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" ${a}/>`;
 const poly = (points: string, a: Attr) => `<polygon points="${points}" ${a}/>`;
@@ -60,6 +62,7 @@ function seeded(seed: number) {
 const SKELETON = `
 <defs>
 <clipPath id="lhw-clip"><rect x="44" y="24" width="592" height="302"/></clipPath>
+<clipPath id="lhw-river-clip"><rect x="44" y="250" width="592" height="76"/></clipPath>
 <pattern id="lhw-brick" width="10" height="6" patternUnits="userSpaceOnUse"><path d="M0 .3H10M0 3.3H10M2 .3V3.3M7 3.3V6" stroke="#2a0f0a" stroke-opacity=".26" stroke-width=".6" fill="none"/></pattern>
 <pattern id="lhw-tile" width="6" height="4" patternUnits="userSpaceOnUse"><path d="M0 4q3-4.5 6 0" stroke="#1a0c08" stroke-opacity=".34" stroke-width=".7" fill="none"/></pattern>
 <pattern id="lhw-stone" width="16" height="8" patternUnits="userSpaceOnUse"><path d="M0 .3H16M0 4.3H16M5 .3V4.3M12 4.3V8" stroke="#2c2c2a" stroke-opacity=".22" stroke-width=".6" fill="none"/></pattern>
@@ -78,13 +81,13 @@ const SKELETON = `
 <rect data-p="river" x="44" y="250" width="592" height="76" fill="#7f97a6"/>
 <g opacity=".44"><use href="#lhw-scene" transform="translate(0,500) scale(1,-1)"/></g>
 <rect data-p="veil" x="44" y="250" width="592" height="76" fill="#7f97a6" opacity=".3"/>
-<g data-p="ripples" class="lhw-ripple"></g>
+<g data-p="ripples" clip-path="url(#lhw-river-clip)"></g>
 <g data-p="water"></g>
 <rect data-p="fog" x="44" y="24" width="592" height="302" fill="#dfe4e6" opacity="0"/>
 <g data-p="branch" class="lhw-sway"></g>
 <g data-p="falling"></g>
-<g data-p="rain" class="lhw-rain"></g>
-<g data-p="snow" class="lhw-snow"></g>
+<g data-p="rain"></g>
+<g data-p="snow"></g>
 </g>
 <rect x="40" y="20" width="600" height="310" fill="none" stroke="#1f1f22" stroke-width="8"/>
 <rect x="30" y="330" width="620" height="13" fill="#7c5c3c"/><rect x="30" y="330" width="620" height="13" fill="url(#lhw-wood)"/>
@@ -92,6 +95,7 @@ const SKELETON = `
 
 function staticLayers() {
   const rnd = seeded(11);
+  const repeatAcross = (markup: string) => `<g transform="translate(-${LANDSCAPE_TILE})">${markup}</g>${markup}`;
   let stars = "";
   for (let i = 0; i < 44; i++) stars += circ((50 + rnd() * 580).toFixed(0), (30 + rnd() * 120).toFixed(0), (0.8 + rnd()).toFixed(1), F("#ffffff"));
   const cloud = (list: number[][]) => list.map((c) => ell(c[0], c[1], c[2], c[3], "")).join("");
@@ -173,18 +177,35 @@ function staticLayers() {
   for (let x = 512; x < 636; x += 12) front += line(`M${x} 224V217`, "#4a4a47", 1);
   for (const x of [536, 600]) front += line(`M${x} 217V196`, "#2b2b2e", 1.6) + circ(x, 194, 3.4, F("#3a3a3d")) + GL(x, 194, 3.4);
 
-  let ripples = "";
+  const rippleLayers = ["", ""];
   for (let i = 0; i < 34; i++) {
     const x = 50 + rnd() * 570,
       y = 256 + rnd() * 66,
       w = 10 + rnd() * 40;
-    ripples += `<path d="M${x.toFixed(0)} ${y.toFixed(0)}h${w.toFixed(0)}" stroke="#ffffff" stroke-opacity="${(0.14 + rnd() * 0.2).toFixed(2)}" stroke-width="1.4" stroke-linecap="round" fill="none"/>`;
+    rippleLayers[i % 2] += `<path d="M${x.toFixed(0)} ${y.toFixed(0)}q${(w / 2).toFixed(0)} -2 ${w.toFixed(0)} 0" stroke="#ffffff" stroke-opacity="${(0.12 + rnd() * 0.19).toFixed(2)}" stroke-width="1.4" stroke-linecap="round" fill="none"/>`;
   }
-  let rain = "";
-  for (let i = 0; i < 90; i++) rain += `<path d="M${(40 + rnd() * 620).toFixed(0)} ${(20 + rnd() * 310).toFixed(0)}l-5 16" stroke="#e6eef3" stroke-opacity=".55" stroke-width="1" fill="none"/>`;
-  let snow = "";
-  for (let i = 0; i < 80; i++) snow += circ((46 + rnd() * 590).toFixed(0), (20 + rnd() * 310).toFixed(0), (1 + rnd() * 1.5).toFixed(1), 'fill="#ffffff" opacity=".85"');
-  return { stars, "clouds-high": cloudsHigh, "clouds-low": cloudsLow, far, mid, front, ripples, rain, snow };
+  const ripples = rippleLayers.map((layer, i) =>
+    `<g class="lhw-ripple" style="--lhw-duration:${i ? 142 : 96}s;--lhw-delay:${i ? -18 : -7}s">${repeatAcross(layer)}</g>`).join("");
+
+  // Each sheet moves by exactly one tile. The next sheet occupies the same pixels at the wrap.
+  const precipitation = (kind: "rain" | "snow", layer: number, count: number, seconds: number) => {
+    const id = `lhw-${kind}-${layer}`;
+    let particles = "";
+    for (let i = 0; i < count; i++) {
+      const x = (rnd() * 760).toFixed(1);
+      const y = (18 + rnd() * (WEATHER_TILE - 36)).toFixed(1);
+      const opacity = (0.32 + rnd() * (layer ? 0.5 : 0.32)).toFixed(2);
+      particles += kind === "rain"
+        ? `<path d="M${x} ${y}v${(7 + rnd() * (layer ? 12 : 7)).toFixed(1)}" stroke="#e6eef3" stroke-opacity="${opacity}" stroke-width="${layer ? 1.1 : 0.8}" stroke-linecap="round"/>`
+        : circ(x, y, (0.65 + rnd() * (layer ? 1.85 : 0.8)).toFixed(1), `fill="#fff" opacity="${opacity}"`);
+    }
+    return `<defs><pattern id="${id}" width="760" height="${WEATHER_TILE}" patternUnits="userSpaceOnUse">${particles}</pattern></defs>` +
+      `<g transform="skewX(${kind === "rain" ? -13 : layer ? 6 : 3})"><g class="lhw-${kind}" style="--lhw-duration:${seconds}s;--lhw-delay:${-seconds * (layer ? 0.61 : 0.27)}s">` +
+      rect(-100, -WEATHER_TILE, 880, WEATHER_TILE * 2, `fill="url(#${id})"`) + "</g></g>";
+  };
+  const rain = precipitation("rain", 0, 48, 5.2) + precipitation("rain", 1, 42, 3.8);
+  const snow = precipitation("snow", 0, 46, 26) + precipitation("snow", 1, 34, 18);
+  return { stars, "clouds-high": repeatAcross(cloudsHigh), "clouds-low": repeatAcross(cloudsLow), far, mid, front, ripples, rain, snow };
 }
 
 const swan = (x: number, y: number, k: number) =>
@@ -395,6 +416,8 @@ function seasonal(month: number, darkness: number, snowy: boolean) {
 
 /** Fills the window once and returns `draw`, which repaints it for a moment and reports how dark it is outside. */
 export function mountScene(root: SVGSVGElement) {
+  root.style.setProperty("--lhw-weather-travel", `${WEATHER_TILE}px`);
+  root.style.setProperty("--lhw-landscape-travel", `${LANDSCAPE_TILE}px`);
   root.innerHTML = SKELETON;
   const part = (name: string) => root.querySelector<SVGElement>(`[data-p="${name}"]`)!;
   for (const [name, markup] of Object.entries(staticLayers())) part(name).innerHTML = markup;
