@@ -570,6 +570,37 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
   }
 }
 
+/*
+  Notebooks standing spine-out on the bookcase. A slot is the fixed hit area (one spine wide); inside it a
+  box turns on the Y axis: the spine faces front at rest, and the cover (hinged at the spine's edge, running
+  back into the shelf) faces front once the book is pulled out. Sizes come from components/notebook/shelf-rows.ts.
+*/
+.spine-slot {
+  --spine-w: 36px; --spine-h: 152px; --spine-d: 114px;
+  position: relative; display: block; flex: none; width: var(--spine-w); height: var(--spine-h);
+  perspective: 480px; z-index: 0; border-radius: 2px;
+  /* A returning book stays in front of its neighbours until it is back. */
+  transition: z-index 0s linear 560ms;
+}
+.spine-slot[data-out="true"] { z-index: 10; transition-delay: 0s; }
+.spine-box {
+  position: absolute; inset: 0; pointer-events: none;
+  transform-style: preserve-3d; transform-origin: 50% 50% calc(var(--spine-d) / -2);
+  translate: 0 0 0; rotate: 0 1 0 0deg;
+  transition: translate 440ms cubic-bezier(.3, .8, .3, 1), rotate 560ms cubic-bezier(.45, .05, .2, 1);
+}
+.spine-slot[data-out="true"] .spine-box {
+  translate: var(--shift, 0px) -8px calc(var(--spine-d) / 2 + 16px); rotate: 0 1 0 -90deg;
+}
+.spine-face { position: absolute; inset: 0; backface-visibility: hidden; }
+.spine-cover {
+  position: absolute; top: 0; left: 100%; width: var(--spine-d); height: 100%;
+  transform-origin: 0 50%; transform: rotateY(90deg); backface-visibility: hidden; pointer-events: none;
+}
+/* Only a book that is out takes the pointer on its cover, so moving over it does not pick the neighbour. */
+.spine-slot[data-out="true"] .spine-cover { pointer-events: auto; }
+.spine-slot:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
 [data-age="child"] {
   --paper-line-height: 2rem;
 }

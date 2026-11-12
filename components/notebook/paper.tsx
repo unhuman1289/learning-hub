@@ -3,10 +3,10 @@ import type { ReactNode } from "react";
 const cx = (...names: (string | false | null | undefined)[]) => names.filter(Boolean).join(" ");
 
 /** Marble composition-notebook cover with a cloth spine and a white name label. */
-export function NotebookCover({ title, lines = [], className }: { title: string; lines?: string[]; className?: string }) {
+export function NotebookCover({ title, lines = [], className, spineColor }: { title: string; lines?: string[]; className?: string; spineColor?: string }) {
   return (
     <div className={cx("@container relative aspect-[3/4] overflow-hidden rounded-[3px_8px_8px_3px] bg-marble shadow-cover", className)}>
-      <div className="absolute inset-y-0 left-0 w-[14%] border-r border-black/40 bg-spine" />
+      <div className="absolute inset-y-0 left-0 w-[14%] border-r border-black/40 bg-spine" style={spineColor ? { backgroundColor: spineColor } : undefined} />
       <div className="absolute left-[24%] right-[8%] top-[15%] rounded-[10cqw] border-[1.5cqw] border-label bg-label px-[8%] pb-[8%] pt-[7%] text-label-ink shadow-[inset_0_0_0_0.8cqw_var(--color-label-ink)]">
         <p className="text-center font-hand text-[max(15px,11cqw)] leading-tight">{title}</p>
         {lines.map((line, index) => (

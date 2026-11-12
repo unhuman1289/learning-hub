@@ -3,8 +3,7 @@ import { cx } from "./paper";
 
 /** Oak desk top: boards with a front edge. Paper and notebooks lie on it. */
 /** `lamp` (0–1) is how much the desk lamp shows: a warm pool of light on the boards after dusk. */
-export function OakDesk({ children, className, drawers = false, lamp = 0 }: { children: ReactNode; className?: string; drawers?: boolean | { label: string; onOpen: () => void }[]; lamp?: number }) {
-  const labelled = Array.isArray(drawers) ? drawers : [];
+export function OakDesk({ children, className, lamp = 0 }: { children: ReactNode; className?: string; lamp?: number }) {
   return (
     <div className={cx("rounded-[6px] shadow-furniture", className)}>
       <div className="bg-oak-planks relative rounded-t-[6px] p-2.5 sm:p-5">
@@ -13,24 +12,7 @@ export function OakDesk({ children, className, drawers = false, lamp = 0 }: { ch
       </div>
       {/* Front edge of the desk top. */}
       <div className="bg-oak h-2.5 border-y border-oak-dark/70 brightness-90" />
-      {drawers ? (
-        <div className="bg-oak-v grid grid-cols-2 gap-2 rounded-b-[6px] px-2.5 pb-2.5 pt-2 sm:grid-cols-3 sm:px-5">
-          {[0, 1, 2].map((index) => {
-            const drawer = labelled[index];
-            const face = cx("relative grid h-10 place-items-center rounded-[3px] bg-oak shadow-[inset_0_0_0_1px_rgb(60_40_20/0.35),inset_0_2px_5px_rgb(60_40_20/0.25)] transition-[translate,box-shadow] duration-300 ease-out ", index === 2 && "hidden sm:grid");
-            // A labelled drawer opens something; its brass plate says what is inside.
-            return drawer ? (
-              <button key={index} type="button" onClick={drawer.onOpen} className={cx(face, "min-h-11 hover:translate-y-1.5 focus-visible:translate-y-1.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper")}>
-                <span className="rounded-[2px] border border-oak-dark/60 bg-[#c9a24a] px-2.5 font-hand text-[15px] leading-5 text-[#3b2410] shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]">{drawer.label}</span>
-              </button>
-            ) : (
-              <div key={index} className={face}>
-                <span className="size-2.5 rounded-full bg-iron shadow-[0_1px_1px_rgb(255_255_255/0.35)]" />
-              </div>
-            );
-          })}
-        </div>
-      ) : <div className="bg-oak-v h-2 rounded-b-[6px]" />}
+      <div className="bg-oak-v h-2 rounded-b-[6px]" />
     </div>
   );
 }
@@ -44,19 +26,26 @@ export function WoodFrame({ children, className, label }: { children: ReactNode;
   );
 }
 
+export type BookcaseDoor = { label: string; onOpen: () => void };
+
 /**
  * White-painted Landhaus bookcase with oak trim: oak crown, oak shelves, an oak counter top and
- * white bead-board doors below.
- * Each child is one compartment; its own shelf board joins the neighbours' into a continuous shelf.
+ * white bead-board doors below. The doors that have something behind them carry a brass plate and open a dialog.
+ * By default each child is one compartment (see `Shelf`); with `rows` the children are laid out by the caller.
  */
-export function Bookcase({ title, children, className, counterDecoration }: { title: ReactNode; children: ReactNode; className?: string; counterDecoration?: ReactNode }) {
+export function Bookcase({ title, children, className, counterDecoration, doors = [], rows = false }: {
+  title: ReactNode; children: ReactNode; className?: string; counterDecoration?: ReactNode; doors?: BookcaseDoor[]; rows?: boolean;
+}) {
   return (
     <section aria-label="Tủ sách" className={cx("shadow-furniture", className)}>
       {/* Crown moulding */}
       <div className="bg-oak relative z-[1] -mx-2 h-4 rounded-t-[4px] border-b-4 border-oak-dark/60 shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]" />
       <div className="bg-cabinet px-2.5 pb-3 pt-3 sm:px-3.5">
         <div className="mb-3 flex items-baseline justify-between gap-3 px-1 text-cabinet-ink">{title}</div>
-        <div className="grid grid-cols-2 gap-y-4 min-[400px]:grid-cols-3 rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)] sm:grid-cols-3 lg:grid-cols-2">
+        <div className={cx(
+          "rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)]",
+          rows ? "grid gap-y-4" : "grid grid-cols-2 gap-y-4 min-[400px]:grid-cols-3 sm:grid-cols-3 lg:grid-cols-2",
+        )}>
           {children}
         </div>
       </div>
@@ -66,21 +55,37 @@ export function Bookcase({ title, children, className, counterDecoration }: { ti
       </div>
       {/* Lower cupboard with bead-board doors */}
       <div className="bg-cabinet grid grid-cols-2 gap-2 px-2.5 pb-2.5 pt-2.5 [perspective:700px] sm:px-3.5">
-        {[0, 1].map((index) => (
-          /* Closed cabinet doors are decorative. */
-          <div key={index} className="group/door rounded-[2px] bg-iron/85">
-            <div className={cx(
-              "bg-beadboard relative h-20 rounded-[2px] shadow-[inset_0_0_0_4px_var(--color-cabinet),inset_0_0_0_5px_rgb(60_40_20/0.22)] transition-transform duration-500 ease-[cubic-bezier(0.3,1.2,0.5,1)]",
-              index === 0 ? "origin-left " : "origin-right ",
-            )}>
-              <span className={cx("absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-iron", index === 0 ? "right-3" : "left-3")} />
-            </div>
-          </div>
-        ))}
+        {[0, 1].map((index) => <CupboardDoor key={index} side={index === 0 ? "left" : "right"} door={doors[index]} />)}
       </div>
       {/* Plinth */}
       <div className="bg-oak h-3 rounded-b-[3px] border-t border-oak-dark/70" />
     </section>
+  );
+}
+
+/** One bead-board door. Without a `door` it stays shut and plain; with one it swings ajar on hover and opens on a press. */
+function CupboardDoor({ side, door }: { side: "left" | "right"; door?: BookcaseDoor }) {
+  const left = side === "left";
+  const panel = cx(
+    "bg-beadboard relative grid h-20 place-items-center rounded-[2px] shadow-[inset_0_0_0_4px_var(--color-cabinet),inset_0_0_0_5px_rgb(60_40_20/0.22)] transition-transform duration-500 ease-[cubic-bezier(0.3,1.2,0.5,1)]",
+    left ? "origin-left" : "origin-right",
+    door && (left
+      ? "group-hover/door:[transform:rotateY(-32deg)] group-focus-visible/door:[transform:rotateY(-32deg)]"
+      : "group-hover/door:[transform:rotateY(32deg)] group-focus-visible/door:[transform:rotateY(32deg)]"),
+  );
+  const inside = (
+    <>
+      <span className={cx("absolute top-1/2 size-2.5 -translate-y-1/2 rounded-full bg-iron", left ? "right-3" : "left-3")} />
+      {door && <span className="rounded-[2px] border border-oak-dark/60 bg-[#c9a24a] px-2.5 font-hand text-[15px] leading-5 text-[#3b2410] shadow-[inset_0_1px_0_rgb(255_255_255/0.4)]">{door.label}</span>}
+    </>
+  );
+  // The dark inside shows when the door swings open.
+  return door ? (
+    <button type="button" onClick={door.onOpen} aria-haspopup="dialog" className="group/door min-h-11 rounded-[2px] bg-iron/85 text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
+      <span className={panel}>{inside}</span>
+    </button>
+  ) : (
+    <div className="rounded-[2px] bg-iron/85"><div className={panel}>{inside}</div></div>
   );
 }
 

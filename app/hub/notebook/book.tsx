@@ -41,7 +41,7 @@ export function Book({ title, go, children, paged = false, ...current }: {
     {!legacy && active === "hom-nay" && <div className="mx-auto hidden max-w-3xl overflow-hidden rounded-t-sm xl:block">
       <WindowStrip />
     </div>}
-    <OakDesk drawers={!reading} className={reading ? "sm:[&>.bg-oak-planks]:pt-2" : undefined}>
+    <OakDesk className={reading ? "sm:[&>.bg-oak-planks]:pt-2" : undefined}>
     <div className="flex items-center justify-between gap-3 text-oak-ink">
       <RouteLink route={close} go={go} className="inline-flex min-h-11 items-center gap-2 rounded-sm bg-oak-dark px-2 font-hand text-lg hover:underline">
         <SketchIcon name="closeBook" size={24} />{words.action.close}
