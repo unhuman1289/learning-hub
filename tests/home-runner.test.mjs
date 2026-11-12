@@ -251,20 +251,20 @@ test('runOnce leases nothing when no engine answers and asks only for work it ca
   await runOnce(hub, up);
   assert.deepEqual(hub.input.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(hub.input.kinds, ['assess', 'plan']);
-  assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading']);
+  assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3']);
 });
 
 test('lease requests, poll schedule and env file parsing', () => {
   const all = leaseRequest({ vision: true });
   assert.deepEqual(all.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(all.kinds, ['assess', 'plan']);
-  assert.deepEqual(all.capabilities, ['adaptive-plan', 'local-grading', 'vision']);
+  assert.deepEqual(all.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'vision']);
   assert.deepEqual(all.triggers, ['on_demand', 'deferred']);
   assert.equal(all.runner.model, 'qwen');
   const nightly = leaseRequest({ vision: false }, { daily: true });
   assert.deepEqual(nightly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
   assert.deepEqual(nightly.triggers, ['on_demand', 'deferred', 'scheduled']);
-  assert.deepEqual(nightly.capabilities, ['adaptive-plan', 'local-grading']);
+  assert.deepEqual(nightly.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3']);
   assert.equal(pollDelay(new Date('2026-11-12T09:00:00Z')), 15000);
   assert.equal(pollDelay(new Date('2026-11-12T02:00:00Z')), 300000);
   assert.equal(pollDelay(new Date('2026-11-12T22:45:00Z')), 300000); // 23:45 Berlin

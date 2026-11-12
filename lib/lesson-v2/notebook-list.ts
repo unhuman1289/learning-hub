@@ -12,7 +12,7 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
   const { results = [] } = await db.prepare(`
     WITH page AS (
       SELECT l.*, substr(min(assigned_date) OVER (),1,7) firstMonth
-      FROM learning_lessons l WHERE user_id=? AND subject_id=? AND package_version='2'
+      FROM learning_lessons l WHERE user_id=? AND subject_id=? AND package_version IN ('2','3')
       ORDER BY CASE WHEN ?=1 THEN assigned_date END DESC, completed_at IS NOT NULL,
         coalesce(completed_at,updated) DESC,id DESC
       LIMIT ? OFFSET ?

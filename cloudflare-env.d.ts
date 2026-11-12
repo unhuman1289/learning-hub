@@ -37,5 +37,6 @@ declare namespace Cloudflare {
     AUTOMATION_ACCESS_AUD?: string;
     AUTOMATION_CLIENTS?: string;
     ASSESSOR_CLIENT?: string;
+    STAGING_RUNNER_CLIENT?: string;
   }
 }

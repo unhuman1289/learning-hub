@@ -34,6 +34,8 @@ export async function POST(req: Request) {
     const learnerId = await resolveLearner(db, user, req, 'edit_goals');
     if (learnerId instanceof Response) return learnerId;
     const input = parseSubjectInput(await req.json());
+    if (input.limits.package === 3 && (user.role !== 'admin' || input.legacyTrack))
+      return Response.json({ error: 'Chỉ quản trị viên có thể bật thử dạng bài mới cho sổ riêng.' }, { status: 403, headers });
     const subject = await createSubject(db, learnerId, user.id, input);
     // The notebook is saved; if the initial plan job cannot be queued, an adult can still activate it by hand.
     if (subject.status === 'setup' && env.HUB2_ENABLED === 'true') {

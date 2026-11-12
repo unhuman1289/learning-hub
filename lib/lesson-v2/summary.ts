@@ -3,7 +3,7 @@ import { berlinDay } from '../daily-policy.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 
 export async function lessonSummary(db: EvidenceDb, learnerId: string, lessonId: string, now = new Date()) {
-  const lesson = await db.prepare("SELECT subject_id FROM learning_lessons WHERE id=? AND user_id=? AND package_version='2'")
+  const lesson = await db.prepare("SELECT subject_id FROM learning_lessons WHERE id=? AND user_id=? AND package_version IN ('2','3')")
     .bind(lessonId, learnerId).first<{ subject_id: string }>();
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
   const [work, time, comments, skills] = await Promise.all([

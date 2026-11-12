@@ -68,6 +68,13 @@ export async function PATCH(req: Request, context: Context) {
     const learnerId = await resolveLearner(db, user, req, 'edit_goals');
     if (learnerId instanceof Response) return learnerId;
     const patch = parseSubjectPatch(await req.json());
+    if (patch.limits) {
+      const subject = await getSubject(db, learnerId, id);
+      const previous = JSON.parse(subject.limits).package ?? 2;
+      patch.limits.package ??= previous;
+      if (patch.limits.package !== previous && (user.role !== 'admin' || subject.legacy_track))
+        return Response.json({ error: 'Chỉ quản trị viên có thể đổi phiên bản dạng bài cho sổ riêng.' }, { status: 403, headers });
+    }
     return Response.json({ subject: await updateSubject(db, learnerId, id, patch) }, { headers });
   } catch (error) {
     return apiFailure(error, 'Chưa lưu được thay đổi của sổ.', headers);

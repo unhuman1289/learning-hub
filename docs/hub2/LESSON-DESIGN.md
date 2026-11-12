@@ -210,7 +210,13 @@ Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiế
 - Đáp số theo quy ước Việt Nam (dấu phẩy thập phân); server nhận cả dấu chấm.
 - Rubric có 2–5 tiêu chí, mỗi tiêu chí gắn một kỹ năng (hoặc một khái niệm, với tiêu chí "kết nối"). Không chấm "tự nhiên như người bản xứ" vượt trình độ.
 
-### 5.4 Chống lặp
+### 5.4 Dạng câu phiên bản 3
+
+Sổ bật `limits.package = 3` trộn ít nhất hai dạng câu trong mỗi bài. Sinh học ưu tiên nối cặp, sắp quy trình, điền bảng và gắn nhãn trên hình có sẵn. Rust ưu tiên sửa lỗi hoặc viết hàm ngắn, điền cú pháp và sắp các bước mượn dữ liệu. Bảng, sơ đồ, khối code và các bước được dựng từ dữ liệu của bài.
+
+Hub chấm theo từng ô hoặc vị trí của câu đóng. Qwen chấm câu code theo rubric, giữ điểm tiêu chí đã đạt và nêu số dòng khi chỉ lỗi. Lời phê nói rõ “Chưa chạy thử.”
+
+### 5.5 Chống lặp
 
 Đổi ít nhất một yếu tố so với lần trước: cách hỏi, ngữ cảnh, số bước, kỹ năng kết hợp, mức độc lập, yêu cầu giải thích, hình thức trả lời.
 

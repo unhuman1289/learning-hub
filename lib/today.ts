@@ -35,7 +35,7 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
       `SELECT l.id,l.subject_id,l.payload,l.assigned_date,l.slot,l.est_minutes,s.title AS subject_title,s.weight,s.system_kind,
  EXISTS(SELECT 1 FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=l.id AND a.status='graded' AND g.result IN ('incorrect','partial') AND NOT EXISTS(SELECT 1 FROM attempts newer WHERE newer.lesson_id=a.lesson_id AND newer.item_id=a.item_id AND newer.attempt_no>a.attempt_no)) AS correction,
  EXISTS(SELECT 1 FROM attempts a WHERE a.lesson_id=l.id) AS has_work
- FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.user_id=? AND l.completed_at IS NULL AND s.status='active' AND (l.snoozed_until IS NULL OR l.snoozed_until<=?) AND l.package_version='2' ORDER BY l.assigned_date,l.id`,
+ FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.user_id=? AND l.completed_at IS NULL AND s.status='active' AND (l.snoozed_until IS NULL OR l.snoozed_until<=?) AND l.package_version IN ('2','3') ORDER BY l.assigned_date,l.id`,
     )
     .bind(learner, day)
     .all<Record<string, unknown>>();

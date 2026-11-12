@@ -15,6 +15,7 @@ export type AutomationBindings = {
   AUTOMATION_ACCESS_AUD?: string;
   AUTOMATION_CLIENTS?: string;
   ASSESSOR_CLIENT?: string;
+  STAGING_RUNNER_CLIENT?: string;
   APP_ENV?: string;
   ENVIRONMENT?: string;
 };
@@ -64,16 +65,31 @@ function parseClients(value: string | undefined): AutomationClient[] | null {
   }
 }
 
-/** Separate assessor credential: never overwrite the existing planner client list. */
-export function configuredAutomationClients(bindings:AutomationBindings):AutomationClient[]|null {
- const base=parseClients(bindings.AUTOMATION_CLIENTS ?? (bindings.ASSESSOR_CLIENT ? '[]' : undefined));
- if(!base)return null;
- if(!bindings.ASSESSOR_CLIENT)return base;
- const extra=parseClients('['+bindings.ASSESSOR_CLIENT+']');
- if(!extra||extra.length!==1)return null;
- const client=extra[0];
- if(client.scopes.some(s=>!['jobs:assess','attachments:read'].includes(s))||!client.scopes.includes('jobs:assess')||client.learnerIds?.length!==1||!client.purposes?.length||client.purposes.some(p=>!['submission','recheck'].includes(p))||base.some(c=>c.id===client.id)||base.length>=32)return null;
- return [...base,client];
+/** Runner credentials may be rotated independently of the existing staging clients. */
+export function configuredAutomationClients(bindings: AutomationBindings): AutomationClient[] | null {
+  const stagingRunner = bindings.APP_ENV === 'staging' && bindings.ENVIRONMENT === 'staging' ? bindings.STAGING_RUNNER_CLIENT : undefined;
+  let clients = parseClients(bindings.AUTOMATION_CLIENTS ?? (bindings.ASSESSOR_CLIENT || stagingRunner ? '[]' : undefined));
+  if (!clients) return null;
+  if (stagingRunner) {
+    const entries = parseClients('[' + stagingRunner + ']');
+    if (!entries || entries.length !== 1) return null;
+    const [runner] = entries;
+    if (!runner || runner.id !== 'home-runner' || runner.learnerIds?.length !== 1 ||
+        !runner.scopes.includes('jobs:plan') || !runner.scopes.includes('jobs:assess') ||
+        runner.scopes.some(scope => !['jobs:plan', 'jobs:assess', 'attachments:read', 'history:read'].includes(scope)) ||
+        !runner.purposes?.length || !runner.triggers?.length) return null;
+    clients = [...clients.filter(client => client.id !== runner.id), runner];
+    if (clients.length > 32) return null;
+  }
+  if (!bindings.ASSESSOR_CLIENT) return clients;
+  const extra = parseClients('[' + bindings.ASSESSOR_CLIENT + ']');
+  if (!extra || extra.length !== 1) return null;
+  const [assessor] = extra;
+  if (assessor.scopes.some(scope => !['jobs:assess', 'attachments:read'].includes(scope)) ||
+      !assessor.scopes.includes('jobs:assess') || assessor.learnerIds?.length !== 1 ||
+      !assessor.purposes?.length || assessor.purposes.some(purpose => !['submission', 'recheck'].includes(purpose)) ||
+      clients.some(client => client.id === assessor.id) || clients.length >= 32) return null;
+  return [...clients, assessor];
 }
 
 function equalHash(expected: string, actual: string): boolean {

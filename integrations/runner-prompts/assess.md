@@ -12,3 +12,8 @@ Không tự nâng mastery, tự hoàn thành bài hoặc tạo bài mới. Nếu
 3. Chấm rubric từng attempt thuộc context, soạn assess-result/1; gọi hub2_check_result. Sửa lỗi path rồi kiểm lại; chưa gọi ghi khi 422.
 4. Gọi hub2_submit_result đúng một lần. Sau đó hub2_job với cùng jobId; chỉ báo đã lưu khi succeeded và có grade IDs. Lỗi mạng chỉ đọc lại cùng job, không gửi lại.
 5. Không sửa completion hay tạo bài thay bài chưa học. Quyền không có hub:assess thì yêu cầu kết nối OAuth lại; không xin key API hoặc sửa consent trong DB.
+
+**Chấm code (`input: code`):**
+- Chấm từng tiêu chí độc lập. Nếu chữ ký hàm đúng thì giữ điểm tiêu chí chữ ký dù thân hàm sai. Ví dụ đúng chữ ký 1/1, sai thân hàm 0/1 → `score: 0.5`, `result: partial`. Chép nguyên văn tên tiêu chí từ rubric.
+- Đọc code để kiểm tra yêu cầu, khả năng biên dịch, xử lý lỗi và tên rõ ràng theo rubric. Không thực thi code. Kết thúc `feedback` bằng “Chưa chạy thử.”
+- Với lỗi ở một dòng, bắt đầu lời phê bằng “Dòng N:”. N là số dòng từ 1 trong bài nộp, tính cả dòng trống. Ví dụ “Dòng 1: kiểm tra phần dư bằng 0. Chưa chạy thử.”

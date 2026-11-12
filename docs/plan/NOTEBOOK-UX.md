@@ -13,13 +13,11 @@ Bản 1 viết 11/11/2026 trên `main` @ `9317f67`. **Bản 2 (12/11/2026)** m�
 
 | Phần | Đã kiểm tra | Còn lại |
 |---|---|---|
-| Production · PR #114 | Mở thẳng câu cần sửa, giấy nhớ mở gợi ý tuần tự, đo lại trang sau khi rời ô nhập. 363 test, CI, Chrome và smoke D1 đạt. | VoiceOver, vuốt trên thiết bị thật và ba ngày lời chào trên production chưa được nghiệm thu. |
-| 7a · Local | Chia trang từ dữ liệu bài, mở Ghi nhớ và quay lại câu đang làm. | Trang quá dài vẫn cuộn. Còn chia đoạn dài và kiểm thử thiết bị thật. |
-| 7b–7c · Local | Dấu Kiểm tra, giấy gợi ý nổi, ô lời phê hai dòng với chi tiết mở riêng, phân biệt lời giải tự mở với lời giải hiện sau chấm, nhảy từ tổng kết tới câu. | Bộ biểu tượng đầy đủ, hiệu ứng gáy và góc lật, chỉ dựng trang lân cận, giao diện góp ý. |
-| 8 · Local | Mục lục theo tháng giao, số liệu từ D1, báo cáo 7 ngày, bài nằm cùng khung sổ và lịch sử nằm ở Cài đặt. | Báo cáo đầy đủ theo U8.2, cache và cập nhật theo sự kiện, mỗi chương một trang vật lý, biểu tượng xin bài, dọn luồng sổ cũ. |
-| 9 · Local | Có Zod và JSON Schema v3, kiểm tra dữ liệu hình và chấm điểm từng phần cho năm dạng câu đóng. | Chưa có UI v3, lưu/đọc, tích hợp runner hay pilot. Hai ràng buộc D1 ở migration 0009 hiện chỉ nhận `package_version` 1/2 và `input_kind` choice/short/long. Cần chốt và kiểm thử đường lưu tương thích trước khi bật v3. |
+| Production · PR #114–118 | Bản 3 V1–V7 đã phát hành. PR #118 bổ sung vòng sửa theo lỗi Hub trả về và chỉnh chuyển động thời tiết. | VoiceOver, vuốt trên điện thoại thật và theo dõi lời chào qua ba ngày. |
+| 7–8 · Local bổ sung | Góp ý dùng dấu khoanh, trạng thái chờ chấm hiện cạnh câu, Tiến độ có ô tô màu và số ngày tuần này. Đã tách Cài đặt và gộp nút xin bài theo sổ. | Một số màn hình cũ vẫn dùng danh sách và yêu cầu riêng. Cần chuyển đường dẫn sổ nền và Sổ liên lạc trước khi bỏ các phần này. |
+| 9 · Staging | Sáu dạng câu và bốn khối kiến thức. CI đạt. D1 staging đã áp 0022, Worker và smoke HTTPS đạt. Qwen soạn và chấm trên dữ liệu thử cục bộ. | Runner staging trả 401. Cần kiểm lại xác thực, thử sổ pilot trên staging rồi duyệt phát hành production. |
 
-Các trạng thái bên dưới ghi theo mục tiêu từng phần. Mốc phát hành mới cần CI và nghiệm thu riêng. Các thay đổi local này chưa áp migration. Điều kiện lưu v3 phải được kiểm tra bằng bản sao D1 trước khi phát hành.
+Mốc nghiệm thu cũ ở Bản 3 giữ để đối chiếu. Các bước phát hành v3 và số đo Qwen ở cuối giai đoạn 9.
 
 ## Bản 3 (12/11/2026) — nghiệm thu bản local `bbb6ca6` và việc làm tiếp
 
@@ -512,7 +510,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
   - Sửa lỗi trang cũ trượt lệch ra ngoài khung khi lật: trang cũ nằm trong khung có `overflow: clip`.
 - **Chỉ dựng trang đang hiện và hai trang kề bên.** Trang khác là chỗ trống có chiều cao đúng, để khỏi tải tổng kết và hiệu ứng dấu khi trang còn khuất (sửa phát hiện "mọi trang đều dựng"). Focus khi lật đến tiêu đề phần, không đến `<p>` rỗng.
 
-### U7.9 Tổng kết là trang cuối có ý nghĩa (PR 7c) — [MỘT PHẦN, chưa nghiệm thu bằng mắt ở Bản 3]
+### U7.9 Tổng kết là trang cuối có ý nghĩa (PR 7c) — [XONG LOCAL]
 - Trang tổng kết hiện **ngay cả khi chưa xong bài**, gồm:
   - kiểm điểm: đúng ngay, đúng sau khi sửa, xem lời giải, cần sửa lại, chưa làm, chờ chấm;
   - mỗi số có nút nhỏ "lật tới" câu đầu thuộc nhóm đó.
@@ -526,7 +524,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Ba biểu tượng xin bài (U8.5) ở cuối trang, **hiện cả khi chưa xong bài**.
 - "Đóng sổ" ở mọi nơi đều về **trang Hôm nay của sổ**. Về bàn học thì qua nút "Đóng sổ" ở trang sổ.
 
-### U7.10 Trạng thái lưu và chờ chấm nằm trên giấy (PR 7b) — [CHƯA nghiệm thu ở Bản 3]
+### U7.10 Trạng thái lưu và chờ chấm nằm trên giấy (PR 7b) — [XONG LOCAL]
 - Bỏ dòng "Bài đã lưu, sẽ có lời phê sau." trên nền tường. Trạng thái lưu: chữ bút chì nhỏ ở góc dưới phải của trang đang mở ("Đã lưu").
 - Máy chấm vắng: biểu tượng đồng hồ cát ở ô lời phê của câu đang chờ; chạm thì hiện `words.status.gradeLater`.
 
@@ -601,7 +599,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Bỏ: `<details>` "Lịch sử làm bài" (`history-panel.tsx:48`); lịch sử từng câu và tải CSV/Markdown chuyển vào Cài đặt (người lớn).
 - Ngăn kéo "Bài đã học" trên bàn dùng cùng component, gộp mọi sổ (mỗi dòng có tên sổ).
 
-### U8.6 Trang Tiến độ và Cài đặt (PR 8b) — [MỘT PHẦN: lịch sử đã ở Cài đặt]
+### U8.6 Trang Tiến độ và Cài đặt (PR 8b) — [XONG LOCAL]
 - `notebook/progress.tsx` (đã có) giữ.
   - Thêm "⭐ {n} ngày tuần này" cho trẻ em (R6.1c).
   - Thanh "Đúng ngay" vẽ thành hàng ô vuông tô màu trên giấy ô li thay thanh xám (thanh xám trông như lỗi trên điện thoại).
@@ -611,7 +609,9 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
   - lịch sử từng câu và tải CSV/Markdown (người lớn);
   - trẻ em chỉ xem.
 
-### U8.7 Dọn code cũ (PR 8c) — [CHƯA]
+### U8.7 Dọn code cũ (PR 8c) — [MỘT PHẦN]
+
+Đã chuyển form sang `notebook/settings.tsx`, chuyển nút xin bài sang `notebook/request-icons.tsx` và bỏ `NotebookRequests` vì không còn nơi gọi. `LessonList` vẫn phục vụ sổ có bài nền. `NewLessonRequest` vẫn phục vụ luồng soạn cũ. Ngăn Bài đã học và Sổ liên lạc còn dùng màn hình riêng.
 - **Xoá** sau khi chuyển xong: `subject-view.tsx` (trừ phần form đã chuyển), `lesson-v2/list.tsx`, `new-lesson-request.tsx`, phần người học của `requests-panel.tsx`, phần danh sách của `history-panel.tsx`, `learned-lessons.tsx` (thay bằng `contents.tsx` dạng nhiều sổ).
 - `adaptive-requests.tsx` chuyển thành `notebook/request-icons.tsx`.
 - Sổ kiểu cũ (`notebook-view.tsx`): dùng cùng khung, Mục lục theo tháng của các bài đã giao, giữ trang Tài liệu; chỉ đọc khi đã lưu trữ.
@@ -697,6 +697,15 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Lưu nháp và khôi phục từng dạng.
 - Chia trang với hình và code (U7.1).
 - Bài v2 cũ không đổi.
+
+### Kết quả kiểm và phát hành v3
+
+- **D1.** Diễn tập migration `0022_lesson_package_v3.sql` trên bản sao production ở SQLite và Workerd cục bộ. So từng ô của 48 bảng ở SQLite, gồm nháp, câu trả lời và điểm. Kiểm tra toàn vẹn và khoá ngoại đạt.
+- **Giao diện.** Chrome 375, 768 và 1280 px kiểm sáu dạng câu lưu nháp, mở lại, nối cặp bằng phím và chạm giả lập, sắp thứ tự bằng Alt + phím mũi tên, đi qua điểm trên hình và thụt dòng trong ô code.
+- **Qwen `qwen/qwen3.6-35b-a3b`.** Sau khi sửa cách chấm theo từng tiêu chí, nhãn kết quả khớp 10/10 câu Rust và 9/10 câu Sinh học. JSON đạt 10/10 lượt gọi. Mẫu nhỏ do nhóm soạn theo rubric. Qwen tự ghi “Chưa chạy thử” ở 9/10 câu code và chỉ dòng ở 3/5 câu sai hoặc đúng một phần. Giao diện luôn hiện ghi chú chưa chạy thử sau khi có điểm.
+- **Luồng thật trên dữ liệu thử.** Qwen soạn một bài Rust v3 khoảng 80 giây, Hub lưu và đọc lại sáu câu. Lượt chấm sửa một lần theo lỗi kiểm tra rồi lưu điểm và lời phê.
+- **Staging.** Đã sao lưu D1 staging. Hai migration 0018 và 0019 từng được áp dưới tên cũ. Đã đối chiếu cấu trúc và bổ sung tên chuẩn vào lịch sử, rồi áp 0017, 0020, 0021 và 0022. D1 không có lỗi khoá ngoại. Worker `28fa234e-6880-487f-ac3b-6b782ee1439c` qua smoke HTTPS, trang đăng nhập và 16 kiểm tra API từ chối khách chưa đăng nhập.
+- **Còn lại.** Runner 1.4.0 bị staging từ chối xác thực `401`. Đối chiếu lại service token, Access AUD và client trong `AUTOMATION_CLIENTS`, rồi thử bài cũ và một sổ v3 mới. Sau khi duyệt production, triển khai theo thứ tự migration → Worker → runner → bật `limits.package = 3` cho một sổ Rust thử. Khi tắt pilot, đặt lại 2 và giữ Worker/runner đọc, nộp, chấm bài v3 đã lưu.
 
 ---
 

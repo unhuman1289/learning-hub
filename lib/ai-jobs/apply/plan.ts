@@ -1,7 +1,7 @@
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
 import { validateLessonPackage } from '../../lesson-v2/validate.ts';
-import { promptHash, newLessonId } from '../../lesson-v2/store.ts';
+import { promptHash, newLessonId, lessonVersion } from '../../lesson-v2/store.ts';
 import { cutoffFor } from '../../daily-policy.ts';
 import { addDays, clampMastery } from '../../learner-model/rules.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
@@ -230,6 +230,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       if (!checked.lesson) continue;
       const l = checked.lesson,
         slotKind = field === 'reviewSet' ? 'review' : 'primary';
+      const version = lessonVersion(l);
+      if (Number(version) !== (c.limits.package ?? 2))
+        issue(path + '/' + field + '/contract', 'schema', 'Phiên bản bài phải khớp cấu hình của sổ.');
       if ((field === 'reviewSet' && l.kind !== 'review') || (field === 'primaryLesson' && (l.kind === 'exploration' || (!context.adaptive && l.kind === 'review'))))
         issue(path + '/' + field, 'schema', 'Loại bài không khớp slot.');
       if (context.adaptive?.mode === 'learn' && !context.adaptive.targetSkills.some(id => l.targetSkills.includes(id) ||
@@ -281,7 +284,8 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           rubric: i.rubric?.map((r) => ({ ...r, ...(r.skill ? { skill: resolve(r.skill) } : {}) })),
         })),
       };
-      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))`;
+      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))
+        AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=?)`;
       const guardParams = [
         ...gateValues,
         job.learner_id,
@@ -289,11 +293,12 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         slotKind,
         job.learning_day,
         ...(slotKind === 'primary' ? [cutoffFor(job.learning_day)] : []),
+        s.subjectId, job.learner_id, Number(version),
       ];
       statements.push(
         db
           .prepare(
-            `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id) SELECT ?,?,?,?,?,?,'2',?,?,?,?,?,?,?,? WHERE ${guards}`,
+            `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${guards}`,
           )
           .bind(
             id,
@@ -302,6 +307,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             JSON.stringify(resolved),
             job.learning_day,
             now.toISOString(),
+            version,
             l.template,
             l.kind,
             slotKind,

@@ -1,0 +1,292 @@
+{
+  "note": "Dữ liệu tổng hợp. Nhãn kỳ vọng chấm theo rubric, không có bài làm thật.",
+  "subject": {
+    "title": "Rust cơ bản",
+    "goal": "Đọc, viết và sửa các hàm Rust ngắn",
+    "level": "Cơ bản"
+  },
+  "lesson": {
+    "title": "Rust cơ bản",
+    "objective": "Đọc, viết và sửa các hàm Rust ngắn",
+    "sheetRules": []
+  },
+  "items": {
+    "abs": {
+      "prompt": "Viết hàm abs(n: i32) -> i32 trả độ lớn của n. Giả sử n khác i32::MIN.",
+      "solution": "fn abs(n: i32) -> i32 { if n < 0 { -n } else { n } }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Trả -n khi n âm và n khi n không âm",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "len": {
+      "prompt": "Viết fn length(s: &str) -> usize trả số byte của chuỗi.",
+      "solution": "fn length(s: &str) -> usize { s.len() }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Trả số byte qua len()",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "parity": {
+      "prompt": "Viết fn even(n: i32) -> bool nhận biết số chẵn.",
+      "solution": "fn even(n: i32) -> bool { n % 2 == 0 }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Kiểm tra phần dư bằng 0",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "first": {
+      "prompt": "Viết fn first(xs: &[i32]) -> Option<i32> trả phần tử đầu, None nếu rỗng.",
+      "solution": "fn first(xs: &[i32]) -> Option<i32> { xs.first().copied() }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "An toàn với lát rỗng",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "count": {
+      "prompt": "Viết fn count(xs: &[i32]) -> usize trả số phần tử lớn hơn 0.",
+      "solution": "fn count(xs: &[i32]) -> usize { xs.iter().filter(|&&x| x > 0).count() }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Chỉ đếm phần tử dương",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "parse": {
+      "prompt": "Viết fn number(s: &str) -> Option<i32> trả None khi phân tích thất bại.",
+      "solution": "fn number(s: &str) -> Option<i32> { s.parse().ok() }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Thất bại trả None và không panic",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "borrow": {
+      "prompt": "Viết fn append_bang(s: &mut String) thêm dấu ! vào chuỗi tại chỗ.",
+      "solution": "fn append_bang(s: &mut String) { s.push('!'); }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Thay đổi chuỗi đã mượn",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "sum": {
+      "prompt": "Viết fn total(xs: &[i32]) -> i32 cộng mọi phần tử, giả sử không tràn.",
+      "solution": "fn total(xs: &[i32]) -> i32 { xs.iter().sum() }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Tính tổng mọi phần tử",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "contains": {
+      "prompt": "Viết fn has_zero(xs: &[i32]) -> bool kiểm tra có phần tử 0.",
+      "solution": "fn has_zero(xs: &[i32]) -> bool { xs.contains(&0) }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Trả đúng sự hiện diện của 0",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    },
+    "minimum": {
+      "prompt": "Viết fn smallest(xs: &[i32]) -> Option<i32> trả phần tử nhỏ nhất và None nếu rỗng.",
+      "solution": "fn smallest(xs: &[i32]) -> Option<i32> { xs.iter().copied().min() }",
+      "skills": [
+        "key:rust-fn"
+      ],
+      "rubric": [
+        {
+          "criterion": "Tìm min hoặc None khi rỗng",
+          "points": 1
+        },
+        {
+          "criterion": "Có đúng chữ ký hàm đề yêu cầu",
+          "points": 1
+        }
+      ],
+      "input": "code",
+      "language": "rust",
+      "starter": ""
+    }
+  },
+  "submissions": [
+    {
+      "id": "s1",
+      "answers": {
+        "abs": {
+          "answer": "fn abs(n: i32) -> i32 { if n < 0 { -n } else { n } }",
+          "expected": "correct",
+          "facets": []
+        },
+        "len": {
+          "answer": "fn length(s: &str) -> usize { s.len() }",
+          "expected": "correct",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "answers": {
+        "parity": {
+          "answer": "fn even(n: i32) -> bool { n % 2 == 1 }",
+          "expected": "partial",
+          "facets": []
+        },
+        "first": {
+          "answer": "fn first(xs: &[i32]) -> Option<i32> { xs.first().copied() }",
+          "expected": "correct",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "answers": {
+        "count": {
+          "answer": "fn count(xs: &[i32]) -> usize { xs.len() }",
+          "expected": "partial",
+          "facets": []
+        },
+        "parse": {
+          "answer": "fn number(s: &str) -> Option<i32> { Some(s.parse::<i32>().unwrap()) }",
+          "expected": "partial",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "answers": {
+        "borrow": {
+          "answer": "fn append_bang(s: &mut String) { s.push('!'); }",
+          "expected": "correct",
+          "facets": []
+        },
+        "sum": {
+          "answer": "fn total() -> bool { false }",
+          "expected": "incorrect",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "answers": {
+        "contains": {
+          "answer": "fn has_zero(xs: &[i32]) -> bool { xs.contains(&0) }",
+          "expected": "correct",
+          "facets": []
+        },
+        "minimum": {
+          "answer": "fn hello() { println!(\"hello\"); }",
+          "expected": "incorrect",
+          "facets": []
+        }
+      }
+    }
+  ]
+}

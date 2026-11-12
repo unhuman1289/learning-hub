@@ -2,6 +2,14 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { lessonPackageV3 } from "../lib/contracts/lesson-package-v3.ts";
+import { memoryDb } from "./d1-adapter.mjs";
+import { DEFAULT_LIMITS } from "../lib/subjects/sql.ts";
+import { queueSubmission } from "../lib/ai-jobs/queue.ts";
+import { leaseJobs, readJob } from "../lib/ai-jobs/lease.ts";
+import { saveDraft } from "../lib/lesson-v2/actions.ts";
+import { insertLessonV2, readLessonV2 } from "../lib/lesson-v2/store.ts";
+import { validateLessonPackage } from "../lib/lesson-v2/validate.ts";
+import { submitLesson, readSubmission, parseSubmission } from "../lib/evidence/submit.ts";
 import { autoGradeStructured } from "../lib/evidence/autograde.ts";
 
 const original = JSON.parse(readFileSync(new URL("../fixtures/contracts/lesson-v2/deutsch-modalverb.json", import.meta.url)));
@@ -42,4 +50,64 @@ test("code requires a rubric, and figures accept bounded data only", () => {
   assert.equal(lessonPackageV3.safeParse(lesson(code,[{...figure,figure:{...figure.figure,svg:"<svg/>"}}])).success,false);
   assert.equal(lessonPackageV3.safeParse(lesson(code,[{...figure,figure:{...figure.figure,edges:[["a","c"]]}}])).success,false);
   assert.equal(lessonPackageV3.safeParse(lesson({...fixtures[0][0],fragments:["",""]})).success,false);
+});
+
+test("D1 round-trip preserves all v3 drafts and reads, submits and leases stored v3 after opt-out", async () => {
+  const db = memoryDb();
+  try {
+    const subjectId = "sub_99999999999999999999";
+    const learnerId = "learner-v3";
+    const now = new Date("2026-11-12T12:00:00Z");
+    const stamp = now.toISOString();
+    db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,1,1,1,'learner','active')")
+      .run(learnerId, "Học thử", "learner-v3@example.test");
+    db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,limits,created_by,created_at,updated_at) VALUES(?,?,?,'skill','active',?,?,?,?)")
+      .run(subjectId, learnerId, "Sinh học thử", JSON.stringify({ ...DEFAULT_LIMITS, package: 3 }), learnerId, stamp, stamp);
+    const inputs = [
+      ...fixtures,
+      [{ input: "code", language: "rust", starter: "fn count() {}", lines: 6,
+        rubric: [{ criterion: "Đếm đúng", points: 1 }, { criterion: "Kiểu trả về", points: 1 }] }, "fn count() -> usize { 2 }"],
+    ];
+    const exercise = {
+      ...original, contract: "lesson-package/3",
+      items: inputs.map(([item], i) => ({ ...base, ...item, id: "i" + (i + 1), prompt: "Câu thử " + i })),
+      stages: [{ stage: "independent", title: "Tự làm", itemIds: inputs.map((_, i) => "i" + (i + 1)) }],
+      knowledge: [{ kind: "steps", steps: ["Quan sát", "Kiểm tra"] }],
+    };
+    const parsed = validateLessonPackage(exercise);
+    assert.deepEqual(parsed.issues, []);
+    const id = await insertLessonV2(db, { subjectId, learnerId, day: "2026-11-12", lesson: parsed.lesson, now });
+    const answers = Object.fromEntries(inputs.map(([item, answer], i) => ["i" + (i + 1), { answer: item.input === "code" ? answer : JSON.stringify(answer) }]));
+    db.sqlite.prepare("UPDATE subjects SET limits=json_set(limits,'$.package',2) WHERE id=?").run(subjectId);
+    await assert.rejects(insertLessonV2(db, { subjectId, learnerId, day: "2026-11-13", lesson: parsed.lesson, now }), error => error.status === 409);
+    await saveDraft(db, learnerId, id, { revision: 0, answers }, now);
+    const view = await readLessonV2(db, learnerId, id);
+    assert.deepEqual(view.knowledge, exercise.knowledge);
+    assert.deepEqual(view.draft, answers);
+    assert.equal(view.items.length, 6);
+    assert.ok(view.items.every(item => !("key" in item) && !("solution" in item.revealed)));
+    await assert.rejects(readLessonV2(db, "someone-else", id), error => error.status === 404);
+    const submitted = await submitLesson(db, learnerId, id, parseSubmission({
+      clientSubmissionId: crypto.randomUUID(), draftRevision: 1, itemIds: Object.keys(answers),
+    }), now);
+    await queueSubmission(db, {}, learnerId, submitted.id, now);
+    const graded = await readSubmission(db, learnerId, submitted.id);
+    assert.deepEqual(graded.attempts.map(a => a.result), ["correct", "correct", "correct", "correct", "correct", null]);
+
+    const client = { id: "v3-runner", scopes: ["jobs:assess"], purposes: ["submission"], triggers: ["on_demand"], learnerIds: [learnerId] };
+    const runner = { name: "test", version: "1", model: "none" };
+    const lease = { kinds: ["assess"], max: 1, runner, capabilities: ["local-grading"] };
+    assert.deepEqual(await leaseJobs(db, client, lease, "test", now), []);
+    const [work] = await leaseJobs(db, client, { ...lease, capabilities: [...lease.capabilities, "lesson-v3"] }, "test", now);
+    assert.ok(work);
+    const context = JSON.parse((await readJob(db, work.jobId)).context_snapshot);
+    const code = context.attempts.find(attempt => attempt.input === "code");
+    assert.equal(code.language, "rust");
+    assert.equal(code.starter, "fn count() {}");
+    assert.equal(code.answer, answers.i6.answer);
+    assert.equal(context.attempts.filter(attempt => attempt.autoGrade).length, 5);
+    assert.deepEqual(db.sqlite.prepare("PRAGMA foreign_key_check").all(), []);
+  } finally {
+    db.sqlite.close();
+  }
 });

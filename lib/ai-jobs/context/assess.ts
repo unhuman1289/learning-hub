@@ -61,6 +61,7 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
       stage: a.stage,
       activity: a.activity,
       input: item.input,
+      ...(item.input === 'code' ? { language: item.language, starter: safeText(item.starter, sensitivity) } : {}),
       skills: JSON.parse(String(a.skill_ids)),
       prompt: safeText(item.prompt, sensitivity),
       rubric: item.rubric ?? null,

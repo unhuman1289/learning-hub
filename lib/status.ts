@@ -19,7 +19,7 @@ export async function learnerStatus(db: EvidenceDb, learnerId: string, now = new
     const { skills, errors } = await readSubjectSkills(db, learnerId, s.id);
     const open = await db
       .prepare(
-        "SELECT json_extract(payload,'$.title') AS title FROM learning_lessons WHERE user_id=? AND subject_id=? AND completed_at IS NULL AND package_version='2' ORDER BY assigned_date DESC LIMIT 1",
+        "SELECT json_extract(payload,'$.title') AS title FROM learning_lessons WHERE user_id=? AND subject_id=? AND completed_at IS NULL AND package_version IN ('2','3') ORDER BY assigned_date DESC LIMIT 1",
       )
       .bind(learnerId, s.id)
       .first<{ title: string }>();

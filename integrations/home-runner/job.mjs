@@ -2,6 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
+import { lessonPackageV2 } from '../../lib/contracts/lesson-package-v2.ts';
+import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
 import { HubError } from './hub.mjs';
 
 const root = new URL('../../', import.meta.url);
@@ -26,10 +28,24 @@ export function contractFor(kind) {
   return schemas[kind];
 }
 
+const packageSchemas = [lessonPackageV2, lessonPackageV3].map(contract => {
+  const schema = z.toJSONSchema(contract);
+  delete schema.$schema;
+  return schema;
+});
+
 function generationSchema(kind, context, schema) {
   if (kind !== 'plan') return schema;
+  const versions = new Set(context.subjects.map(subject => subject.limits?.package ?? 2));
+  const v3 = versions.has(3);
+  schema = structuredClone(schema);
+  const branches = v3 && versions.size > 1 ? packageSchemas : [packageSchemas[v3 ? 1 : 0]];
+  const nullablePackage = () => ({ anyOf: [...structuredClone(branches), { type: 'null' }] });
+  const subjectProperties = schema.properties.subjects.items.properties;
+  subjectProperties.primaryLesson = nullablePackage();
+  subjectProperties.reviewSet = nullablePackage();
+  schema.properties.explorations.items.properties.lesson = nullablePackage();
   if (context.subjects.length === 1) {
-    schema = structuredClone(schema);
     const [subject] = context.subjects;
     const subjects = schema.properties.subjects;
     subjects.minItems = 1;
@@ -88,14 +104,18 @@ function generationSchema(kind, context, schema) {
   lesson.sheet = lesson.sheet.anyOf.find(branch => branch.type === 'object');
   lesson.items.minItems = 5;
   lesson.items.maxItems = 6;
-  const question = lesson.items.items;
-  question.required.push('key');
-  question.properties.input = { const: 'short' };
-  delete question.properties.choices;
-  delete question.properties.rubric;
-  const keys = question.properties.key;
-  keys.oneOf = keys.oneOf.filter(branch => branch.properties.type.const !== 'choice');
-  keys.oneOf.find(branch => branch.properties.type.const === 'text').properties.accepted.maxItems = 1;
+  if (v3) {
+    lesson.items.items.anyOf = lesson.items.items.anyOf.filter(branch => branch.properties.input.const);
+  } else {
+    const question = lesson.items.items;
+    question.required.push('key');
+    question.properties.input = { const: 'short' };
+    delete question.properties.choices;
+    delete question.properties.rubric;
+    const keys = question.properties.key;
+    keys.oneOf = keys.oneOf.filter(branch => branch.properties.type.const !== 'choice');
+    keys.oneOf.find(branch => branch.properties.type.const === 'text').properties.accepted.maxItems = 1;
+  }
   item.properties.reviewSet = { type: 'null' };
   return initial;
 }
@@ -235,7 +255,9 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       let result;
       try {
         const out = await qwen.run({
-          system: systemPrompt(lease.kind, lease.purpose) + (context.adaptive ?
+          system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.subjects.some(subject => subject.limits?.package === 3)
+            ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3 ở trên, kể cả bài chẩn đoán.'
+            : '') + (context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
           user: userPrompt(promptContext, repair, draft),
           schema,

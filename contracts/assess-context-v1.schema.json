@@ -161,8 +161,26 @@
             "enum": [
               "choice",
               "short",
-              "long"
+              "long",
+              "cloze",
+              "match",
+              "order",
+              "label",
+              "table",
+              "code"
             ]
+          },
+          "language": {
+            "type": "string",
+            "enum": [
+              "rust",
+              "python",
+              "text"
+            ]
+          },
+          "starter": {
+            "type": "string",
+            "maxLength": 5000
           },
           "skills": {
             "maxItems": 3,
