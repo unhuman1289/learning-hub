@@ -90,6 +90,18 @@ export function berlinClock(now: Date): BerlinClock {
   };
 }
 
+/** The same shape read from the device's own clock and time zone: the calendar leaf and anything that is "now" for the learner. */
+export function deviceClock(now: Date): BerlinClock {
+  const weekday = new Intl.DateTimeFormat('vi-VN', { weekday: 'long' }).format(now);
+  return {
+    hour: now.getHours() + now.getMinutes() / 60,
+    month: now.getMonth() + 1,
+    day: now.getDate(),
+    offsetHours: -now.getTimezoneOffset() / 60,
+    weekday: weekday.charAt(0).toUpperCase() + weekday.slice(1),
+  };
+}
+
 /** Used until /api/ambient answers, and whenever it fails. */
 export function typicalWeather(month: number): Weather {
   if (month === 12 || month <= 2) return { cloud: 0.92, rain: false, snow: true, fog: 0 };

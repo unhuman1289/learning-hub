@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock } from "./lubeck/window";
+import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock, useDeviceClock } from "./lubeck/window";
 import { DeskProgress } from "./desk-progress";
 import { LearnedLessons } from "./learned-lessons";
 import { PaperDialog } from "./paper-dialog";
@@ -32,6 +32,9 @@ const postitColor: Record<TrackId, string> = {
   "Bột": "bg-postit-lilac",
 };
 
+/** The greeting follows the learner's own hour, read each time the desk asks. */
+const fetchToday = (url: string) => apiJson<TodayData>(`${url}${url.includes("?") ? "&" : "?"}hour=${new Date().getHours()}`);
+
 export type Viewing = {
   learners: LearnerSummary[];
   /** The learner whose shelf is shown; null = the signed-in account. */
@@ -51,7 +54,9 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
 }) {
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
+  // The sky is Lübeck's; the date and the greeting are the learner's own.
   const clock = useBerlinClock();
+  const deviceDay = useDeviceClock();
   // How dark it is outside the window; after dusk the desk lamp comes on.
   const [darkness, setDarkness] = useState(0);
   const [drawer, setDrawer] = useState<"learned" | "settings" | null>(null);
@@ -65,13 +70,13 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   useEffect(() => {
     if (!hub2) return;
     let live = true;
-    apiJson<TodayData>(todayUrl).then(value => {
+    fetchToday(todayUrl).then(value => {
       if (live) { setTodayData({ url: todayUrl, value }); setTodayError(""); }
     }).catch(() => { if (live) setTodayError(words.error.unknown); });
     return () => { live = false; };
   }, [hub2, todayUrl]);
   useLiveRefresh(async () => {
-    const value = await apiJson<TodayData>(todayUrl);
+    const value = await fetchToday(todayUrl);
     setTodayData({ url: todayUrl, value });
     setTodayError("");
   }, hub2);
@@ -135,7 +140,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
     <div className="mx-auto grid w-full max-w-6xl gap-8">
       {/* Entering the study: a greeting by the garden window. */}
       <section className="flex items-center gap-4">
-        <CalendarLeaf clock={clock} />
+        <CalendarLeaf clock={deviceDay} />
         <div className="min-w-0">
           <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
           <p aria-live="off" className="min-h-7 font-hand text-lg text-accent">{data?.greeting.cheer}</p>

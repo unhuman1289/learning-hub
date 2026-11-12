@@ -3,6 +3,7 @@ import { storage } from '../../../db/storage';
 import { resolveLearner } from '../../../lib/access';
 import { apiFailure } from '../../../lib/api-error';
 import { todayFor } from '../../../lib/today';
+import { deviceHour } from '../../../lib/greeting';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
 export async function GET(req: Request) {
@@ -12,7 +13,7 @@ export async function GET(req: Request) {
     const db = storage(),
       learner = await resolveLearner(db, user, req, 'read_progress');
     if (learner instanceof Response) return learner;
-    return Response.json(await todayFor(db, learner, new Date(), user.id), { headers });
+    return Response.json(await todayFor(db, learner, new Date(), user.id, deviceHour(new URL(req.url).searchParams.get('hour'))), { headers });
   } catch (e) {
     return apiFailure(e, 'Chưa tải được việc học hôm nay.', headers);
   }

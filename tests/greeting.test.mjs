@@ -38,3 +38,10 @@ test("greeting aggregates active notebooks and excludes archived notebooks", asy
   assert.equal(facts.streak, 1);
   assert.equal(facts.daysSinceLast, 1);
 });
+
+test("the learner's own hour chooses the greeting words, and only a whole hour is taken", async () => {
+  const { deviceHour } = await import("../lib/greeting.ts");
+  assert.equal(deviceHour("20"), 20);
+  assert.equal(deviceHour("0"), 0);
+  for (const bad of [null, "", "24", "-1", "7.5", "abc", "1e1", "２０"]) assert.equal(deviceHour(bad), null, String(bad));
+});

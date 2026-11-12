@@ -72,6 +72,11 @@ export function berlinHour(date: Date) {
   }).format(date));
 }
 
+/** The learner's own clock hour from `?hour=`; anything but a whole hour 0–23 is ignored. It only chooses the words of the greeting. */
+export function deviceHour(raw: string | null): number | null {
+  return raw !== null && /^\d{1,2}$/.test(raw) && Number(raw) < 24 ? Number(raw) : null;
+}
+
 export function greetingFor(facts: Facts, { name, day, hour, role }: { name: string; day: string; hour: number; role: string }): Greeting {
   const choice = Array.from(day + name).reduce((hash, ch) => (Math.imul(hash, 31) + ch.codePointAt(0)!) >>> 0, 0) % 3;
   const hello = (hour >= 5 && hour < 10 ? ["Chào buổi sáng", "Buổi sáng vui nhé", "Chào sáng nay"]
