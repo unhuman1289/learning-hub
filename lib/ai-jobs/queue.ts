@@ -197,7 +197,7 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
     .prepare(
       `SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id
        WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(
-         SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version='2'
+         SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version IN ('2','3')
          AND CASE WHEN s.legacy_track IS NULL OR s.id=? THEN
            l.slot='primary' AND (l.completed_at IS NULL OR l.completed_at>=? OR l.assigned_date=?)
          ELSE l.completed_at IS NULL END

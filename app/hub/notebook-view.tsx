@@ -3,7 +3,7 @@
 import {SkillProgress} from "./skill-progress";
 import { LessonList } from "./lesson-v2/list";
 import { Book } from "./notebook/book";
-import {SubjectForm,SubjectFacts} from "./subject-view";
+import {SubjectForm,SubjectFacts} from "./notebook/settings";
 import type {ShelfApi} from "./use-shelf";
 import { SketchIcon } from "./sketch-icons";
 import { MarginDate, RuledPage, StickyNote, cx } from "../../components/notebook/paper";

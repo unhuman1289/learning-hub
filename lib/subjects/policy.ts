@@ -31,14 +31,17 @@ function int(value: unknown, field: string, min: number, max: number) {
 export function parseLimits(value: unknown): SubjectLimits {
   if (value === undefined) return { ...DEFAULT_LIMITS };
   if (!isRecord(value)) throw bad('Giới hạn không hợp lệ.');
-  const unknownKey = Object.keys(value).find((key) => !(key in DEFAULT_LIMITS));
+  const unknownKey = Object.keys(value).find((key) => key !== 'package' && !(key in DEFAULT_LIMITS));
   if (unknownKey) throw bad(`Giới hạn không có trường ${unknownKey}.`);
   const limits = { ...DEFAULT_LIMITS, ...value };
   if (typeof limits.allowNewTopics !== 'boolean') throw bad('allowNewTopics phải là true hoặc false.');
+  const version = value.package;
+  if (version !== undefined && version !== 2 && version !== 3) throw bad('Phiên bản bài phải là 2 hoặc 3.');
   return {
     maxDifficulty: int(limits.maxDifficulty, 'Độ khó tối đa', 1, 5),
     allowNewTopics: limits.allowNewTopics,
     maxNewSkillsPerWeek: int(limits.maxNewSkillsPerWeek, 'Số kỹ năng mới mỗi tuần', 0, 10),
+    ...(version === undefined ? {} : { package: version }),
   };
 }
 

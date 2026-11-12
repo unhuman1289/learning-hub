@@ -1,5 +1,6 @@
 import { z } from 'zod/v4';
-import { lessonPackageV2, lessonItem } from './lesson-package-v2.ts';
+import { lessonItem } from './lesson-package-v2.ts';
+import { lessonPackage } from './lesson-package-v3.ts';
 z.config({ jitless: true });
 export const text = (max: number) => z.string().max(max);
 export const ref = z.string().regex(/^(sk_|key:)[a-zA-Z0-9_-]{1,80}$/);
@@ -79,8 +80,8 @@ export const planResult = z
             action: z.enum(['assign', 'no_action', 'issue']),
             reason: text(1000),
             skillChanges: z.array(skillChanges).max(40),
-            primaryLesson: lessonPackageV2.nullable(),
-            reviewSet: lessonPackageV2.nullable(),
+            primaryLesson: lessonPackage.nullable(),
+            reviewSet: lessonPackage.nullable(),
             masteryProposals: z.array(proposal).max(40),
             progressSummary: text(3000),
             roadmap: roadmap.optional(),
@@ -103,7 +104,7 @@ export const planResult = z
             requestId: z.string(),
             action: z.enum(['assign', 'decline']),
             subjectId: z.string().nullable(),
-            lesson: lessonPackageV2.nullable(),
+            lesson: lessonPackage.nullable(),
             reason: text(1000),
           })
           .strict(),
@@ -235,7 +236,8 @@ const subject = z
     curriculum: text(3000),
     /** The notebook's own prompt, e.g. the former ChatGPT Project instructions (L5.5). */
     instructions: text(4000),
-    limits: z.object({ maxDifficulty: z.number(), allowNewTopics: z.boolean(), maxNewSkillsPerWeek: z.number() }).strict(),
+    limits: z.object({ maxDifficulty: z.number(), allowNewTopics: z.boolean(), maxNewSkillsPerWeek: z.number(),
+      package: z.union([z.literal(2), z.literal(3)]).optional() }).strict(),
     weight: z.number(),
     revision: z.number().int(),
     progressSummary: text(3000),
@@ -310,7 +312,9 @@ const assessmentAttempt = z
     itemId: z.string(),
     stage: text(30),
     activity: text(30),
-    input: z.enum(['choice', 'short', 'long']),
+    input: z.enum(['choice', 'short', 'long', 'cloze', 'match', 'order', 'label', 'table', 'code']),
+    language: z.enum(['rust', 'python', 'text']).optional(),
+    starter: text(5000).optional(),
     skills: z.array(ref).max(3),
     prompt: text(2000),
     rubric: z

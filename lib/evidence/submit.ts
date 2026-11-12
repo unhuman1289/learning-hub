@@ -1,11 +1,12 @@
 import { recomputeSubmission } from '../learner-model/recompute.ts';
 import { ApiError } from '../api-error.ts';
 import type { Db } from '../subjects/service.ts';
-import type { LessonItem } from '../contracts/lesson-package-v2.ts';
+import type { LessonItemAny } from '../contracts/lesson-package-v3.ts';
 import type { DraftAnswers, RevealLevel } from '../lesson-v2/actions.ts';
 import { berlinDay } from '../daily-policy.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
-import { autoGrade } from './autograde.ts';
+import { autoGrade, autoGradeStructured } from './autograde.ts';
+import { hasLessonAnswer, parseStructuredAnswer } from '../lesson-v2/answer.ts';
 import { evidenceStrength } from './strength.ts';
 export type EvidenceDb = Db & { batch(statements: unknown[]): Promise<unknown> };
 export type SubmissionInput = { clientSubmissionId: string; draftRevision: number; stage: string | null; itemIds: string[] | null };
@@ -88,7 +89,7 @@ export async function readSubmission(db: Db, learnerId: string, id: string) {
 }
 /** Saved feedback history. A cancelled/pending retry never hides previously graded submissions. */
 export async function readLessonSubmissions(db:Db,learnerId:string,lessonId:string){
- const owner=await db.prepare("SELECT id,support FROM learning_lessons WHERE id=? AND user_id=? AND package_version='2'").bind(lessonId,learnerId).first<{id:string;support:string|null}>();
+ const owner=await db.prepare("SELECT id,support FROM learning_lessons WHERE id=? AND user_id=? AND package_version IN ('2','3')").bind(lessonId,learnerId).first<{id:string;support:string|null}>();
  if(!owner)throw new ApiError(404,'Không tìm thấy bài.');
  const support=JSON.parse(owner.support??'{}') as Record<string,string>;
  const {results:rows=[]}=await db.prepare(`SELECT s.id,s.stage,s.status,s.created_at,j.status AS job_status,CASE WHEN j.status='succeeded' THEN json_extract(j.outcome,'$.summary') END AS summary FROM submissions s LEFT JOIN ai_jobs j ON j.id=s.ai_job_id WHERE s.lesson_id=? AND s.learner_id=? AND (s.id IN (SELECT id FROM submissions WHERE lesson_id=s.lesson_id AND learner_id=s.learner_id ORDER BY created_at DESC,rowid DESC LIMIT 30) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND (SELECT count(*) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.attempt_no>a.attempt_no)<2) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND a.current_grade_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.current_grade_id IS NOT NULL AND b.attempt_no>a.attempt_no))) ORDER BY s.created_at DESC,s.rowid DESC`).bind(lessonId,learnerId).all<Record<string,unknown>>();
@@ -110,7 +111,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   }
   const lesson = await db
     .prepare(
-      `SELECT l.subject_id,l.draft,l.draft_revision,l.support,l.kind,l.completed_at,s.sensitivity FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version='2'`,
+      `SELECT l.subject_id,l.draft,l.draft_revision,l.support,l.kind,l.completed_at,s.sensitivity FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version IN ('2','3')`,
     )
     .bind(lessonId, learnerId)
     .first<{
@@ -176,10 +177,10 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     .all<{ item_id: string; id: string; attempt_no: number; support: string; result: string | null; correction: string | null }>();
   let pending = false;
   for (const row of selected) {
-    const item = JSON.parse(row.payload) as LessonItem,
+    const item = JSON.parse(row.payload) as LessonItemAny,
       answer = draft[row.item_id]?.answer ?? '',
       photos = draft[row.item_id]?.attachmentIds ?? [];
-    if (!answer.trim() && !photos.length) throw new ApiError(400, `Chưa có bài làm cho câu ${row.item_id}.`);
+    if (!hasLessonAnswer(item.input, answer) && !photos.length) throw new ApiError(400, `Chưa có bài làm cho câu ${row.item_id}.`);
     if (item.attachment === 'required' && !photos.length) throw new ApiError(400, `Câu ${row.item_id} cần ảnh bài làm.`);
     if (item.attachment === 'none' && photos.length) throw new ApiError(400, `Câu ${row.item_id} không nhận ảnh.`);
     if (containsContactDetails(answer) || containsPossibleClinicalIdentifier(answer, lesson.sensitivity))
@@ -198,7 +199,10 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     const attemptId = makeId('att_'),
       gradeId = makeId('gr_'),
       number = (previous?.attempt_no ?? 0) + 1;
-    const grade = item.key && answer.trim() ? autoGrade(item.key, answer) : null;
+    const key = item.key;
+    const grade = key && answer.trim()
+      ? key.type === 'choice' || key.type === 'numeric' || key.type === 'text' ? autoGrade(key, answer) : autoGradeStructured(key, answer)
+      : null;
     if (!grade) pending = true;
     statements.push(
       db
@@ -229,7 +233,9 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         ),
     );
     if (grade) {
-      const chosen: string[] = item.input === 'choice' ? JSON.parse(answer) : [];
+      const choiceAnswer = item.input === 'choice' ? answer.trim() : '';
+      const decoded = parseStructuredAnswer(choiceAnswer);
+      const chosen = Array.isArray(decoded) ? decoded : [typeof decoded === 'string' ? decoded : choiceAnswer];
       const labels =
         grade.result === 'incorrect'
           ? (item.choices ?? [])

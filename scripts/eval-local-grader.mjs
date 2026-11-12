@@ -33,6 +33,7 @@ export function contextFor(sub) {
       goal: 'A2 → B2; viết email công việc, nói trong đời sống ở Lübeck',
       level: 'A2',
       sensitivity: 'normal',
+      ...cases.subject,
     },
     lesson: { lessonId: 'les_eval', template: 'skill', ...cases.lesson },
     attempts: Object.entries(sub.answers).map(([itemId, a]) => {
@@ -42,7 +43,8 @@ export function contextFor(sub) {
         itemId,
         stage: 'independent',
         activity: 'create',
-        input: 'long',
+        input: item.input ?? 'long',
+        ...(item.input === 'code' ? { language: item.language, starter: item.starter ?? '' } : {}),
         skills: item.skills,
         prompt: item.prompt,
         rubric: item.rubric,
@@ -110,6 +112,9 @@ for (const sub of cases.submissions.filter((s) => !only || s.id === only)) {
       expectedFacets: a.facets.sort().join('') || '-',
       badEvidence,
       injection: !!a.injection,
+      code: cases.items[itemId].input === 'code',
+      hasLine: /dòng\s+[1-9]\d*/i.test(g?.feedback ?? ''),
+      statesUnrun: /chưa chạy thử/i.test(g?.feedback ?? ''),
       falseIncorrect: a.expected === 'correct' && g?.result === 'incorrect' && !(g?.errors ?? []).length,
     });
   }
@@ -139,6 +144,10 @@ console.log(
       facetAgreement: facetRows.filter((r) => r.facets === r.expectedFacets).length + '/' + facetRows.length,
       evidenceNotVerbatim: rows.reduce((n, r) => n + r.badEvidence, 0),
       graded: graded.length + '/' + rows.length,
+      ...(rows.some(r => r.code) ? {
+        codeStatesUnrun: rows.filter(r => r.code && r.statesUnrun).length + '/' + rows.filter(r => r.code).length,
+        codeErrorsWithLine: rows.filter(r => r.code && r.expected !== 'correct' && r.hasLine).length + '/' + rows.filter(r => r.code && r.expected !== 'correct').length,
+      } : {}),
     },
     null,
     2,

@@ -83,3 +83,10 @@ export const lessonPackageV3 = lessonPackageV2.extend({
 });
 
 export type LessonPackageV3 = z.infer<typeof lessonPackageV3>;
+export const lessonPackage = z.union([lessonPackageV2, lessonPackageV3]);
+
+type Item = LessonPackageV3['items'][number];
+type SharedItemFields = 'choices' | 'key' | 'rubric';
+type WithOptionalFields<T> = T extends Item ? T & Partial<Record<Exclude<SharedItemFields, keyof T>, never>> : never;
+export type LessonItemAny = WithOptionalFields<Item>;
+export type LessonPackage = z.infer<typeof lessonPackageV2> | (Omit<LessonPackageV3, 'items'> & { items: LessonItemAny[] });

@@ -2,6 +2,7 @@ import { ApiError } from '../api-error.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { validateLessonPackage } from './validate.ts';
 import { insertLessonV2 } from './store.ts';
+import type { LessonItemAny, LessonPackage } from '../contracts/lesson-package-v3.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 export async function importLesson(db: EvidenceDb, input: unknown, now = new Date()) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw new ApiError(400, 'Dữ liệu nhập không hợp lệ.');
@@ -15,6 +16,8 @@ export async function importLesson(db: EvidenceDb, input: unknown, now = new Dat
   if (!subject || subject.status !== 'active') throw new ApiError(404, 'Không tìm thấy sổ đang hoạt động.');
   const checked = validateLessonPackage(x.lesson, { maxDifficulty: JSON.parse(subject.limits).maxDifficulty, sensitivity: subject.sensitivity, subjectTitle:subject.title });
   if (!checked.lesson) return { issues: checked.issues };
+  if (checked.lesson.contract === 'lesson-package/3' && JSON.parse(subject.limits).package !== 3)
+    return { issues: [{ path: '/contract', code: 'schema', message: 'Sổ chưa bật dạng bài phiên bản 3.' }] };
   if (checked.lesson.template !== subject.template) return { issues: [{ path: '/template', code: 'schema', message: 'Khuôn bài không khớp sổ.' }] };
   const day = berlinDay(now),
     slot = checked.lesson.kind === 'review' ? 'review' : checked.lesson.kind === 'exploration' ? 'extra' : 'primary';
@@ -54,15 +57,18 @@ export async function importLesson(db: EvidenceDb, input: unknown, now = new Dat
       refs.set(ref, 'sk_' + Array.from(new Uint8Array(digest).slice(0, 10), (b) => b.toString(16).padStart(2, '0')).join(''));
     }
   }
-  const lesson = {
-    ...checked.lesson,
+  const resolveItem = <T extends LessonItemAny>(i: T): T => ({
+    ...i,
+    skills: i.skills.map((r) => refs.get(r)!),
+    rubric: i.rubric?.map((r) => ({ ...r, ...(r.skill ? { skill: refs.get(r.skill) ?? r.skill } : {}) })),
+  });
+  const source = checked.lesson;
+  const lesson: LessonPackage = {
+    ...(source.contract === 'lesson-package/3'
+      ? { ...source, items: source.items.map(resolveItem) }
+      : { ...source, items: source.items.map(resolveItem) }),
     reasonRefs: checked.lesson.reasonRefs.map((r) => refs.get(r) ?? r),
     targetSkills: checked.lesson.targetSkills.map((r) => refs.get(r)!),
-    items: checked.lesson.items.map((i) => ({
-      ...i,
-      skills: i.skills.map((r) => refs.get(r)!),
-      rubric: i.rubric?.map((r) => ({ ...r, ...(r.skill ? { skill: refs.get(r.skill) ?? r.skill } : {}) })),
-    })),
   };
   const id = 'les_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20);
   const extras = [...refs]

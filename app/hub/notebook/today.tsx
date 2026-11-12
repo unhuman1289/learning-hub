@@ -2,7 +2,7 @@ import type { NotebookReport } from "../../../lib/notebook-report";
 import { chapterNumber } from "../../../lib/lesson-v2/notebook-chapters";
 import type { ShelfSubject } from "../use-shelf";
 import type { Route } from "../use-route";
-import { AdaptiveRequests } from "../adaptive-requests";
+import { AdaptiveRequests } from "./request-icons";
 import { NewLessonRequest } from "../new-lesson-request";
 import { SketchIcon } from "../sketch-icons";
 import { pencil, pencilLink, skillLabel } from "../paper-bits";
@@ -59,7 +59,7 @@ export function NotebookToday({ report, subject, book, learner, child, go, refre
         <ul>{extras.map(row => <li key={row.id}><RouteLink route={{ view: "lesson", id: row.id }} go={go} className={pencilLink}>{row.title}</RouteLink>
           {row.minutes ? <span className={pencil}> · {row.minutes} phút</span> : null}</li>)}</ul></div>}
       {canRequest && <div className="mt-auto pt-3">
-        {book.adaptive ? <AdaptiveRequests icons subjectId={subject.id} learner={learner} go={go} onSaved={refresh} />
+        {book.adaptive ? <AdaptiveRequests subjectId={subject.id} learner={learner} go={go} onSaved={refresh} />
           : !open.length && <NewLessonRequest subjectId={subject.id} onOpen={id => { void refresh(); go({ view: "lesson", id }); }} />}
       </div>}
     </section> },

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { PaperDialog, fieldClass, labelClass } from "./paper-dialog";
-import { buttonClass, PageLabel } from "./ui";
+import { buttonClass } from "./ui";
 import { apiJson, learnerQuery } from "./api";
 import { GraderOffline } from "./runner-status";
 
@@ -75,8 +75,8 @@ export function RequestDialog({ kind, subjectId, learner, onClose, onSent }: { k
   );
 }
 
-export function RequestList({ requests, subjectId }: { requests: RequestView[]; subjectId?: string }) {
-  const shown = requests.filter((r) => subjectId === undefined || r.subjectId === subjectId).slice(0, 8);
+export function RequestList({ requests }: { requests: RequestView[] }) {
+  const shown = requests.slice(0, 8);
   if (!shown.length) return null;
   const waiting = shown.some((r) => r.urgency === "now" && (r.status === "queued" || r.status === "in_job"));
   return (
@@ -92,24 +92,5 @@ export function RequestList({ requests, subjectId }: { requests: RequestView[]; 
       ))}
     </ul>
     </>
-  );
-}
-
-/** In the notebook margin: ask a question or ask for more practice. Learners and parents both can. */
-export function NotebookRequests({ subjectId, learner }: { subjectId: string; learner: string | null }) {
-  const { requests, error, load } = useRequests(learner);
-  const [open, setOpen] = useState<RequestKind | null>(null);
-  return (
-    <div className="mt-7">
-      <PageLabel>Hỏi thêm</PageLabel>
-      <div className="flex flex-wrap gap-2">
-        {(["explore"] as const).map((kind) => (
-          <button key={kind} type="button" className={buttonClass("secondary")} onClick={() => setOpen(kind)}>{requestLabels[kind].button}</button>
-        ))}
-      </div>
-      {error && <p role="alert" className="text-sm">{error}</p>}
-      {requests && <RequestList requests={requests} subjectId={subjectId} />}
-      {open && <RequestDialog kind={open} subjectId={subjectId} learner={learner} onClose={() => setOpen(null)} onSent={load} />}
-    </div>
   );
 }

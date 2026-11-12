@@ -6,10 +6,12 @@ import type { LessonSummaryData } from "../../../lib/lesson-v2/summary";
 import { apiJson, learnerQuery } from "../api";
 import { useLiveRefresh } from "../use-live-refresh";
 import { NewLessonRequest } from "../new-lesson-request";
-import { AdaptiveRequests } from "../adaptive-requests";
+import { AdaptiveRequests } from "../notebook/request-icons";
 import { pencil, pencilLink, RedPen, skillLabel } from "../paper-bits";
 import type { Route } from "../use-route";
 import { LessonReflection } from "./reflection";
+
+const noRefresh = () => undefined;
 
 export function LessonSummary({ lessonId, subjectId, learner, reflectionId, waiting, progressKey, onQuestion, onReview, onHome, onOpen, go, completed = true, justCompleted = false }: {
   lessonId: string; subjectId: string; learner: string | null; reflectionId?: string; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
@@ -57,7 +59,7 @@ export function LessonSummary({ lessonId, subjectId, learner, reflectionId, wait
       </>}
       <div className="mt-7">
         {!learner && adaptive === false && <NewLessonRequest subjectId={subjectId} onOpen={onOpen} />}
-        {!learner && adaptive && <AdaptiveRequests subjectId={subjectId} learner={learner} go={go} onSaved={() => undefined} />}
+        {!learner && adaptive && <AdaptiveRequests subjectId={subjectId} learner={learner} go={go} onSaved={noRefresh} currentLessonId={lessonId} />}
       </div>
       <div className="flex min-h-14 flex-wrap items-center gap-x-5">
         <button onClick={onReview} className={pencilLink}>{words.action.review}</button>

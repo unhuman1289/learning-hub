@@ -63,6 +63,17 @@ export async function leaseJobs(
   if (!kinds.length || !purposes.length || !triggers.length) throw new ApiError(403, 'Client không được lease loại công việc này.');
   await recordPresence(db, client.id, input.runner, input.capabilities ?? [], now);
   const vision = input.capabilities?.includes('vision') && client.scopes.includes('attachments:read') ? 1 : 0;
+  const packageFilter = input.capabilities?.includes('lesson-v3') ? '' : `
+    AND (kind<>'plan' OR NOT EXISTS(
+      SELECT 1 FROM subjects s WHERE s.learner_id=ai_jobs.learner_id AND json_extract(s.limits,'$.package')=3
+      AND (s.id=ai_jobs.subject_id OR (ai_jobs.purpose='daily' AND ai_jobs.subject_id IS NULL AND s.status='active' AND s.ai_enabled=1))
+    ))
+    AND (kind<>'assess' OR NOT EXISTS(
+      SELECT 1 FROM learning_lessons l WHERE l.user_id=ai_jobs.learner_id AND l.package_version='3' AND l.id=CASE ai_jobs.purpose
+        WHEN 'submission' THEN (SELECT s.lesson_id FROM submissions s WHERE s.id=ai_jobs.ref_id AND s.learner_id=ai_jobs.learner_id)
+        WHEN 'recheck' THEN (SELECT a.lesson_id FROM disputes d JOIN attempts a ON a.id=d.attempt_id WHERE d.id=ai_jobs.ref_id AND a.learner_id=ai_jobs.learner_id)
+      END
+    ))`;
   const jobs = [];
   const placeholders = (x: unknown[]) => x.map(() => '?').join(',');
   for (let n = 0; n < input.max; n++) {
@@ -71,7 +82,7 @@ export async function leaseJobs(
       stamp = now.toISOString();
     const job = await db
       .prepare(
-        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND (adaptive=0 OR (kind='plan' AND ?=1) OR (kind='assess' AND purpose='submission' AND ?=1) OR (kind='assess' AND purpose='recheck' AND ?=1)) AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (SELECT value FROM json_each(?))' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
+        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND (adaptive=0 OR (kind='plan' AND ?=1) OR (kind='assess' AND purpose='submission' AND ?=1) OR (kind='assess' AND purpose='recheck' AND ?=1)) AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (SELECT value FROM json_each(?))' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ${packageFilter} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
       )
       .bind(
         berlinDay(now),

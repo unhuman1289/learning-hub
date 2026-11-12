@@ -1,4 +1,5 @@
-import { lessonPackageV2, type LessonItem, type LessonPackageV2 } from '../contracts/lesson-package-v2.ts';
+import { lessonPackageV2 } from '../contracts/lesson-package-v2.ts';
+import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
 import {isChemicalFormula,isChemistryNotebook} from '../chemistry.ts';
@@ -34,7 +35,7 @@ const stagesFor = {
 
 const words = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
 
-export function itemIssues(item: LessonItem, path: string, maxDifficulty: number): LessonIssue[] {
+export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: number): LessonIssue[] {
   const issues: LessonIssue[] = [];
   const issue = (field: string, code: string, message: string) => issues.push({ path: `${path}/${field}`, code, message });
   if (!item.key && !item.rubric) issue('key', 'schema', 'Each item needs a key (auto-graded) or a rubric (AI-graded).');
@@ -63,11 +64,12 @@ export function itemIssues(item: LessonItem, path: string, maxDifficulty: number
 export function validateLessonPackage(
   input: unknown,
   options: ValidateOptions = {},
-): { lesson: LessonPackageV2; issues: [] } | { lesson: null; issues: LessonIssue[] } {
+): { lesson: LessonPackage; issues: [] } | { lesson: null; issues: LessonIssue[] } {
   const size = new TextEncoder().encode(JSON.stringify(input ?? null)).length;
   if (size > MAX_BYTES)
     return { lesson: null, issues: [{ path: '', code: 'size_limit', message: `Lesson package is ${size} bytes; the limit is ${MAX_BYTES}.` }] };
-  const parsed = lessonPackageV2.safeParse(input);
+  const modern = typeof input === 'object' && input !== null && 'contract' in input && input.contract === 'lesson-package/3';
+  const parsed = (modern ? lessonPackageV3 : lessonPackageV2).safeParse(input);
   if (!parsed.success) {
     return {
       lesson: null,
@@ -75,10 +77,13 @@ export function validateLessonPackage(
     };
   }
   const lesson = parsed.data;
+  const items: LessonItemAny[] = lesson.items;
   const issues: LessonIssue[] = [];
   const issue = (path: string, code: string, message: string) => issues.push({ path, code, message });
   const maxDifficulty = options.maxDifficulty ?? 5;
 
+  if (lesson.contract === 'lesson-package/3' && options.aiSizes && new Set(items.map(item => item.input)).size < 2)
+    issue('/items', 'schema', 'Bài soạn phiên bản 3 cần ít nhất hai dạng câu.');
   const review = lesson.kind === 'review';
   const [minItems, maxItems] = options.adaptive ? [1, 25] : review ? [3, 10] : [3, 25];
   if (lesson.items.length < minItems || lesson.items.length > maxItems)
@@ -91,7 +96,7 @@ export function validateLessonPackage(
         'size_limit',
         `A ${lesson.template === 'reading' ? 'reading' : lesson.kind} lesson has ${low}–${high} items (it has ${lesson.items.length}).`,
       );
-    const open = lesson.items.filter((item) => !item.key).length;
+    const open = items.filter((item) => !item.key).length;
     if (open > AI_MAX_OPEN_ITEMS)
       issue('/items', 'size_limit', `At most ${AI_MAX_OPEN_ITEMS} open-answer items per lesson (it has ${open}); give the others a key.`);
   }
@@ -126,11 +131,11 @@ export function validateLessonPackage(
     if (!lesson.sources.length) issue('/sources', 'schema', 'A reading lesson needs opened sources.');
   }
 
-  if(isChemistryNotebook(options.subjectTitle??''))lesson.items.forEach((item,index)=>{
+  if(isChemistryNotebook(options.subjectTitle??''))items.forEach((item,index)=>{
     if(item.key?.type==='text'&&item.key.accepted.some(isChemicalFormula)&&!item.key.caseSensitive)
       issue(`/items/${index}/key/caseSensitive`,'chemistry_case','Đáp án công thức phải phân biệt hoa/thường (Co khác CO).');
   });
-  lesson.items.forEach((item, index) => issues.push(...itemIssues(item, `/items/${index}`, maxDifficulty)));
+  items.forEach((item, index) => issues.push(...itemIssues(item, `/items/${index}`, maxDifficulty)));
 
   const learnerText = [
     lesson.title,
@@ -151,7 +156,7 @@ export function validateLessonPackage(
           ...lesson.sheet.checklist,
         ]
       : []),
-    ...lesson.items.flatMap((item) => [
+    ...items.flatMap((item) => [
       item.prompt,
       item.instructions ?? '',
       item.explanation ?? '',
@@ -160,6 +165,20 @@ export function validateLessonPackage(
       ...(item.choices ?? []).flatMap((choice) => [choice.text, choice.errorLabel ?? '']),
       ...(item.rubric ?? []).flatMap((criterion) => [criterion.criterion, criterion.description ?? '']),
     ]),
+    ...(lesson.contract === 'lesson-package/3' ? [
+      JSON.stringify(lesson.knowledge),
+      ...items.flatMap(item => {
+        switch (item.input) {
+          case 'cloze': return item.fragments;
+          case 'match': return [...item.left, ...item.right].map(option => option.text);
+          case 'order': return item.steps.map(step => step.text);
+          case 'label': return [item.description];
+          case 'table': return [...item.headers, ...item.rowLabels];
+          case 'code': return [item.starter];
+          default: return [];
+        }
+      }),
+    ] : []),
     ...lesson.sources.flatMap((source) => [source.title, source.readScope]),
   ].join('\n');
   if (containsContactDetails(learnerText) || containsPossibleClinicalIdentifier(learnerText, options.sensitivity ?? 'normal')) {

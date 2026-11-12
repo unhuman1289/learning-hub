@@ -13,8 +13,8 @@ import { submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
 import { canonical, contextHash } from '../lib/ai-jobs/context/common.ts';
 import { sendAlertDigest } from '../lib/alerts.ts';
-import { createSubject } from '../lib/subjects/service.ts';
-import { parseSubjectInput } from '../lib/subjects/policy.ts';
+import { createSubject, updateSubject } from '../lib/subjects/service.ts';
+import { parseSubjectInput, parseSubjectPatch } from '../lib/subjects/policy.ts';
 const now = new Date('2026-10-13T07:30:00Z'),
   subject = 'sub_aaaaaaaaaaaaaaaaaaaa',
   learner = 'private-real-learner-id';
@@ -1045,4 +1045,34 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
     assert.equal((await readJob(db, db.sqlite.prepare('SELECT job_id FROM learner_requests WHERE id=?').get(request.id).job_id)).adaptive, 1);
   }
   db.sqlite.close();
+});
+
+test('v3 planning requires runner support and does not write a new lesson after disabling v3', async () => {
+  const db = seed();
+  try {
+    const limits = enabled => JSON.stringify({ maxDifficulty: 3, allowNewTopics: true, maxNewSkillsPerWeek: 5, package: enabled ? 3 : 2 });
+    db.sqlite.prepare("UPDATE subjects SET title='Sổ thử',limits=? WHERE id=?").run(limits(true), subject);
+    const queued = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily', subjectId: subject }, now);
+    assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
+    const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3'] }, 'test', now);
+    assert.equal(lease.jobId, queued.id);
+    const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
+    assert.equal(context.subjects[0].limits.package, 3);
+    const payload = structuredClone(fixture);
+    const { choices, rubric, key, ...base } = payload.items[0];
+    void choices; void rubric; void key;
+    payload.items[0] = { ...base, input: 'cloze', fragments: ['Ich ', ' heute lesen.'], key: {
+      type: 'cloze', blanks: [{ type: 'text', accepted: ['kann'], caseSensitive: false }],
+    } };
+    const body = plan(context, { ...payload, contract: 'lesson-package/3', knowledge: [] });
+    const dry = await applyResult(db, client, lease.jobId, lease.leaseToken, body, true, now);
+    assert.equal(dry.status, 200, JSON.stringify(dry));
+    await updateSubject(db, learner, subject, parseSubjectPatch({ revision: context.subjects[0].revision, limits: JSON.parse(limits(false)) }), now);
+    const result = await applyResult(db, client, lease.jobId, lease.leaseToken, body, false, now);
+    assert.equal(result.status, 200);
+    assert.equal(result.outcome.subjects[0].status, 'stale');
+    assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM learning_lessons').get().n, 0);
+  } finally {
+    db.sqlite.close();
+  }
 });

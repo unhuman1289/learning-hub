@@ -1,7 +1,7 @@
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
 import { validateLessonPackage } from '../../lesson-v2/validate.ts';
-import { newLessonId, promptHash } from '../../lesson-v2/store.ts';
+import { newLessonId, promptHash, lessonVersion } from '../../lesson-v2/store.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { containsContactDetails } from '../../automation/privacy.ts';
 import { sha256Hex } from '../../auth/automation.ts';
@@ -85,6 +85,13 @@ export async function prepareExplorations(
     for (const problem of checked.issues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
     if (!checked.lesson) continue;
     const lesson = checked.lesson;
+    const version = lessonVersion(lesson);
+    const configured = known && await db.prepare("SELECT coalesce(json_extract(limits,'$.package'),2) AS version FROM subjects WHERE id=? AND learner_id=?")
+      .bind(targetId, job.learner_id).first<{ version: number }>();
+    if (Number(version) !== (known?.limits.package ?? 2) || (known && configured?.version !== Number(version))) {
+      issue(path + '/lesson/contract', 'schema', 'Phiên bản bài phải khớp cấu hình hiện tại của sổ.');
+      continue;
+    }
     const kinds = context.adaptive
       ? { learn: ['new'], practice: ['review', 'remediation'], personal: ['exploration'], none: [] }[context.adaptive.mode]
       : request.kind === 'explore' ? ['exploration'] : ['new', 'remediation', 'review'];
@@ -175,7 +182,7 @@ export async function prepareExplorations(
       db
         .prepare(
           `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id)
-           SELECT ?,?,?,?,?,?,'2',?,?,'extra',?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
+           SELECT ?,?,?,?,?,?,?,?,?,'extra',?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=? ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
         )
         .bind(
           id,
@@ -184,6 +191,7 @@ export async function prepareExplorations(
           JSON.stringify(resolved),
           job.learning_day,
           stamp,
+          version,
           lesson.template,
           lesson.kind,
           lesson.why,
@@ -194,6 +202,7 @@ export async function prepareExplorations(
           ...args,
           targetId,
           job.learner_id,
+          Number(version),
         ),
     );
     for (const [i, item] of resolved.items.entries())

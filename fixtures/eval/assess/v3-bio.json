@@ -1,0 +1,262 @@
+{
+  "note": "Dữ liệu tổng hợp. Nhãn kỳ vọng chấm theo rubric, không có bài làm thật.",
+  "subject": {
+    "title": "Sinh học 10",
+    "goal": "Giải thích cấu trúc và quá trình sinh học cơ bản",
+    "level": "Cơ bản"
+  },
+  "lesson": {
+    "title": "Sinh học 10",
+    "objective": "Giải thích cấu trúc và quá trình sinh học cơ bản",
+    "sheetRules": []
+  },
+  "items": {
+    "membrane": {
+      "prompt": "Nêu hai ý về vai trò của màng sinh chất: ranh giới và trao đổi chất.",
+      "solution": "Màng ngăn cách tế bào với môi trường và kiểm soát chọn lọc chất đi qua.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Nêu ranh giới tế bào",
+          "points": 1
+        },
+        {
+          "criterion": "Nêu kiểm soát chọn lọc trao đổi chất",
+          "points": 1
+        }
+      ]
+    },
+    "mitosis": {
+      "prompt": "Sau nguyên phân, có mấy tế bào con và bộ nhiễm sắc thể của mỗi tế bào so với tế bào mẹ như thế nào?",
+      "solution": "Hai tế bào con, mỗi tế bào giữ cùng số lượng nhiễm sắc thể với tế bào mẹ.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Hai tế bào con",
+          "points": 1
+        },
+        {
+          "criterion": "Giữ cùng số lượng nhiễm sắc thể",
+          "points": 1
+        }
+      ]
+    },
+    "stomata": {
+      "prompt": "Khí khổng cho CO₂ và hơi nước đi theo hướng nào thường gặp vào ban ngày?",
+      "solution": "CO₂ đi vào lá, hơi nước thoát ra từ lá.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "CO₂ đi vào",
+          "points": 1
+        },
+        {
+          "criterion": "Hơi nước đi ra",
+          "points": 1
+        }
+      ]
+    },
+    "dna": {
+      "prompt": "DNA bắt cặp bổ sung thế nào: A ghép với gì, G ghép với gì?",
+      "solution": "A ghép với T, G ghép với C.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "A ghép T",
+          "points": 1
+        },
+        {
+          "criterion": "G ghép C",
+          "points": 1
+        }
+      ]
+    },
+    "blood": {
+      "prompt": "Nêu hướng chảy của máu từ tâm thất phải và tâm thất trái.",
+      "solution": "Tâm thất phải bơm máu tới phổi, tâm thất trái bơm máu đi nuôi cơ thể.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Thất phải tới phổi",
+          "points": 1
+        },
+        {
+          "criterion": "Thất trái tới cơ thể",
+          "points": 1
+        }
+      ]
+    },
+    "osmosis": {
+      "prompt": "Mô tả chất di chuyển trong thẩm thấu và theo hướng nào qua màng bán thấm.",
+      "solution": "Nước qua màng từ dung dịch loãng hơn tới dung dịch đậm đặc hơn.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Chất di chuyển là nước",
+          "points": 1
+        },
+        {
+          "criterion": "Từ phía loãng sang phía đậm đặc",
+          "points": 1
+        }
+      ]
+    },
+    "enzyme": {
+      "prompt": "Nêu tác động của enzyme lên năng lượng hoạt hóa và enzyme có bị tiêu hao sau phản ứng không.",
+      "solution": "Enzyme làm giảm năng lượng hoạt hóa và không bị tiêu hao.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Giảm năng lượng hoạt hóa",
+          "points": 1
+        },
+        {
+          "criterion": "Không bị tiêu hao",
+          "points": 1
+        }
+      ]
+    },
+    "chloroplast": {
+      "prompt": "Lục lạp thực hiện quá trình gì và dùng nguồn năng lượng nào?",
+      "solution": "Lục lạp quang hợp, sử dụng năng lượng ánh sáng.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Thực hiện quang hợp",
+          "points": 1
+        },
+        {
+          "criterion": "Dùng ánh sáng",
+          "points": 1
+        }
+      ]
+    },
+    "xylem": {
+      "prompt": "Mạch gỗ vận chuyển chất gì, theo hướng chính nào trong cây?",
+      "solution": "Mạch gỗ dẫn nước và muối khoáng từ rễ lên thân và lá.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Dẫn nước và muối khoáng",
+          "points": 1
+        },
+        {
+          "criterion": "Từ rễ lên",
+          "points": 1
+        }
+      ]
+    },
+    "diffusion": {
+      "prompt": "Nêu hướng di chuyển ròng của chất tan khi khuếch tán và có cần tế bào cấp ATP trực tiếp không.",
+      "solution": "Chất tan di chuyển ròng từ nơi nồng độ cao đến thấp và không cần ATP trực tiếp.",
+      "skills": [
+        "key:bio-core"
+      ],
+      "rubric": [
+        {
+          "criterion": "Từ nồng độ cao đến thấp",
+          "points": 1
+        },
+        {
+          "criterion": "Không cần ATP trực tiếp",
+          "points": 1
+        }
+      ]
+    }
+  },
+  "submissions": [
+    {
+      "id": "s1",
+      "answers": {
+        "membrane": {
+          "answer": "Màng ngăn cách tế bào với môi trường và điều tiết chất đi vào, đi ra.",
+          "expected": "correct",
+          "facets": []
+        },
+        "mitosis": {
+          "answer": "Tạo hai tế bào con, mỗi tế bào có nửa số nhiễm sắc thể.",
+          "expected": "partial",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s2",
+      "answers": {
+        "stomata": {
+          "answer": "CO₂ đi vào lá và hơi nước thoát ra.",
+          "expected": "correct",
+          "facets": []
+        },
+        "dna": {
+          "answer": "A ghép với T, G ghép với A.",
+          "expected": "partial",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s3",
+      "answers": {
+        "blood": {
+          "answer": "Tâm thất phải bơm máu tới phổi, tâm thất trái bơm máu đi nuôi cơ thể.",
+          "expected": "correct",
+          "facets": []
+        },
+        "osmosis": {
+          "answer": "Muối di chuyển từ dung dịch đậm đặc sang dung dịch loãng.",
+          "expected": "incorrect",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s4",
+      "answers": {
+        "enzyme": {
+          "answer": "Enzyme giảm năng lượng hoạt hóa và không bị tiêu hao trong phản ứng.",
+          "expected": "correct",
+          "facets": []
+        },
+        "chloroplast": {
+          "answer": "Lục lạp quang hợp và dùng nhiệt từ đất.",
+          "expected": "partial",
+          "facets": []
+        }
+      }
+    },
+    {
+      "id": "s5",
+      "answers": {
+        "xylem": {
+          "answer": "Mạch gỗ đưa nước và muối khoáng từ rễ lên lá.",
+          "expected": "correct",
+          "facets": []
+        },
+        "diffusion": {
+          "answer": "Chất tan đi từ nồng độ thấp đến cao nhờ ATP.",
+          "expected": "incorrect",
+          "facets": []
+        }
+      }
+    }
+  ]
+}

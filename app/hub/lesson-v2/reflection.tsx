@@ -15,13 +15,17 @@ export function LessonReflection({submissionId, minutes}:{submissionId:string; m
    <h3 className="font-hand text-xl text-accent">Góp ý cho bài sau</h3>
    <form onSubmit={save} className="mt-3 grid gap-3">
      <fieldset><legend className={labelClass}>Độ khó</legend><div className="flex flex-wrap gap-2">
-       {difficulty.map(([id, label]) => <label key={id} className="flex min-h-11 items-center gap-2 rounded-full px-3 has-[:checked]:bg-rose-soft">
-         <input type="radio" name="difficulty" value={id} checked={value.difficulty === id} onChange={() => setValue(v => ({ ...v, difficulty: id }))} />{label}
+       {difficulty.map(([id, label]) => <label key={id} className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
+         <input className="peer sr-only" type="radio" name="difficulty" value={id} checked={value.difficulty === id} onChange={() => setValue(v => ({ ...v, difficulty: id }))} />
+         <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-muted/50 font-hand text-lg leading-none text-transparent peer-checked:border-brick peer-checked:text-brick peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">✓</span>
+         <span className="decoration-brick decoration-2 underline-offset-4 peer-checked:underline">{label}</span>
        </label>)}
      </div></fieldset>
      <fieldset><legend className={labelClass}>Mức hữu ích</legend><div className="flex flex-wrap gap-2">
-       {usefulness.map(([id, label]) => <label key={id} className="flex min-h-11 items-center gap-2 rounded-full px-3 has-[:checked]:bg-rose-soft">
-         <input type="radio" name="usefulness" value={id} checked={value.usefulness === id} onChange={() => setValue(v => ({ ...v, usefulness: id }))} />{label}
+       {usefulness.map(([id, label]) => <label key={id} className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
+         <input className="peer sr-only" type="radio" name="usefulness" value={id} checked={value.usefulness === id} onChange={() => setValue(v => ({ ...v, usefulness: id }))} />
+         <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full border-2 border-muted/50 font-hand text-lg leading-none text-transparent peer-checked:border-brick peer-checked:text-brick peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">✓</span>
+         <span className="decoration-brick decoration-2 underline-offset-4 peer-checked:underline">{label}</span>
        </label>)}
      </div></fieldset>
      <label className={labelClass}>Bạn muốn bài sau đổi gì?

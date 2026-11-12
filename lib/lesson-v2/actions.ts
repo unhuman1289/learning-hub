@@ -17,7 +17,7 @@ const bad = (message: string) => new ApiError(400, message);
 const isRecord = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 async function lessonRow(db: Db, learnerId: string, lessonId: string) {
-  const row = await db.prepare(`SELECT id, draft, draft_revision, support FROM learning_lessons WHERE id = ? AND user_id = ? AND package_version = '2'`)
+  const row = await db.prepare(`SELECT id, draft, draft_revision, support FROM learning_lessons WHERE id = ? AND user_id = ? AND package_version IN ('2','3')`)
     .bind(lessonId, learnerId).first<{ id: string; draft: string; draft_revision: number; support: string }>();
   if (!row) throw new ApiError(404, 'Không tìm thấy bài.');
   return row;
@@ -51,7 +51,7 @@ export async function saveDraft(db: Db, learnerId: string, lessonId: string, inp
   const unknown = Object.keys(input.answers).find((itemId) => !known.has(itemId));
   if (unknown) throw bad(`Bài không có câu ${unknown}.`);
   const result = await db.prepare(`UPDATE learning_lessons SET draft = ?, draft_revision = draft_revision + 1, updated = ?
-      WHERE id = ? AND user_id = ? AND package_version = '2' AND draft_revision = ?`)
+      WHERE id = ? AND user_id = ? AND package_version IN ('2','3') AND draft_revision = ?`)
     .bind(JSON.stringify(input.answers), now.toISOString(), lessonId, learnerId, input.revision).run();
   if (!result.meta.changes) throw new ApiError(409, 'Nháp đã được lưu từ thiết bị khác. Tải lại để xem bản mới nhất; câu đang viết vẫn còn trên trang.');
   return { revision: input.revision + 1 };
@@ -96,7 +96,7 @@ export async function snooze(db: Db, learnerId: string, lessonId: string, now = 
 /** Completion is a learner action, independent of grades; uses the current server timestamp. */
 export async function completeLesson(db:Db,learnerId:string,id:string,completed:boolean,expectedUpdated:string,now=new Date()){
  const stamp=now.toISOString();
- const result=await db.prepare("UPDATE learning_lessons SET completed_at=CASE WHEN ?=1 THEN COALESCE(completed_at,?) ELSE NULL END,updated=? WHERE id=? AND user_id=? AND package_version='2' AND updated=?").bind(completed?1:0,stamp,stamp,id,learnerId,expectedUpdated).run();
+ const result=await db.prepare("UPDATE learning_lessons SET completed_at=CASE WHEN ?=1 THEN COALESCE(completed_at,?) ELSE NULL END,updated=? WHERE id=? AND user_id=? AND package_version IN ('2','3') AND updated=?").bind(completed?1:0,stamp,stamp,id,learnerId,expectedUpdated).run();
  if(!result.meta.changes)throw new ApiError(409,'Bài đã đổi. Tải lại trước khi đánh dấu.');
  const row=await db.prepare('SELECT completed_at,updated FROM learning_lessons WHERE id=? AND user_id=?').bind(id,learnerId).first<{completed_at:string|null;updated:string}>();
  return {completedAt:row!.completed_at,updated:row!.updated,completed};

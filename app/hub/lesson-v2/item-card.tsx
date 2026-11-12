@@ -6,8 +6,10 @@ import { HintNote, RevealedSolution } from "./hints";
 import { pencil, pencilLink, ResultStamp } from "../paper-bits";
 import { CheckStamp } from "../notebook/check-stamp";
 import { PaperDialog } from "../paper-dialog";
+import { SketchIcon } from "../sketch-icons";
 import { words } from "../words";
 import { uploadPhoto } from "./photo";
+import { StructuredInput } from "./inputs/structured";
 export function ItemCard({
   item,
   number,
@@ -15,9 +17,11 @@ export function ItemCard({
   feedbackPreview,
   feedbackResult,
   feedbackSupported,
+  gradeLater,
   onSubmit,
   submitLabel,
   canSubmit,
+  hasAnswer,
   value,
   disabled,
   readOnly,
@@ -28,13 +32,15 @@ export function ItemCard({
   formatText?:(text:string)=>string;
   item: ItemView;
   number: number;
-  feedback?: ReactNode;
+  feedback?: (onCodeLine?: (line: number) => void) => ReactNode;
   feedbackPreview?: string;
   feedbackResult?: string | null;
   feedbackSupported?: boolean;
+  gradeLater?: boolean;
   onSubmit?: () => void;
   submitLabel?: string;
   canSubmit?: boolean;
+  hasAnswer: boolean;
   value: DraftAnswers[string];
   disabled: boolean;
   readOnly: boolean;
@@ -44,6 +50,11 @@ export function ItemCard({
   const [photoError, setPhotoError] = useState(""),
     [uploading, setUploading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  const [focusLine, setFocusLine] = useState<{line: number; key: number}>();
+  function jumpToLine(line: number) {
+    setShowFeedback(false);
+    setFocusLine(previous => ({ line, key: (previous?.key ?? 0) + 1 }));
+  }
   let selected: string[] = [];
   try {
     const x = JSON.parse(value.answer || "[]");
@@ -84,7 +95,7 @@ export function ItemCard({
             </label>
           ))}
         </fieldset>
-      ) : (
+      ) : item.input === "short" || item.input === "long" ? (
         <div className="spread-answer">
           <label htmlFor={fieldId} className="sr-only">Bài làm của bạn</label>
           {item.input === "short" ? (
@@ -110,7 +121,8 @@ export function ItemCard({
             />
           )}
         </div>
-      )}
+      ) : <StructuredInput item={item} value={value.answer} disabled={locked} focusLine={focusLine}
+        onChange={answer => onChange({ ...value, answer })} />}
       {item.attachment !== "none" && (
         <div className="text-sm">
           <label htmlFor={"photo-" + item.id} className="block text-muted">
@@ -149,22 +161,24 @@ export function ItemCard({
           ))}
         </div>
       )}
-      {value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
+      {(item.input === "short" || item.input === "long") && value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
       {!readOnly && <div className="spread-check"><CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
-        canSubmit={!!canSubmit} hasAnswer={item.input === "choice" ? selected.length > 0 : !!value.answer.trim() || !!value.attachmentIds?.length}
+        canSubmit={!!canSubmit} hasAnswer={hasAnswer}
         onSubmit={onSubmit} /></div>}
       <div className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
         {(feedback || item.revealed.solution) && <button type="button" className="min-h-11 w-full text-left font-hand text-lg text-brick hover:underline"
           aria-haspopup="dialog" onClick={() => setShowFeedback(true)}>
           <span className="flex min-w-0 items-start gap-2">
+            {gradeLater && <SketchIcon name="hourglass" size={20} className="shrink-0" />}
             {feedbackResult && <ResultStamp result={feedbackResult} className={feedbackSupported ? "shrink-0 opacity-60" : "shrink-0"} />}
-            <span className="line-clamp-2 min-w-0 leading-snug">{feedbackSupported && feedbackResult === "correct" ? "Đã xem lời giải, không tính điểm." : item.revealed.solutionSeen && item.revealed.solution ? `Đã xem lời giải · ${formatText(item.revealed.solution)}` : feedbackPreview || "Xem lời phê"}</span>
+            <span className="line-clamp-2 min-w-0 leading-snug">{feedbackSupported && feedbackResult === "correct" ? "Đã xem lời giải, không tính điểm." : item.revealed.solutionSeen && item.revealed.solution ? `Đã xem lời giải · ${formatText(item.revealed.solution)}` : gradeLater ? "Chờ chấm" : feedbackPreview || "Xem lời phê"}</span>
           </span>
         </button>}
       </div>
       {showFeedback && <PaperDialog title={words.feedback.grade} labelId={`feedback-${item.id}`} onClose={() => setShowFeedback(false)}>
         <RevealedSolution item={item} formatText={formatText} />
-        {feedback}
+        {gradeLater && <p className={pencil}>{words.status.gradeLater}</p>}
+        {feedback?.(item.input === 'code' ? jumpToLine : undefined)}
       </PaperDialog>}
     </article>
   );

@@ -8,6 +8,7 @@ import { leaseJobs, leasedJob, readJob, heartbeat, permits } from '../../../../.
 import { applyResult } from '../../../../../lib/ai-jobs/result';
 import { planContext, planResult, assessContext, assessResult } from '../../../../../lib/contracts/ai-common';
 import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-package-v2';
+import { lessonPackageV3 } from '../../../../../lib/contracts/lesson-package-v3';
 import { historyMarkdown, readHistory } from '../../../../../lib/history';
 import { learnerStatus } from '../../../../../lib/status';
 import { householdMode } from '../../../../../lib/household';
@@ -31,8 +32,8 @@ const leaseBody = z
     max: z.number().int().min(1).max(5),
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
     capabilities: z
-      .array(z.enum(['vision', 'adaptive-plan', 'local-grading']))
-      .max(3)
+      .array(z.enum(['vision', 'adaptive-plan', 'local-grading', 'lesson-v3']))
+      .max(4)
       .optional(),
   })
   .strict();
@@ -42,6 +43,7 @@ function contractSchemas() {
   schemas ??= Object.fromEntries(
     Object.entries({
       'lesson-package/2': lessonPackageV2,
+      'lesson-package/3': lessonPackageV3,
       'plan-context/1': planContext,
       'plan-result/1': planResult,
       'assess-context/1': assessContext,

@@ -24,7 +24,7 @@ export async function readGreetingFacts(db: EvidenceDb, learner: string, now: Da
       .bind(week, learner, fortnight, day, subject, subject).all<{ recent: number; total: number; correct: number }>(),
     db.prepare(`SELECT l.completed_at, s.title FROM learning_lessons l
       JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id
-      WHERE l.user_id=? AND s.status='active' AND l.package_version='2' AND (? IS NULL OR s.id=?)
+      WHERE l.user_id=? AND s.status='active' AND l.package_version IN ('2','3') AND (? IS NULL OR s.id=?)
       AND (l.completed_at IS NULL OR l.completed_at>=?)`)
       .bind(learner, subject, subject, dayAt(week, -1)).all<{ completed_at: string | null; title: string }>(),
     db.prepare(`SELECT st.mastery, st.next_review_day, st.last_independent_at, sk.name
