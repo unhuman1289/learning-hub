@@ -1,21 +1,26 @@
 "use client";
+import { useState } from "react";
+import { PaperConfirm } from "../paper-confirm";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import { pencil, pencilLink } from "../paper-bits";
 
 type Reveal = (level: "hint1" | "hint2" | "solution") => void;
-const confirmSolution = () => window.confirm("Xem lời giải sẽ được ghi nhận là đã dùng hỗ trợ. Vẫn mở lời giải?");
 
 /** Pencilled asides beside the check button: the next hint, then the solution. */
 export function HintLinks({ item, disabled, onReveal }: { item: ItemView; disabled: boolean; onReveal: Reveal }) {
+  const [confirm, setConfirm] = useState(false);
   const shown = item.revealed.hints.length;
   const next = shown < item.hintCount ? (shown === 0 ? "hint1" : "hint2") : null;
   return (
-    <span className="flex flex-wrap items-center gap-x-4">
-      {next && <button type="button" disabled={disabled} className={pencilLink} onClick={() => onReveal(next)}>Gợi ý</button>}
+    <div className="flex flex-wrap items-center gap-x-4">
+      {next && <button type="button" disabled={disabled} className={pencilLink} onClick={() => onReveal(next)}>{shown === 0 ? "Gợi ý" : "Gợi ý tiếp"}</button>}
       {!item.revealed.solution && (
-        <button type="button" disabled={disabled} className={pencilLink} onClick={() => { if (confirmSolution()) onReveal("solution"); }}>Lời giải</button>
+        <button type="button" disabled={disabled} className={pencilLink} onClick={() => setConfirm(true)}>Lời giải</button>
       )}
-    </span>
+      <PaperConfirm open={confirm && !disabled} message="Mở lời giải thì câu này tính là có trợ giúp. Vẫn mở?"
+        confirmLabel="Mở lời giải" onCancel={() => setConfirm(false)}
+        onConfirm={() => { setConfirm(false); onReveal("solution"); }} />
+    </div>
   );
 }
 

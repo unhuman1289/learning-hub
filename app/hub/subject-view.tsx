@@ -1,47 +1,55 @@
 "use client";
 
-import {SkillProgress} from "./skill-progress";
-
 import { LessonList } from "./lesson-v2/list";
-import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
-import { RuledPage } from "../../components/notebook/paper";
+import { useEffect, useState } from "react";
 import { fieldClass, labelClass } from "./paper-dialog";
 import { paperAction, PaperSummary } from "./paper-bits";
-import { RouteLink } from "./ui";
-import type { Route } from "./use-route";
+import type { BookPage, Route } from "./use-route";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
+import type { NotebookOverview } from "../../lib/learner-model/overview";
+import { apiJson, learnerQuery } from "./api";
+import { useLiveRefresh } from "./use-live-refresh";
+import { Book } from "./notebook/book";
+import { BookProgress } from "./notebook/progress";
+import { HistoryDownloads } from "./history-panel";
+import { words } from "./words";
 
-const statusText: Record<ShelfSubject["status"], string> = {
-  setup: "Đang lập lộ trình",
-  active: "Đang học",
-  paused: "Tạm dừng",
-  archived: "Đã cất",
-};
+export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfApi; canEdit: boolean; canManage: boolean; go: (route: Route) => void; hub2?: boolean }) {
+  return <SubjectBook key={props.id + ":" + (props.shelf.learner ?? "self")} {...props} />;
+}
 
-/**
- * A notebook opened since Learning Hub 2.0. Until its skill map and first lessons exist, this page
- * shows the notebook's goal and lets the learner (adult) or a guardian adjust it.
- */
-export function SubjectView({ id, shelf, canEdit, canManage, go, hub2 = false }: { id: string; shelf: ShelfApi; canEdit: boolean; canManage: boolean; go: (route: Route) => void; hub2?: boolean }) {
-  const subject = shelf.subjects?.find((item) => item.id === id) ?? null;
-  if (!shelf.subjects) return <p className="mx-auto max-w-4xl text-muted">{shelf.error || "Đang mở sổ…"}</p>;
-  if (!subject) return <p className="mx-auto max-w-4xl text-muted">Không tìm thấy sổ này trên kệ.</p>;
-  return (
-    <div className="mx-auto grid w-full max-w-4xl gap-6">
-      <RouteLink route={{ view: "desk" }} go={go} className="inline-flex items-center gap-1.5 self-start text-sm text-accent hover:underline"><ArrowLeft size={16} aria-hidden="true" /> Về phòng học</RouteLink>
-      <RuledPage>
-        <p className="font-hand text-lg leading-7 text-accent">{statusText[subject.status]}</p>
-        <h1 className="relative top-2.5 font-print text-[2.25rem] font-medium leading-[3.5rem]">{subject.title}</h1>
-        {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth canRequest={subject.status === "active" || subject.status === "setup"} />}
-        {hub2 && <SkillProgress subjectId={id} learner={shelf.learner} canEdit={canManage} go={go} />}
-        <details className="mt-7">
-          <PaperSummary>Cài đặt sổ</PaperSummary>
-          {canEdit ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
-        </details>
-      </RuledPage>
+function SubjectBook({ id, page = "hom-nay", shelf, canEdit, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
+  const subject = shelf.subjects?.find((item) => item.id === id);
+  const child = shelf.learners.find(learner => shelf.learner ? learner.id === shelf.learner : learner.relation === "self")?.role === "child";
+  const [data, setData] = useState<NotebookOverview | null>(null);
+  const [error, setError] = useState(false);
+  const query = learnerQuery(shelf.learner);
+  const url = `/api/subjects/${id}?view=overview${query ? "&" + query.slice(1) : ""}`;
+  useEffect(() => {
+    if (!hub2) return;
+    let alive = true;
+    apiJson<NotebookOverview>(url).then(value => { if (alive) setData(value); }).catch(() => { if (alive) setError(true); });
+    return () => { alive = false; };
+  }, [hub2, url]);
+  useLiveRefresh(async () => { setData(await apiJson<NotebookOverview>(url)); setError(false); }, hub2);
+  if (!subject) return <p className="mx-auto max-w-4xl text-muted">{shelf.subjects ? "Không tìm thấy sổ này." : shelf.error || "Đang mở sổ…"}</p>;
+  return <Book id={id} title={subject.title} page={page} go={go}>
+    {page === "muc-luc" && <>
+      {subject.goal && <p className="mb-4 whitespace-pre-wrap font-hand text-xl">{subject.goal}</p>}
+      {!!subject.roadmap?.length && <section className="mb-4"><h2 className="font-hand text-xl text-accent">{words.place.next}</h2>
+        <ol className="ml-5 list-decimal">{subject.roadmap.slice(0, 3).map((step, index) => <li key={index}>{step.title}</li>)}</ol></section>}
+    </>}
+    <div hidden={page !== "hom-nay" && page !== "muc-luc"}>
+      {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth bookPage={page === "muc-luc" ? "contents" : "today"}
+        canRequest={!shelf.learner && (subject.status === "active" || subject.status === "setup")} />}
     </div>
-  );
+    {page === "tien-do" && (data ? <BookProgress data={data} child={child} /> : <p role={error ? "alert" : "status"}>{error ? words.error.unknown : "Đang đọc tiến độ…"}</p>)}
+    {page === "cai-dat" && <>
+      {canEdit && !child && subject.status !== "archived"
+        ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
+      {hub2 && !child && <HistoryDownloads subjectId={id} learner={shelf.learner} />}
+    </>}
+  </Book>;
 }
 
 export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
@@ -95,12 +103,12 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
         <input value={draft.curriculum ?? subject.curriculum} maxLength={500} onChange={(event) => edit({ curriculum: event.target.value })} className={fieldClass} />
       </label>
 {hub2 && (
-        <label className={labelClass}>Prompt của sổ
-          <span className="text-sm font-normal text-muted">Hướng dẫn riêng cho người soạn và chấm bài của sổ này, ví dụ bối cảnh, tỉ lệ chủ đề, cách sửa bài. Luật của Hub vẫn được áp dụng.</span>
+        <label className={labelClass}>Lời dặn
+          <span className="text-sm font-normal text-muted">Điều bạn muốn cô soạn và sửa bài lưu ý.</span>
           <textarea value={draft.instructions ?? subject.instructions} maxLength={4000} rows={6} onChange={(event) => edit({ instructions: event.target.value })} className={fieldClass} />
         </label>
       )}
-{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.aiEnabled ?? subject.aiEnabled} disabled={subject.status!=="active"} onChange={e => edit({ aiEnabled: e.target.checked })}/> Tự chuẩn bị bài lúc 00:00 giờ Đức khi đã xong bài chính.</label>}
+{hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.aiEnabled ?? subject.aiEnabled} disabled={subject.status!=="active"} onChange={e => edit({ aiEnabled: e.target.checked })}/> Mỗi sáng có bài mới khi bạn đã xong bài hôm trước.</label>}
       {subject.openingBrief && <details>
         <PaperSummary>Nội dung lúc mở sổ</PaperSummary>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-muted">{subject.openingBrief}</p>

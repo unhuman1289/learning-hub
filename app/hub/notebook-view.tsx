@@ -2,27 +2,21 @@
 
 import {SkillProgress} from "./skill-progress";
 import { LessonList } from "./lesson-v2/list";
+import { Book } from "./notebook/book";
 import {SubjectForm,SubjectFacts} from "./subject-view";
 import type {ShelfApi} from "./use-shelf";
-import { ArrowLeft, ArrowUpRight, Plus } from "lucide-react";
-import { OakDesk } from "../../components/notebook/house";
-import { MarginDate, MiniCover, RuledPage, StickyNote, cx } from "../../components/notebook/paper";
+import { ArrowUpRight, Plus } from "lucide-react";
+import { MarginDate, RuledPage, StickyNote, cx } from "../../components/notebook/paper";
 import { projects } from "../content";
 import { googleDocs } from "../google-docs";
 import { type FormRequest } from "./document-form";
 import { LessonPage, type Drafts } from "./lesson-page";
-import { coverTitle, coverTransition, notebookPages, shortDate, trackInfo, type Page, type TrackId } from "./model";
+import { coverTitle, notebookPages, shortDate, trackInfo, type Page, type TrackId } from "./model";
 import { PaperSummary } from "./paper-bits";
 import { buttonClass, PageLabel, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { NotebookTab, Route } from "./use-route";
 import type { WorkspaceApi } from "./use-workspace";
-
-const tabLabels: { id: NotebookTab; label: string }[] = [
-  { id: "muc-luc", label: "Mục lục" },
-  { id: "muc-tieu", label: "Mục tiêu" },
-  { id: "tai-lieu", label: "Tài liệu" },
-];
 
 export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts, openForm, shelf,canEdit, canManage, hub2 = false }: {
   shelf?:ShelfApi;
@@ -40,6 +34,8 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
 }) {
   const info = trackInfo(track);
   const subject=shelf?.subjects?.find(s=>s.legacyTrack===track);
+  const child = shelf?.learners.find(learner => shelf.learner ? learner.id === shelf.learner : learner.relation === "self")?.role === "child";
+  const readOnly = !!shelf?.learner || subject?.status === "archived";
   const { assigned, foundation, active } = notebookPages(track, daily.data);
   const all = [...assigned, ...foundation];
   const current: Page | undefined = all.find((page) => page.id === pageId)
@@ -47,9 +43,6 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
     ?? assigned[assigned.length - 1]
     ?? foundation[0];
   const number = current?.kind === "daily" ? assigned.indexOf(current) + 1 : 0;
-  const done = assigned.filter((page) => page.kind === "daily" && page.lesson.completedAt).length
-    + foundation.filter((page) => workspace.data.done.includes(page.id)).length;
-
   const toc = (
     <TableOfContents
       track={track}
@@ -63,51 +56,24 @@ export function NotebookView({ track, tab, pageId, go, daily, workspace, drafts,
   );
 
   return (
-    <div className="mx-auto w-full max-w-6xl">
-      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-2">
-        <RouteLink route={{ view: "desk" }} go={go} className={buttonClass("ghost", "-ml-2")}><ArrowLeft size={16} aria-hidden="true" /> Phòng học</RouteLink>
-        <div className="flex min-w-0 items-center gap-3">
-          {/* Same view-transition name as the cover on the shelf: the cover flies here when the notebook opens. */}
-          <span style={{ viewTransitionName: coverTransition[track] }}><MiniCover className="w-6" /></span>
-          <h1 className="truncate font-print text-2xl font-medium">{info.title}</h1>
-        </div>
-        <span className="text-sm text-muted">{done}/{all.length} bài đã học</span>
-      </div>
-
-      {/* The open notebook lies on the oak desk. */}
-      <div style={{ viewTransitionName: "book" }}>
-      <OakDesk>
-      <nav aria-label={`Các phần của sổ ${info.title}`} className="relative z-[1] -mb-px flex flex-wrap items-start gap-2 pl-2">
-        <RouteLink route={{view:"notebook",track,tab:"bai"}} go={go} aria-current={tab==="bai"?"page":undefined}
-          className="rounded-t-md bg-paper px-4 py-3 text-sm font-semibold text-accent">Bài học</RouteLink>
-        <details className="relative">
-          <summary className="min-h-11 cursor-pointer rounded-t-md bg-paper px-4 py-3 text-sm font-semibold text-accent">Thêm</summary>
-          <div className="absolute left-0 top-full z-10 grid min-w-32 gap-1 rounded-b-md border border-line bg-paper p-2">
-            {tabLabels.map(item => <RouteLink key={item.id} route={{view:"notebook",track,tab:item.id}} go={go}
-              aria-current={tab===item.id?"page":undefined} className={buttonClass("ghost")}>{item.label}</RouteLink>)}
-          </div>
-        </details>
-      </nav>
-
+    <Book title={info.title} track={track} tab={tab} go={go}>
       <div className="relative rounded-[2px_6px_6px_6px] border border-line shadow-page">
         <CoverFlip key={track} title={coverTitle[track]} />
         {tab === "muc-luc" && toc}
         <div className="min-w-0">
           {tab==="bai" && hub2 && subject && shelf && <RuledPage className="space-y-4">
-            <LessonList subjectId={subject.id} learner={shelf.learner} go={go} canRequest={subject.status==="active" || subject.status==="setup"} />
+            <LessonList subjectId={subject.id} learner={shelf.learner} go={go} canRequest={!shelf.learner && (subject.status==="active" || subject.status==="setup")} />
           </RuledPage>}
           {tab === "bai" && (pageId || !hub2 || !subject) && (
             current
-              ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} />
-              : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ xuất hiện ở đây sau lượt soạn bài buổi sáng."}</p></RuledPage>
+              ? <LessonPage key={current.id} page={current} number={number} daily={daily} workspace={workspace} drafts={drafts} readOnly={readOnly} />
+              : <RuledPage className="min-h-[60vh]"><p className="font-hand text-2xl leading-[3.5rem] relative top-2.5 text-accent">Sổ còn trống.</p><p className="leading-7 text-muted">{daily.error ? "Chưa tải được bài học. Hãy thử tải lại trang." : "Bài đầu tiên sẽ hiện ở đây khi sẵn sàng."}</p></RuledPage>
           )}
-          {tab === "muc-tieu" && (subject&&shelf?<><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><PaperSummary>Bài đã học</PaperSummary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</>:<GoalsPage track={track} workspace={workspace} />)}
-          {tab === "tai-lieu" && <DocsPage track={track} workspace={workspace} openForm={openForm} />}
+          {tab === "muc-tieu" && (subject&&shelf?<RuledPage><h2 className="font-hand text-2xl">Mục tiêu</h2>{canEdit&&!readOnly&&!child?<SubjectForm subject={subject} shelf={shelf} hub2={hub2}/>:<SubjectFacts subject={subject}/>}{hub2 && <SkillProgress subjectId={subject.id} learner={shelf.learner} canEdit={canManage}/>}{hub2 && <details><PaperSummary>Bài đã học</PaperSummary><LessonList subjectId={subject.id} learner={shelf.learner} go={go} history /></details>}</RuledPage>:<GoalsPage track={track} workspace={workspace} />)}
+          {tab === "tai-lieu" && <DocsPage track={track} workspace={workspace} openForm={openForm} readOnly={readOnly} child={!!child} />}
         </div>
       </div>
-      </OakDesk>
-      </div>
-    </div>
+    </Book>
   );
 }
 
@@ -241,16 +207,16 @@ function GoalsPage({ track, workspace }: { track: TrackId; workspace: WorkspaceA
   );
 }
 
-function DocsPage({ track, workspace, openForm }: { track: TrackId; workspace: WorkspaceApi; openForm: (request: FormRequest) => void }) {
+function DocsPage({ track, workspace, openForm, readOnly, child }: { track: TrackId; workspace: WorkspaceApi; openForm: (request: FormRequest) => void; readOnly: boolean; child: boolean }) {
   const docs = googleDocs.filter((doc) => doc.track === track);
-  const notes = workspace.data.notes.filter((note) => note.track === track);
+  const notes = readOnly || child ? [] : workspace.data.notes.filter((note) => note.track === track);
   return (
     <RuledPage className="min-h-[60vh]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent">Tài liệu</h2>
-        <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Thêm tài liệu</button>
+        {!readOnly && !child && <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Thêm tài liệu</button>}
       </div>
-      <p className="max-w-[68ch] text-sm leading-7 text-muted">Bản dài để chỉnh sửa nằm trong Google Docs; quyền truy cập do Drive quản lý. Sổ này chỉ giữ liên kết và ghi chú ngắn.</p>
+      {!child && <p className="max-w-[68ch] text-sm leading-7 text-muted">Bản đầy đủ nằm trên Google Drive. Ở đây chỉ giữ đường dẫn.</p>}
       <ul className="mt-7 grid max-w-[72ch] gap-7">
         {docs.map((doc) => (
           <li key={doc.id}>
@@ -270,7 +236,7 @@ function DocsPage({ track, workspace, openForm }: { track: TrackId; workspace: W
           </li>
         ))}
       </ul>
-      {!docs.length && !notes.length && <p className="leading-7 text-muted">Chưa có tài liệu. Thêm link Docs hoặc paper đã đọc, ghi rõ phần đã xem và ngày đọc.</p>}
+      {!docs.length && !notes.length && <p className="leading-7 text-muted">Chưa có tài liệu.</p>}
     </RuledPage>
   );
 }

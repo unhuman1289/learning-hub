@@ -6,9 +6,9 @@ import { fieldClass } from "./paper-dialog";
 import { Dots, masteryDots, pencil, pencilLink, shortDay, skillLabel } from "./paper-bits";
 const masteryText: Record<string, string> = {
   not_assessed: "Chưa đánh giá",
-  introduced: "Đã tiếp cận",
-  developing: "Đang hình thành",
-  demonstrated: "Đã tự làm được",
+  introduced: "Mới học",
+  developing: "Đang luyện",
+  demonstrated: "Đã vững",
   needs_review: "Cần ôn",
 };
 type Skill = {
@@ -39,7 +39,7 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
   async function load() {
     const r = await fetch(url, { cache: "no-store" }),
       x = (await r.json()) as ProgressData & {error?:string};
-    if (!r.ok) throw Error(x.error || "Chưa tải được lộ trình.");
+    if (!r.ok) throw Error(x.error || "Chưa tải được tiến độ.");
     setData(x);
   }
   useEffect(() => {
@@ -47,7 +47,7 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
     fetch(url, { cache: "no-store" })
       .then(async (r) => {
         const x = (await r.json()) as ProgressData & {error?:string};
-        if (!r.ok) throw Error(x.error || "Chưa tải được lộ trình.");
+        if (!r.ok) throw Error(x.error || "Chưa tải được tiến độ.");
         if (alive) setData(x);
       })
       .catch((e) => {
@@ -85,7 +85,7 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
   const openErrors = data?.errors.filter((e) => e.status !== "resolved") ?? [];
   const heading = "mt-7 font-hand text-xl leading-7 text-accent";
   return (
-    <section aria-label="Lộ trình và tiến bộ">
+    <section aria-label="Tiến độ và kỹ năng">
       {error && <p role="alert" className="text-brick">{error} <button className={pencilLink} onClick={() => void load().catch((e) => setError(e.message))}>Tải lại</button></p>}
       {!data && !error && <p role="status" className={pencil}>Đang đọc tiến độ đã lưu…</p>}
       {data && (
@@ -95,14 +95,14 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
               <h2 className={heading}>Tiến độ{data.subject.progressUpdatedAt ? ` · ${shortDay(data.subject.progressUpdatedAt)}` : ""}</h2>
               {data.subject.progressSummary && <p className="whitespace-pre-wrap">{data.subject.progressSummary}</p>}
               {data.subject.roadmap?.length ? <>
-                <p className={pencil}>Các bước tiếp theo</p>
+                <p className={pencil}>Các bài sắp tới</p>
                 <ol>
                   {data.subject.roadmap.slice(0,3).map((step,i)=><li key={i}><span className="font-hand text-xl text-accent">{i+1}.</span> {step.title} <span className="text-muted">· {step.objective}</span></li>)}
                 </ol>
                 {data.subject.roadmap.length > 3 && <details><summary className={pencilLink + " cursor-pointer"}>Xem các bước còn lại</summary>
                   <ol>{data.subject.roadmap.slice(3).map((step,i)=><li key={i}><span className="font-hand text-xl text-accent">{i+4}.</span> {step.title} <span className="text-muted">· {step.objective}</span></li>)}</ol>
                 </details>}
-              </> : !data.subject.progressSummary && <p className={pencil}>Lộ trình sẽ có sau bài đầu tiên.</p>}
+              </> : !data.subject.progressSummary && <p className={pencil}>Các bài sắp tới sẽ hiện sau bài đầu tiên.</p>}
             </section>
           )}
           <h2 className={heading}>Kỹ năng</h2>
@@ -132,8 +132,8 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
               <input value={note} maxLength={500} onChange={(e) => setNote(e.target.value)} className={fieldClass} />
             </label>
           )}
-          <h2 className={heading}>Lỗi lặp</h2>
-          {!openErrors.length && <p className={pencil}>Chưa ghi nhận lỗi lặp nào.</p>}
+          <h2 className={heading}>Hay nhầm</h2>
+          {!openErrors.length && <p className={pencil}>Chưa ghi nhận lỗi lặp.</p>}
           <ul>
             {openErrors.map((e) => (
               // Noted like a teacher's margin remark; a suspected pattern is written in pencil until confirmed.

@@ -16,7 +16,7 @@ export const requestLabels: Record<RequestKind, { button: string; title: string;
   explore: { button: "Hỏi thêm", title: "Hỏi thêm", placeholder: "Bạn muốn tìm hiểu điều gì?" },
   extra_practice: { button: "Xin thêm bài", title: "Xin thêm bài", placeholder: "Muốn luyện thêm phần nào?" },
   school_topic: { button: "Tuần này ở trường", title: "Tuần này ở trường", placeholder: "Tuần này trên lớp học gì?" },
-  note: { button: "Dặn planner", title: "Dặn planner", placeholder: "Lời dặn cho người soạn bài (14 ngày)" },
+  note: { button: "Lời dặn", title: "Lời dặn", placeholder: "Lời dặn cho người soạn bài (14 ngày)" },
 };
 
 const statusText: Record<string, string> = {

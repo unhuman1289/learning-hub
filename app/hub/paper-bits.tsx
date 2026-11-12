@@ -1,3 +1,4 @@
+import { words } from "./words";
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
 import { cx } from "../../components/notebook/paper";
@@ -5,14 +6,14 @@ import { cx } from "../../components/notebook/paper";
 /** Small things written or stamped on notebook paper, shared by the notebook, lesson and desk sheets. */
 
 const stamps: Record<string, [string, string]> = {
-  correct: ["Đúng", "border-ok text-ok"],
-  partial: ["Gần đúng", "border-warn text-warn"],
-  incorrect: ["Sửa lại", "border-brick text-brick"],
+  correct: [words.result.correct, "border-ok text-ok"],
+  partial: [words.result.partial, "border-warn text-warn"],
+  incorrect: [words.result.incorrect, "border-brick text-brick"],
 };
 
 /** The teacher's rubber stamp for a graded answer. */
 export function ResultStamp({ result, className }: { result: string | null; className?: string }) {
-  const [label, tone] = stamps[result ?? ""] ?? ["Chờ chấm", "border-muted text-muted"];
+  const [label, tone] = stamps[result ?? ""] ?? [words.result.pending, "border-muted text-muted"];
   return <span className={cx("inline-block -rotate-3 rounded-[3px] border-2 border-double px-2 font-hand text-[15px] uppercase leading-6 tracking-wider", tone, className)}>{label}</span>;
 }
 
@@ -23,7 +24,7 @@ export function RedPen({ children, className }: { children: ReactNode; className
 
 /** Pencilled aside: hints, small links, waiting notes. */
 export const pencil = "font-hand text-[17px] leading-7 text-muted";
-export const pencilLink = "font-hand text-[17px] leading-7 text-accent underline decoration-dotted underline-offset-4 hover:text-accent-hover disabled:opacity-50";
+export const pencilLink = "inline-flex min-h-11 min-w-11 items-center font-hand text-[17px] leading-7 text-accent underline decoration-dotted underline-offset-4 hover:text-accent-hover disabled:opacity-50";
 
 /** An underlined action printed on a paper tab, with room to tap on a phone. */
 export const paperAction = "inline-flex min-h-11 w-fit items-center gap-2 border-b border-current px-2 font-hand text-xl leading-7 text-accent hover:bg-rose-soft hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current disabled:opacity-50";

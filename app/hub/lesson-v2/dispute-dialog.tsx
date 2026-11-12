@@ -8,7 +8,7 @@ import { buttonClass } from "../ui";
 export type DisputeState = { id: string; status: string; note: string | null } | null;
 
 const reasons = [
-  ["answer_correct", "Câu trả lời của mình đúng"],
+  ["answer_correct", "Câu trả lời của bạn đúng"],
   ["feedback_wrong", "Nhận xét không đúng"],
   ["item_wrong", "Đề hoặc đáp án sai"],
   ["other", "Khác"],
@@ -16,7 +16,7 @@ const reasons = [
 
 /** What the learner sees about a dispute, in plain words; nothing claims a result before the server has it. */
 const statusText: Record<string, string> = {
-  open: "Đã gửi phản hồi. Điểm này tạm không tính vào tiến độ.",
+  open: "Đã gửi. Câu này tạm chưa tính điểm.",
   rechecking: "Đang chấm lại. Điểm này tạm không tính vào tiến độ.",
   needs_human: "Đang chờ phụ huynh xem.",
   upheld: "Đã chấm lại: giữ điểm cũ.",
@@ -38,7 +38,7 @@ async function post(url: string, body?: unknown) {
 }
 
 /** "Chấm sai?" under a graded answer: dispute it, follow its status, and ask a parent when still unsure. */
-export function DisputeControl({ attemptId, dispute, readOnly, onChanged }: { attemptId: string; dispute: DisputeState; readOnly: boolean; onChanged: () => void }) {
+export function DisputeControl({ attemptId, dispute, readOnly, onChanged, child = false }: { attemptId: string; dispute: DisputeState; readOnly: boolean; child?: boolean; onChanged: () => void }) {
   const [open, setOpen] = useState(false),
     [reason, setReason] = useState<(typeof reasons)[number][0]>("answer_correct"),
     [message, setMessage] = useState(""),
@@ -51,7 +51,10 @@ export function DisputeControl({ attemptId, dispute, readOnly, onChanged }: { at
     setBusy(true);
     setError("");
     try {
-      await post(`/api/attempts/${attemptId}/disputes`, { reason, message, recheck });
+      const created = await post(`/api/attempts/${attemptId}/disputes`, child
+        ? { reason: "other", message: "Nhờ bố mẹ xem", recheck: false }
+        : { reason, message, recheck });
+      if (child) await post(`/api/disputes/${created.id}/escalate`);
       setOpen(false);
       onChanged();
     } catch (e) {
@@ -84,13 +87,13 @@ export function DisputeControl({ attemptId, dispute, readOnly, onChanged }: { at
         </p>
       )}
       {!readOnly && (!dispute || finished) && (
-        <button type="button" className={pencilLink} onClick={() => setOpen(true)}>
-          Chấm sai?
+        <button type="button" className={pencilLink} disabled={busy} onClick={() => child ? void send() : setOpen(true)}>
+          {child ? "Hỏi bố mẹ" : "Chấm sai?"}
         </button>
       )}
       {!readOnly && dispute && (dispute.status === "upheld" || dispute.status === "open") && (
         <button type="button" className={pencilLink} disabled={busy} onClick={() => void escalate()}>
-          Nhờ phụ huynh xem
+          {child ? "Hỏi bố mẹ" : "Nhờ phụ huynh xem"}
         </button>
       )}
       {error && !open && <p role="alert">{error}</p>}

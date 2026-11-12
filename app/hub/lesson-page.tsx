@@ -24,16 +24,16 @@ type Body = {
   note?: string;
 };
 
-export function LessonPage({ page, number, daily, workspace, drafts }: { page: Page; number: number; daily: DailyApi; workspace: WorkspaceApi; drafts: Drafts }) {
+export function LessonPage({ page, number, daily, workspace, drafts, readOnly = false }: { page: Page; number: number; daily: DailyApi; workspace: WorkspaceApi; drafts: Drafts; readOnly?: boolean }) {
   return page.kind === "daily"
-    ? <DailyLessonPage page={page} number={number} daily={daily} drafts={drafts} />
-    : <StaticLessonPage page={page} workspace={workspace} drafts={drafts} />;
+    ? <DailyLessonPage page={page} number={number} daily={daily} drafts={drafts} readOnly={readOnly} />
+    : <StaticLessonPage page={page} workspace={workspace} drafts={drafts} readOnly={readOnly} />;
 }
 
-function DailyLessonPage({ page, number, daily, drafts }: { page: Extract<Page, { kind: "daily" }>; number: number; daily: DailyApi; drafts: Drafts }) {
+function DailyLessonPage({ page, number, daily, drafts, readOnly }: { page: Extract<Page, { kind: "daily" }>; number: number; daily: DailyApi; drafts: Drafts; readOnly: boolean }) {
   const { lesson, archived } = page;
   const key = `d:${lesson.id}`;
-  const value = drafts.values[key] ?? lesson.response;
+  const value = readOnly ? lesson.response : drafts.values[key] ?? lesson.response;
   const unsaved = drafts.values[key] !== undefined && drafts.values[key] !== lesson.response;
   const busy = daily.busyId === lesson.id;
   const completed = !!lesson.completedAt;
@@ -71,11 +71,11 @@ function DailyLessonPage({ page, number, daily, drafts }: { page: Extract<Page, 
           label="Bài làm"
           hint="Viết câu trả lời, đầu ra và điều còn vướng bằng lời của bạn."
           value={value}
-          readOnly={archived}
+          readOnly={archived || readOnly}
           onChange={(next) => drafts.set(key, next)}
         />
       }
-      actions={archived ? (
+      actions={readOnly ? null : archived ? (
         <p className="leading-7 text-muted">Bài này đã được thay bằng bài mới và giữ lại trong sổ để ôn.</p>
       ) : (
         <ActionBar
@@ -93,7 +93,7 @@ function DailyLessonPage({ page, number, daily, drafts }: { page: Extract<Page, 
   );
 }
 
-function StaticLessonPage({ page, workspace, drafts }: { page: Extract<Page, { kind: "static" }>; workspace: WorkspaceApi; drafts: Drafts }) {
+function StaticLessonPage({ page, workspace, drafts, readOnly }: { page: Extract<Page, { kind: "static" }>; workspace: WorkspaceApi; drafts: Drafts; readOnly: boolean }) {
   const { lesson, detail } = page;
   const key = `n:${lesson.id}`;
   const value = drafts.values[key] ?? "";
@@ -119,7 +119,7 @@ function StaticLessonPage({ page, workspace, drafts }: { page: Extract<Page, { k
       key={lesson.id}
       meta={`Bài nền · ${lesson.level} · ${lesson.time} phút`}
       title={lesson.title}
-      stamp={completed ? "" : null}
+      stamp={completed && !readOnly ? "" : null}
       stampPressed={justCompleted}
       body={{
         objective: detail?.objective ?? lesson.body,
@@ -136,7 +136,7 @@ function StaticLessonPage({ page, workspace, drafts }: { page: Extract<Page, { k
         nextTopic: detail?.nextTopic,
         note: detail?.note,
       }}
-      answer={
+      answer={readOnly ? null : (
         <>
           {saved.length > 0 && (
             <div className="mb-7">
@@ -151,15 +151,15 @@ function StaticLessonPage({ page, workspace, drafts }: { page: Extract<Page, { k
           )}
           <AnswerField id={key} label="Bài làm mới" hint="Mỗi lần lưu thêm một mục vào Ghi chú của sổ." value={value} onChange={(next) => { drafts.set(key, next || undefined); setMessage(""); }} />
         </>
-      }
-      actions={
+      )}
+      actions={readOnly ? null : (
         <ActionBar status={workspace.saving ? "Đang lưu…" : message || (value.trim() ? "Có bài làm chưa lưu" : "")} error={workspace.error}>
           <button type="button" disabled={!workspace.loaded || workspace.saving || !value.trim()} onClick={() => void saveAnswer()} className={buttonClass("secondary")}>Lưu bài làm</button>
           <button type="button" disabled={!workspace.loaded || workspace.saving} onClick={async () => { const ok = await workspace.toggleDone(lesson.id); setJustCompleted(ok && !completed); }} className={buttonClass(completed ? "ghost" : "primary")}>
             {completed ? "Bỏ dấu đã học" : <><Check size={16} aria-hidden="true" /> Đã học xong</>}
           </button>
         </ActionBar>
-      }
+      )}
     />
   );
 }

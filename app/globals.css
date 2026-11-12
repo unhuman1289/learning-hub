@@ -43,7 +43,11 @@
   --color-glass: #e4ece6;
   --color-garden: #9cb28c;
   /* Paper and ink */
-  --color-paper: #fefdfa;
+  --color-paper: #fdf9ef;
+  --color-ink-paper: #303139;
+  --color-muted-paper: #62616b;
+  --color-accent-paper: #9b4268;
+  --paper-line-height: 1.75rem;
   --color-paper-2: #f6f3ee;
   --color-rule: #cbd4e3;
   --color-margin: #e6a9c3;
@@ -128,11 +132,6 @@
     --color-cabinet: #b5aea2;
     --color-cabinet-back: #9c958a;
     --color-cabinet-ink: #1d1a16;
-    --color-postit-yellow: #d9c97f;
-    --color-postit-rose: #d6b3bc;
-    --color-postit-mint: #b3c9b0;
-    --color-postit-blue: #b1c2d3;
-    --color-postit-lilac: #c4b8d1;
     --color-brick: #a4543f;
     --color-brick-hover: #b4614b;
     --color-stone: #b9a682;
@@ -141,10 +140,6 @@
     --color-iron: #0d0d0f;
     --color-glass: #2c3638;
     --color-garden: #3f4d3a;
-    --color-paper: #26241f;
-    --color-paper-2: #2e2b26;
-    --color-rule: #3a3f49;
-    --color-margin: #7e3e5b;
     --color-ink: #ececf1;
     --color-muted: #a6a6b2;
     --color-line: #3d3933;
@@ -154,27 +149,44 @@
     --color-on-accent: #2a1420;
     --color-cover: #0e0e11;
     --color-spine: #1a1a1f;
-    --color-label: #ededf0;
     --color-ok: #93c9a9;
     --color-ok-soft: #1e3128;
     --color-warn: #e5ba6e;
     --color-warn-soft: #352a17;
-    --shadow-page: 0 1px 0 rgb(0 0 0 / 0.3), 0 12px 30px -12px rgb(0 0 0 / 0.7);
+    --shadow-page: 0 0 0 1px rgb(0 0 0 / .3), 0 18px 40px -16px rgb(0 0 0 / .8), 0 0 60px rgb(255 200 120 / .08);
     --shadow-furniture: 0 2px 0 rgb(0 0 0 / 0.35), 0 22px 40px -20px rgb(0 0 0 / 0.8);
     color-scheme: dark;
   }
 }
 
+
+/* Paper remains readable under the room's night lighting. */
+.bg-ruled, .bg-graph {
+  --color-ink: var(--color-ink-paper);
+  --color-muted: var(--color-muted-paper);
+  --color-accent: var(--color-accent-paper);
+  --color-accent-hover: #833657;
+  --color-line: #ddd7cd;
+  --color-rose-soft: #f5e2eb;
+  --color-brick: #8e4636;
+  --color-brick-hover: #7a3a2c;
+  --color-ok: #3d6a53;
+  --color-ok-soft: #e2eee6;
+  --color-warn: #875a14;
+  --color-warn-soft: #f5ebd8;
+  color: var(--color-ink-paper);
+  color-scheme: light;
+}
 /* Ruled notebook paper: blue-gray lines every 28px and a pink margin at --margin-x. */
 @utility bg-ruled {
   --margin-x: 3.25rem;
   background-color: var(--color-paper);
   background-image:
     linear-gradient(to right, transparent var(--margin-x), var(--color-margin) var(--margin-x), var(--color-margin) calc(var(--margin-x) + 1px), transparent calc(var(--margin-x) + 1px), transparent calc(var(--margin-x) + 4px), var(--color-margin) calc(var(--margin-x) + 4px), var(--color-margin) calc(var(--margin-x) + 5px), transparent calc(var(--margin-x) + 5px)),
-    repeating-linear-gradient(to bottom, transparent 0 calc(1.75rem - 1px), var(--color-rule) calc(1.75rem - 1px) 1.75rem);
+    repeating-linear-gradient(to bottom, transparent 0 calc(var(--paper-line-height) - 1px), var(--color-rule) calc(var(--paper-line-height) - 1px) var(--paper-line-height));
   /* Lift the rules so 16px text on a 28px line sits on them, descenders below like handwriting. */
   background-position: 0 0, 0 -0.4375rem;
-  line-height: 1.75rem;
+  line-height: var(--paper-line-height);
 }
 
 /* Squared paper (kariert, 5 mm) for the progress sheet; text keeps a two-square line so marks sit on the grid. */
@@ -189,10 +201,10 @@
 /* Lines only, scrolling with the text, for answers written "on the page". */
 @utility bg-lines {
   background-color: transparent;
-  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(1.75rem - 1px), var(--color-rule) calc(1.75rem - 1px) 1.75rem);
+  background-image: repeating-linear-gradient(to bottom, transparent 0 calc(var(--paper-line-height) - 1px), var(--color-rule) calc(var(--paper-line-height) - 1px) var(--paper-line-height));
   background-attachment: local;
   background-position: 0 -0.4375rem;
-  line-height: 1.75rem;
+  line-height: var(--paper-line-height);
 }
 
 @utility bg-marble {
@@ -462,3 +474,82 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 .lhw-bob { animation: lhw-bob 2.4s ease-in-out infinite; }
 .lhw-fall { animation: lhw-fall 9s linear infinite; }
 .lhw-firework { animation: lhw-firework 2.6s ease-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+
+.lesson-spread {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  width: min(100%, 68rem);
+  margin-inline: auto;
+  touch-action: pan-y;
+  view-transition-name: lesson-page;
+}
+.spread-pages { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); }
+.lesson-spread[data-double="true"] .spread-pages {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+}
+.spread-page {
+  --margin-x: 1rem;
+  min-width: 0;
+  min-height: min(24rem, 68dvh);
+  max-height: max(24rem, calc(100dvh - 9rem));
+  overflow: auto;
+  padding: 1.25rem 1rem 1.25rem 1.5rem;
+  box-shadow: var(--shadow-page);
+  overflow-wrap: anywhere;
+}
+.spread-page[data-offpage="true"] {
+  position: absolute;
+  top: 0;
+  inset-inline-start: 0;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}
+.lesson-spread[data-double="true"] .spread-page[data-offpage="true"] { width: calc((100% - 2px) / 2); }
+.spread-block + .spread-block { margin-top: 1rem; }
+.spread-edge { display: grid; place-items: center; min-height: 44px; color: var(--color-accent); }
+.spread-edge:disabled { opacity: .25; }
+@media (max-width: 639px) {
+  .lesson-spread { grid-template-columns: minmax(44px, 1fr) minmax(44px, 1fr); gap: 4px; }
+  .spread-pages { grid-column: 1 / -1; grid-row: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .animate-spread-turn { animation: spread-turn 220ms ease-out; }
+  @keyframes spread-turn {
+    from { transform: translateX(.5rem); opacity: .75; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}
+
+[data-age="child"] {
+  --paper-line-height: 2rem;
+}
+[data-age="child"] :is(.bg-ruled, .bg-graph) {
+  font-size: 1.1875rem;
+}
+
+.profile-hooks {
+  background: linear-gradient(to bottom, var(--color-oak-light), var(--color-oak-dark)) top / 100% 12px no-repeat;
+}
+.profile-tag {
+  position: relative;
+  transform-origin: center -.8rem;
+}
+.profile-tag::before {
+  position: absolute;
+  content: "";
+  width: .8rem;
+  height: 1.4rem;
+  left: calc(50% - .4rem);
+  bottom: calc(100% - 3px);
+  border: 2px solid var(--color-oak-dark);
+  border-radius: 50% 50% 15% 15%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .profile-tag[data-selected="true"] { animation: profile-select 300ms ease-out; }
+  @keyframes profile-select {
+    35% { rotate: 4deg; }
+    65% { rotate: -2deg; }
+  }
+}
