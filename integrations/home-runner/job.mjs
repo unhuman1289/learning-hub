@@ -106,7 +106,39 @@ function generationSchema(kind, context, schema) {
   lesson.items.minItems = 5;
   lesson.items.maxItems = 6;
   if (v3) {
-    lesson.items.items.anyOf = lesson.items.items.anyOf.filter(branch => branch.properties.input.const);
+    const skillKeys = Array.from({ length: 8 }, (_, index) => 'step-' + (index + 1));
+    const skillRefs = skillKeys.map(key => 'key:' + key);
+    const addSkill = item.properties.skillChanges.items.oneOf.find(branch => branch.properties.op.const === 'add');
+    item.properties.skillChanges = {
+      type: 'array', minItems: 8, maxItems: 8, items: false,
+      prefixItems: skillKeys.map((key, index) => ({
+        ...addSkill,
+        properties: {
+          ...addSkill.properties, key: { const: key }, pathOrder: { const: index + 1 },
+          prerequisites: { type: 'array', maxItems: index, items: index ? { enum: skillRefs.slice(0, index) } : false },
+        },
+      })),
+    };
+    item.properties.roadmap.items.properties.skills.items = { enum: skillRefs };
+    lesson.targetSkills.items = { enum: skillRefs };
+    lesson.reasonRefs.items = { enum: skillRefs };
+    const inputs = lesson.items.items.anyOf.filter(branch => branch.properties.input.const);
+    const closed = inputs.filter(branch => branch.properties.input.const !== 'code');
+    const rust = /\brust\b/i.test(context.subjects[0].title);
+    const first = rust ? inputs.filter(branch => branch.properties.input.const === 'code') : closed.filter(branch => branch.properties.input.const === 'match');
+    const cloze = structuredClone(closed.find(branch => branch.properties.input.const === 'cloze'));
+    Object.assign(cloze.properties.fragments, { minItems: 2, maxItems: 2 });
+    Object.assign(cloze.properties.key.properties.blanks, { minItems: 1, maxItems: 1 });
+    const rest = [cloze];
+    const question = (branches, index) => ({ anyOf: branches.map(branch => ({
+      ...branch, properties: {
+        ...branch.properties, id: { const: 'i' + (index + 1) }, skills: { ...branch.properties.skills, items: { enum: skillRefs } },
+      },
+    })) });
+    lesson.items = {
+      type: 'array', minItems: 5, maxItems: 5, items: false,
+      prefixItems: [question(first, 0), ...Array.from({ length: 4 }, (_, index) => question(rest, index + 1))],
+    };
   } else {
     const question = lesson.items.items;
     question.required.push('key');
@@ -289,7 +321,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         } else {
         const out = await qwen.run({
           system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.subjects.some(subject => subject.limits?.package === 3)
-            ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3 ở trên, kể cả bài chẩn đoán.'
+            ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3. Bài chẩn đoán có đúng 5 câu i1–i5 và 8 kỹ năng step-1 đến step-8. Chỉ dùng các tham chiếu key:step-1 đến key:step-8. Nếu là Rust, i1 viết code; với môn khác, i1 nối cặp. Mỗi câu i2–i5 chỉ có một ô trống và đúng một nhóm đáp án. Kỹ năng tiên quyết chỉ tham chiếu bước trước.'
             : '') + (context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
           user: userPrompt(promptContext, repair, draft),

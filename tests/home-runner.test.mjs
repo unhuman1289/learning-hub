@@ -492,3 +492,22 @@ test('after ChatGPT reports its usage limit Codex rests an hour so Qwen takes th
   clock += 61 * 60000;
   assert.equal(await engine.available(), true);
 });
+
+test('v3 Rust diagnostic uses five questions and a stable acyclic skill vocabulary', async () => {
+  const context = {
+    contract: 'plan-context/1', purpose: 'initial', contextHash: 'sha256:' + 'a'.repeat(64),
+    subjects: [{ subjectId: subject, title: 'Rust cơ bản', goal: '', instructions: '', progressSummary: '', revision: 0, limits: { package: 3 },
+      slot: { eligibleForPrimary: true, openPrimaryLessonId: null }, skills: [], errorPatterns: [], recentLessons: [] }],
+  };
+  const hub = { context: async () => context, fail: async () => undefined };
+  let schema;
+  const qwen = { name: 'qwen', run: async input => { schema = input.schema; throw Error('schema captured'); } };
+  await processJob(hub, { kind: 'plan', purpose: 'initial', jobId: 'job_qa' }, qwen);
+  const setup = schema.properties.subjects.items.properties;
+  assert.equal(setup.skillChanges.prefixItems.length, 8);
+  assert.deepEqual(setup.skillChanges.prefixItems[1].properties.prerequisites.items.enum, ['key:step-1']);
+  const questions = setup.primaryLesson.properties.items.prefixItems.map(item => item.anyOf[0].properties);
+  assert.deepEqual(questions.map(question => question.input.const), ['code', 'cloze', 'cloze', 'cloze', 'cloze']);
+  assert.equal(questions[1].fragments.maxItems, 2);
+  assert.equal(questions[1].key.properties.blanks.maxItems, 1);
+});
