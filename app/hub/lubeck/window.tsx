@@ -1,15 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { berlinClock, deviceClock, typicalWeather, type BerlinClock, type Moon, type Weather } from "../../../lib/lubeck/sky";
+import { berlinClock, deviceClock, skyClock, typicalWeather, type BerlinClock, type Moon, type Weather } from "../../../lib/lubeck/sky";
 import { deskItem, shelfItem } from "./items";
 import { mountScene } from "./scene";
 
 type Ambient = { weather: Weather | null; moon: Moon | null };
 const AMBIENT_REFRESH = 30 * 60 * 1000;
+/** The window is repainted every two minutes: smooth enough for dusk, and almost no work in between. */
+export const SKY_REFRESH = 2 * 60 * 1000;
 
 /** The device clock, read as Lübeck time (or, with `deviceClock`, in the device's own zone); empty until mounted so server and client markup agree. */
-export function useBerlinClock(interval = 30000, read: (now: Date) => BerlinClock = berlinClock) {
+export function useBerlinClock(interval = SKY_REFRESH, read: (now: Date) => BerlinClock = berlinClock) {
   const [clock, setClock] = useState<BerlinClock>();
   useEffect(() => {
     const update = () => setClock(read(new Date()));
@@ -25,8 +27,15 @@ export function useBerlinClock(interval = 30000, read: (now: Date) => BerlinCloc
 }
 
 /** The learner's own date and hour. */
-export function useDeviceClock(interval = 30000) {
+export function useDeviceClock(interval = SKY_REFRESH) {
   return useBerlinClock(interval, deviceClock);
+}
+
+/** The clock the window is drawn with: the learner's date and hour against Lübeck's day (see `skyClock`). */
+export function useSkyClock(interval = SKY_REFRESH) {
+  const lubeck = useBerlinClock(interval);
+  const device = useDeviceClock(interval);
+  return useMemo(() => (lubeck && device ? skyClock(lubeck, device) : undefined), [lubeck, device]);
 }
 
 /**
