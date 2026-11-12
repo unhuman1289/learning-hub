@@ -232,3 +232,7 @@ MacBook Pro M4 Pro, 48 GB. LM Studio, model `qwen/qwen3.6-35b-a3b` (MLX, vision-
 - Not verified from this Mac: Cisco Umbrella on the current network re-signs `*.workers.dev`, so HTTPS checks fail here (`learn.unhuman.cc` is fine). Staging smoke tests and the runner need another network or the `learn-staging.unhuman.cc` custom domain (docs/ops/local-grader-setup.md B1).
 - Pending the owner: `AUTOMATION_CLIENTS` secret upload, custom domain, Access apps, PR #95 merge (these writes were refused by the session's permission policy).
 - Eval extended to 32 authored cases (draft key). Qwen: 8/8 valid JSON, mean 23.9 s per submission, agreement 24–26/32 across runs, G/P/N 11/19, 1/4 injection cases graded off the key, 1 non-verbatim evidence quote. Below the Gate E1 bar (≥90%); typical misses are partial→incorrect and a missing comma before *weil* graded correct.
+
+## Knowledge Maintainer · K0
+
+Tài liệu ChatGPT xác nhận Scheduled Tasks dùng được các app được hỗ trợ và thao tác ghi có thể yêu cầu duyệt. Tài liệu chưa xác nhận khả năng chạy nền với custom MCP Learning Hub. Connector hiện thấy trong Codex chỉ có công cụ soạn và chấm. Chưa thử OAuth mới, lượt ghi nền, web search trong cùng lượt, refresh token hoặc giờ chạy Berlin trên staging. [Scheduled tasks in ChatGPT](https://help.openai.com/en/articles/10291617-scheduled-tasks-in-chatgpt)
