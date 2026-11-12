@@ -478,7 +478,7 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 .lesson-spread {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) 44px;
-  width: min(100%, 68rem);
+  width: min(100%, calc(var(--spread-width) + 88px));
   margin-inline: auto;
   touch-action: pan-y;
   view-transition-name: lesson-page;
@@ -489,14 +489,16 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
   gap: 2px;
 }
 .spread-page {
-  --margin-x: 1rem;
+  --margin-x: 2.25rem;
   min-width: 0;
-  min-height: min(24rem, 68dvh);
-  max-height: max(24rem, calc(100dvh - 9rem));
+  height: var(--spread-height);
   overflow: auto;
-  padding: 1.25rem 1rem 1.25rem 1.5rem;
+  padding: var(--paper-line-height) .75rem var(--paper-line-height) 2.75rem;
   box-shadow: var(--shadow-page);
   overflow-wrap: anywhere;
+}
+@media (min-width: 640px) {
+  .spread-page { --margin-x: 3.25rem; padding-left: 3.75rem; }
 }
 .spread-page[data-offpage="true"] {
   position: absolute;

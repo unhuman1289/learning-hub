@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
-import { HintLinks, Revealed } from "./hints";
+import { HintNote, RevealedSolution } from "./hints";
 import { pencil, pencilLink } from "../paper-bits";
 import { buttonClass } from "../ui";
 import { uploadPhoto } from "./photo";
@@ -44,9 +44,12 @@ export function ItemCard({
   const locked = readOnly || disabled || uploading;
   return (
     <article className="pb-7">
-      <h3 id={"question-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
-        <span className="font-hand text-xl text-accent">{number}.</span> {formatText(item.prompt)}
-      </h3>
+      <div className="flex items-start justify-between gap-3">
+        <h3 id={"question-" + item.id} className="min-w-0 whitespace-pre-wrap break-words text-lg font-semibold leading-[var(--paper-line-height)]">
+          <span className="font-hand text-xl text-accent">{number}.</span> {formatText(item.prompt)}
+        </h3>
+        <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />
+      </div>
       {item.instructions && <p className="text-muted">{formatText(item.instructions)}</p>}
       {item.input === "choice" ? (
         <fieldset aria-labelledby={"question-" + item.id}>
@@ -137,14 +140,13 @@ export function ItemCard({
         </div>
       )}
       {value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
-      <Revealed item={item} formatText={formatText} />
       {!readOnly && (
         // One action per question; hints and the solution are pencilled asides.
         <div className="flex min-h-14 flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <button type="button" disabled={!canSubmit || uploading} onClick={onSubmit} className={buttonClass("secondary", "min-h-11")}>{submitLabel ?? "Kiểm tra"}</button>
-          <HintLinks item={item} disabled={locked} onReveal={onReveal} />
         </div>
       )}
+      <RevealedSolution item={item} formatText={formatText} />
       {feedback}
     </article>
   );

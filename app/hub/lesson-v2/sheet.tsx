@@ -3,8 +3,7 @@ import type { LessonPackageV2 } from "../../../lib/contracts/lesson-package-v2";
 export function Sheet({ sheet,formatText=(text:string)=>text }: { sheet: LessonPackageV2["sheet"];formatText?:(text:string)=>string }) {
   if (!sheet) return null;
   return (
-    <section aria-label="Tờ kiến thức" className="space-y-4">
-      <h2 className="font-hand text-2xl">Tờ kiến thức</h2>
+    <section aria-label="Ghi nhớ" className="space-y-4">
       <p className="whitespace-pre-wrap leading-7">{formatText(sheet.explanation)}</p>
       {(
         [

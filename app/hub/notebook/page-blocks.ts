@@ -1,26 +1,68 @@
-export type PageBlock = { id: string; kind: "head" | "remember" | "item" | "product" | "summary"; long?: boolean };
+type Text = { value: string; handwriting?: boolean };
+export type PageBlock = {
+  id: string;
+  kind: "head" | "remember" | "item" | "product" | "summary";
+  text?: Text[];
+  reservedLines?: number;
+  long?: boolean;
+};
 
-export function pageBlocks<T extends PageBlock>(blocks: T[], perPage: number, measurement?: { heights: Record<string, number>; limit: number }) {
+export function pageGeometry(width: number, height: number, child: boolean) {
+  const double = width >= 1024;
+  const line = child ? 32 : 28;
+  const min = double ? 18 : width >= 640 ? 16 : 14;
+  const pageWidth = double ? Math.min(512, (width - 128) / 2)
+    : width >= 640 ? Math.min(640, width - 48) : width - 16;
+  return {
+    double,
+    line,
+    lines: Math.min(26, Math.max(min, Math.floor((height - 172) / line))),
+    width: pageWidth,
+    textWidth: Math.max(100, pageWidth - (width >= 640 ? 80 : 56)),
+    font: child ? 19 : 17,
+  };
+}
+
+type Geometry = ReturnType<typeof pageGeometry>;
+
+export function blockLines(block: PageBlock, { textWidth, font }: Geometry) {
+  const lines = (block.text ?? []).reduce((sum, { value, handwriting }) => {
+    const chars = Math.max(1, Math.floor(textWidth / (font * (handwriting ? 0.6 : 0.52))));
+    return sum + value.split("\n").reduce((count, line) => count + Math.max(1, Math.ceil(line.length / chars)), 0);
+  }, 0);
+  return lines + (block.reservedLines ?? 0) + 1;
+}
+
+export function pageBlocks<T extends PageBlock>(blocks: T[], geometry: Geometry) {
   const pages: T[][] = [];
-  let questions: T[] = [];
-  let height = 0;
+  let current: T[] = [];
+  let used = 0;
+  const capacity = geometry.lines - 3;
   function flush() {
-    if (questions.length) pages.push(questions);
-    questions = [];
-    height = 0;
+    if (current.length) pages.push(current);
+    current = [];
+    used = 0;
   }
   for (const block of blocks) {
-    if (block.kind !== "item" || block.long) {
+    const size = blockLines(block, geometry);
+    if (block.long || block.kind === "summary" || size > capacity) {
       flush();
       pages.push([block]);
-    } else {
-      const blockHeight = measurement?.heights[block.id] ?? 0;
-      if (measurement && questions.length && height + 16 + blockHeight > measurement.limit) flush();
-      height += blockHeight + (questions.length ? 16 : 0);
-      questions.push(block);
-      if (questions.length >= perPage) flush();
+      continue;
     }
+    if (used + size > capacity) flush();
+    current.push(block);
+    used += size;
   }
   flush();
   return pages;
+}
+
+export function initialLessonBlock({ completed, hasWork, correction, firstUnanswered }: {
+  completed: boolean; hasWork: boolean; correction: number; firstUnanswered: number;
+}) {
+  if (completed) return "summary";
+  if (correction >= 0) return `cau-${correction + 1}`;
+  if (!hasWork) return "head";
+  return firstUnanswered >= 0 ? `cau-${firstUnanswered + 1}` : "summary";
 }

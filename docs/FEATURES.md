@@ -105,3 +105,5 @@ Luồng API Anthropic/OpenAI bị loại khỏi code/dependencies/workflow; ch�
 - Bàn học dùng lời chào theo giờ Berlin và lời khích lệ từ tiến độ đã lưu. Khi xem bàn của người khác, chỉ hiện tên người học.
 - Sổ chủ đề có Mục lục, Hôm nay, Tiến độ và Cài đặt. Link bài cũ vẫn mở trực tiếp. Người lớn tải lịch sử từ Cài đặt sổ.
 - Bài v2 có trang Ghi nhớ, câu hỏi và Tổng kết. Mở một trang trên điện thoại hoặc hai trang trên máy tính. Lật bằng nút, bàn phím hoặc vuốt. Lưu và chấm dùng hợp đồng hiện hành.
+
+- Bản UX v2 đang kiểm thử chia trang theo dữ liệu bài, mở bài mới ở Ghi nhớ, và ghi riêng câu đã xem lời giải. Lượt làm sau khi xem vẫn nhận lời phê và được loại khỏi số câu đúng trong tổng kết.
