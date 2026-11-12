@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 
-export type AutomationScope = 'runs:create' | 'context:read' | 'result:write' | 'jobs:plan' | 'jobs:assess' | 'attachments:read' | 'history:read';
+export type AutomationScope = 'runs:create' | 'context:read' | 'result:write' | 'jobs:plan' | 'jobs:assess' | 'attachments:read' | 'history:read' | 'knowledge:write';
 export type AutomationClient = {
   id: string;
   keySha256: string;
@@ -20,7 +20,7 @@ export type AutomationBindings = {
   ENVIRONMENT?: string;
 };
 
-const scopeSet = new Set<AutomationScope>(['runs:create', 'context:read', 'result:write','jobs:plan','jobs:assess','attachments:read','history:read']);
+const scopeSet = new Set<AutomationScope>(['runs:create', 'context:read', 'result:write','jobs:plan','jobs:assess','attachments:read','history:read','knowledge:write']);
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const noStore = { 'Cache-Control': 'no-store' };
 
