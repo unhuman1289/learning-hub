@@ -1,3 +1,4 @@
+import {readRoadmapProgress} from '../../../../lib/roadmap/report';
 import { measureStorage } from '../../../../db/timing';
 import { env } from 'cloudflare:workers';
 import { readNotebookOverview } from '../../../../lib/learner-model/overview';
@@ -12,7 +13,7 @@ import { apiFailure } from '../../../../lib/api-error';
 import { resolveLearner } from '../../../../lib/access';
 import { parseSubjectPatch } from '../../../../lib/subjects/policy';
 import { usesAdaptivePlan } from '../../../../lib/subjects/sql';
-import { getSubject, toView, updateSubject } from '../../../../lib/subjects/service';
+import { getSubject, subjectWithRoadmap, updateSubject } from '../../../../lib/subjects/service';
 
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -33,8 +34,8 @@ export async function GET(req: Request, context: Context) {
       : learnerFacts(db, user, id);
     const learnerId = await resolveLearner(db, user, req, 'read_progress', readFacts);
     if (learnerId instanceof Response) return learnerId;
-    const subject = toView(await getSubject(db, learnerId, id));
-    const facts = await readFacts(learnerId);
+    const [{subject,steps},facts]=await Promise.all([subjectWithRoadmap(db,learnerId,id),readFacts(learnerId)]);
+    const progress=await readRoadmapProgress(db,learnerId,id,steps);
     const includeSuspected = user.id !== learnerId || facts.learnerRole !== 'child';
     if (new URL(req.url).searchParams.get('view') === 'overview') {
       const now = new Date();
@@ -42,7 +43,7 @@ export async function GET(req: Request, context: Context) {
       const [overview, report] = await Promise.all([
         reading, readNotebookReport(db, learnerId, id, reading, now, facts.learnerRole, subject.roadmap),
       ]);
-      return Response.json({ ...overview, report }, { headers: { ...headers, "Server-Timing": timing.header() } });
+      return Response.json({ ...overview, report:{...report,progress},progress }, { headers: { ...headers, "Server-Timing": timing.header() } });
     }
     const details = await readSubjectSkills(db, learnerId, id);
     if (!includeSuspected) details.errors = details.errors.filter(e => e.confidence === 'confirmed');
@@ -58,7 +59,7 @@ export async function GET(req: Request, context: Context) {
       const date = addDays(day,index-13);
       return { day: date, minutes: study.find(row => row.day === date)?.minutes ?? 0, lessons: activity.filter(row => row.day === date) };
     });
-    return Response.json({ timeline, subject, ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers: { ...headers, "Server-Timing": timing.header() } });
+    return Response.json({ timeline, subject, progress, ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers: { ...headers, "Server-Timing": timing.header() } });
   } catch (error) {
     return apiFailure(error, 'Chưa tải được sổ.', headers);
   }

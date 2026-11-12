@@ -11,7 +11,7 @@ import { qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
 import { mirrorDue, mirrorHistory } from './mirror.mjs';
 
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 
 /** KEY=VALUE lines; # comments. The file must not be readable by others. */
 export function parseEnvFile(text) {
@@ -62,7 +62,7 @@ export function leaseRequest(qwen, { daily = false } = {}) {
     purposes: ['submission', 'recheck', 'request', 'initial', ...(daily ? ['daily'] : [])],
     triggers: ['on_demand', 'deferred', ...(daily ? ['scheduled'] : [])],
     max: 1,
-    capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', ...(qwen.vision ? ['vision'] : [])],
+    capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(qwen.vision ? ['vision'] : [])],
     runner: { name: 'home-runner', version: VERSION, model: 'qwen' },
   };
 }

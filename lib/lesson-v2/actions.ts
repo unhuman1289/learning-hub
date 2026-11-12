@@ -1,3 +1,5 @@
+import type {EvidenceDb} from '../evidence/submit.ts';
+import {roadmapProgressWrite} from '../roadmap/progress.ts';
 import {addDays} from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { berlinDay } from '../daily-policy.ts';
@@ -94,10 +96,11 @@ export async function snooze(db: Db, learnerId: string, lessonId: string, now = 
 }
 
 /** Completion is a learner action, independent of grades; uses the current server timestamp. */
-export async function completeLesson(db:Db,learnerId:string,id:string,completed:boolean,expectedUpdated:string,now=new Date()){
+export async function completeLesson(db:EvidenceDb,learnerId:string,id:string,completed:boolean,expectedUpdated:string,now=new Date()){
  const stamp=now.toISOString();
- const result=await db.prepare("UPDATE learning_lessons SET completed_at=CASE WHEN ?=1 THEN COALESCE(completed_at,?) ELSE NULL END,updated=? WHERE id=? AND user_id=? AND package_version IN ('2','3') AND updated=?").bind(completed?1:0,stamp,stamp,id,learnerId,expectedUpdated).run();
+ const write=db.prepare("UPDATE learning_lessons SET completed_at=CASE WHEN ?=1 THEN COALESCE(completed_at,?) ELSE NULL END,updated=? WHERE id=? AND user_id=? AND package_version IN ('2','3') AND updated=?").bind(completed?1:0,stamp,stamp,id,learnerId,expectedUpdated);
+ const [result]=await db.batch(completed?[write,roadmapProgressWrite(db,learnerId,id,now,'updated=?',[stamp])]:[write]) as {meta:{changes:number}}[];
  if(!result.meta.changes)throw new ApiError(409,'Bài đã đổi. Tải lại trước khi đánh dấu.');
- const row=await db.prepare('SELECT completed_at,updated FROM learning_lessons WHERE id=? AND user_id=?').bind(id,learnerId).first<{completed_at:string|null;updated:string}>();
+ const row=await db.prepare('SELECT completed_at,updated,subject_id FROM learning_lessons WHERE id=? AND user_id=?').bind(id,learnerId).first<{completed_at:string|null;updated:string;subject_id:string|null}>();
  return {completedAt:row!.completed_at,updated:row!.updated,completed};
 }

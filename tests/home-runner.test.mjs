@@ -292,20 +292,20 @@ test('runOnce leases nothing when no engine answers and asks only for work it ca
   await runOnce(hub, up);
   assert.deepEqual(hub.input.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(hub.input.kinds, ['assess', 'plan']);
-  assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3']);
+  assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2']);
 });
 
 test('lease requests, poll schedule and env file parsing', () => {
   const all = leaseRequest({ vision: true });
   assert.deepEqual(all.purposes, ['submission', 'recheck', 'request', 'initial']);
   assert.deepEqual(all.kinds, ['assess', 'plan']);
-  assert.deepEqual(all.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'vision']);
+  assert.deepEqual(all.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', 'vision']);
   assert.deepEqual(all.triggers, ['on_demand', 'deferred']);
   assert.equal(all.runner.model, 'qwen');
   const nightly = leaseRequest({ vision: false }, { daily: true });
   assert.deepEqual(nightly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
   assert.deepEqual(nightly.triggers, ['on_demand', 'deferred', 'scheduled']);
-  assert.deepEqual(nightly.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3']);
+  assert.deepEqual(nightly.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2']);
   assert.equal(pollDelay(new Date('2026-11-12T09:00:00Z')), 15000);
   assert.equal(pollDelay(new Date('2026-11-12T02:00:00Z')), 300000);
   assert.equal(pollDelay(new Date('2026-11-12T22:45:00Z')), 300000); // 23:45 Berlin
@@ -510,4 +510,27 @@ test('v3 Rust diagnostic uses five questions and a stable acyclic skill vocabula
   assert.deepEqual(questions.map(question => question.input.const), ['code', 'cloze', 'cloze', 'cloze', 'cloze']);
   assert.equal(questions[1].fragments.maxItems, 2);
   assert.equal(questions[1].key.properties.blanks.maxItems, 1);
+});
+
+test('modern Rust opening schema requires a framework and allows keyed placement items', async () => {
+  const context = {
+    contract:'plan-context/1', purpose:'initial', roadmapProtocol:2, contextHash:'sha256:'+'a'.repeat(64),
+    subjects:[{subjectId:subject,title:'Rust',goal:'Học Rust',instructions:'',progressSummary:'',revision:0,
+      limits:{package:3},slot:{eligibleForPrimary:true,openPrimaryLessonId:null},skills:[],errorPatterns:[],recentLessons:[]}],
+  };
+  const hub={context:async()=>context,fail:async()=>undefined};
+  let schema;
+  const qwen={name:'qwen',run:async input=>{schema=input.schema;throw Error('schema captured');}};
+  await processJob(hub,{kind:'plan',purpose:'initial',jobId:'job_qa'},qwen);
+  const subjectSchema=schema.properties.subjects.items;
+  assert.ok(subjectSchema.required.includes('openingSteps'));
+  assert.ok(subjectSchema.properties.notebookSetup.required.includes('framework'));
+  const questions=subjectSchema.properties.primaryLesson.properties.items.prefixItems;
+  assert.equal(questions.length,5);
+  for(const [index,question] of questions.entries()){
+    const skill='key:step-'+(index+1);
+    assert.equal(question.anyOf[0].properties.skills.items.const,skill);
+    assert.equal(subjectSchema.properties.openingSteps.prefixItems[index].properties.skills.items.const,skill);
+  }
+  assert.equal(questions[1].anyOf[0].properties.input.const,'cloze');
 });

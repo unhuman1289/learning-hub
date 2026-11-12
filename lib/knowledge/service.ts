@@ -51,7 +51,7 @@ async function replay(db: Db, principal: KnowledgePrincipal, key: string, value:
   return { hash, target: row?.target_id };
 }
 
-export async function scoreNotes(db: Db, query: string, subjectId: string, seq: number, k: number) {
+export async function scoreNotes(db: Db, query: string, subjectId: string|null, seq: number, k: number, topicKey?:string) {
   const keys = terms(query, 32);
   if (!keys.length) return [];
   const { results = [] } = await db.prepare(`${lineage}
@@ -59,25 +59,25 @@ export async function scoreNotes(db: Db, query: string, subjectId: string, seq: 
       sum(t.weight) AS score
     FROM knowledge_terms t JOIN knowledge_notes n ON n.id=t.note_id JOIN knowledge_sources s ON s.id=n.source_id
     WHERE ${visibleSource} AND t.term IN (SELECT value FROM json_each(?))
-      AND EXISTS(SELECT 1 FROM knowledge_links l WHERE l.note_id=n.id AND l.subject_id=?)
+      AND EXISTS(SELECT 1 FROM knowledge_links l WHERE l.note_id=n.id AND (l.subject_id=? OR l.topic_key=coalesce(?,(SELECT topic_key FROM subjects WHERE id=?))))
     GROUP BY n.id ORDER BY score DESC,s.retrieved_at DESC,n.id LIMIT ?`)
-    .bind(seq, JSON.stringify(keys), subjectId, Math.max(1,Math.min(20,k))).all<{
+    .bind(seq, JSON.stringify(keys), subjectId,topicKey??null,subjectId, Math.max(1,Math.min(20,k))).all<{
       id: string; heading: string; body: string; sourceId: string; url: string; title: string;
       publisher: string; published_at: string | null; read_scope: string; score: number;
     }>();
   return results;
 }
 
-export async function contextExcerpt(db: Db, {subjectId, query, maxBytes = 4096}: {subjectId: string; query: string; maxBytes?: number}) {
+export async function contextExcerpt(db: Db, {subjectId, query, maxBytes = 4096, forStepIds, missingForStepIds}: {subjectId: string; query: string; maxBytes?: number;forStepIds?:string[];missingForStepIds?:string[]}) {
   const current = await active(db);
-  if (!current) return undefined;
+  if (!current) return missingForStepIds?.length ? {versionSeq:null,notes:[],forStepIds,missingForStepIds} : undefined;
   const notes = await scoreNotes(db, query, subjectId, current.seq, 6);
-  const excerpt = { versionSeq: current.seq, notes: [] as typeof notes };
+  const excerpt = { versionSeq: current.seq, notes: [] as typeof notes, ...(forStepIds?.length?{forStepIds}:{}), ...(missingForStepIds?.length?{missingForStepIds}:{}) };
   for (const note of notes) {
     const next = { ...excerpt, notes: [...excerpt.notes, note] };
     if (new TextEncoder().encode(JSON.stringify(next)).length <= Math.min(maxBytes,4096)) excerpt.notes.push(note);
   }
-  return excerpt.notes.length ? excerpt : undefined;
+  return excerpt.notes.length||excerpt.missingForStepIds?.length ? excerpt : undefined;
 }
 
 export async function upsertSource(db: Db, principal: KnowledgePrincipal, input: unknown) {
@@ -88,10 +88,15 @@ export async function upsertSource(db: Db, principal: KnowledgePrincipal, input:
   const source = data.source;
   requirePublicText([source.url,source.title,source.publisher,source.issuer,source.versionLabel,source.evidenceNote,
     ...data.notes.flatMap(note => [note.heading,note.body,note.quote]),...data.links.map(link=>link.skillKey)]);
-  const subjects = [...new Set(data.links.map(link=>link.subjectId))];
-  const {results: matching=[]} = await db.prepare("SELECT id,sensitivity,title,legacy_track FROM subjects WHERE status<>'archived' AND id IN (SELECT value FROM json_each(?))")
-    .bind(JSON.stringify(subjects)).all<{sensitivity:string;title:string;legacy_track:string|null}>();
-  if (matching.length !== subjects.length) throw new ApiError(422,'Có sổ không tồn tại hoặc đã lưu trữ.');
+  const subjects = [...new Set(data.links.flatMap(link=>link.subjectId?[link.subjectId]:[]))];
+  const topics = [...new Set(data.links.flatMap(link=>link.topicKey?[link.topicKey]:[]))];
+  const {results: matching=[]} = await db.prepare(`SELECT id,sensitivity,title,legacy_track,topic_key FROM subjects WHERE status<>'archived'
+   AND (id IN (SELECT value FROM json_each(?)) OR topic_key IN (SELECT value FROM json_each(?)) OR topic_key IN
+    (SELECT topic_key FROM subjects WHERE id IN (SELECT value FROM json_each(?))))`)
+   .bind(JSON.stringify(subjects),JSON.stringify(topics),JSON.stringify(subjects)).all<{id:string;topic_key:string|null;sensitivity:string;title:string;legacy_track:string|null}>();
+  if(subjects.some(id=>!matching.some(row=>row.id===id))||topics.some(topic=>!matching.some(row=>row.topic_key===topic))||
+     data.links.some(link=>link.subjectId&&link.topicKey&&!matching.some(row=>row.id===link.subjectId&&row.topic_key===link.topicKey)))
+    throw new ApiError(422,'Sổ hoặc chủ đề không hợp lệ.');
   validateSource(source, matching.some(row=>row.sensitivity==='clinical' || /\b(?:MTB|Cardio|PGx|Onco)\b/i.test(row.legacy_track ?? row.title)));
   const now = new Date().toISOString(), sourceId = crypto.randomUUID(), change = crypto.randomUUID();
   const gate = 'EXISTS(SELECT 1 FROM knowledge_changes WHERE id=?)';
@@ -114,7 +119,7 @@ export async function upsertSource(db: Db, principal: KnowledgePrincipal, input:
       json_extract(value,'$.body'),json_extract(value,'$.quote'),?,NULL FROM json_each(?) WHERE ${gate}`)
       .bind(sourceId,v.seq,JSON.stringify(notes),change),
     db.prepare(`INSERT INTO knowledge_links SELECT json_extract(n.value,'$.id'),json_extract(l.value,'$.subjectId'),
-      json_extract(l.value,'$.skillKey'),?,NULL FROM json_each(?) n CROSS JOIN json_each(?) l WHERE ${gate}`)
+      json_extract(l.value,'$.skillKey'),?,NULL,coalesce(json_extract(l.value,'$.topicKey'),(SELECT topic_key FROM subjects WHERE id=json_extract(l.value,'$.subjectId'))) FROM json_each(?) n CROSS JOIN json_each(?) l WHERE ${gate}`)
       .bind(v.seq,JSON.stringify(notes),JSON.stringify(data.links),change),
     db.prepare(`INSERT INTO knowledge_terms SELECT json_extract(n.value,'$.id'),t.value,
       CASE WHEN t.value IN (SELECT value FROM json_each(json_extract(n.value,'$.heading'))) THEN 3 ELSE 1 END
@@ -127,7 +132,7 @@ export async function upsertSource(db: Db, principal: KnowledgePrincipal, input:
   return {sourceId:saved.target,replayed:saved.target!==sourceId};
 }
 
-export async function addProbe(db:Db, principal:KnowledgePrincipal, input:{versionId:string;subjectId:string;query:string;expectSourceId:string;gapId?:string;topK?:number;clientChangeId:string}) {
+export async function addProbe(db:Db, principal:KnowledgePrincipal, input:{versionId:string;subjectId?:string;topicKey?:string;query:string;expectSourceId:string;gapId?:string;topK?:number;clientChangeId:string}) {
   const query = parse(text(300),input.query);
   requirePublicText([query]);
   if (input.topK !== undefined && (!Number.isInteger(input.topK) || input.topK<1 || input.topK>20))
@@ -135,6 +140,11 @@ export async function addProbe(db:Db, principal:KnowledgePrincipal, input:{versi
   const checked=await replay(db,principal,input.clientChangeId,input);
   if (checked.target) return {id:checked.target};
   const v=await ownedStage(db,principal,input.versionId);
+  const target=input.subjectId??(await db.prepare("SELECT id FROM subjects WHERE topic_key=? AND status<>'archived' ORDER BY id LIMIT 1").bind(input.topicKey??null).first<{id:string}>())?.id;
+  if(!target)throw new ApiError(422,'Không tìm thấy sổ hoặc chủ đề.');
+  const topic=input.topicKey??(await db.prepare('SELECT topic_key FROM subjects WHERE id=?').bind(target).first<{topic_key:string|null}>())?.topic_key??null;
+  if(input.topicKey&&!(await db.prepare('SELECT 1 FROM subjects WHERE id=? AND topic_key=?').bind(target,topic).first()))
+    throw new ApiError(422,'Sổ và chủ đề không khớp.');
   const id=crypto.randomUUID(), change=crypto.randomUUID();
   await db.batch([
     db.prepare(`${lineage} INSERT OR IGNORE INTO knowledge_changes
@@ -142,10 +152,10 @@ export async function addProbe(db:Db, principal:KnowledgePrincipal, input:{versi
       AND (SELECT count(*) FROM knowledge_probes WHERE added_seq=?)<30
       AND EXISTS(SELECT 1 FROM knowledge_sources s WHERE s.id=? AND ${visibleSource})
       AND EXISTS(SELECT 1 FROM subjects WHERE id=?)
-      AND (? IS NULL OR EXISTS(SELECT 1 FROM knowledge_gaps WHERE id=? AND subject_id=?))`)
-      .bind(v.seq,change,v.seq,id,principal.clientId,input.clientChangeId,checked.hash,new Date().toISOString(),v.seq,v.seq,input.expectSourceId,input.subjectId,input.gapId??null,input.gapId??null,input.subjectId),
-    db.prepare("INSERT INTO knowledge_probes SELECT ?,?,?,?,?,?,?,?,NULL WHERE EXISTS(SELECT 1 FROM knowledge_changes WHERE id=?)")
-      .bind(id,input.subjectId,query,input.expectSourceId,input.gapId??null,input.topK??5,principal.clientId,v.seq,change),
+      AND (? IS NULL OR EXISTS(SELECT 1 FROM knowledge_gaps WHERE id=? AND (subject_id=? OR topic_key=?)))`)
+      .bind(v.seq,change,v.seq,id,principal.clientId,input.clientChangeId,checked.hash,new Date().toISOString(),v.seq,v.seq,input.expectSourceId,target,input.gapId??null,input.gapId??null,target,topic),
+    db.prepare("INSERT INTO knowledge_probes SELECT ?,?,?,?,?,?,?,?,NULL,? WHERE EXISTS(SELECT 1 FROM knowledge_changes WHERE id=?)")
+      .bind(id,target,query,input.expectSourceId,input.gapId??null,input.topK??5,principal.clientId,v.seq,topic,change),
   ]);
   const saved=await replay(db,principal,input.clientChangeId,input);
   if (!saved.target) throw conflict('Bản nháp, nguồn hoặc sổ không hợp lệ, hoặc đã đủ probe.');
@@ -156,7 +166,7 @@ export async function activate(db:Db, principal:KnowledgePrincipal, id:string) {
   const v=await ownedStage(db,principal,id);
   const snapshot=await db.prepare("SELECT count(*) AS n FROM knowledge_changes WHERE version_seq=?").bind(v.seq).first<{n:number}>();
   const {results:probes=[]}=await db.prepare(`${lineage} SELECT * FROM knowledge_probes WHERE added_seq IN (SELECT seq FROM lineage)`)
-    .bind(v.seq).all<{id:string;subject_id:string;query:string;expect_source_id:string;top_k:number}>();
+    .bind(v.seq).all<{id:string;subject_id:string;query:string;expect_source_id:string;top_k:number;topic_key:string|null}>();
   const {results:replacements=[]}=await db.prepare(`${lineage} SELECT c.target_id AS sourceId,
     json_extract(c.reason,'$.supersededBy') AS replacement FROM knowledge_changes c
     WHERE c.action='deprecate' AND c.version_seq IN (SELECT seq FROM lineage) ORDER BY c.version_seq`)
@@ -164,7 +174,7 @@ export async function activate(db:Db, principal:KnowledgePrincipal, id:string) {
   const successors=new Map(replacements.map(row=>[row.sourceId,row.replacement]));
   const failed: string[]=[];
   for (const probe of probes) {
-    const matches=await scoreNotes(db,probe.query,probe.subject_id,v.seq,probe.top_k);
+    const matches=await scoreNotes(db,probe.query,probe.subject_id,v.seq,probe.top_k,probe.topic_key??undefined);
     let expected=probe.expect_source_id;
     const seen=new Set<string>();
     while (successors.has(expected) && !seen.has(expected)) {
@@ -223,7 +233,7 @@ export async function history(db: Db, limit = 50) {
 export async function inventory(db:Db) {
   const current=await active(db);
   const [subjects,sources,gaps]=await Promise.all([
-    db.prepare(`SELECT id,title,sensitivity,level,substr(goal,1,300) AS goal,substr(curriculum,1,150) AS curriculum,
+    db.prepare(`SELECT id,title,topic_key AS topicKey,sensitivity,level,substr(goal,1,300) AS goal,substr(curriculum,1,150) AS curriculum,
       coalesce(knowledge_freshness_days,CASE
         WHEN lower(title) LIKE '%cardio%' THEN 180 WHEN sensitivity='clinical' THEN 90
         WHEN lower(title) LIKE '%deutsch%' OR legacy_track='Deutsch' THEN 365 ELSE 30 END) AS freshnessDays
@@ -235,7 +245,17 @@ export async function inventory(db:Db) {
       FROM knowledge_sources s WHERE ${visibleSource} ORDER BY s.retrieved_at DESC LIMIT 200`).bind(current.seq).all():null,
     db.prepare("SELECT count(*) AS n FROM knowledge_gaps WHERE status IN ('open','in_progress')").bind().first<{n:number}>(),
   ]);
-  return {activeSeq:current?.seq??null,subjects:(subjects.results??[]).map(row=>({
+  const {results:topics=[]}=await db.prepare(`SELECT s.topic_key AS topicKey,count(*) AS notebooks
+    FROM subjects s WHERE s.topic_key IS NOT NULL AND s.status<>'archived' GROUP BY s.topic_key`).bind().all<{topicKey:string;notebooks:number}>();
+  const {results:upcoming=[]}=await db.prepare(`WITH ranked AS (
+    SELECT s.topic_key AS topicKey,r.title,row_number() OVER(PARTITION BY r.subject_id ORDER BY
+      CASE WHEN r.status IN ('open','practising') THEN 0 ELSE 1 END,r.ord) AS rank
+    FROM roadmap_steps r JOIN subjects s ON s.id=r.subject_id AND s.learner_id=r.learner_id
+    WHERE s.status='active' AND s.topic_key IS NOT NULL AND r.status IN ('planned','open','practising'))
+    SELECT DISTINCT topicKey,title FROM ranked WHERE rank<=4 ORDER BY topicKey,title`).bind().all<{topicKey:string;title:string}>();
+  const {results:pending=[]}=await db.prepare(`SELECT topic_key AS topicKey,count(*) AS n FROM knowledge_gaps
+    WHERE priority='high' AND status='open' AND created_at<? GROUP BY topic_key`).bind(new Date(Date.now()-48*3600000).toISOString()).all();
+  return {activeSeq:current?.seq??null,topics:topics.map(topic=>({...topic,upcoming:upcoming.filter(step=>step.topicKey===topic.topicKey).map(step=>publicSummary(step.title)).filter(Boolean).slice(0,12)})),highGapsOver48h:pending,subjects:(subjects.results??[]).map(row=>({
     ...row, goal:publicSummary(row.goal),curriculum:publicSummary(row.curriculum),
     title:publicSummary(row.title),level:publicSummary(row.level),
   })),sources:sources?.results??[],openGaps:gaps?.n??0};
@@ -247,18 +267,18 @@ function publicSummary(value:string) {
 
 export async function listGaps(db:Db,status='open',limit=10) {
   if (!['open','in_progress','resolved','wont_fix'].includes(status)) throw new ApiError(422,'Trạng thái câu hỏi không hợp lệ.');
-  return (await db.prepare(`SELECT id,subject_id,question,why_missing,origin,priority,status,seen_count,resolved_seq,resolution_note,created_at,resolved_at
+  return (await db.prepare(`SELECT id,subject_id,topic_key,step_id,question,why_missing,origin,priority,status,seen_count,resolved_seq,resolution_note,created_at,resolved_at
     FROM knowledge_gaps WHERE status=? ORDER BY priority='high' DESC,created_at,id LIMIT ?`)
     .bind(status,Math.max(1,Math.min(30,Math.trunc(limit)))).all()).results??[];
 }
 
-export async function search(db:Db, principal:KnowledgePrincipal, input:{query:string;subjectId:string;versionId?:string;k?:number}) {
+export async function search(db:Db, principal:KnowledgePrincipal, input:{query:string;subjectId?:string;topicKey?:string;versionId?:string;k?:number}) {
   const query=parse(text(300),input.query);
   requirePublicText([query]);
   const selected=input.versionId?await version(db,input.versionId):await active(db);
   if (input.versionId && (!selected || selected.created_by!==principal.clientId || selected.status!=='staged' ||
       Date.parse(selected.created_at)<=Date.now()-6*3600000)) throw conflict('Bản nháp không còn mở.');
-  return selected?scoreNotes(db,query,input.subjectId,selected.seq,input.k??5):[];
+  return selected?scoreNotes(db,query,input.subjectId??null,selected.seq,input.k??5,input.topicKey):[];
 }
 
 export async function deprecateSource(db:Db,principal:KnowledgePrincipal,input:{versionId:string;sourceId:string;supersededBy:string;reason:string;clientChangeId:string}) {
@@ -275,7 +295,7 @@ export async function deprecateSource(db:Db,principal:KnowledgePrincipal,input:{
     AND NOT EXISTS(SELECT 1 FROM knowledge_links old_link JOIN knowledge_notes old_note ON old_note.id=old_link.note_id
       WHERE old_note.source_id=? AND NOT EXISTS(
         SELECT 1 FROM knowledge_links new_link JOIN knowledge_notes new_note ON new_note.id=new_link.note_id
-        WHERE new_note.source_id=? AND new_link.subject_id=old_link.subject_id))`)
+        WHERE new_note.source_id=? AND (new_link.subject_id=old_link.subject_id OR (old_link.topic_key IS NOT NULL AND new_link.topic_key=old_link.topic_key))))`)
     .bind(v.seq,change,v.seq,input.sourceId,JSON.stringify({reason,supersededBy:input.supersededBy}),
       principal.clientId,input.clientChangeId,checked.hash,stamp,v.seq,input.sourceId,input.supersededBy,input.sourceId,input.supersededBy)]);
   const saved=await replay(db,principal,input.clientChangeId,input);
@@ -283,21 +303,25 @@ export async function deprecateSource(db:Db,principal:KnowledgePrincipal,input:{
   return {sourceId:saved.target,replayed:false};
 }
 
-type GapInput = {subjectId:string;question:string;why:string;origin:'plan'|'assess'|'request'|'admin';jobId?:string;priority:'normal'|'high'};
+type GapInput = {subjectId:string;question:string;why:string;origin:'plan'|'assess'|'request'|'admin';jobId?:string;stepId?:string;priority:'normal'|'high'};
 
 async function prepareGap(db:Db,input:GapInput,applyToken?:string) {
   const question=parse(text(300),input.question),why=parse(text(300),input.why);
   requirePublicText([question,why]);
   const normalized=terms(question,100).join(' ');
   if(!normalized)throw new ApiError(422,'Câu hỏi kiến thức còn thiếu nội dung.');
-  const key=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(input.subjectId+'\n'+normalized));
+  const subject=await db.prepare('SELECT topic_key FROM subjects WHERE id=?').bind(input.subjectId).first<{topic_key:string|null}>();
+  if(input.stepId&&!(await db.prepare('SELECT 1 FROM roadmap_steps WHERE id=? AND subject_id=?')
+    .bind(input.stepId,input.subjectId).first())) throw new ApiError(422,'Bước học ngoài sổ.');
+  const topic=subject?.topic_key??null;
+  const key=await crypto.subtle.digest('SHA-256',new TextEncoder().encode((topic??input.subjectId)+'\n'+normalized));
   const hash=Array.from(new Uint8Array(key),x=>x.toString(16).padStart(2,'0')).join('');
   const statement=db.prepare(`INSERT INTO knowledge_gaps
-    (id,subject_id,question,why_missing,origin,job_id,priority,status,dedupe_hash,created_at)
-    SELECT ?,?,?,?,?,?,?,'open',?,? WHERE (? IS NULL OR EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?))
+    (id,subject_id,question,why_missing,origin,job_id,priority,status,dedupe_hash,created_at,topic_key,step_id)
+    SELECT ?,?,?,?,?,?,?,'open',?,?,?,? WHERE (? IS NULL OR EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?))
     ON CONFLICT(dedupe_hash) DO UPDATE SET
     seen_count=knowledge_gaps.seen_count+1,priority=CASE WHEN excluded.priority='high' THEN 'high' ELSE knowledge_gaps.priority END`)
-    .bind(crypto.randomUUID(),input.subjectId,question,why,input.origin,input.jobId??null,input.priority,hash,new Date().toISOString(),applyToken??null,input.jobId??null,applyToken??null);
+    .bind(crypto.randomUUID(),input.subjectId,question,why,input.origin,input.jobId??null,input.priority,hash,new Date().toISOString(),topic,input.stepId??null,applyToken??null,input.jobId??null,applyToken??null);
   return {statement,hash};
 }
 

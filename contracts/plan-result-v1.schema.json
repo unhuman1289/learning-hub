@@ -31,6 +31,10 @@
               "normal",
               "high"
             ]
+          },
+          "stepId": {
+            "type": "string",
+            "pattern": "^(sk_|key:)[a-zA-Z0-9_-]{1,80}$"
           }
         },
         "required": [
@@ -5224,6 +5228,372 @@
             },
             "description": "Đề xuất 5–10 bài tiếp theo theo mục tiêu, kỹ năng, tình huống; có thể cập nhật cả khi no_action. Không phải bài đã giao."
           },
+          "roadmapChanges": {
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "append"
+                    },
+                    "step": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "objective": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "situation": {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        "skills": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "requires": {
+                          "default": [],
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "band": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5
+                        },
+                        "levelLabel": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "kind": {
+                          "default": "new",
+                          "type": "string",
+                          "enum": [
+                            "new",
+                            "review",
+                            "mixed"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "objective",
+                        "situation",
+                        "skills",
+                        "requires",
+                        "band",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "step"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "insert_before"
+                    },
+                    "beforeStepId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "step": {
+                      "type": "object",
+                      "properties": {
+                        "ref": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "objective": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "situation": {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        "skills": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "requires": {
+                          "default": [],
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "band": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5
+                        },
+                        "levelLabel": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "kind": {
+                          "default": "new",
+                          "type": "string",
+                          "enum": [
+                            "new",
+                            "review",
+                            "mixed"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "objective",
+                        "situation",
+                        "skills",
+                        "requires",
+                        "band",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "beforeStepId",
+                    "step"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "revise"
+                    },
+                    "stepId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "fields": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "objective": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "situation": {
+                          "type": "string",
+                          "maxLength": 300
+                        },
+                        "skills": {
+                          "minItems": 1,
+                          "maxItems": 3,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "requires": {
+                          "default": [],
+                          "maxItems": 8,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        },
+                        "band": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 5
+                        },
+                        "levelLabel": {
+                          "type": "string",
+                          "maxLength": 80
+                        },
+                        "kind": {
+                          "default": "new",
+                          "type": "string",
+                          "enum": [
+                            "new",
+                            "review",
+                            "mixed"
+                          ]
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "stepId",
+                    "fields"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "op": {
+                      "type": "string",
+                      "const": "retire"
+                    },
+                    "stepId": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160
+                    },
+                    "reason": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 300
+                    }
+                  },
+                  "required": [
+                    "op",
+                    "stepId",
+                    "reason"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "openingSteps": {
+            "minItems": 5,
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ref": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "objective": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "situation": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "skills": {
+                  "minItems": 1,
+                  "maxItems": 3,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "requires": {
+                  "default": [],
+                  "maxItems": 8,
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "band": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "levelLabel": {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                "kind": {
+                  "default": "new",
+                  "type": "string",
+                  "enum": [
+                    "new",
+                    "review",
+                    "mixed"
+                  ]
+                }
+              },
+              "required": [
+                "title",
+                "objective",
+                "situation",
+                "skills",
+                "requires",
+                "band",
+                "kind"
+              ],
+              "additionalProperties": false
+            }
+          },
           "notebookSetup": {
             "type": "object",
             "properties": {
@@ -5233,6 +5603,42 @@
                   "skill",
                   "reading"
                 ]
+              },
+              "framework": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "enum": [
+                      "de-cefr",
+                      "en-cefr",
+                      "vn-gdpt-2018-toan",
+                      "rust-core",
+                      "python-core",
+                      "milestones",
+                      "custom"
+                    ]
+                  },
+                  "levelFrom": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "levelTo": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "custom": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": [
+                  "key"
+                ],
+                "additionalProperties": false
               },
               "goal": {
                 "type": "string",

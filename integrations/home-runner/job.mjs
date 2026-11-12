@@ -73,11 +73,21 @@ function generationSchema(kind, context, schema) {
       requestsHandled: { type: 'array', maxItems: 0 },
     });
     delete subjects.items.properties.roadmap;
+    if(context.roadmapProtocol===2){
+      subjects.items.properties.progressSummary=schema.properties.subjects.items.properties.progressSummary;
+      if(context.adaptive.roadmapTask!=='none')
+        subjects.items.properties.skillChanges=schema.properties.subjects.items.properties.skillChanges;
+      if(context.adaptive.roadmapTask==='replan')subjects.items.required.push('openingSteps');
+      if(context.adaptive.roadmapTask==='extend'){
+        subjects.items.required.push('roadmapChanges');
+        subjects.items.properties.roadmapChanges.minItems=3;
+      }
+    }
     delete subjects.items.properties.notebookSetup;
     const explorations = request.properties.explorations;
     explorations.minItems = context.explorations.length;
     explorations.maxItems = context.explorations.length;
-    const kinds = { learn: ['new'], practice: ['review', 'remediation'], personal: ['exploration'] }[context.adaptive.mode];
+    const kinds = { learn: ['new'], practice: ['review', 'remediation'], review:['review'], challenge:['diagnostic'], personal: ['exploration'] }[context.adaptive.mode];
     if (kinds) {
       explorations.items.properties.action = { const: 'assign' };
       const lesson = explorations.items.properties.lesson.anyOf.find(branch => branch.type === 'object');
@@ -86,6 +96,11 @@ function generationSchema(kind, context, schema) {
     }
     return request;
   }
+  if(context.roadmapProtocol===2&&context.purpose==='daily'&&context.adaptive?.roadmapTask!=='none'){
+    const item=schema.properties.subjects.items;
+    if(context.adaptive?.roadmapTask==='replan')item.required.push('openingSteps');
+    if(context.adaptive?.roadmapTask==='extend'){item.required.push('roadmapChanges');item.properties.roadmapChanges.minItems=3;}
+  }
   if (context.purpose !== 'initial' || !context.subjects.length ||
       !context.subjects.every(subject => subject.slot.eligibleForPrimary && !subject.skills.length)) return schema;
   const initial = structuredClone(schema);
@@ -93,7 +108,12 @@ function generationSchema(kind, context, schema) {
   subjects.minItems = context.subjects.length;
   subjects.maxItems = context.subjects.length;
   const item = subjects.items;
-  item.required.push('roadmap', 'notebookSetup');
+  const modern=context.roadmapProtocol===2;
+  item.required.push(modern?'openingSteps':'roadmap','notebookSetup');
+  if(modern){
+    delete item.properties.roadmap;
+    item.properties.notebookSetup.required.push('framework');
+  }
   item.properties.notebookSetup.required.push('goal');
   item.properties.action = { const: 'assign' };
   item.properties.skillChanges.minItems = 8;
@@ -105,7 +125,7 @@ function generationSchema(kind, context, schema) {
   lesson.sheet = lesson.sheet.anyOf.find(branch => branch.type === 'object');
   lesson.items.minItems = 5;
   lesson.items.maxItems = 6;
-  if (v3) {
+  if (v3 || modern) {
     const skillKeys = Array.from({ length: 8 }, (_, index) => 'step-' + (index + 1));
     const skillRefs = skillKeys.map(key => 'key:' + key);
     const addSkill = item.properties.skillChanges.items.oneOf.find(branch => branch.properties.op.const === 'add');
@@ -119,20 +139,42 @@ function generationSchema(kind, context, schema) {
         },
       })),
     };
-    item.properties.roadmap.items.properties.skills.items = { enum: skillRefs };
+    if(modern){
+      const opening=item.properties.openingSteps.items;
+      item.properties.openingSteps={type:'array',minItems:5,maxItems:5,items:false,
+        prefixItems:skillRefs.slice(0,5).map(skill=>({
+          ...opening,properties:{...opening.properties,
+            skills:{type:'array',minItems:1,maxItems:1,items:{const:skill}},
+          },
+        })),
+      };
+    }else item.properties.roadmap.items.properties.skills.items = { enum: skillRefs };
     lesson.targetSkills.items = { enum: skillRefs };
     lesson.reasonRefs.items = { enum: skillRefs };
-    const inputs = lesson.items.items.anyOf.filter(branch => branch.properties.input.const);
+    const oldQuestion=lesson.items.items;
+    const shortQuestion=()=>{
+      const question=structuredClone(oldQuestion);
+      question.required.push('key');
+      question.properties.input={const:'short'};
+      delete question.properties.choices;
+      delete question.properties.rubric;
+      question.properties.key.oneOf=question.properties.key.oneOf.filter(branch=>branch.properties.type.const==='text');
+      question.properties.key.oneOf[0].properties.accepted.maxItems=1;
+      return question;
+    };
+    const inputs = v3?oldQuestion.anyOf.filter(branch => branch.properties.input.const):[shortQuestion()];
     const closed = inputs.filter(branch => branch.properties.input.const !== 'code');
     const rust = /\brust\b/i.test(context.subjects[0].title);
-    const first = rust ? inputs.filter(branch => branch.properties.input.const === 'code') : closed.filter(branch => branch.properties.input.const === 'match');
-    const cloze = structuredClone(closed.find(branch => branch.properties.input.const === 'cloze'));
-    Object.assign(cloze.properties.fragments, { minItems: 2, maxItems: 2 });
-    Object.assign(cloze.properties.key.properties.blanks, { minItems: 1, maxItems: 1 });
-    const rest = [cloze];
+    const first = !v3?inputs:rust?inputs.filter(branch=>branch.properties.input.const==='code'):closed.filter(branch=>branch.properties.input.const==='match');
+    const cloze=v3?structuredClone(closed.find(branch=>branch.properties.input.const==='cloze')):null;
+    if(cloze){
+      Object.assign(cloze.properties.fragments,{minItems:2,maxItems:2});
+      Object.assign(cloze.properties.key.properties.blanks,{minItems:1,maxItems:1});
+    }
+    const rest=cloze?[cloze]:inputs;
     const question = (branches, index) => ({ anyOf: branches.map(branch => ({
       ...branch, properties: {
-        ...branch.properties, id: { const: 'i' + (index + 1) }, skills: { ...branch.properties.skills, items: { enum: skillRefs } },
+        ...branch.properties, id: { const: 'i' + (index + 1) }, skills: modern?{type:'array',minItems:1,maxItems:1,items:{const:skillRefs[index]}}:{ ...branch.properties.skills, items: { enum: skillRefs } },
       },
     })) });
     lesson.items = {
@@ -321,9 +363,9 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
           result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
         } else {
         const out = await qwen.run({
-          system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.subjects.some(subject => subject.limits?.package === 3)
+          system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.roadmapProtocol !== 2 && context.subjects.some(subject => subject.limits?.package === 3)
             ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3. Bài chẩn đoán có đúng 5 câu i1–i5 và 8 kỹ năng step-1 đến step-8. Chỉ dùng các tham chiếu key:step-1 đến key:step-8. Nếu là Rust, i1 viết code; với môn khác, i1 nối cặp. Mỗi câu i2–i5 chỉ có một ô trống và đúng một nhóm đáp án. Kỹ năng tiên quyết chỉ tham chiếu bước trước.'
-            : '') + (context.adaptive ?
+            : '') + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Viết openingSteps khi mở sổ hoặc replan, dùng roadmapChanges append khi extend. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
           user: userPrompt(promptContext, repair, draft),
           schema,

@@ -14,7 +14,7 @@ import { containsContactDetails } from '../automation/privacy.ts';
  */
 export type RequestKind = 'explore' | 'extra_practice' | 'school_topic' | 'note';
 export type RequestMode = "learn" | "practice" | "personal";
-export type RequestInput = { kind: RequestKind; subjectId: string | null; text: string; urgency: 'tonight' | 'now'; adaptive?: { mode: RequestMode; clientRequestId: string } };
+export type RequestInput = { kind: RequestKind; subjectId: string | null; text: string; urgency: 'tonight' | 'now'; adaptive?: { mode: RequestMode; clientRequestId: string; stepId?:string } };
 
 export const REQUESTS_PER_HOUR = 10;
 const kinds = new Set(['explore', 'extra_practice', 'school_topic', 'note']);
@@ -28,15 +28,16 @@ export function parseRequest(body: unknown): RequestInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw bad('Yêu cầu không hợp lệ.');
   const value = body as Record<string, unknown>;
   if (value.mode !== undefined) {
-    const { mode, clientRequestId, subjectId } = value;
+    const { mode, clientRequestId, subjectId,stepId } = value;
     const note = typeof value.note === 'string' ? value.note.trim() : '';
-    if (Object.keys(value).some(key => !['mode','clientRequestId','subjectId','note'].includes(key)) ||
+    if (Object.keys(value).some(key => !['mode','clientRequestId','subjectId','note','stepId'].includes(key)) ||
         (mode !== 'learn' && mode !== 'practice' && mode !== 'personal') ||
+        (stepId!==undefined&&(mode!=='practice'||typeof stepId!=='string'||!/^[-_:a-zA-Z0-9]{1,128}$/.test(stepId))) ||
         typeof clientRequestId !== 'string' || !/^[0-9a-f-]{36}$/i.test(clientRequestId) ||
         typeof subjectId !== 'string' || !/^sub_[A-Za-z0-9]{6,40}$/.test(subjectId) ||
         (mode === 'personal' ? !note || note.length > 1000 || containsContactDetails(note) : !!note))
       throw bad('Kiểm tra nội dung yêu cầu và bỏ thông tin liên hệ.');
-    return { kind: 'extra_practice', subjectId, urgency: 'now', text: note || (mode === 'learn' ? 'Học mới' : 'Luyện tập'), adaptive: { mode, clientRequestId } };
+    return { kind: 'extra_practice', subjectId, urgency: 'now', text: note || (mode === 'learn' ? 'Học mới' : 'Luyện tập'), adaptive: { mode, clientRequestId,...(typeof stepId==='string'?{stepId}:{}) } };
   }
   if (Object.keys(value).some((key) => !['kind', 'subjectId', 'text', 'urgency'].includes(key))) throw bad('Yêu cầu có trường lạ.');
   if (!kinds.has(value.kind as string)) throw bad('Loại yêu cầu không hợp lệ.');
@@ -109,6 +110,8 @@ export async function createRequest(db: EvidenceDb, bindings: QueueBindings, lea
 }
 
 async function createAdaptiveRequest(db: EvidenceDb, bindings: QueueBindings, learnerId: string, createdBy: string, input: RequestInput, metadata: NonNullable<RequestInput['adaptive']>, now: Date) {
+  if(metadata.stepId&&!(await db.prepare("SELECT id FROM roadmap_steps WHERE id=? AND subject_id=? AND learner_id=? AND status IN ('practising','passed','placed')")
+   .bind(metadata.stepId,input.subjectId,learnerId).first()))throw bad('Bước học không còn phù hợp.');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(learnerId + ':' + metadata.clientRequestId));
   const id = 'req_' + Array.from(new Uint8Array(digest).slice(0, 10), b => b.toString(16).padStart(2, '0')).join('');
   const encoded = JSON.stringify(metadata);

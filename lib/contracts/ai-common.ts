@@ -1,3 +1,5 @@
+import {frameworkInput} from '../roadmap/frameworks.ts';
+import {roadmapChanges,newStep} from '../roadmap/changes.ts';
 import { z } from 'zod/v4';
 import { lessonItem } from './lesson-package-v2.ts';
 import { lessonPackage } from './lesson-package-v3.ts';
@@ -66,10 +68,12 @@ export const roadmapStep = z.object({
 }).strict();
 export const roadmap = z.array(roadmapStep).min(5).max(10).describe("Đề xuất 5–10 bài tiếp theo theo mục tiêu, kỹ năng, tình huống; có thể cập nhật cả khi no_action. Không phải bài đã giao.");
 const knowledgeGaps = z.array(z.object({
-  question: text(300), why: text(300), priority: z.enum(['normal','high']),
+  question: text(300), why: text(300), priority: z.enum(['normal','high']), stepId:ref.optional(),
 }).strict()).max(3).optional();
 const knowledge = z.object({
-  versionSeq: z.number().int().positive(),
+  versionSeq: z.number().int().positive().nullable(),
+  forStepIds:z.array(z.string()).max(4).optional(),
+  missingForStepIds:z.array(z.string()).max(4).optional(),
   notes: z.array(z.object({
     id: z.string(), heading: text(180), body: text(1500), sourceId: z.string(), url: z.string(),
     title: text(250), publisher: text(150), published_at: z.string().nullable(),
@@ -98,8 +102,11 @@ export const planResult = z
             masteryProposals: z.array(proposal).max(40),
             progressSummary: text(3000),
             roadmap: roadmap.optional(),
+            roadmapChanges: roadmapChanges.optional(),
+            openingSteps: z.array(newStep).min(5).max(10).optional(),
             notebookSetup: z.object({
               template: z.enum(['skill', 'reading']),
+              framework:frameworkInput.optional(),
               goal: text(2000).optional(),
               level: text(200),
               curriculum: text(500),
@@ -255,7 +262,8 @@ const subject = z
     weight: z.number(),
     revision: z.number().int(),
     progressSummary: text(3000),
-    roadmap: z.array(roadmapStep).max(10).optional(),
+    framework: z.object({key:z.string(),label:z.string(),levelFrom:z.string().optional(),levelTo:z.string().optional()}).strict().optional(),
+    roadmap: z.array(roadmapStep.extend({requires:z.array(z.string()).optional(),id:z.string().optional(),band:z.number().optional(),status:z.string().optional(),levelLabel:z.string().nullable().optional()})).max(80).optional(),
     learnerReflections: z.array(z.object({submissionId:z.string(), lessonId:z.string(), difficulty:text(20), usefulness:text(20), minutes:z.number().int(), note:text(1500), updatedAt:text(40)}).strict()).max(10).optional(),
     slot: z
       .object({
@@ -304,6 +312,8 @@ export const planContext = z
       .strict(),
     planningGuidance: text(2000).optional(),
     adaptive: adaptiveDecision.optional(),
+    roadmapProtocol: z.literal(2).optional(),
+    frameworks: z.array(z.object({key:z.string(),label:z.string(),levels:z.array(z.string())}).strict()).optional(),
     subjects: z.array(subject).max(30),
     explorations: z
       .array(

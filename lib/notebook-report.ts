@@ -1,3 +1,4 @@
+import type {RoadmapProgress} from './roadmap/report.ts';
 import { berlinDay } from "./daily-policy.ts";
 import { berlinHour, greetingFor, readGreetingFacts } from "./greeting.ts";
 import type { EvidenceDb } from "./evidence/submit.ts";
@@ -27,4 +28,4 @@ export async function readNotebookReport(db: EvidenceDb, learner: string, subjec
   };
 }
 
-export type NotebookReport = Awaited<ReturnType<typeof readNotebookReport>>;
+export type NotebookReport = Awaited<ReturnType<typeof readNotebookReport>> & {progress?:RoadmapProgress|null};

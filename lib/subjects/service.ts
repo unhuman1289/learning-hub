@@ -1,3 +1,5 @@
+import {frameworkFor,inferFramework} from '../roadmap/frameworks.ts';
+import {listSteps} from '../roadmap/store.ts';
 import { ApiError } from '../api-error.ts';
 import { checkTransition, type SubjectInput, type SubjectPatch } from './policy.ts';
 import { insertSubjectSql, listSubjectsSql, newSubjectId, readSubjectSql, type SubjectLimits, type SubjectRow } from './sql.ts';
@@ -10,6 +12,7 @@ export type SubjectView = {
   curriculum: string; instructions: string; openingBrief: string | null; limits: SubjectLimits; weight: number; status: SubjectRow['status']; aiEnabled: boolean;
   legacyTrack: SubjectRow['legacy_track']; progressSummary: string; progressUpdatedAt: string | null; revision: number;
   roadmap?: {title:string;objective:string;situation:string;skills:string[];mode:string}[];
+  framework: ReturnType<typeof frameworkFor>;
   skillCount: number; createdAt: string; updatedAt: string;
 };
 
@@ -18,6 +21,7 @@ export function toView(row: SubjectRow & { skill_count?: number }): SubjectView 
     id: row.id, title: row.title, template: row.template, sensitivity: row.sensitivity, goal: row.goal, level: row.level,
     curriculum: row.curriculum, openingBrief: row.opening_brief, instructions: row.instructions ?? '', limits: JSON.parse(row.limits) as SubjectLimits, weight: row.weight, status: row.status,
     roadmap: JSON.parse(row.roadmap ?? '[]'),
+    framework:row.framework?JSON.parse(row.framework):inferFramework(row.title,row.opening_brief??row.goal,row.curriculum),
     aiEnabled: row.ai_enabled === 1, legacyTrack: row.legacy_track, progressSummary: row.progress_summary,
     progressUpdatedAt: row.progress_updated_at, revision: row.revision, skillCount: Number(row.skill_count ?? 0),
     createdAt: row.created_at, updatedAt: row.updated_at,
@@ -35,6 +39,12 @@ export async function getSubject(db: Db, learnerId: string, id: string) {
   const row = await db.prepare(withSkillCount(readSubjectSql)).bind(id, learnerId).first<SubjectRow & { skill_count: number }>();
   if (!row) throw new ApiError(404, 'Không tìm thấy sổ.');
   return row;
+}
+
+export async function subjectWithRoadmap(db:Db,learnerId:string,id:string){
+  const [subject,steps]=await Promise.all([getSubject(db,learnerId,id).then(toView),listSteps(db,learnerId,id)]);
+  if(steps.length)subject.roadmap=steps.filter(step=>step.status!=='retired');
+  return {subject,steps};
 }
 
 export async function createSubject(db: Db, learnerId: string, createdBy: string, input: SubjectInput, now = new Date()) {
@@ -70,6 +80,11 @@ export async function updateSubject(db: Db, learnerId: string, id: string, patch
     const value = (patch as Record<string, unknown>)[key];
     sets.push(`${column} = ?`);
     values.push(key === 'limits' ? JSON.stringify(value) : key === 'aiEnabled' ? (value ? 1 : 0) : value);
+  }
+  if(patch.framework){
+    const framework=frameworkFor(patch.framework,current.title,current.opening_brief??current.goal,patch.curriculum??current.curriculum);
+    sets.push('framework = ?','topic_key = ?','roadmap_replan = 1');
+    values.push(JSON.stringify(framework),framework.topicKey);
   }
   try {
     const result = await db.prepare(`UPDATE subjects SET ${sets.join(', ')}, revision = revision + 1, updated_at = ? WHERE id = ? AND learner_id = ? AND revision = ?`)

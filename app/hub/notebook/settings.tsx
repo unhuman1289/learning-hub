@@ -4,6 +4,7 @@ import { useState } from "react";
 import { fieldClass, labelClass } from "../paper-dialog";
 import { paperAction, PaperSummary } from "../paper-bits";
 import type { ShelfApi, ShelfSubject } from "../use-shelf";
+import { frameworks } from "../../../lib/roadmap/frameworks";
 import { PaperConfirm } from "../paper-confirm";
 
 export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
@@ -23,9 +24,12 @@ export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
 export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSubject; shelf: ShelfApi; hub2?: boolean }) {
   type Draft = Partial<Pick<ShelfSubject, "goal" | "level" | "curriculum" | "instructions" | "aiEnabled">>;
   const [draft, setDraft] = useState<Draft>({});
+  const [framework, setFramework] = useState(subject.framework.key);
+  const [custom, setCustom] = useState(subject.framework.custom ?? "");
+  const frameworkChanged = framework !== subject.framework.key || (framework === "custom" && custom.trim() !== subject.framework.custom);
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState("");
-  const changed = Object.entries(draft).some(([field, value]) => value !== subject[field as keyof Draft]);
+  const changed = frameworkChanged || Object.entries(draft).some(([field, value]) => value !== subject[field as keyof Draft]);
 
   function edit(fields: Draft) {
     setDraft(current => ({ ...current, ...fields }));
@@ -36,8 +40,10 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
     setState("saving");
     setError("");
     try {
-      await shelf.update(subject.id, { revision: subject.revision, ...draft });
+      const saved = await shelf.update(subject.id, { revision: subject.revision, ...draft, ...(frameworkChanged ? { framework: { key: framework, ...(framework === "custom" ? { custom: custom.trim() } : {}) } } : {}) });
       setDraft(current => current === draft ? {} : current);
+      setFramework(current => current === framework ? saved.framework.key : current);
+      setCustom(current => current === custom ? saved.framework.custom ?? "" : current);
       setState("saved");
     } catch (cause) {
       setError((cause as Error).message);
@@ -56,6 +62,16 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
       <label className={labelClass}>Chương trình
         <input value={draft.curriculum ?? subject.curriculum} maxLength={500} onChange={(event) => edit({ curriculum: event.target.value })} className={fieldClass} />
       </label>
+      {hub2 && <label className={labelClass}>Chuẩn học
+        <select value={framework} className={fieldClass} onChange={event => { setFramework(event.target.value as typeof framework); setState("idle"); }}>
+          {frameworks.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
+          <option value="custom">Yêu cầu riêng</option>
+        </select>
+        {frameworkChanged && <span className="text-sm font-normal text-muted">Các bước chưa học sẽ được soạn lại ở lượt kế tiếp.</span>}
+      </label>}
+      {hub2 && framework === "custom" && <label className={labelClass}>Tên chuẩn học
+        <input required value={custom} maxLength={80} className={fieldClass} onChange={event => { setCustom(event.target.value); setState("idle"); }} />
+      </label>}
       {hub2 && (
         <label className={labelClass}>Lời dặn
           <span className="text-sm font-normal text-muted">Điều bạn muốn cô soạn và sửa bài lưu ý.</span>

@@ -20,16 +20,17 @@ export function Contents({ rows, title, child, go, loadMore, loadingOlder }: {
         {focus && <p className={pencil}>{skillLabel(focus)}</p>}</>,
     });
     for (const [index, { row, day }] of entries.entries()) {
-      const kind = row.kind === "diagnostic" ? words.lessonKind.diagnostic : row.kind === "new" ? words.lessonKind.new
-        : row.kind === "exploration" ? words.lessonKind.own : row.kind === "review" ? words.lessonKind.review : words.lessonKind.practice;
+      const role = row.stepRole ? {intro:"Học mới", practice:"Luyện", challenge:"Bài thử", placement:"Xếp chỗ"}[row.stepRole] : null;
+      const kind = role ?? (row.kind === "diagnostic" ? words.lessonKind.diagnostic : row.kind === "new" ? words.lessonKind.new
+        : row.kind === "exploration" ? words.lessonKind.own : row.kind === "review" ? words.lessonKind.review : words.lessonKind.practice);
       const state = row.completedAt ? "Đã xong" : row.correction ? "Cần sửa lại" : row.hasWork ? "Đang làm" : "Chưa mở";
       const mark = row.completedAt ? "✓" : row.correction ? "✎" : row.hasWork ? "●" : "○";
       blocks.push({
         id: row.id, kind: "notebook", label: heading, reservedLines: 1,
-        text: [{ value: kind + " " + row.title }],
+        text: [{ value: [kind,row.stepTitle,row.title].filter(Boolean).join(" ") }],
         node: <div className="grid grid-cols-[3.25rem_minmax(0,1fr)_1.25rem] items-center gap-x-2 border-b border-rule/60">
           <span className="font-hand text-sm text-accent">{(index === 0 || entries[index - 1].day !== day) && shortDay(day)}</span>
-          <div className="min-w-0 text-[17px] leading-6"><span className={pencil}>{kind} · </span>
+          <div className="min-w-0 text-[17px] leading-6"><span className={pencil}>{kind}{row.stepTitle && " · " + row.stepTitle} · </span>
             <RouteLink route={{ view: "lesson", id: row.id }} go={go} className={pencilLink}>{row.title}</RouteLink></div>
           <span className={row.completedAt ? "text-ok" : "text-brick"} title={state}><span aria-hidden="true">{mark}</span><span className="sr-only">{state}</span></span>
         </div>,

@@ -4,6 +4,7 @@ export type NotebookLessonRow = {
   id: string; title: string; completedAt: string | null; assignedDate: string;
   kind: string; slot: string; reason: string; minutes: number | null; skill: string | null;
   hasWork: number; correct: number; graded: number; attempted: number; total: number;
+  stepTitle?:string|null; stepRole?:"intro"|"practice"|"challenge"|"placement"|null;
   solutionsSeen: number; correction: number; firstMonth: string;
 };
 
@@ -34,7 +35,8 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
       FROM current_attempts GROUP BY lesson_id
     )
     SELECT l.id,json_extract(l.payload,'$.title') title,l.assigned_date assignedDate,l.completed_at completedAt,
-      l.kind,l.slot,l.reason,l.est_minutes minutes,l.firstMonth,
+      l.kind,l.slot,l.reason,l.est_minutes minutes,l.firstMonth,l.step_role stepRole,
+      (SELECT title FROM roadmap_steps r WHERE r.id=l.roadmap_step_id AND r.learner_id=l.user_id AND r.subject_id=l.subject_id) stepTitle,
       coalesce(c.attempted,0)>0 hasWork,coalesce(c.attempted,0) attempted,
       json_array_length(l.payload,'$.items') total,coalesce(c.correct,0) correct,coalesce(c.graded,0) graded,
       coalesce(c.correction,0) correction,

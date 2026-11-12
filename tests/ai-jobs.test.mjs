@@ -8,7 +8,7 @@ import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
-import { saveDraft } from '../lib/lesson-v2/actions.ts';
+import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
 import { submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
 import { canonical, contextHash } from '../lib/ai-jobs/context/common.ts';
@@ -1006,6 +1006,9 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   const subject = (await createSubject(db, learner, learner, parseSubjectInput({
     title: 'Toán 7', goal: 'Ôn phân số để thi, thích bài tập ngắn', curriculum: 'Sách đã chọn',
   }), now)).id;
+  db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('sub_bbbbbbbbbbbbbbbbbbbb','other','Rust','skill','active','other','t','t')").run();
+  const untouched = () => db.sqlite.prepare('SELECT id,roadmap,revision,updated_at FROM subjects WHERE id<>? ORDER BY id').all(subject);
+  const before = untouched();
   const setupRequest = parseRequest({ subjectId: subject, mode: 'learn', clientRequestId: crypto.randomUUID() });
   await assert.rejects(createRequest(db, {}, learner, learner, setupRequest, now), { status: 409 });
   assert.equal(db.sqlite.prepare('SELECT ai_enabled FROM subjects WHERE id=?').get(subject).ai_enabled, 0);
@@ -1026,6 +1029,7 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   settings.notebookSetup = { template: 'reading', goal: 'Ôn phân số để thi', level: 'Chưa đánh giá', curriculum: 'Đề xuất khác', instructions: 'Ưu tiên bài tập ngắn.' };
   const saved = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(saved.status, 200, JSON.stringify(saved));
+  assert.deepEqual(untouched(), before);
   const notebook = db.sqlite.prepare('SELECT template,goal,opening_brief,level,curriculum,instructions,roadmap,status,ai_enabled FROM subjects WHERE id=?').get(subject);
   assert.deepEqual({ ...notebook, roadmap: JSON.parse(notebook.roadmap).length }, {
     template: 'reading', goal: 'Ôn phân số để thi', opening_brief: 'Ôn phân số để thi, thích bài tập ngắn', level: 'Chưa đánh giá',
@@ -1077,4 +1081,84 @@ test('v3 planning requires runner support and does not write a new lesson after 
   } finally {
     db.sqlite.close();
   }
+});
+
+test('a capable runner saves a scoped stable opening roadmap and placement lesson', async () => {
+  const db = seed();
+  const notebook = await createSubject(db, learner, learner, parseSubjectInput({
+    title: 'Deutsch mới', goal: 'Đặt lịch làm việc, trình độ A2',
+  }), now);
+  const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
+  const [lease] = await leaseJobs(db, client, {...input, capabilities:['roadmap-v2']}, 'test', now);
+  assert.equal(lease.jobId, job.id);
+  const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
+  assert.equal(context.roadmapProtocol, 2);
+  assert.equal(context.subjects[0].framework.key, 'de-cefr');
+  const lesson = {...structuredClone(fixture), kind:'diagnostic'};
+  const body = plan(context, lesson);
+  const update = body.subjects[0];
+  const seedSkill = update.skillChanges[0];
+  const skills = [seedSkill, ...Array.from({length:7}, (_, i) => ({...seedSkill,
+    key:'de-skill-'+i,name:'Kỹ năng '+i,pathOrder:i+2,
+  }))];
+  const ref = skill => 'key:'+skill.key;
+  update.skillChanges = skills;
+  update.openingSteps = skills.slice(0,5).map((skill,i) => ({
+    ref:'step-'+i,title:'Bước '+i,objective:'Vận dụng kỹ năng',situation:'Cuộc hẹn',
+    skills:[ref(skill)],requires:i?['step-'+(i-1)]:[],band:2,kind:'new',
+  }));
+  update.notebookSetup = {template:'skill',goal:'Đặt lịch',level:'A2',curriculum:'CEFR',instructions:'',
+    framework:{key:'de-cefr',levelFrom:'A2.1'}};
+  lesson.targetSkills = skills.slice(0,5).map(ref);
+  lesson.items.forEach((item,i)=>{item.skills=[ref(skills[i%5])];});
+  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now);
+  assert.equal(saved.status,200,JSON.stringify(saved));
+  const steps=db.sqlite.prepare('SELECT id,requires FROM roadmap_steps WHERE learner_id=? AND subject_id=? ORDER BY ord').all(learner,notebook.id);
+  assert.equal(steps.length,5);
+  assert.match(steps[0].id,/^rs_[a-f0-9]{20}$/);
+  assert.deepEqual(JSON.parse(steps[1].requires),[steps[0].id]);
+  const placed=db.sqlite.prepare('SELECT id,step_role,updated FROM learning_lessons WHERE subject_id=?').get(notebook.id);
+  assert.equal(placed.step_role,'placement');
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(subject).n,0);
+  db.sqlite.prepare("INSERT INTO submissions(id,learner_id,lesson_id,client_submission_id,request_hash,status,created_at) VALUES('placement',?,?, 'placement','hash','graded',?)")
+    .run(learner,placed.id,now.toISOString());
+  const items=db.sqlite.prepare('SELECT item_id,skill_ids,activity FROM lesson_items WHERE lesson_id=? ORDER BY item_id').all(placed.id);
+  const attempt=db.sqlite.prepare(`INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,answer,support,context,status,current_grade_id,day,created_at)
+    VALUES(?,'placement',?,?,?,?,?,?,1,'answer','none','lesson','graded',?,'2026-10-13',?)`);
+  const grade=db.sqlite.prepare("INSERT INTO grades(id,attempt_id,grader,result,score,feedback,created_at) VALUES(?,?,'auto',?,?,'',?)");
+  for(const [i,item] of items.entries()){
+    const id='placement-'+i;
+    attempt.run(id,learner,placed.id,item.item_id,notebook.id,item.skill_ids,item.activity,'gr-'+id,now.toISOString());
+    grade.run('gr-'+id,id,i===2?'incorrect':'correct',i===2?0:1,now.toISOString());
+  }
+  await completeLesson(db,learner,placed.id,true,placed.updated,new Date(now.getTime()+1));
+  assert.deepEqual(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(notebook.id).map(row=>row.status),
+    ['placed','placed','planned','planned','planned']);
+
+  const later=new Date(now.getTime()+2000);
+  const request=await createRequest(db,{},learner,learner,parseRequest({
+    subjectId:notebook.id,mode:'practice',stepId:steps[0].id,clientRequestId:crypto.randomUUID(),
+  }),later);
+  const [followup]=await leaseJobs(db,client,{...input,capabilities:['adaptive-plan','roadmap-v2']},'test',later);
+  const next=JSON.parse((await readJob(db,followup.jobId)).context_snapshot);
+  assert.equal(next.adaptive.roadmapTask,'extend');
+  assert.equal(next.adaptive.step.id,steps[0].id);
+  const extension=plan(next,null);
+  const skillId=next.adaptive.targetSkills[0];
+  extension.subjects[0].roadmapChanges=Array.from({length:3},(_,i)=>({op:'append',step:{
+    title:'Tình huống mới '+i,objective:'Vận dụng ở chỗ làm',situation:'Cuộc họp',
+    skills:[skillId],band:3,kind:'mixed',
+  }}));
+  const practice={...structuredClone(fixture),kind:'remediation',estMinutes:15,targetSkills:[skillId],reasonRefs:[skillId]};
+  practice.items.forEach((item,i)=>{
+    item.skills=[skillId];item.prompt='Tình huống luyện mới '+i+': '+item.prompt;
+    if(item.rubric)item.rubric=item.rubric.map(criterion=>({...criterion,skill:skillId}));
+  });
+  extension.explorations=[{requestId:request.id,subjectId:notebook.id,action:'assign',reason:'Luyện bước đã qua',lesson:practice}];
+  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later);
+  assert.equal(more.status,200,JSON.stringify(more));
+  assert.equal(more.outcome.extraLessonIds.length,1);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n,8);
+  assert.equal(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE id=?').get(steps[0].id).status,'placed');
+  db.sqlite.close();
 });
