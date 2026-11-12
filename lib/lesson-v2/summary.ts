@@ -19,7 +19,7 @@ export async function lessonSummary(db: EvidenceDb, learnerId: string, lessonId:
       coalesce((SELECT max(CASE a.support WHEN 'hint1' THEN 1 WHEN 'hint2' THEN 2 ELSE 0 END)
         FROM attempts a WHERE a.lesson_id=i.lesson_id AND a.item_id=i.item_id AND a.learner_id=i.learner_id),0) AS past_hints
       FROM lesson_items i JOIN learning_lessons l ON l.id=i.lesson_id
-      LEFT JOIN ranked r ON r.item_id=i.item_id AND r.position=1 WHERE i.lesson_id=? AND i.learner_id=?`)
+      LEFT JOIN ranked r ON r.item_id=i.item_id AND r.position=1 WHERE i.lesson_id=? AND i.learner_id=? ORDER BY i.rowid`)
       .bind(lessonId, learnerId, lessonId, learnerId)
       .all<{ item_id: string; skill_ids: string; attempt_no: number | null; status: string | null; result: string | null; job_status: string | null; support: string | null; solution_seen: number; hints: number; past_hints: number }>(),
     db.prepare('SELECT seconds FROM study_time WHERE user_id=? AND day=? AND track=?')
@@ -39,16 +39,25 @@ export async function lessonSummary(db: EvidenceDb, learnerId: string, lessonId:
       if (name) needsPractice.add(name);
     }
   }
+  const groups = {
+    correctFirst: items.filter(i => i.result === "correct" && i.attempt_no === 1 && i.support !== "solution"),
+    correctAfterRetry: items.filter(i => i.result === "correct" && (i.attempt_no ?? 0) > 1 && i.support !== "solution"),
+    needsCorrection: items.filter(i => i.result === "incorrect" || i.result === "partial"),
+    unanswered: items.filter(i => i.attempt_no === null && !i.solution_seen),
+    solutionsSeen: items.filter(i => i.solution_seen || i.support === "solution"),
+    pending: items.filter(i => (i.status === "pending" || i.status === "grading" ||
+      (i.attempt_no !== null && !i.result && ["queued","leased"].includes(i.job_status ?? "")))
+      && !["cancelled","failed","expired"].includes(i.job_status ?? "")),
+  };
   return {
     total: items.length,
-    correctFirst: items.filter((i) => i.result === 'correct' && i.attempt_no === 1 && i.support !== 'solution').length,
-    correctAfterRetry: items.filter((i) => i.result === 'correct' && (i.attempt_no ?? 0) > 1 && i.support !== 'solution').length,
-    needsCorrection: items.filter((i) => i.result === 'incorrect' || i.result === 'partial').length,
-    unanswered: items.filter((i) => i.attempt_no === null && !i.solution_seen).length,
-    solutionsSeen: items.filter((i) => i.solution_seen || i.support === "solution").length,
-    pending: items.filter((i) => i.status === 'pending' || i.status === 'grading' || (
-      i.attempt_no !== null && !i.result && ['queued','leased'].includes(i.job_status ?? '')
-    )).filter((i) => !['cancelled','failed','expired'].includes(i.job_status ?? '')).length,
+    correctFirst: groups.correctFirst.length,
+    correctAfterRetry: groups.correctAfterRetry.length,
+    needsCorrection: groups.needsCorrection.length,
+    unanswered: groups.unanswered.length,
+    solutionsSeen: groups.solutionsSeen.length,
+    pending: groups.pending.length,
+    firstByResult: Object.fromEntries(Object.entries(groups).flatMap(([key, rows]) => rows[0] ? [[key, rows[0].item_id]] : [])),
     hintsUsed: items.reduce((n, i) => n + Math.max(i.hints,i.past_hints), 0),
     minutes: Math.floor((time?.seconds ?? 0) / 60),
     needsPractice: [...needsPractice],

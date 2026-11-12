@@ -14,12 +14,12 @@ Bản 1 viết 11/11/2026 trên `main` @ `9317f67`. **Bản 2 (12/11/2026)** m�
 | Phần | Đã kiểm tra | Còn lại |
 |---|---|---|
 | Production · PR #114 | Mở thẳng câu cần sửa, giấy nhớ mở gợi ý tuần tự, đo lại trang sau khi rời ô nhập. 363 test, CI, Chrome và smoke D1 đạt. | VoiceOver, vuốt trên thiết bị thật và ba ngày lời chào trên production chưa được nghiệm thu. |
-| 7a · Bản làm việc | Ước dòng từ cấu trúc bài, bỏ đo kích thước từng câu, mở bài mới ở Ghi nhớ, tiếp tục ở câu chưa làm hoặc câu cần sửa. | Còn chừa ô lời phê và tách đoạn đơn lẻ quá dài. Trang dài vẫn cuộn để đọc đủ. Có nút quay lại câu đang làm. |
-| 7b–7c · Bản làm việc | Giấy nhớ nổi, mở lời giải trực tiếp, đếm riêng câu đã xem và loại lượt làm có lời giải khỏi số câu đúng. | Dấu Kiểm tra, biểu tượng, ô lời phê cố định và tổng kết theo thiết kế mới. |
-| 8 | Khung sổ và bốn trang từ đợt trước. | Báo cáo lúc mở sổ, chương theo tháng, dữ liệu dùng chung và bài nằm trong khung sổ. |
-| 9 | Production dùng `lesson-package/2`. | Hợp đồng v3, dạng câu mới, chấm, eval và pilot. |
+| 7a · Local | Chia trang từ dữ liệu bài, mở Ghi nhớ và quay lại câu đang làm. | Trang quá dài vẫn cuộn. Còn chia đoạn dài và kiểm thử thiết bị thật. |
+| 7b–7c · Local | Dấu Kiểm tra, giấy gợi ý nổi, ô lời phê hai dòng với chi tiết mở riêng, phân biệt lời giải tự mở với lời giải hiện sau chấm, nhảy từ tổng kết tới câu. | Bộ biểu tượng đầy đủ, hiệu ứng gáy và góc lật, chỉ dựng trang lân cận, giao diện góp ý. |
+| 8 · Local | Mục lục theo tháng giao, số liệu từ D1, báo cáo 7 ngày, bài nằm cùng khung sổ và lịch sử nằm ở Cài đặt. | Báo cáo đầy đủ theo U8.2, cache và cập nhật theo sự kiện, mỗi chương một trang vật lý, biểu tượng xin bài, dọn luồng sổ cũ. |
+| 9 · Local | Có Zod và JSON Schema v3, kiểm tra dữ liệu hình và chấm điểm từng phần cho năm dạng câu đóng. | Chưa có UI v3, lưu/đọc, tích hợp runner hay pilot. Hai ràng buộc D1 ở migration 0009 hiện chỉ nhận `package_version` 1/2 và `input_kind` choice/short/long. Cần chốt và kiểm thử đường lưu tương thích trước khi bật v3. |
 
-Các trạng thái bên dưới ghi theo mục tiêu từng phần. Mốc phát hành mới cần CI và nghiệm thu riêng. Không có migration D1 trong phần 7a.
+Các trạng thái bên dưới ghi theo mục tiêu từng phần. Mốc phát hành mới cần CI và nghiệm thu riêng. Các thay đổi local này chưa áp migration. Điều kiện lưu v3 phải được kiểm tra bằng bản sao D1 trước khi phát hành.
 
 ## 0. Quyết định và nguyên tắc
 

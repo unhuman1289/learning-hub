@@ -4,12 +4,15 @@ import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { HintNote, RevealedSolution } from "./hints";
 import { pencil, pencilLink } from "../paper-bits";
-import { buttonClass } from "../ui";
+import { CheckStamp } from "../notebook/check-stamp";
+import { PaperDialog } from "../paper-dialog";
+import { words } from "../words";
 import { uploadPhoto } from "./photo";
 export function ItemCard({
   item,
   number,
   feedback,
+  feedbackPreview,
   onSubmit,
   submitLabel,
   canSubmit,
@@ -24,6 +27,7 @@ export function ItemCard({
   item: ItemView;
   number: number;
   feedback?: ReactNode;
+  feedbackPreview?: string;
   onSubmit?: () => void;
   submitLabel?: string;
   canSubmit?: boolean;
@@ -35,6 +39,7 @@ export function ItemCard({
 }) {
   const [photoError, setPhotoError] = useState(""),
     [uploading, setUploading] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   let selected: string[] = [];
   try {
     const x = JSON.parse(value.answer || "[]");
@@ -140,14 +145,19 @@ export function ItemCard({
         </div>
       )}
       {value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
-      {!readOnly && (
-        // One action per question; hints and the solution are pencilled asides.
-        <div className="flex min-h-14 flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <button type="button" disabled={!canSubmit || uploading} onClick={onSubmit} className={buttonClass("secondary", "min-h-11")}>{submitLabel ?? "Kiểm tra"}</button>
-        </div>
-      )}
-      <RevealedSolution item={item} formatText={formatText} />
-      {feedback}
+      {!readOnly && <CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
+        canSubmit={!!canSubmit} hasAnswer={item.input === "choice" ? selected.length > 0 : !!value.answer.trim() || !!value.attachmentIds?.length}
+        onSubmit={onSubmit} />}
+      <div className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
+        {(feedback || item.revealed.solution) && <button type="button" className="min-h-11 w-full text-left font-hand text-lg text-brick hover:underline"
+          aria-haspopup="dialog" onClick={() => setShowFeedback(true)}>
+          <span className="line-clamp-2">{item.revealed.solutionSeen && item.revealed.solution ? `Đã xem lời giải · ${formatText(item.revealed.solution)}` : feedbackPreview || "Xem lời phê"}</span>
+        </button>}
+      </div>
+      {showFeedback && <PaperDialog title={words.feedback.grade} labelId={`feedback-${item.id}`} onClose={() => setShowFeedback(false)}>
+        <RevealedSolution item={item} formatText={formatText} />
+        {feedback}
+      </PaperDialog>}
     </article>
   );
 }

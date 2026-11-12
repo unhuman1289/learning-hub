@@ -50,3 +50,13 @@ test('opening a solution is recorded separately and a correct supported retry do
   assert.equal(db.sqlite.prepare("SELECT support FROM attempts WHERE lesson_id=? ORDER BY attempt_no DESC LIMIT 1").get(id).support, 'solution');
   db.sqlite.close();
 });
+
+test('showing solution text after a grade does not mark it viewed by the learner', async () => {
+  const { itemView } = await import('../lib/lesson-v2/store.ts');
+  const lesson = JSON.parse(readFileSync(new URL('../fixtures/contracts/lesson-v2/deutsch-modalverb.json', import.meta.url)));
+  const item = lesson.items[0];
+  const graded = itemView(item, 'guided', undefined, true);
+  assert.ok(graded.revealed.solution);
+  assert.equal(graded.revealed.solutionSeen, false);
+  assert.equal(itemView(item, 'guided', 'solution', false).revealed.solutionSeen, true);
+});

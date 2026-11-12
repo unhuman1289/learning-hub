@@ -55,7 +55,7 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
           trigger.current?.focus();
           onReveal("solution");
         }}>Xem lời giải</button>}
-      {item.revealed.solution && <p>Đã xem lời giải.</p>}
+      {item.revealed.solutionSeen && <p>Đã xem lời giải.</p>}
     </div>}
   </div>;
 }
@@ -63,7 +63,7 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
 export function RevealedSolution({ item, formatText = (text: string) => text }: { item: ItemView; formatText?: (text: string) => string }) {
   if (!item.revealed.solution) return null;
   return <p className="whitespace-pre-wrap font-hand text-[19px] leading-7 text-ok">
-    <span className="block text-base">Đã xem lời giải</span>
+    <span className="block text-base">{item.revealed.solutionSeen ? "Đã xem lời giải" : "Lời giải"}</span>
     {formatText(item.revealed.solution)}
     {item.revealed.explanation && <span className="block">{formatText(item.revealed.explanation)}</span>}
   </p>;

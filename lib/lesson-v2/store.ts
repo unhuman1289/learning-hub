@@ -58,7 +58,7 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
 
 /** What a learner may see of an item before revealing hints or the solution, or before it is graded. */
 export type ItemView = Omit<LessonItem, 'key' | 'hints' | 'solution' | 'explanation'> & {
-  stage: string; hintCount: number; revealed: { hints: string[]; solution?: string; explanation?: string }; flag: string | null;
+  stage: string; hintCount: number; revealed: { hints: string[]; solution?: string; explanation?: string; solutionSeen: boolean }; flag: string | null;
 };
 export type Support = Record<string, 'hint1' | 'hint2' | 'solution'>;
 
@@ -71,7 +71,7 @@ export function itemView(item: LessonItem, stage: string, support: Support[strin
   if (!graded && visible.choices) visible.choices = visible.choices.map(({ errorLabel: _label, ...choice }) => (void _label, choice));
   return {
     ...visible, stage, hintCount: hints.length, flag,
-    revealed: { hints: shownHints, ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },
+    revealed: { hints: shownHints, solutionSeen: support === "solution", ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },
   };
 }
 

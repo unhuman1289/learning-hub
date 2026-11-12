@@ -7,8 +7,8 @@ import { pageBlocks, pageGeometry, type PageBlock } from "./page-blocks";
 
 export type SpreadBlock = PageBlock & { node: ReactNode; label?: string };
 
-export function Spread({ blocks, startAt, jump, child = false }: {
-  blocks: SpreadBlock[]; startAt: string; child?: boolean; jump?: { id: string; key: number } | null;
+export function Spread({ blocks, startAt, jump, child = false, status }: {
+  blocks: SpreadBlock[]; startAt: string; child?: boolean; status?: string; jump?: { id: string; key: number } | null;
 }) {
   const [viewport, setViewport] = useState({ width: 768, height: 900 });
   const [selection, setSelection] = useState(startAt);
@@ -140,6 +140,7 @@ export function Spread({ blocks, startAt, jump, child = false }: {
         })}
       </div>
       <button type="button" className="spread-edge" aria-label="Trang sau" disabled={last >= count} onClick={() => turn(first + step)}><ChevronRight aria-hidden="true" /></button>
+      {status && <p role="status" className="col-start-2 rounded-b-sm bg-paper px-3 py-1 text-right font-hand text-sm text-ink-paper">{status}</p>}
       <p role="status" className="sr-only">{caption}{firstQuestion && (firstQuestion === lastQuestion ? `, câu ${firstQuestion}` : `, câu ${firstQuestion} đến ${lastQuestion}`)}</p>
     </div>
   </>);

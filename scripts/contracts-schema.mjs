@@ -1,10 +1,11 @@
 // Writes the JSON Schema of every contract to contracts/*.schema.json; --check fails when they are stale.
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { z } from 'zod/v4';
+import { lessonPackageV3 } from '../lib/contracts/lesson-package-v3.ts';
 import { lessonPackageV2 } from '../lib/contracts/lesson-package-v2.ts';
 
 import {planContext,planResult,assessContext,assessResult} from '../lib/contracts/ai-common.ts';
-const contracts = { 'lesson-package-v2': lessonPackageV2, 'plan-context-v1':planContext, 'plan-result-v1':planResult, 'assess-context-v1':assessContext, 'assess-result-v1':assessResult };
+const contracts = { 'lesson-package-v2': lessonPackageV2, 'lesson-package-v3': lessonPackageV3, 'plan-context-v1':planContext, 'plan-result-v1':planResult, 'assess-context-v1':assessContext, 'assess-result-v1':assessResult };
 const check = process.argv.includes('--check');
 const dir = new URL('../contracts/', import.meta.url);
 mkdirSync(dir, { recursive: true });

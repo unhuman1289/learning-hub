@@ -1,4 +1,5 @@
 import {isChemicalFormula,plainChemicalText} from '../chemistry.ts';
+import type { StructuredAnswerKey } from '../contracts/lesson-package-v3.ts';
 import type { AnswerKey } from '../contracts/lesson-package-v2.ts';
 import { parseNumericAnswer } from '../lesson-v2/numeric.ts';
 export type AutoGrade = { result: 'correct' | 'incorrect'; score: number; feedback: string };
@@ -48,4 +49,27 @@ export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
     score: correct ? 1 : 0,
     feedback: correct ? 'Đúng theo đáp án.' : 'Chưa khớp đáp án. Xem lời giải rồi thử sửa lại.',
   };
+}
+
+/** Structured responses use an array in prompt order, or a map from left to right IDs for matching. */
+export function autoGradeStructured(key: StructuredAnswerKey, answer: string): Omit<AutoGrade, "result"> & { result: AutoGrade["result"] | "partial" } {
+  let value: unknown;
+  try { value = JSON.parse(answer); } catch { value = null; }
+  let total: number;
+  let correct: number;
+  if (key.type === "match") {
+    total = key.pairs.length;
+    const pairs = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    correct = key.pairs.filter(([left, right]) => Object.hasOwn(pairs, left) && pairs[left] === right).length;
+  } else if (key.type === "order") {
+    total = key.sequence.length;
+    correct = Array.isArray(value) ? key.sequence.filter((expected, index) => value[index] === expected).length : 0;
+  } else {
+    const cells = key.type === "cloze" ? key.blanks : key.type === "label" ? key.labels : key.cells;
+    total = cells.length;
+    correct = Array.isArray(value) ? cells.filter((cell, index) =>
+      typeof value[index] === "string" && autoGrade(cell, value[index]).result === "correct").length : 0;
+  }
+  const result = correct === total ? "correct" : correct > 0 ? "partial" : "incorrect";
+  return { result, score: correct / total, feedback: `Đúng ${correct}/${total} phần.` };
 }

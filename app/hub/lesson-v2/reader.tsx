@@ -2,8 +2,7 @@
 import {useLiveRefresh} from "../use-live-refresh";
 import {feedbackForItems} from "../../../lib/feedback-history";
 import {LessonSummary} from "./summary";
-import {GraderOffline} from "../runner-status";
-import {RouteLink} from "../ui";
+import {useRunnerStatus} from "../runner-status";
 import {pencil, pencilLink} from "../paper-bits";
 import type {Route} from "../use-route";
 import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
@@ -17,6 +16,7 @@ import { PaperConfirm } from "../paper-confirm";
 import { words } from "../words";
 import { ItemCard } from "./item-card";
 import { initialLessonBlock } from "../notebook/page-blocks";
+import { Book } from "../notebook/book";
 import { Spread, type SpreadBlock } from "../notebook/spread";
 import { shortDay } from "../paper-bits";
 import { Feedback, type SubmissionView } from "./feedback";
@@ -283,6 +283,7 @@ export function LessonReader({
         body: JSON.stringify({ completed: !fresh.lesson.completedAt, expectedUpdated: fresh.lesson.updated }),
       });
       setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
+      setJustCompleted(result.completed);
       jump(result.completed ? "summary" : "head");
       await onCompleted?.();
     } catch (e) {
@@ -291,8 +292,10 @@ export function LessonReader({
       setBusy(false);
     }
   }
+  const runner = useRunnerStatus(waitingForGrade);
+  const [justCompleted, setJustCompleted] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
-  const unanswered = lesson?.items.filter(i => !i.revealed.solution && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
+  const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
   if (!lesson)
     return (
       <div role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">
@@ -304,10 +307,10 @@ export function LessonReader({
   const frozen = readonly || !!lesson.completedAt;
   const openLesson = (next: string) => go({ view: "lesson", id: next });
   const doneIds = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
-  const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solution && !doneIds.has(item.id));
+  const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !doneIds.has(item.id));
   const correction = openCorrection ? lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
   const startAt = initialLessonBlock({ completed: !!lesson.completedAt, correction, firstUnanswered,
-    hasWork: doneIds.size > 0 || lesson.items.some(item => !!item.revealed.solution) || Object.values(answers).some(answer => {
+    hasWork: doneIds.size > 0 || lesson.items.some(item => item.revealed.solutionSeen) || Object.values(answers).some(answer => {
       const value = answer.answer.trim();
       return (value && value !== "[]") || !!answer.attachmentIds?.length;
     }) });
@@ -360,6 +363,9 @@ export function LessonReader({
         onChange={value => change(item.id, value)} onReveal={level => reveal(item.id, level)}
         onSubmit={() => void submit(item.id)} canSubmit={canSubmit}
         submitLabel={current ? words.action.recheck : words.action.check}
+        feedbackPreview={latest?.feedback ? (formatText?.(latest.feedback) ?? latest.feedback)
+          : current && waiting(current) ? runner?.online === false ? words.status.gradeLater : words.status.grading
+          : latest?.result ? words.result[latest.result as keyof typeof words.result] : undefined}
         feedback={current && <>
           <Feedback submission={current} items={[item]} readOnly={frozen} child={child} formatText={formatText} onRefresh={() => void refreshFeedback()} />
           <PreviousFeedback items={previous} item={item} readOnly={frozen} formatText={formatText} />
@@ -368,29 +374,26 @@ export function LessonReader({
   }
   if (lesson.output) blocks.push({ id: "product", kind: "product", text: [{ value: lesson.output }], node: <p>{words.place.product} · {lesson.output}</p> });
   blocks.push({ id: "summary", kind: "summary", node: <>
-    {!lesson.completedAt && unanswered > 0 && <p>Còn {unanswered} câu chưa làm. <button className={pencilLink} onClick={() => jump(`cau-${firstUnanswered + 1}`)}>Lật tới câu {firstUnanswered + 1}</button></p>}
     {!readonly && !lesson.completedAt && <button className={buttonClass("primary")} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.finish}</button>}
     {!readonly && lesson.completedAt && <button className={pencilLink} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.reopen}</button>}
     <PaperConfirm open={confirmFinish && !busy && !pending}
-      message={`Còn ${unanswered} câu chưa làm. Vẫn xong bài?`} confirmLabel={words.action.finish}
+      message="Bạn vẫn muốn đánh dấu xong bài này?" confirmLabel={words.action.finish}
       onCancel={() => setConfirmFinish(false)} onConfirm={() => void complete(true)} />
     <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
-      progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solution).map(item => item.id).join(",")}
+      onQuestion={itemId => {
+        const index = lesson.items.findIndex(item => item.id === itemId);
+        if (index >= 0) jump(`cau-${index + 1}`);
+      }}
+      progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
       reflectionId={lesson.completedAt ? reflection?.id : undefined} onOpen={openLesson} go={go}
-      onHome={() => go({ view: "desk" })} onReview={() => jump("head")} completed={!!lesson.completedAt} />
+      onHome={() => go({ view: "book", id: lesson.subjectId })} onReview={() => jump("head")} completed={!!lesson.completedAt} justCompleted={justCompleted} />
   </> });
-  return <div className="mx-auto w-full max-w-[70rem]">
-    <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 rounded-sm bg-oak-dark px-3 text-oak-ink">
-      <RouteLink route={{ view: "book", id: lesson.subjectId }} go={go} className="inline-flex min-h-11 items-center font-hand text-lg hover:underline">← {words.action.close}</RouteLink>
-      <span>{lesson.title}</span>
-      <span role="status" className="font-hand">{state}</span>
-    </header>
+  return <Book id={lesson.subjectId} title={lesson.subjectTitle ?? lesson.title} page="lesson" go={go}>
     {readonly && <p className={pencil}>Bạn đang xem bài của người học.</p>}
-    <GraderOffline waiting={waitingForGrade} />
     {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}
     {error && <p role="alert" className="text-brick">{error}</p>}
-    <Spread blocks={blocks} startAt={startAt} jump={pageJump} child={child} />
-  </div>;
+    <Spread blocks={blocks} startAt={startAt} jump={pageJump} child={child} status={state} />
+  </Book>;
 
   function jump(block: string) {
     setPageJump(previous => ({ id: block, key: (previous?.key ?? 0) + 1 }));
