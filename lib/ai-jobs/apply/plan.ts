@@ -254,15 +254,18 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           issue(path + '/' + field, 'repetition', 'Quá nhiều câu dùng dạng hoạt động đã bị kẹt.');
       }
       const hashes = await Promise.all(l.items.map((i) => promptHash(i.prompt)));
-      if (new Set(hashes).size !== hashes.length) issue(path + '/' + field, 'duplicate_item', 'Bài chứa đề trùng.');
-      for (const hash of hashes) {
-        if (assignedPrompts.has(hash)) issue(path + '/' + field, 'duplicate_item', 'Đề trùng giữa bài chính và bộ ôn.');
+      for (const [itemIndex, hash] of hashes.entries()) {
+        const itemPath = `${path}/${field}/items/${itemIndex}/prompt`;
+        if (assignedPrompts.has(hash)) {
+          issue(itemPath, 'duplicate_item', 'Câu trùng trong lượt soạn này. Đổi tình huống hoặc dạng bài.');
+          continue;
+        }
         assignedPrompts.add(hash);
         const old = await db
           .prepare('SELECT 1 AS found FROM lesson_items WHERE learner_id=? AND subject_id=? AND prompt_hash=? AND created_at>=? LIMIT 1')
           .bind(job.learner_id, s.subjectId, hash, addDays(job.learning_day, -89))
           .first();
-        if (old) issue(path + '/' + field, 'duplicate_item', 'Đề đã dùng trong 90 ngày.');
+        if (old) issue(itemPath, 'duplicate_item', 'Câu đã dùng trong 90 ngày. Đổi tình huống hoặc dạng bài, giữ kỹ năng cần luyện.');
       }
       newMinutes += l.estMinutes;
       const id = newLessonId();

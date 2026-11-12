@@ -444,12 +444,9 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 /* Lübeck window (app/hub/lubeck): slow, quiet motion; the global reduced-motion rule above switches it all off. */
 @keyframes lhw-steam { 0% { transform: translateY(0); opacity: 0; } 30% { opacity: 0.7; } 100% { transform: translateY(-18px); opacity: 0; } }
 @keyframes lhw-flame { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(0.86, 1.14); } }
-@keyframes lhw-rain { from { transform: translate(0, -40px); } to { transform: translate(-14px, 40px); } }
-@keyframes lhw-snow { from { transform: translateY(-30px); } to { transform: translateY(30px); } }
-@keyframes lhw-cloud-a { from { transform: translateX(-40px); } to { transform: translateX(40px); } }
-@keyframes lhw-cloud-b { from { transform: translateX(30px); } to { transform: translateX(-30px); } }
+@keyframes lhw-precipitation { from { transform: translateY(0); } to { transform: translateY(var(--lhw-weather-travel)); } }
+@keyframes lhw-drift { from { transform: translateX(0); } to { transform: translateX(var(--lhw-landscape-travel)); } }
 @keyframes lhw-boat { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(10px, 1.5px); } }
-@keyframes lhw-ripple { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(7px); } }
 @keyframes lhw-bird { from { transform: translate(-80px, 10px); } to { transform: translate(640px, -30px); } }
 @keyframes lhw-sway { 0%, 100% { transform: rotate(0deg); } 50% { transform: rotate(1.1deg); } }
 @keyframes lhw-swim-right { from { transform: translateX(-90px); } to { transform: translateX(680px); } }
@@ -459,12 +456,11 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 @keyframes lhw-firework { 0% { transform: scale(0.2); opacity: 0; } 30% { opacity: 1; } 100% { transform: scale(1.15); opacity: 0; } }
 .lhw-steam { animation: lhw-steam 3.2s ease-out infinite; }
 .lhw-flame { animation: lhw-flame 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
-.lhw-rain { animation: lhw-rain 0.9s linear infinite; }
-.lhw-snow { animation: lhw-snow 6s linear infinite alternate; }
-.lhw-cloud-a { animation: lhw-cloud-a 60s ease-in-out infinite alternate; }
-.lhw-cloud-b { animation: lhw-cloud-b 44s ease-in-out infinite alternate; }
+.lhw-rain, .lhw-snow { animation: lhw-precipitation var(--lhw-duration) linear var(--lhw-delay) infinite; }
+.lhw-cloud-a { animation: lhw-drift 212s linear -12s infinite; }
+.lhw-cloud-b { animation: lhw-drift 156s linear -21s infinite; }
 .lhw-boat { animation: lhw-boat 9s ease-in-out infinite; }
-.lhw-ripple { animation: lhw-ripple 5s ease-in-out infinite; }
+.lhw-ripple { animation: lhw-drift var(--lhw-duration) linear var(--lhw-delay) infinite; }
 .lhw-bird { animation: lhw-bird 26s linear infinite; }
 .lhw-sway { animation: lhw-sway 7s ease-in-out infinite; transform-origin: 44px 30px; }
 .lhw-swim-right { animation: lhw-swim-right 80s linear infinite; }
@@ -472,6 +468,7 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 .lhw-bob { animation: lhw-bob 2.4s ease-in-out infinite; }
 .lhw-fall { animation: lhw-fall 9s linear infinite; }
 .lhw-firework { animation: lhw-firework 2.6s ease-out infinite; transform-box: fill-box; transform-origin: 50% 50%; }
+.lhw-window[data-motion-paused] [class*="lhw-"] { animation-play-state: paused; }
 
 .spread-shell { position: relative; }
 .lesson-spread {

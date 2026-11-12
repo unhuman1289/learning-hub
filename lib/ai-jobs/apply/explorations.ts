@@ -124,12 +124,19 @@ export async function prepareExplorations(
     if (created.length > 3) issue(path + '/lesson', 'skill_graph', 'Bài khám phá tạo tối đa 3 kỹ năng mới.');
 
     const hashes = await Promise.all(lesson.items.map((i) => promptHash(i.prompt)));
-    for (const hash of hashes) {
+    const seenPrompts = new Set<string>();
+    for (const [itemIndex, hash] of hashes.entries()) {
+      const itemPath = `${path}/lesson/items/${itemIndex}/prompt`;
+      if (seenPrompts.has(hash)) {
+        issue(itemPath, 'duplicate_item', 'Câu trùng với câu trước trong bài. Đổi tình huống hoặc dạng bài.');
+        continue;
+      }
+      seenPrompts.add(hash);
       const old = await db
         .prepare('SELECT 1 AS found FROM lesson_items WHERE learner_id=? AND subject_id=? AND prompt_hash=? AND created_at>=? LIMIT 1')
         .bind(job.learner_id, targetId, hash, addDays(job.learning_day, -89))
         .first();
-      if (old) issue(path + '/lesson', 'duplicate_item', 'Đề đã dùng trong 90 ngày.');
+      if (old) issue(itemPath, 'duplicate_item', 'Câu đã dùng trong 90 ngày. Đổi tình huống hoặc dạng bài, giữ kỹ năng cần luyện.');
     }
 
     if (explore)
