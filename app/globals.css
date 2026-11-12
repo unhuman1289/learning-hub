@@ -527,7 +527,7 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 }
 .lesson-spread[data-double="true"] .spread-page[data-offpage="true"] { width: calc((100% - 2px) / 2); }
 .spread-page-label { position: absolute; inset: .25rem auto auto calc(var(--margin-x) + .5rem); }
-.spread-paper-body { min-height: 0; overflow: hidden; }
+.spread-paper-body { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; }
 .spread-paper-body[data-overflow="true"] { overflow: auto; }
 .spread-block + .spread-block[data-kind="item"] { margin-top: .25rem; }
 .spread-page-count { display: flex; align-items: center; justify-content: center; gap: 6px; }

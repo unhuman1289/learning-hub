@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { HintNote, RevealedSolution } from "./hints";
@@ -50,6 +50,14 @@ export function ItemCard({
   const [photoError, setPhotoError] = useState(""),
     [uploading, setUploading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
+  // A long question on a phone can push the result below the page; bring it into view when it changes.
+  const resultRow = useRef<HTMLDivElement>(null);
+  const shownResult = useRef(feedbackResult);
+  useEffect(() => {
+    if (shownResult.current === feedbackResult) return;
+    shownResult.current = feedbackResult;
+    resultRow.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [feedbackResult]);
   const [focusLine, setFocusLine] = useState<{line: number; key: number}>();
   function jumpToLine(line: number) {
     setShowFeedback(false);
@@ -165,7 +173,7 @@ export function ItemCard({
       {!readOnly && <div className="spread-check"><CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
         canSubmit={!!canSubmit} hasAnswer={hasAnswer}
         onSubmit={onSubmit} /></div>}
-      <div className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
+      <div ref={resultRow} className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
         {(feedback || item.revealed.solution) && <button type="button" className="min-h-11 w-full text-left font-hand text-lg text-brick hover:underline"
           aria-haspopup="dialog" onClick={() => setShowFeedback(true)}>
           <span className="flex min-w-0 items-start gap-2">
