@@ -1,5 +1,6 @@
 "use client";
 
+import {KnowledgePanel} from "../admin/knowledge-panel";
 import { WindowPreview } from "./lubeck/preview";
 import { Download } from "lucide-react";
 import { WoodFrame } from "../../components/notebook/house";
@@ -37,6 +38,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
       </WoodFrame>
       {hub2 && <WoodFrame label="Chấm sai cần xem"><AdminDisputes /></WoodFrame>}
       {hub2 && <WoodFrame label="Lượt soạn và chấm"><AiJobsPanel /></WoodFrame>}
+      {hub2 && <WoodFrame label="Tri thức"><KnowledgePanel /></WoodFrame>}
       <WoodFrame label="Cập nhật bài và sao lưu">
         <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>
         {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}
