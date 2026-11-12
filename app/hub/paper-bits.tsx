@@ -1,6 +1,6 @@
 import { words } from "./words";
 import type { ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { SketchIcon } from "./sketch-icons";
 import { cx } from "../../components/notebook/paper";
 
 /** Small things written or stamped on notebook paper, shared by the notebook, lesson and desk sheets. */
@@ -32,7 +32,7 @@ export const postitAction = "inline-flex min-h-11 w-fit items-center border-b bo
 
 export function PaperSummary({ children }: { children: ReactNode }) {
   return <summary className="group flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 border-b border-dashed border-rule pr-3 font-hand text-xl leading-7 text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current [&::-webkit-details-marker]:hidden">
-    <ChevronDown size={16} aria-hidden="true" className="-rotate-90 group-open:rotate-0" />
+    <SketchIcon name="chevron" size={16} className="-rotate-90 group-open:rotate-0" />
     {children}
   </summary>;
 }

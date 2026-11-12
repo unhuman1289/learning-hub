@@ -1,4 +1,5 @@
 "use client";
+import { SketchIcon } from "./sketch-icons";
 
 import { useEffect, useState } from "react";
 import { shortDay, pencilLink } from "./paper-bits";
@@ -20,8 +21,8 @@ const mark: Record<string, string> = { correct: "✓", partial: "½", incorrect:
 export function HistoryDownloads({ subjectId, learner }: { subjectId: string; learner: string | null }) {
   const query = new URLSearchParams({ subject: subjectId, ...(learner ? { learner } : {}), days: "3660" });
   return <p className="mt-2 flex flex-wrap gap-4">
-    <a className={pencilLink} href={`/api/history?${query}&format=md`}>Tải Markdown</a>
-    <a className={pencilLink} href={`/api/history?${query}&format=csv`}>Tải CSV</a>
+    <a className={pencilLink + " gap-1"} href={`/api/history?${query}&format=md`}><SketchIcon name="download" size={17} />Tải Markdown</a>
+    <a className={pencilLink + " gap-1"} href={`/api/history?${query}&format=csv`}><SketchIcon name="download" size={17} />Tải CSV</a>
   </p>;
 }
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { House, ShieldCheck } from "lucide-react";
+import { SketchIcon } from "./hub/sketch-icons";
 import AuthControls from "../components/auth-controls";
 import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
@@ -70,9 +70,9 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
   const labelFor = (key: string) => (isTrack(key) ? trackInfo(key).title : shelf.subjects?.find((item) => item.id === key)?.title ?? "Sổ khác");
 
   const name = userName.trim() || userEmail.split("@")[0];
-  const nav: { route: Route; label: string; icon: typeof House; on: boolean }[] = [
-    { route: { view: "desk" }, label: "Bàn học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "book" || route.view === "lesson" },
-    ...(isAdmin ? [{ route: { view: "admin" } as Route, label: "Quản trị", icon: ShieldCheck, on: route.view === "admin" }] : []),
+  const nav: { route: Route; label: string; icon: "house" | "key"; on: boolean }[] = [
+    { route: { view: "desk" }, label: "Bàn học", icon: "house", on: route.view === "desk" || route.view === "notebook" || route.view === "book" || route.view === "lesson" },
+    ...(isAdmin ? [{ route: { view: "admin" } as Route, label: "Quản trị", icon: "key" as const, on: route.view === "admin" }] : []),
   ];
 
   return (
@@ -126,9 +126,9 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
       <SaveProblem workspace={workspace} />
 
       {nav.length >= 2 && <nav aria-label="Điều hướng chính" style={{ viewTransitionName: "site-nav" }} className="bg-oak fixed inset-x-0 bottom-0 z-20 flex justify-around border-t-4 border-oak-dark px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 text-oak-ink shadow-[0_-6px_12px_-6px_rgb(40_24_8/0.4)] lg:hidden">
-        {nav.map(({ route: target, label, icon: Icon, on }) => (
+        {nav.map(({ route: target, label, icon, on }) => (
           <RouteLink key={label} route={target} go={go} aria-current={on ? "page" : undefined} className={cx("grid min-h-12 min-w-20 justify-items-center gap-0.5 rounded-md px-3 py-1 text-xs", on ? "bg-paper/85 font-semibold text-accent-paper" : "opacity-80")}>
-            <Icon size={20} aria-hidden="true" />
+            <SketchIcon name={icon} size={20} />
             {label}
           </RouteLink>
         ))}

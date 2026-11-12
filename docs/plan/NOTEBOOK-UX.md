@@ -179,6 +179,8 @@ Các trạng thái bên dưới ghi theo mục tiêu từng phần. Mốc phát 
 
 **Nghiệm thu local PR 8-today.** Chrome 1280px và 375px với hồ sơ demo người lớn và trẻ em. Trang Hôm nay hiện bài bên phải, báo cáo bên trái; khổ nhỏ mở bài trước. Chuyển sang Mục lục dùng lại dữ liệu của sổ. Mỗi tháng bắt đầu ở trang mới và sự kiện `lh:lesson-changed` làm mới hai nguồn dữ liệu của sổ. Kiểm thử SQL xác nhận báo cáo tách theo sổ và phân trang theo tháng Berlin.
 
+**PR 7c-look.** Luồng học dùng biểu tượng vẽ tay. Trang đôi có gáy chỉ khâu và mép giấy xếp lớp. Sổ dựng nội dung của trang đang mở và các trang lân cận. Tổng kết chỉ tải khi hiện. Đã dọn 61 tệp UI mẫu và 18 dependency trực tiếp sau khi xác nhận chúng chỉ phục vụ các tệp đã dọn. Hoàn tác bằng cách revert commit của PR; D1 dùng schema hiện hành.
+
 ## 0. Quyết định và nguyên tắc
 
 **Quyết định của chủ dự án**

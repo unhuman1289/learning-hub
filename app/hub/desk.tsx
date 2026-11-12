@@ -12,7 +12,7 @@ import { useLiveRefresh } from "./use-live-refresh";
 import { apiJson } from "./api";
 import { words } from "./words";
 import { ContactBook } from "./guardian/contact-book";
-import { AlertCircle } from "lucide-react";
+import { SketchIcon } from "./sketch-icons";
 import { Bookcase, OakDesk, Shelf } from "../../components/notebook/house";
 import { NotebookCover } from "../../components/notebook/paper";
 import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
@@ -151,7 +151,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
             }))} />
           {daily.error && (
             <p role="alert" className="mt-5 flex gap-2 rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">
-              <AlertCircle size={16} className="mt-1 shrink-0" aria-hidden="true" />
+              <SketchIcon name="notice" size={16} className="mt-1 shrink-0" />
               <span>{daily.error} {daily.error === "Sign in required" && <a href="/login" className="underline">Đăng nhập lại</a>} <button type="button" onClick={() => void daily.load()} className="underline">Tải lại</button></span>
             </p>
           )}
