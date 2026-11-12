@@ -11,7 +11,7 @@ import { qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
 import { mirrorDue, mirrorHistory } from './mirror.mjs';
 
-export const VERSION = '1.4.0';
+export const VERSION = '1.5.0';
 
 /** KEY=VALUE lines; # comments. The file must not be readable by others. */
 export function parseEnvFile(text) {

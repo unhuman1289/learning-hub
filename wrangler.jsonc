@@ -101,7 +101,7 @@
       ],
       "vars": {
         "ENVIRONMENT": "production",
-        "APP_VERSION": "hub2-knowledge-2026-11-12",
+        "APP_VERSION": "hub2-adaptive-roadmap-2026-11-12",
         "AUTOMATION_ACCESS_AUD": "12226aa41dcf2129353292351daf364eb49b0b5c27cc0b07de7099c43ce30b84",
         "HOUSEHOLD_GATE": "passphrase",
         "APP_ENV": "production",

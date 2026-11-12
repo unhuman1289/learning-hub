@@ -6,7 +6,7 @@ if(!args.includes('--db')||!input||input.startsWith('--')||args.some(arg=>arg!==
   throw Error('Usage: node scripts/repair-roadmaps.mjs --db <SQLite copy> [--apply]');
 const apply=args.includes('--apply');
 const db=new DatabaseSync(input,{readOnly:!apply});
-const subjects=db.prepare('SELECT id,learner_id,roadmap FROM subjects ORDER BY id').all();
+const subjects=db.prepare("SELECT id,learner_id,roadmap FROM subjects WHERE status<>'archived' ORDER BY id").all();
 const skills=db.prepare('SELECT id FROM skills WHERE subject_id=? AND learner_id=?');
 const snapshots=db.prepare(`SELECT context_snapshot FROM ai_jobs WHERE learner_id=? AND context_snapshot IS NOT NULL
  AND created_at>(SELECT min(created_at) FROM ai_jobs WHERE learner_id=? AND subject_id=? AND purpose='initial' AND status='succeeded')
@@ -19,16 +19,19 @@ try {
  if(apply)db.exec('BEGIN IMMEDIATE');
  for(const subject of subjects) {
   const known=new Set(skills.all(subject.id,subject.learner_id).map(row=>row.id));
-  let recovered;
-  for(const {context_snapshot} of snapshots.iterate(subject.learner_id,subject.learner_id,subject.id)){
+  const valid=steps=>Array.isArray(steps)&&steps.every(step=>step&&typeof step.title==='string'&&step.title.trim()&&
+    Array.isArray(step.skills)&&step.skills.length>0&&step.skills.length<=3&&step.skills.every(id=>known.has(id)));
+  let existing;
+  try{existing=JSON.parse(subject.roadmap);}catch{existing=null;}
+  let recovered=valid(existing)?existing:undefined;
+  if(!recovered)for(const {context_snapshot} of snapshots.iterate(subject.learner_id,subject.learner_id,subject.id)){
    let steps;
    try{steps=JSON.parse(context_snapshot).subjects?.find(s=>s.subjectId===subject.id)?.roadmap;}catch{continue;}
-   if(Array.isArray(steps)&&steps.length&&steps.every(step=>typeof step.title==='string'&&
-      Array.isArray(step.skills)&&step.skills.length&&step.skills.every(id=>known.has(id)))) {
+   if(steps?.length&&valid(steps)) {
     recovered=steps;break;
    }
   }
-  const json=JSON.stringify(recovered??[]);
+  const json=recovered===existing?subject.roadmap:JSON.stringify(recovered??[]);
   const stepIds=new Set((recovered??[]).map((_step,i)=>'step_'+(i+1)));
   const unmatched=historical.all(subject.id,subject.learner_id).filter(row=>!stepIds.has(row.roadmap_step_id)).length;
   if(json!==subject.roadmap&&apply){
