@@ -106,7 +106,7 @@ export async function leaseJobs(
       .first<Job>();
     if (!job) break;
     try {
-      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment) : await buildAssessContext(db, job, environment, now);
+      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment, input.capabilities?.includes('roadmap-v2') ?? false) : await buildAssessContext(db, job, environment, now);
       const changed = await db
         .prepare("UPDATE ai_jobs SET context_snapshot=?,context_hash=? WHERE id=? AND status='leased' AND lease_token_sha256=?")
         .bind(JSON.stringify(context), context.contextHash, job.id, hash)

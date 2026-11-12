@@ -27,9 +27,11 @@ function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, 
       ? <NotebookToday report={data.overview?.report} subject={subject} book={data.book} learner={shelf.learner} child={child} go={go} refresh={data.refresh} />
       : <Contents title={subject.title} rows={data.rows} child={child} go={go} loadingOlder={data.loadingOlder}
           loadMore={data.hasMore ? () => void data.loadMore() : undefined} /> : loading)}
-    {page === "tien-do" && (data.overview ? <BookProgress data={data.overview} child={child} /> : data.reportError ? <p role="alert">{words.error.unknown}</p> : loading)}
+    {page === "tien-do" && (data.overview ? <BookProgress data={data.overview} child={child} roadmap={data.overview.report.progress}
+      subjectId={id} learner={shelf.learner} canEdit={canEdit} onChange={data.refresh}
+      onPractice={() => go({ view: "book", id, page: "hom-nay" })} /> : data.reportError ? <p role="alert">{words.error.unknown}</p> : loading)}
     {page === "cai-dat" && <>
-      {canEdit && !child && subject.status !== "archived"
+      {canEdit && subject.status !== "archived"
         ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
       {hub2 && !child && <HistoryPanel subjectId={id} learner={shelf.learner} />}
       {canDelete && subject.status !== "archived" && <DeleteNotebook subject={subject} shelf={shelf} onDeleted={() => go({ view: "desk" })} />}

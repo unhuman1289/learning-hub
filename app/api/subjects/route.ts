@@ -34,9 +34,12 @@ export async function POST(req: Request) {
     const db = storage();
     const learnerId = await resolveLearner(db, user, req, 'manage_notebooks');
     if (learnerId instanceof Response) return learnerId;
-    const input = parseSubjectInput(await req.json());
+    const raw = await req.json();
+    const input = parseSubjectInput(raw);
+    const role=(await learnerFacts(db,user,learnerId)).learnerRole;
+    if(role==='adult'&&!input.legacyTrack&&(raw as { limits?: { maxDifficulty?: number } }).limits?.maxDifficulty===undefined)input.limits.maxDifficulty=5;
     // A child opens a notebook for themselves; limits and priority stay at the defaults a guardian can change later.
-    if (user.id === learnerId && (await learnerFacts(db, user, learnerId)).learnerRole === 'child') {
+    if (user.id === learnerId && role === 'child') {
       input.limits = { ...DEFAULT_LIMITS };
       input.weight = 3;
     }

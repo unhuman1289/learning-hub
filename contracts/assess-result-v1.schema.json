@@ -31,6 +31,10 @@
               "normal",
               "high"
             ]
+          },
+          "stepId": {
+            "type": "string",
+            "pattern": "^(sk_|key:)[a-zA-Z0-9_-]{1,80}$"
           }
         },
         "required": [

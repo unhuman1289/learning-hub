@@ -1,3 +1,5 @@
+import {frameworkInput} from '../roadmap/frameworks.ts';
+import type { z } from 'zod/v4';
 import { ApiError } from '../api-error.ts';
 import { learningTracks, type LearningTrack } from '../daily-policy.ts';
 import { DEFAULT_LIMITS, legacyTrackDefaults, type SubjectLimits, type SubjectSensitivity, type SubjectStatus, type SubjectTemplate } from './sql.ts';
@@ -7,7 +9,7 @@ export type SubjectInput = {
   title: string; template: SubjectTemplate; sensitivity: SubjectSensitivity; goal: string; level: string;
   curriculum: string; limits: SubjectLimits; weight: number; legacyTrack?: LearningTrack;
 };
-export type SubjectPatch = Partial<SubjectInput & { status: SubjectStatus; aiEnabled: boolean; instructions: string }> & { revision: number };
+export type SubjectPatch = Partial<SubjectInput & { status: SubjectStatus; aiEnabled: boolean; instructions: string; framework:z.infer<typeof frameworkInput> }> & { revision: number };
 
 const templates = new Set(['skill', 'reading']);
 const sensitivities = new Set(['normal', 'clinical', 'child_dev']);
@@ -72,7 +74,7 @@ export function parseSubjectInput(body: unknown): SubjectInput {
   };
 }
 
-const patchable = new Set(['title', 'template', 'sensitivity', 'goal', 'level', 'curriculum', 'instructions', 'limits', 'weight', 'status', 'aiEnabled', 'revision']);
+const patchable = new Set(['title', 'template', 'sensitivity', 'goal', 'level', 'curriculum', 'instructions', 'limits', 'weight', 'status', 'aiEnabled', 'revision','framework']);
 
 export function parseSubjectPatch(body: unknown): SubjectPatch {
   if (!isRecord(body)) throw bad('Dữ liệu sổ không hợp lệ.');
@@ -87,6 +89,7 @@ export function parseSubjectPatch(body: unknown): SubjectPatch {
   if ('curriculum' in body) patch.curriculum = text(body.curriculum, 'Chương trình', 500);
   // The notebook's own prompt for the AI that writes and grades its lessons (L5.5).
   if ('instructions' in body) patch.instructions = text(body.instructions, 'Prompt của sổ', 4000);
+  if ('framework' in body) { const framework=frameworkInput.safeParse(body.framework);if(!framework.success)throw bad('Chuẩn học chưa hợp lệ.');patch.framework=framework.data; }
   if ('limits' in body) patch.limits = parseLimits(body.limits);
   if ('weight' in body) patch.weight = int(body.weight, 'Ưu tiên', 1, 5);
   if ('status' in body) { if (!statuses.has(body.status as string)) throw bad('Trạng thái không hợp lệ.'); patch.status = body.status as SubjectStatus; }

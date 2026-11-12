@@ -1,3 +1,6 @@
+import {applyRoadmapChanges,listSteps} from '../../roadmap/store.ts';
+import {frameworkFor,inferFramework} from '../../roadmap/frameworks.ts';
+import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
 import { validateLessonPackage } from '../../lesson-v2/validate.ts';
@@ -12,6 +15,7 @@ export type ValidationIssue = { path: string; code: string; message: string };
 export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date) {
   const errors: ValidationIssue[] = [],
     statements: ReturnType<EvidenceDb['prepare']>[] = [],
+    applyGuards: ReturnType<EvidenceDb['prepare']>[] = [],
     outcomes: { subjectId: string; status: string; lessonIds: string[]; reason: string }[] = [];
   const issue = (path: string, code: string, message: string) => errors.push({ path, code, message });
   const ids = result.subjects.map((s) => s.subjectId),
@@ -22,6 +26,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
   let newMinutes = extra.minutes;
   const savedIds: string[] = [...extra.savedIds];
   statements.push(...extra.statements);
+  applyGuards.push(...extra.guards);
   for (const [index, s] of result.subjects.entries()) {
     const path = '/subjects/' + index,
       c = context.subjects.find((x) => x.subjectId === s.subjectId);
@@ -29,7 +34,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       issue(path, 'unknown_reference', 'Sổ không thuộc ngữ cảnh.');
       continue;
     }
-    if (context.adaptive && job.purpose === 'request') {
+    const modern=context.roadmapProtocol===2;
+    const initial=modern&&job.purpose==='initial';
+    if (!modern&&(s.roadmapChanges||s.openingSteps||s.notebookSetup?.framework)) issue(path,'schema','Runner chưa hỗ trợ lộ trình mới.');
+    if (context.adaptive && job.purpose === 'request' && !modern) {
       if (s.action !== 'no_action' || s.primaryLesson || s.reviewSet || s.skillChanges.length ||
           s.roadmap || s.notebookSetup || s.requestsHandled.length || s.masteryProposals.length)
         issue(path, 'schema', 'Bài xin thêm chỉ được ghi qua yêu cầu của lượt này.');
@@ -62,28 +70,42 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       });
       continue;
     }
+    if(modern&&job.purpose==='request'&&(s.action!=='no_action'||s.primaryLesson||s.reviewSet||s.notebookSetup||s.requestsHandled.length||s.masteryProposals.length))
+      issue(path,'schema','Bài xin thêm chỉ được ghi qua yêu cầu của lượt này.');
     if (context.adaptive) {
       if (s.roadmap || s.reviewSet || s.requestsHandled.length) issue(path, 'schema', 'Giữ lộ trình và chỉ giao đúng bài của lượt này.');
       if (s.primaryLesson && (job.purpose !== 'daily' || !current.ai_enabled || current.status !== 'active' ||
           (context.adaptive.mode === 'learn' ? s.primaryLesson.kind !== 'new' :
-            context.adaptive.mode !== 'practice' || !['review', 'remediation'].includes(s.primaryLesson.kind))))
+            context.adaptive.mode === 'challenge' ? s.primaryLesson.kind !== 'diagnostic' : !['practice','review'].includes(context.adaptive.mode) || !['review', 'remediation'].includes(s.primaryLesson.kind))))
         issue(path + '/primaryLesson', 'schema', 'Bài chính phải đúng quyết định của Hub.');
     }
     const setup = s.notebookSetup;
     if (setup && (job.purpose !== 'initial' || current.status !== 'setup' ||
-        s.action !== 'assign' || !s.roadmap || s.primaryLesson?.kind !== 'diagnostic'))
+        s.action !== 'assign' || !(s.roadmap || s.openingSteps) || s.primaryLesson?.kind !== 'diagnostic'))
       issue(path + '/notebookSetup', 'schema', 'Chỉ điền thiết lập cho sổ mới cùng lộ trình và bài đầu tiên.');
+    const task=context.adaptive?.roadmapTask;
+    if(initial&&(!s.openingSteps||!setup?.framework||s.primaryLesson?.kind!=='diagnostic'))
+      issue(path,'schema','Sổ mới cần chuẩn học, 5–10 bước và một bài xếp chỗ.');
+    if(modern&&s.roadmap)issue(path+'/roadmap','schema','Dùng thao tác trên từng bước.');
+    if(modern&&!initial&&task==='replan'&&!s.openingSteps)issue(path+'/openingSteps','schema','Cần lập lại 5–10 bước.');
+    if(modern&&!initial&&task!=='replan'&&s.openingSteps)issue(path+'/openingSteps','schema','Chỉ lập bước đầu khi Hub yêu cầu.');
+    if(modern&&task==='extend'&&(s.roadmapChanges?.filter(change=>change.op==='append').length??0)<3)
+      issue(path+'/roadmapChanges','schema','Cần thêm ít nhất ba bước.');
+    if(modern&&task==='none'&&s.roadmapChanges?.length)issue(path+'/roadmapChanges','schema','Chưa cần thay đổi lộ trình.');
     if (s.action === 'issue') {
       outcomes.push({ subjectId: s.subjectId, status: 'rejected', lessonIds: [], reason: s.reason });
       continue;
     }
-    if (s.action === 'no_action' && (s.primaryLesson || s.reviewSet || s.skillChanges.length))
+    if (s.action === 'no_action' && (s.primaryLesson || s.reviewSet || (s.skillChanges.length&&!(modern&&(s.roadmapChanges?.length||s.openingSteps)))))
       issue(path, 'schema', 'no_action không được kèm bài hoặc thay đổi kỹ năng.');
     const text = [
       s.reason,
       s.progressSummary,
       ...(setup ? [setup.goal ?? '', setup.level, setup.curriculum, setup.instructions] : []),
       ...(s.roadmap??[]).flatMap(step=>[step.title,step.objective,step.situation]),
+      ...[...(s.openingSteps??[]),...(s.roadmapChanges??[]).map(change=>'step' in change?change.step:'fields' in change?change.fields:{situation:change.reason})]
+       .flatMap(step=>[step.title??'',step.objective??'',step.situation??'']),
+      setup?.framework?.custom??'',
       ...s.skillChanges.flatMap((x) => ['name' in x ? x.name : '', 'description' in x ? x.description : '', 'reason' in x ? x.reason : '']),
       ...s.masteryProposals.map((x) => x.reason),
       ...s.requestsHandled.map((x) => x.note),
@@ -100,7 +122,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       .prepare("SELECT count(*) AS n FROM skills WHERE subject_id=? AND origin='ai' AND created_at>=?")
       .bind(s.subjectId, addDays(job.learning_day, -6))
       .first<{ n: number }>();
-    if (job.purpose !== 'initial' && (added.length > c.limits.maxNewSkillsPerWeek - (week?.n ?? 0) || (added.length && !c.limits.allowNewTopics)))
+    if (job.purpose !== 'initial' && (added.length > Math.max(0, c.limits.maxNewSkillsPerWeek - (week?.n ?? 0)) || (added.length && !c.limits.allowNewTopics)))
       issue(path + '/skillChanges', 'skill_graph', 'Vượt giới hạn kỹ năng mới.');
     if (job.purpose === 'initial' && (added.length < 8 || added.length > 40 || s.primaryLesson?.kind !== 'diagnostic'))
       issue(path, 'skill_graph', 'Sổ mới cần 8–40 kỹ năng và bài chẩn đoán.');
@@ -176,6 +198,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         ),
     );
     if (s.roadmap) {
+      if((await listSteps(db,job.learner_id,s.subjectId)).length)issue(path+'/roadmap','schema','Sổ đã có bước ổn định.');
       if(s.roadmap.some(step=>step.skills.some(ref=>!resolve(ref)))) issue(path+'/roadmap','unknown_reference','Lộ trình tham chiếu kỹ năng ngoài sổ.');
       statements.push(db.prepare(`UPDATE subjects SET roadmap=? WHERE id=? AND learner_id=? AND ${gate}`).bind(JSON.stringify(s.roadmap.map(step=>({...step,skills:step.skills.map(ref=>resolve(ref))}))),s.subjectId,job.learner_id,...gateValues));
     }
@@ -224,6 +247,29 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             ),
         );
     }
+    let resultingSteps: Awaited<ReturnType<typeof listSteps>>|undefined;
+    if(modern&&(s.openingSteps||s.roadmapChanges?.length)){
+      try{
+        const changes=s.openingSteps?s.openingSteps.map(step=>({op:'append' as const,step})):s.roadmapChanges!;
+        const edit=await applyRoadmapChanges(db,{learnerId:job.learner_id,subjectId:s.subjectId,changes,jobId:job.id,
+          stamp:now.toISOString(),gate,bind:gateValues,resolveSkill:ref=>{const id=resolve(ref);return id&&skillMap.get(id)?.status!=='retired'?id:undefined;},
+          initialize:!!s.openingSteps,replan:task==='replan',
+          mastered:new Set(c.skills.filter(skill=>skill.mastery==='demonstrated').map(skill=>skill.skillId))});
+        resultingSteps=edit.steps;
+        statements.push(...edit.statements);
+        for(const step of edit.guards)
+          applyGuards.push(db.prepare(`INSERT INTO ai_apply_guards(token,valid)
+            SELECT ?,EXISTS(SELECT 1 FROM roadmap_steps WHERE id=? AND learner_id=? AND subject_id=? AND revision=? AND status='planned')
+            WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`)
+            .bind(token+':step:'+step.id,step.id,job.learner_id,s.subjectId,step.revision,job.id,token));
+        statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
+      }catch(error){issue(path+'/roadmapChanges','roadmap',String((error as Error).message).slice(0,300));}
+    }
+    if(initial||task==='replan'){
+      const selected=setup?.framework?frameworkFor(setup.framework,c.title,c.goal,c.curriculum):inferFramework(c.title,c.goal,c.curriculum);
+      statements.push(db.prepare(`UPDATE subjects SET framework=coalesce(framework,?),topic_key=coalesce(topic_key,?) WHERE id=? AND learner_id=? AND ${gate}`)
+        .bind(JSON.stringify(selected),selected.topicKey,s.subjectId,job.learner_id,...gateValues));
+    }
     const lessonIds = [],
       assignedPrompts = new Set<string>();
     for (const [field, packageInput] of [
@@ -231,9 +277,11 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: c.limits.maxDifficulty, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true, adaptive: !!context.adaptive });
+      const checked = validateLessonPackage(packageInput, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
+      if(modern&&checked.lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))
+        issue(path+'/'+field+'/template','roadmap','Bước chưa có nguồn. Hãy soạn bài kỹ năng.');
       const l = checked.lesson,
         slotKind = field === 'reviewSet' ? 'review' : 'primary';
       const version = lessonVersion(l);
@@ -290,6 +338,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           rubric: i.rubric?.map((r) => ({ ...r, ...(r.skill ? { skill: resolve(r.skill) } : {}) })),
         })),
       };
+      const stepRole=initial?'placement':context.adaptive?.stepRole??(l.kind==='new'&&context.adaptive?.step?.id.includes(':s')?'intro':null);
+      const stepId=stepRole&&stepRole!=='placement'?context.adaptive?.step?.id??null:l.kind==='new'?context.adaptive?.step?.id??null:null;
+      const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
+      if(modern)checkRoadmapLesson(resolved,context.adaptive,resultingSteps,initial,c.limits.maxDifficulty,msg=>issue(path+'/'+field,'roadmap',msg));
       const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))
         AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=?)`;
       const guardParams = [
@@ -304,7 +356,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       statements.push(
         db
           .prepare(
-            `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${guards}`,
+            `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id,step_role) SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${guards}`,
           )
           .bind(
             id,
@@ -318,13 +370,15 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             l.kind,
             slotKind,
             context.adaptive?.reason ?? l.why,
-            JSON.stringify(resolved.reasonRefs),
+            JSON.stringify(reasonRefs),
             l.estMinutes,
             job.id,
-            l.kind === 'new' ? context.adaptive?.step?.id ?? null : null,
+            stepId, stepRole,
             ...guardParams,
           ),
       );
+      if(modern&&stepRole==='intro'&&stepId)applyGuards.push(guardRoadmapIntroduction(db,job.learner_id,s.subjectId,stepId,job.id,token));
+      if(stepRole==='intro'&&stepId)statements.push(openRoadmapStep(db,job.learner_id,s.subjectId,stepId,id,now.toISOString()));
       for (const [i, item] of resolved.items.entries())
         statements.push(
           db
@@ -398,5 +452,5 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
   }
   if (!context.adaptive && newMinutes > 0 && context.policy.openMinutesNow + newMinutes > context.policy.maxOpenMinutes)
     issue('/subjects', 'over_budget', 'Bài đang mở và bài mới vượt 1,5 lần thời gian mục tiêu.');
-  return { errors, statements, outcomes, savedIds, newMinutes };
+  return { errors, statements, guards:applyGuards, outcomes, savedIds, newMinutes };
 }

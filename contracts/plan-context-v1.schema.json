@@ -34,9 +34,30 @@
       "type": "object",
       "properties": {
         "versionSeq": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forStepIds": {
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missingForStepIds": {
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "notes": {
           "maxItems": 6,
@@ -230,6 +251,8 @@
           "enum": [
             "learn",
             "practice",
+            "review",
+            "challenge",
             "personal",
             "none"
           ]
@@ -287,6 +310,63 @@
         },
         "reason": {
           "type": "string"
+        },
+        "reasonCode": {
+          "type": "string",
+          "enum": [
+            "next_step",
+            "step_practice",
+            "challenge_ready",
+            "confirmed_error",
+            "reviews_due",
+            "scaffold",
+            "roadmap_empty",
+            "personal"
+          ]
+        },
+        "stepRole": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "intro",
+                "practice",
+                "challenge",
+                "placement"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "difficulty": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            },
+            "max": {
+              "type": "integer",
+              "minimum": -9007199254740991,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false
+        },
+        "roadmapTask": {
+          "type": "string",
+          "enum": [
+            "replan",
+            "extend",
+            "none"
+          ]
         }
       },
       "required": [
@@ -298,6 +378,36 @@
         "reason"
       ],
       "additionalProperties": false
+    },
+    "roadmapProtocol": {
+      "type": "number",
+      "const": 2
+    },
+    "frameworks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "levels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "levels"
+        ],
+        "additionalProperties": false
+      }
     },
     "subjects": {
       "maxItems": 30,
@@ -387,8 +497,30 @@
             "type": "string",
             "maxLength": 3000
           },
+          "framework": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "levelFrom": {
+                "type": "string"
+              },
+              "levelTo": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key",
+              "label"
+            ],
+            "additionalProperties": false
+          },
           "roadmap": {
-            "maxItems": 10,
+            "maxItems": 80,
             "type": "array",
             "items": {
               "type": "object",
@@ -420,6 +552,27 @@
                     "review",
                     "new",
                     "mixed"
+                  ]
+                },
+                "requires": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "id": {
+                  "type": "string"
+                },
+                "band": {
+                  "type": "number"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "levelLabel": {
+                  "type": [
+                    "string",
+                    "null"
                   ]
                 }
               },

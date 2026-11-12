@@ -2,7 +2,12 @@ import type { NotebookOverview } from "../../../lib/learner-model/overview";
 import { Dots, shortDay, skillLabel } from "../paper-bits";
 import { words } from "../words";
 
-export function BookProgress({ data, child }: { data: NotebookOverview; child: boolean }) {
+import type { ComponentProps } from "react";
+import { RoadmapProgressView } from "./roadmap-progress";
+
+type Props = Omit<ComponentProps<typeof RoadmapProgressView>, "progress"> & { data: NotebookOverview; child: boolean; roadmap?: ComponentProps<typeof RoadmapProgressView>["progress"] | null };
+
+export function BookProgress({ data, child, roadmap, ...actions }: Props) {
   const correct = data.days.reduce((sum, day) => sum + day.correct, 0);
   const graded = data.days.reduce((sum, day) => sum + day.graded, 0);
   const studied = data.days.slice(-7).filter(day => day.seconds > 0).length;
@@ -12,6 +17,7 @@ export function BookProgress({ data, child }: { data: NotebookOverview; child: b
     ["g", "Ngữ pháp"], ["p", "Chính tả, dấu câu"], ["n", "Diễn đạt tự nhiên"], [null, null],
   ] as const;
   return <div className="bg-graph grid gap-5 p-3 sm:p-5">
+    {roadmap && <RoadmapProgressView key={actions.subjectId} progress={roadmap} {...actions} />}
     <section aria-label={words.place.days}>
       <h2 className="font-hand text-2xl">{words.place.days}</h2>
       {child && <p className="font-hand text-lg"><span aria-hidden="true">⭐</span> {studied} ngày học tuần này</p>}

@@ -427,3 +427,12 @@ Ngoài ra:
 - **Bài thử quá dễ, cho nhảy bước sai.** Tiêu chí cố định trong mã, có test. Nếu lỗi xác nhận xuất hiện ở bước đã qua, Hub giao bài luyện ngay.
 - **Gộp nguồn theo chủ đề lộ dữ liệu.** Chỉ nguồn công khai và câu hỏi qua `requirePublicText` vào Knowledge. Test riêng cho trường hợp hai hồ sơ.
 - **Workers Free CPU/D1.** `progress.ts` dùng dữ liệu đã đọc trong context, thêm tối đa 2 truy vấn mỗi job. Thêm test đếm số truy vấn D1 của một job (bọc `prepare` trong adapter test).
+
+## Nghiệm thu trên nhánh triển khai
+
+- Diễn tập R0 bằng SQLite có dữ liệu mẫu. Chạy thử báo sổ cần khôi phục, áp bản sửa trên bản sao, chạy lại báo không còn thay đổi.
+- Wrangler áp được 0024 và 0025 trên D1 local. Kiểm riêng trường hợp bài cũ đã hoàn thành, tham chiếu sai sổ và điều kiện học trước. Sao lưu rồi phục hồi dữ liệu lộ trình và nguồn dùng chung bằng SQLite.
+- Kiểm bằng dữ liệu thử Deutsch, Rust và Toán 7. Luồng Deutsch giả lập lưu bài xếp chỗ, đọc điểm, đánh dấu hai bước đã qua và xin học lại một bước. Cùng lượt xin học lại thêm ba bước mà giữ nguyên kết quả cũ.
+- Qwen qua LM Studio local đã mở sổ Rust v3, qua kiểm tra của Hub và lưu 5 bước cùng một bài xếp chỗ. Runner dùng năm cặp bước–câu có mã kỹ năng khớp sẵn trong schema.
+- Chrome kiểm trang Tiến độ ở khổ 390 px sáng và 1280 px tối. API local từ chối thao tác bỏ qua của trẻ em và chấp nhận người giám hộ trên hồ sơ được quản lý.
+- Staging còn chờ quyền đọc D1. Phiên Wrangler hiện tại bị Cloudflare từ chối với mã 7403. Sau khi có quyền, sao lưu và áp migration staging, deploy Hub trước runner rồi nghiệm thu luồng R6. Việc bật mặc định bài v3, chuyển runner đang dùng, đổi lịch Knowledge và triển khai production nằm trong các bước duyệt ở mục 4–5.

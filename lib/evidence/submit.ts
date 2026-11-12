@@ -1,4 +1,5 @@
 import { parseDraft } from '../lesson-v2/actions.ts';
+import {roadmapProgressWrite} from '../roadmap/progress.ts';
 import { recomputeSubmission } from '../learner-model/recompute.ts';
 import { ApiError } from '../api-error.ts';
 import type { Db } from '../subjects/service.ts';
@@ -263,6 +264,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   }
   statements.push(
     db.prepare('UPDATE submissions SET status=?,graded_at=? WHERE id=?').bind(pending ? 'deferred' : 'graded', pending ? null : stamp, id),
+    roadmapProgressWrite(db,learnerId,lessonId,now,gate,[id]),
   );
   try {
     await db.batch(statements);

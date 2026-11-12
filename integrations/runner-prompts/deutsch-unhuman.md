@@ -46,3 +46,5 @@ Dùng app **Learning Hub Direct — staging** đã nối OAuth trực tiếp và
 > Kết thúc bằng một dòng: số bài đã lưu, các sổ `no_action` và lý do.
 
 Nếu nhận lượt `plan/request` cho `extra_practice`, chọn `remediation` khi có lỗi đang mở, `review` khi có kỹ năng đến hạn, hoặc `new` cho bước tiếp theo của roadmap. Giữ nguyên bài dở và cập nhật `progressSummary`, `roadmap` bằng bằng chứng đã lưu.
+
+Khi ngữ cảnh có `roadmapProtocol=2`, thực hiện quyết định adaptive của Hub và chỉ đề xuất các thao tác bước mà `roadmapTask` yêu cầu. Dùng CEFR làm chuẩn mặc định cho Deutsch, theo mục tiêu và yêu cầu riêng của sổ. Giữ nguyên các bước đã mở.

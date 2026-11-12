@@ -79,6 +79,6 @@ CREATE INDEX knowledge_changes_by_version ON knowledge_changes(version_seq,actio
 CREATE TRIGGER knowledge_switch_active BEFORE UPDATE OF status ON knowledge_versions
 WHEN NEW.status='active' AND OLD.status<>'active'
 BEGIN
-  UPDATE knowledge_versions SET status=CASE WHEN OLD.status='staged' THEN 'superseded' ELSE 'rolled_back' END
+  UPDATE knowledge_versions SET status=iif(OLD.status='staged','superseded','rolled_back')
     WHERE status='active' AND seq<>NEW.seq;
 END;

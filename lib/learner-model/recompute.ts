@@ -1,3 +1,4 @@
+import {roadmapProgressWrite} from '../roadmap/progress.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import {berlinDay} from '../daily-policy.ts';
 import {addDays} from './rules.ts';
@@ -41,7 +42,7 @@ export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: 
 }
 
 /** Read revision before evidence; a newer computation wins. Pattern writes use a unique batch token. */
-export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId: string, now = new Date()) {
+export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId: string, now = new Date(), lessonId?:string) {
   for (let retry = 0; retry < 3; retry++) {
     // Skill and current state in one query; a request on Workers Free may make only ~50 D1 queries.
     const row = await db
@@ -203,6 +204,7 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
           ),
       );
     }
+    if(lessonId)statements.push(roadmapProgressWrite(db,learnerId,lessonId,now,gate,[skillId,token]));
     statements.push(db.prepare('SELECT recompute_token FROM skill_states WHERE skill_id=?').bind(skillId));
     const results = (await db.batch(statements)) as { results?: { recompute_token: string }[] }[];
     if (results.at(-1)?.results?.[0]?.recompute_token === token) return state;
@@ -212,11 +214,11 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
 export async function recomputeSubmission(db: EvidenceDb, learnerId: string, submissionId: string, now = new Date()) {
   const { results = [] } = await db
     .prepare(
-      'SELECT DISTINCT j.value AS skill FROM attempts a,json_each(a.skill_ids) j JOIN skills sk ON sk.id=j.value AND sk.learner_id=a.learner_id WHERE a.learner_id=? AND a.submission_id=?',
+      'SELECT DISTINCT j.value AS skill,a.lesson_id FROM attempts a,json_each(a.skill_ids) j JOIN skills sk ON sk.id=j.value AND sk.learner_id=a.learner_id WHERE a.learner_id=? AND a.submission_id=?',
     )
     .bind(learnerId, submissionId)
-    .all<{ skill: string }>();
-  for (const r of results) await recomputeSkill(db, learnerId, r.skill, now);
+    .all<{ skill: string; lesson_id:string }>();
+  for (const r of results) await recomputeSkill(db, learnerId, r.skill, now,r.lesson_id);
 }
 export async function readSubjectSkills(db: EvidenceDb, learnerId: string, subjectId: string) {
   const { results = [] } = await db

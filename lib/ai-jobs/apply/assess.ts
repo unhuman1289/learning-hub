@@ -4,6 +4,7 @@ import { itemIssues } from '../../lesson-v2/validate.ts';
 import { lessonItem } from '../../contracts/lesson-package-v2.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
 import type { Job } from '../context/common.ts';
+import {roadmapProgressWrite} from '../../roadmap/progress.ts';
 import { prepareJobStates } from '../../learner-model/job-state.ts';
 import type { ValidationIssue } from './plan.ts';
 import { promptHash } from '../../lesson-v2/store.ts';
@@ -246,7 +247,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
   const state = errors.length ? { statements: [], guards: [], clipped: [] } : await prepareJobStates(db, job, context, result, token, now);
   return {
     errors,
-    statements: [...statements, ...state.statements],
+    statements: [...statements, ...state.statements, roadmapProgressWrite(db,job.learner_id,context.lesson.lessonId,now,gate,[job.id,token])],
     gradeIds,
     skillIds: [...skillIds],
     stateGuards: state.guards,

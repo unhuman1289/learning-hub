@@ -8,7 +8,7 @@ export type SubjectLimits = { maxDifficulty: number; allowNewTopics: boolean; ma
 export type SubjectRow = {
   id: string; learner_id: string; title: string; template: SubjectTemplate; sensitivity: SubjectSensitivity;
   goal: string; opening_brief: string | null; level: string; curriculum: string; instructions?: string; limits: string; weight: number; status: SubjectStatus;
-  ai_enabled: number; legacy_track: LearningTrack | null; progress_summary: string; roadmap?: string; progress_updated_at: string | null;
+  ai_enabled: number; legacy_track: LearningTrack | null; progress_summary: string; roadmap?: string; framework?:string|null; topic_key?:string|null; progress_updated_at: string | null;
   revision: number; created_by: string; created_at: string; updated_at: string;
 };
 

@@ -1,3 +1,4 @@
+import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
 import { validateLessonPackage } from '../../lesson-v2/validate.ts';
@@ -30,6 +31,7 @@ export async function prepareExplorations(
   issue: Issue,
 ) {
   const statements: Statement[] = [],
+    guards: Statement[] = [],
     savedIds: string[] = [];
   let minutes = 0;
   const gate = 'EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)',
@@ -76,7 +78,8 @@ export async function prepareExplorations(
     const explore = !subjectId,
       targetId = subjectId ?? (await exploreSubjectId(job.learner_id));
     const checked = validateLessonPackage(e.lesson, {
-      maxDifficulty: known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
+      maxDifficulty: context.adaptive?.difficulty?.max ?? known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
+      minDifficulty:context.adaptive?.difficulty?.min,
       sensitivity: known?.sensitivity ?? 'normal',
       subjectTitle:known?.title,
       aiSizes: true,
@@ -85,6 +88,8 @@ export async function prepareExplorations(
     for (const problem of checked.issues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
     if (!checked.lesson) continue;
     const lesson = checked.lesson;
+    if(context.roadmapProtocol===2&&lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))
+      issue(path+'/lesson/template','roadmap','Bước chưa có nguồn. Hãy soạn bài kỹ năng.');
     const version = lessonVersion(lesson);
     const configured = known && await db.prepare("SELECT coalesce(json_extract(limits,'$.package'),2) AS version FROM subjects WHERE id=? AND learner_id=?")
       .bind(targetId, job.learner_id).first<{ version: number }>();
@@ -93,7 +98,7 @@ export async function prepareExplorations(
       continue;
     }
     const kinds = context.adaptive
-      ? { learn: ['new'], practice: ['review', 'remediation'], personal: ['exploration'], none: [] }[context.adaptive.mode]
+      ? { learn: ['new'], practice: ['review', 'remediation'], review:['review'], challenge:['diagnostic'], personal: ['exploration'], none: [] }[context.adaptive.mode]
       : request.kind === 'explore' ? ['exploration'] : ['new', 'remediation', 'review'];
     if (!kinds.includes(lesson.kind)) issue(path + '/lesson/kind', 'schema', `Yêu cầu này cần bài loại ${kinds.join(' hoặc ')}.`);
 
@@ -176,13 +181,23 @@ export async function prepareExplorations(
         rubric: i.rubric?.map((r) => ({ ...r, ...(r.skill ? { skill: resolve(r.skill) } : {}) })),
       })),
     };
+    const stepRole=context.adaptive?.stepRole??(lesson.kind==='new'&&context.adaptive?.step?.id.includes(':s')?'intro':null);
+    const stepId=stepRole||lesson.kind==='new'?context.adaptive?.step?.id??null:null;
+    const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
+    if(context.roadmapProtocol===2)checkRoadmapLesson(resolved,context.adaptive,undefined,false,known?.limits.maxDifficulty??3,msg=>issue(path+'/lesson','roadmap',msg));
+    if(context.roadmapProtocol===2&&known)guards.push(
+      db.prepare(`INSERT INTO ai_apply_guards(token,valid) SELECT ?,
+        EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND revision=? AND status='active')
+        AND EXISTS(SELECT 1 FROM learner_requests WHERE id=? AND learner_id=? AND job_id=? AND status IN ('queued','in_job'))
+        WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`)
+        .bind(token+':request:'+e.requestId,targetId,job.learner_id,known.revision,e.requestId,job.learner_id,job.id,...args));
     minutes += lesson.estMinutes;
     savedIds.push(id);
     statements.push(
       db
         .prepare(
-          `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id)
-           SELECT ?,?,?,?,?,?,?,?,?,'extra',?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=? ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
+          `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id,step_role)
+           SELECT ?,?,?,?,?,?,?,?,?,'extra',?,?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=? ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
         )
         .bind(
           id,
@@ -195,16 +210,18 @@ export async function prepareExplorations(
           lesson.template,
           lesson.kind,
           lesson.why,
-          JSON.stringify(resolved.reasonRefs),
+          JSON.stringify(reasonRefs),
           lesson.estMinutes,
           job.id,
-          lesson.kind === 'new' ? context.adaptive?.step?.id ?? null : null,
+          stepId, stepRole,
           ...args,
           targetId,
           job.learner_id,
           Number(version),
         ),
     );
+    if(context.roadmapProtocol===2&&stepRole==='intro'&&stepId)guards.push(guardRoadmapIntroduction(db,job.learner_id,targetId,stepId,job.id,token));
+    if(stepRole==='intro'&&stepId)statements.push(openRoadmapStep(db,job.learner_id,targetId,stepId,id,stamp));
     for (const [i, item] of resolved.items.entries())
       statements.push(
         db
@@ -238,5 +255,5 @@ export async function prepareExplorations(
         .bind(id, e.reason, stamp, e.requestId, job.learner_id, id, ...args),
     );
   }
-  return { statements, savedIds, minutes };
+  return { statements, guards, savedIds, minutes };
 }

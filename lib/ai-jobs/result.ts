@@ -1,3 +1,4 @@
+import {checkCoverage} from '../roadmap/coverage.ts';
 import {jobGapStatements} from '../knowledge/service.ts';
 import {openWorkMinutesSql} from './open-work.ts';
 import { estimateCost } from './cost.ts';
@@ -82,6 +83,7 @@ export async function applyResult(
       );
   if ('outcomes' in prepared) {
     const context = JSON.parse(job.context_snapshot!) as PlanContext;
+    guards.push(...prepared.guards);
     const minutes = prepared.newMinutes;
     if (minutes && !context.adaptive)
       guards.push(
@@ -147,8 +149,10 @@ export async function applyResult(
   // A recheck changes which grade counts; skills follow the committed result.
   if (job.purpose === 'recheck' && 'skillIds' in prepared)
     for (const skillId of prepared.skillIds)
-      await recomputeSkill(db, job.learner_id, skillId, now).catch((error) =>
+      await recomputeSkill(db, job.learner_id, skillId, now,(JSON.parse(job.context_snapshot!) as AssessContext).lesson.lessonId).catch((error) =>
         console.error('Skill not recomputed after recheck:', error instanceof Error ? error.message : error),
       );
+  if(job.kind==='plan'&&job.subject_id&&'subjects' in parsed.data&&parsed.data.subjects.some(s=>s.roadmapChanges?.length||s.openingSteps?.length))
+    await checkCoverage(db,job.learner_id,job.subject_id).catch(()=>console.error('Roadmap coverage not refreshed.'));
   return { status: 200, outcome: JSON.parse(saved.outcome!), replayed: false };
 }

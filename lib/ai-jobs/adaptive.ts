@@ -1,18 +1,23 @@
 import { z } from 'zod/v4';
+import { reasons } from '../roadmap/reasons.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 
 export const adaptiveDecision = z.object({
-  mode: z.enum(['learn', 'practice', 'personal', 'none']),
+  mode: z.enum(['learn', 'practice', 'review', 'challenge', 'personal', 'none']),
   minutes: z.union([z.literal(15), z.literal(45)]),
   step: z.object({ id: z.string(), title: z.string(), skills: z.array(z.string()) }).strict().nullable(),
   targetSkills: z.array(z.string()),
   needsScaffold: z.boolean(),
   reason: z.string(),
+  reasonCode:z.enum(Object.keys(reasons) as [keyof typeof reasons,...(keyof typeof reasons)[]]).optional(),
+  stepRole:z.enum(['intro','practice','challenge','placement']).nullable().optional(),
+  difficulty:z.object({min:z.number().int(),max:z.number().int()}).strict().optional(),
+  roadmapTask:z.enum(['replan','extend','none']).optional(),
 }).strict();
 
 type Skill = { skillId: string; prerequisites: string[]; mastery: string; nextReviewDay: string | null; status: string };
 type Pattern = { skillId: string; confidence: string; status: string };
-type RoadmapStep = { title: string; skills: string[]; mode: string };
+type RoadmapStep = { id?:string; title: string; skills: string[]; mode: string };
 export async function decideAdaptivePlan(
   db: EvidenceDb,
   learnerId: string,
@@ -25,10 +30,10 @@ export async function decideAdaptivePlan(
   errors: Pattern[],
 ): Promise<z.infer<typeof adaptiveDecision>> {
   const { results: introduced = [] } = await db.prepare(
-    'SELECT roadmap_step_id AS id FROM learning_lessons WHERE user_id=? AND subject_id=? AND roadmap_step_id IS NOT NULL',
+    "SELECT roadmap_step_id AS id FROM learning_lessons WHERE user_id=? AND subject_id=? AND roadmap_step_id IS NOT NULL AND (step_role IS NULL OR step_role='intro')",
   ).bind(learnerId, subjectId).all<{ id: string }>();
   const existing = new Set(introduced.map(row => row.id));
-  const next = roadmap.map((step, index) => ({ ...step, id: 'step_' + (index + 1) }))
+  const next = roadmap.map((step, index) => ({ ...step, id: step.id ?? ('step_' + (index + 1)) }))
     .find(step => step.mode !== 'review' && !existing.has(step.id));
   const step = next ? { id: next.id, title: next.title, skills: next.skills } : null;
   const live = skills.filter(skill => skill.status !== 'retired');

@@ -24,12 +24,13 @@ export const sourceSchema = z.strictObject({
   appliesInGermany: z.enum(['yes','no','unknown']).optional(),
   language: z.string().regex(/^[a-z]{2,3}(?:-[A-Z]{2})?$/), evidenceNote: text(400).optional(),
 });
+export const topicKey=z.string().regex(/^[\p{L}\p{N}][\p{L}\p{N}:-]{0,100}$/u);
 export const sourceInput = z.strictObject({
   versionId: identifier, clientChangeId: identifier, source: sourceSchema,
   notes: z.array(z.strictObject({
     heading: text(180), body: text(1500), quote: text(250).refine(value => value.split(/\s+/).length <= 25).optional(),
   })).min(1).max(12),
-  links: z.array(z.strictObject({ subjectId: identifier, skillKey: text(100).optional() })).min(1).max(12),
+  links: z.array(z.strictObject({ subjectId: identifier.optional(), topicKey:topicKey.optional(), skillKey: text(100).optional() }).refine(link=>!!(link.subjectId||link.topicKey))).min(1).max(12),
   gapIds: z.array(identifier).max(10).optional(),
 }).refine(input => input.notes.reduce((count,note)=>count+(note.quote?.split(/\s+/).length??0),0)<=25,
   "Chỉ trích tối đa 25 từ từ một nguồn.");

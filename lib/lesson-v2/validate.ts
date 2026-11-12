@@ -9,6 +9,7 @@ import { parseNumericAnswer } from './numeric.ts';
 export type LessonIssue = { path: string; code: string; message: string };
 export type ValidateOptions = {
   maxDifficulty?: number;
+  minDifficulty?: number;
   sensitivity?: SubjectSensitivity;
   /** Lessons written by an AI runner follow the sizes in docs/plan/LOCAL-GRADER.md D20; hand-imported lessons keep 3–25. */
   aiSizes?: boolean;
@@ -135,7 +136,11 @@ export function validateLessonPackage(
     if(item.key?.type==='text'&&item.key.accepted.some(isChemicalFormula)&&!item.key.caseSensitive)
       issue(`/items/${index}/key/caseSensitive`,'chemistry_case','Đáp án công thức phải phân biệt hoa/thường (Co khác CO).');
   });
-  items.forEach((item, index) => issues.push(...itemIssues(item, `/items/${index}`, maxDifficulty)));
+  items.forEach((item, index) => {
+    issues.push(...itemIssues(item, `/items/${index}`, maxDifficulty));
+    if (item.difficulty < (options.minDifficulty ?? 1))
+      issues.push({path:`/items/${index}/difficulty`,code:'difficulty_limit',message:'Câu quá dễ cho bước này.'});
+  });
 
   const learnerText = [
     lesson.title,

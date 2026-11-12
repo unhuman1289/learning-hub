@@ -62,7 +62,7 @@ export function leaseRequest(qwen, { daily = false } = {}) {
     purposes: ['submission', 'recheck', 'request', 'initial', ...(daily ? ['daily'] : [])],
     triggers: ['on_demand', 'deferred', ...(daily ? ['scheduled'] : [])],
     max: 1,
-    capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', ...(qwen.vision ? ['vision'] : [])],
+    capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(qwen.vision ? ['vision'] : [])],
     runner: { name: 'home-runner', version: VERSION, model: 'qwen' },
   };
 }

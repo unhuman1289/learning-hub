@@ -20,7 +20,7 @@ export function NotebookToday({ report, subject, book, learner, child, go, refre
   const extras = open.filter(row => row.id !== primary?.id);
   const writing = [book.nightly?.status, book.initial?.status].some(status => status === "queued" || status === "leased");
   const canRequest = !learner && subject.status === "active" && !book.setup;
-  const next = report?.next ?? [];
+  const next = report?.progress?.next.map(step => step.title) ?? report?.next ?? [];
   const month = report?.month ?? book.day.slice(0, 7);
   const chapter = chapterNumber(month, book.lessons[0]?.firstMonth ?? month);
   const empty = report && !report.daysStudied && !report.current.total && !report.lessonsDone;
@@ -38,6 +38,8 @@ export function NotebookToday({ report, subject, book, learner, child, go, refre
           {!!report.errors.length && <p className="font-hand text-lg text-brick">Hay nhầm · {report.errors.map(label => skillLabel(label.replace(/^[GPN]:\s*/, ""))).join(", ")}</p>}
           {report.due > 0 && <p className={pencil}>Cần ôn · {report.due} kỹ năng</p>}
         </>}
+      {report?.progress?.current && <p className={pencil}>Đang luyện · {report.progress.current.title}</p>}
+      {report?.progress?.whyNext && <p className={pencil}>{report.progress.whyNext}</p>}
       {!!next.length && <><h2 className="mt-3 font-hand text-xl text-accent">Sắp tới</h2>
         <ol className="ml-5 list-decimal">{next.map((step, i) => <li key={i}>{step}</li>)}</ol></>}
       {report?.cheer && !empty && <p className="mt-3 font-hand text-lg text-ok">{report.cheer}</p>}

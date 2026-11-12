@@ -25,9 +25,30 @@
       "type": "object",
       "properties": {
         "versionSeq": {
-          "type": "integer",
-          "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "forStepIds": {
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "missingForStepIds": {
+          "maxItems": 4,
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         },
         "notes": {
           "maxItems": 6,

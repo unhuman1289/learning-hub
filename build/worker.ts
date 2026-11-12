@@ -1,3 +1,5 @@
+import { checkNightlyCoverage } from '../lib/roadmap/coverage';
+import { berlinDay } from '../lib/daily-policy';
 import handler from "vinext/server/fetch-handler";
 import { hub2Guard, standaloneRequestGuard } from "./worker-boundary";
 import { createStoredBackup } from "../lib/backup-store";
@@ -34,7 +36,7 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
   if(at.getUTCMinutes()!==0)return [];
   switch (berlinHour.format(at)) {
     case "00":
-      return isBerlinPlanTime(at)?[["maintain jobs", () => maintainJobs(db, at)], ["queue daily plans", () => queueDaily(db, env, at)]]:[];
+      return isBerlinPlanTime(at)?[["maintain jobs", () => maintainJobs(db, at)], ["queue daily plans", () => queueDaily(db, env, at)], ["check roadmap sources", () => checkNightlyCoverage(db, berlinDay(at))]]:[];
     case "04":
       return [["refresh skills", () => refreshSkills(db, at)], ["expire attachments", () => expireAttachments(db, at)]];
     case "05":
