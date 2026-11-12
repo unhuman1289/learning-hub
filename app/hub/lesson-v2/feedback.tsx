@@ -20,7 +20,7 @@ function answerLabel(answer: string, item?: ItemView) {
 
 function linkedLines(text: string, onLine?: (line: number) => void) {
   if (!onLine) return text;
-  return text.split(/(dòng\s+[1-9]\d{0,3})/gi).map((part, index) => index % 2 === 0 ? part
+  return text.split(/(dòng\s+[1-9]\d{0,3}\b)/gi).map((part, index) => index % 2 === 0 ? part
     : <button key={index} type="button" className={pencilLink} onClick={() => onLine(Number(part.match(/\d+/)?.[0]))}>{part}</button>);
 }
 
