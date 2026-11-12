@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { HintNote, RevealedSolution } from "./hints";
-import { pencil, pencilLink } from "../paper-bits";
+import { pencil, pencilLink, ResultStamp } from "../paper-bits";
 import { CheckStamp } from "../notebook/check-stamp";
 import { PaperDialog } from "../paper-dialog";
 import { words } from "../words";
@@ -13,6 +13,8 @@ export function ItemCard({
   number,
   feedback,
   feedbackPreview,
+  feedbackResult,
+  feedbackSupported,
   onSubmit,
   submitLabel,
   canSubmit,
@@ -28,6 +30,8 @@ export function ItemCard({
   number: number;
   feedback?: ReactNode;
   feedbackPreview?: string;
+  feedbackResult?: string | null;
+  feedbackSupported?: boolean;
   onSubmit?: () => void;
   submitLabel?: string;
   canSubmit?: boolean;
@@ -47,8 +51,9 @@ export function ItemCard({
   } catch {}
   const fieldId = "answer-" + item.id;
   const locked = readOnly || disabled || uploading;
+  const compact = item.attachment === "none" ? item.input : undefined;
   return (
-    <article className="pb-7">
+    <article className="spread-question" data-compact={compact}>
       <div className="flex items-start justify-between gap-3">
         <h3 id={"question-" + item.id} className="min-w-0 whitespace-pre-wrap break-words text-lg font-semibold leading-[var(--paper-line-height)]">
           <span className="font-hand text-xl text-accent">{number}.</span> {formatText(item.prompt)}
@@ -80,7 +85,7 @@ export function ItemCard({
           ))}
         </fieldset>
       ) : (
-        <div>
+        <div className="spread-answer">
           <label htmlFor={fieldId} className="sr-only">Bài làm của bạn</label>
           {item.input === "short" ? (
             <input
@@ -145,13 +150,16 @@ export function ItemCard({
         </div>
       )}
       {value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
-      {!readOnly && <CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
+      {!readOnly && <div className="spread-check"><CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
         canSubmit={!!canSubmit} hasAnswer={item.input === "choice" ? selected.length > 0 : !!value.answer.trim() || !!value.attachmentIds?.length}
-        onSubmit={onSubmit} />}
+        onSubmit={onSubmit} /></div>}
       <div className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
         {(feedback || item.revealed.solution) && <button type="button" className="min-h-11 w-full text-left font-hand text-lg text-brick hover:underline"
           aria-haspopup="dialog" onClick={() => setShowFeedback(true)}>
-          <span className="line-clamp-2">{item.revealed.solutionSeen && item.revealed.solution ? `Đã xem lời giải · ${formatText(item.revealed.solution)}` : feedbackPreview || "Xem lời phê"}</span>
+          <span className="flex min-w-0 items-start gap-2">
+            {feedbackResult && <ResultStamp result={feedbackResult} className={feedbackSupported ? "shrink-0 opacity-60" : "shrink-0"} />}
+            <span className="line-clamp-2 min-w-0 leading-snug">{feedbackSupported && feedbackResult === "correct" ? "Đã xem lời giải, không tính điểm." : item.revealed.solutionSeen && item.revealed.solution ? `Đã xem lời giải · ${formatText(item.revealed.solution)}` : feedbackPreview || "Xem lời phê"}</span>
+          </span>
         </button>}
       </div>
       {showFeedback && <PaperDialog title={words.feedback.grade} labelId={`feedback-${item.id}`} onClose={() => setShowFeedback(false)}>

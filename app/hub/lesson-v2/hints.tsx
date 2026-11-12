@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import { pencilLink } from "../paper-bits";
 
@@ -12,9 +12,36 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
   const [open, setOpen] = useState(false);
   const note = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
+  const overlay = useRef<HTMLDivElement>(null);
   const panel = useId();
   const shown = item.revealed.hints.length;
   const next = shown < item.hintCount ? (shown === 0 ? "hint1" : "hint2") : null;
+
+  useLayoutEffect(() => {
+    const card = overlay.current;
+    const button = trigger.current;
+    if (!open || !card || !button) return;
+    function position() {
+      if (!card || !button) return;
+      const anchor = button.getBoundingClientRect();
+      const x = Math.max(8, Math.min(anchor.right - card.offsetWidth, window.innerWidth - card.offsetWidth - 8));
+      const below = anchor.bottom + 4;
+      const y = below + card.offsetHeight <= window.innerHeight - 8
+        ? below : Math.max(8, anchor.top - card.offsetHeight - 4);
+      card.style.left = x + "px";
+      card.style.top = y + "px";
+    }
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(card);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -36,20 +63,17 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
       trigger.current?.focus();
     }}>
     <button ref={trigger} type="button" aria-label="Gợi ý" aria-expanded={open} aria-controls={open ? panel : undefined}
-      className={`question-hint grid size-11 place-items-center font-hand text-lg text-postit-ink ${shown || item.revealed.solution ? "bg-stone" : "bg-postit-yellow"}`}
-      onClick={() => {
-        setOpen(!open);
-        if (!open && shown === 0 && next && !disabled) onReveal(next);
-      }}>?</button>
-    {open && <div id={panel} role="region" aria-label="Gợi ý cho câu này"
-      className="absolute right-0 top-full z-10 mt-1 max-h-[55dvh] w-[min(20rem,calc(100vw-5rem))] overflow-auto bg-postit-yellow p-3 text-base text-postit-ink shadow-page">
+      className={`question-hint grid size-11 place-items-center font-hand text-lg text-postit-ink ${item.revealed.solutionSeen ? "bg-ok-soft" : shown ? "bg-stone" : "bg-postit-yellow"}`}
+      onClick={() => setOpen(!open)}>?</button>
+    {open && <div ref={overlay} id={panel} role="region" aria-label="Gợi ý cho câu này"
+      className="fixed z-20 max-h-[55dvh] w-[min(20rem,calc(100vw-5rem))] overflow-auto bg-postit-yellow p-3 text-base text-postit-ink shadow-page">
       <div aria-live="polite">
         {item.revealed.hints.map((hint, i) => <p key={i}>Gợi ý {i + 1} · {formatText(hint)}</p>)}
       </div>
       {next && <button type="button" disabled={disabled} className={pencilLink} onClick={() => onReveal(next)}>
         {shown ? "Gợi ý tiếp" : "Gợi ý 1"}
       </button>}
-      {!next && !item.revealed.solution &&
+      {!item.revealed.solutionSeen &&
         <button type="button" disabled={disabled} className={pencilLink} onClick={() => {
           setOpen(false);
           trigger.current?.focus();

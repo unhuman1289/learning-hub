@@ -47,7 +47,7 @@ export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
   return {
     result: correct ? 'correct' : 'incorrect',
     score: correct ? 1 : 0,
-    feedback: correct ? 'Đúng theo đáp án.' : 'Chưa khớp đáp án. Xem lời giải rồi thử sửa lại.',
+    feedback: correct ? 'Đúng.' : 'Chưa đúng. Đọc lại đề và thử sửa nhé.',
   };
 }
 

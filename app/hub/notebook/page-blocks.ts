@@ -5,20 +5,21 @@ export type PageBlock = {
   text?: Text[];
   reservedLines?: number;
   long?: boolean;
+  extraLine?: boolean;
 };
 
-export function pageGeometry(width: number, height: number, child: boolean) {
+export function pageGeometry(width: number, availableHeight: number, child: boolean, measuredWidth?: number) {
   const double = width >= 1024;
   const line = child ? 32 : 28;
-  const min = double ? 18 : width >= 640 ? 16 : 14;
-  const pageWidth = double ? Math.min(512, (width - 128) / 2)
+  const widthLimit = double ? Math.min(512, (width - 128) / 2)
     : width >= 640 ? Math.min(640, width - 48) : width - 16;
+  const pageWidth = Math.min(widthLimit, measuredWidth ?? widthLimit);
   return {
     double,
     line,
-    lines: Math.min(26, Math.max(min, Math.floor((height - 172) / line))),
+    lines: Math.min(26, Math.max(1, Math.floor(availableHeight / line) - 2)),
     width: pageWidth,
-    textWidth: Math.max(100, pageWidth - (width >= 640 ? 80 : 56)),
+    textWidth: Math.max(100, pageWidth - (width >= 640 ? 72 : 56)),
     font: child ? 19 : 17,
   };
 }
@@ -30,14 +31,14 @@ export function blockLines(block: PageBlock, { textWidth, font }: Geometry) {
     const chars = Math.max(1, Math.floor(textWidth / (font * (handwriting ? 0.6 : 0.52))));
     return sum + value.split("\n").reduce((count, line) => count + Math.max(1, Math.ceil(line.length / chars)), 0);
   }, 0);
-  return lines + (block.reservedLines ?? 0) + 1;
+  return lines + (block.reservedLines ?? 0) + Number(!!block.extraLine);
 }
 
 export function pageBlocks<T extends PageBlock>(blocks: T[], geometry: Geometry) {
   const pages: T[][] = [];
   let current: T[] = [];
   let used = 0;
-  const capacity = geometry.lines - 3;
+  const capacity = Math.max(1, geometry.lines - 1);
   function flush() {
     if (current.length) pages.push(current);
     current = [];

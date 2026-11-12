@@ -45,3 +45,33 @@ test("new, resumed, correction and completed lessons open the intended block", (
   assert.equal(initialLessonBlock({ ...fresh, hasWork: true, firstUnanswered: 2, correction: 0 }), "cau-1");
   assert.equal(initialLessonBlock({ ...fresh, completed: true }), "summary");
 });
+
+for (const lines of [18, 22, 26]) test(`four short questions occupy a single spread at ${lines} lines`, () => {
+  const geometry = { ...pageGeometry(1280, 800, true), lines };
+  const items = [
+    { id: "choice", kind: "item", reservedLines: 4, text: [{ value: "Chọn câu đúng." }, { value: "Ich kann arbeiten." }, { value: "Ich kann arbeitet." }] },
+    ...[1, 2, 3].map(id => ({ id: `short-${id}`, kind: "item", reservedLines: 5, text: [{ value: "Viết một câu ngắn." }] })),
+    { id: "long", kind: "item", reservedLines: 9, long: true },
+  ];
+  const pages = pageBlocks(items, geometry);
+  assert.ok(pages[0].length >= 2);
+  assert.ok(pages.slice(0, 2).flat().filter(block => !block.long).length >= 3);
+});
+
+test("paper height never exceeds the space measured below the toolbar", () => {
+  const available = 501;
+  const geometry = pageGeometry(1280, available, true, 431);
+  assert.ok((geometry.lines + 2) * geometry.line <= available);
+  assert.equal(geometry.width, 431);
+});
+
+test("40 lines of notes continue without exceeding the paper body", () => {
+  const geometry = { ...pageGeometry(768, 680, true), lines: 18 };
+  const notes = Array.from({ length: 10 }, (_, index) => ({
+    id: `remember-${index}`, kind: "remember", text: [{ value: "Đọc ví dụ.\n".repeat(3) + "Tự thử." }],
+  }));
+  const pages = pageBlocks(notes, geometry);
+  assert.equal(pages.length, 3);
+  assert.deepEqual(pages.flat(), notes);
+  assert.ok(pages.every(page => page.reduce((sum, note) => sum + blockLines(note, geometry), 0) <= geometry.lines - 1));
+});

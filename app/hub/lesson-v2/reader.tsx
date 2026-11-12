@@ -11,7 +11,7 @@ import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { Drafts } from "../lesson-page";
 import { buttonClass } from "../ui";
-import { Sheet } from "./sheet";
+import { sheetBlocks, splitPaperText } from "./sheet";
 import { PaperConfirm } from "../paper-confirm";
 import { words } from "../words";
 import { ItemCard } from "./item-card";
@@ -320,21 +320,15 @@ export function LessonReader({
       <p className="mt-3">{lesson.objective}</p>
       <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
     </> }];
-  if (lesson.sheet) {
-    const sheet = lesson.sheet;
-    blocks.push({
-      id: "remember", kind: "remember", reservedLines: 4,
-      text: [sheet.explanation, ...sheet.rules, ...sheet.mistakes, ...sheet.tips, ...sheet.checklist,
-        ...sheet.examples.map(example => [example.text, example.note].filter(Boolean).join(" "))].map(value => ({ value })),
-      node: <Sheet sheet={sheet} formatText={formatText} />,
-    });
-  }
+  if (lesson.sheet) blocks.push(...sheetBlocks(lesson.sheet, formatText ?? (text => text)));
   for (const [i, section] of lesson.sections.entries()) {
-    blocks.push({
-      id: `remember-${i}`, kind: "remember",
-      text: [{ value: section.heading, handwriting: true }, { value: section.text }],
-      node: <section><h2 tabIndex={-1} className="font-hand text-xl">{section.heading}</h2><p className="whitespace-pre-wrap">{section.text}</p></section>,
-    });
+    for (const [j, value] of splitPaperText(section.text).entries()) {
+      blocks.push({
+        id: `remember-section-${i}-${j}`, kind: "remember", reservedLines: j === 0 ? 1 : 0,
+        text: [{ value }],
+        node: <>{j === 0 && <h2 tabIndex={-1} className="font-hand text-xl">{section.heading}</h2>}<p>{value}</p></>,
+      });
+    }
   }
   if (lesson.diagram) blocks.push({ id: "diagram", kind: "remember", text: [{ value: lesson.diagram }],
     node: <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre> });
@@ -356,13 +350,16 @@ export function LessonReader({
     const changed = !latest || latest.answer !== answers[item.id]?.answer || !!answers[item.id]?.attachmentIds?.length;
     const canSubmit = !busy && (pending === item.id || (!pending && !waiting(current) && !!hasWork && (changed || !latest?.result)));
     blocks.push({ id: `cau-${index + 1}`, kind: "item", label: `Câu ${index + 1}`, long: item.input === "long",
-      reservedLines: 5 + (item.input === "long" ? 5 : item.input === "short" ? 2 : 0) + (item.attachment ? 3 : 0),
+      reservedLines: 4 + (item.input === "long" ? 5 : item.input === "short" && item.attachment !== "none" ? 1 : 0)
+        + (item.attachment !== "none" ? 2 : 0),
+      extraLine: item.prompt.length > 60,
       text: [item.prompt, item.instructions, ...(item.choices ?? []).map(choice => choice.text)].filter((value): value is string => !!value).map(value => ({ value })),
       node: <ItemCard formatText={formatText} item={item} number={index + 1}
         value={answers[item.id] ?? { answer: "" }} disabled={busy || !!pending} readOnly={frozen}
         onChange={value => change(item.id, value)} onReveal={level => reveal(item.id, level)}
         onSubmit={() => void submit(item.id)} canSubmit={canSubmit}
         submitLabel={current ? words.action.recheck : words.action.check}
+        feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
         feedbackPreview={latest?.feedback ? (formatText?.(latest.feedback) ?? latest.feedback)
           : current && waiting(current) ? runner?.online === false ? words.status.gradeLater : words.status.grading
           : latest?.result ? words.result[latest.result as keyof typeof words.result] : undefined}
