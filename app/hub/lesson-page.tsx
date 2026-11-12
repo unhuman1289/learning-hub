@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ArrowRight, ArrowUpRight, Check, Paperclip } from "lucide-react";
+import { SketchIcon } from "./sketch-icons";
 import { MarginDate, RuledPage, Stamp, StickyNote, cx } from "../../components/notebook/paper";
 import type { LessonSource } from "../lesson-content";
 import { berlinKey, dateTimeOf, shortDate, staticSources, type Page } from "./model";
@@ -84,7 +84,7 @@ function DailyLessonPage({ page, number, daily, drafts, readOnly }: { page: Extr
         >
           <button type="button" disabled={busy || !unsaved} onClick={() => void save(completed)} className={buttonClass("secondary")}>Lưu bài làm</button>
           <button type="button" disabled={busy} onClick={() => void save(!completed)} className={buttonClass(completed ? "ghost" : "primary")}>
-            {completed ? "Bỏ dấu đã học" : <><Check size={16} aria-hidden="true" /> Đã học xong</>}
+            {completed ? "Bỏ dấu đã học" : <><SketchIcon name="check" size={16} /> Đã học xong</>}
           </button>
         </ActionBar>
       )}
@@ -156,7 +156,7 @@ function StaticLessonPage({ page, workspace, drafts, readOnly }: { page: Extract
         <ActionBar status={workspace.saving ? "Đang lưu…" : message || (value.trim() ? "Có bài làm chưa lưu" : "")} error={workspace.error}>
           <button type="button" disabled={!workspace.loaded || workspace.saving || !value.trim()} onClick={() => void saveAnswer()} className={buttonClass("secondary")}>Lưu bài làm</button>
           <button type="button" disabled={!workspace.loaded || workspace.saving} onClick={async () => { const ok = await workspace.toggleDone(lesson.id); setJustCompleted(ok && !completed); }} className={buttonClass(completed ? "ghost" : "primary")}>
-            {completed ? "Bỏ dấu đã học" : <><Check size={16} aria-hidden="true" /> Đã học xong</>}
+            {completed ? "Bỏ dấu đã học" : <><SketchIcon name="check" size={16} /> Đã học xong</>}
           </button>
         </ActionBar>
       )}
@@ -255,12 +255,12 @@ function LessonSheet({ meta, date, title, stamp, stampPressed = false, body, ans
 
       {body.sources.length > 0 && (
         <section className="mt-14 max-w-[68ch]">
-          <h2 className="flex items-center gap-2 font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent"><Paperclip size={20} aria-hidden="true" /> Kẹp tài liệu</h2>
+          <h2 className="flex items-center gap-2 font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent"><SketchIcon name="clip" size={20} /> Kẹp tài liệu</h2>
           <ul className="grid gap-7">
             {body.sources.map((source) => (
               <li key={source.url}>
                 <a href={source.url} target="_blank" rel="noopener noreferrer" className="pencil-underline inline-flex items-center gap-1 font-semibold leading-7 text-accent">
-                  {source.title} <ArrowUpRight size={15} aria-hidden="true" />
+                  {source.title} <SketchIcon name="external" size={15} />
                 </a>
                 <p className="text-[15px] leading-7">{source.readScope}</p>
                 <p className="text-sm leading-7 text-muted">
@@ -276,7 +276,7 @@ function LessonSheet({ meta, date, title, stamp, stampPressed = false, body, ans
       {body.nextTopic && (
         <p className="mt-14 flex max-w-[68ch] items-start gap-2 leading-7">
           <span className="shrink-0 font-hand text-lg text-accent">Bài sau</span>
-          <ArrowRight size={16} aria-hidden="true" className="mt-1.5 shrink-0 text-accent" />
+          <SketchIcon name="forward" size={16} className="mt-1.5 shrink-0 text-accent" />
           <span>{body.nextTopic}</span>
         </p>
       )}

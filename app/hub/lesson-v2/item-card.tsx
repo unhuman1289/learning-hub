@@ -55,7 +55,7 @@ export function ItemCard({
   return (
     <article className="spread-question" data-compact={compact}>
       <div className="flex items-start justify-between gap-3">
-        <h3 id={"question-" + item.id} className="min-w-0 whitespace-pre-wrap break-words text-lg font-semibold leading-[var(--paper-line-height)]">
+        <h3 id={"question-" + item.id} tabIndex={-1} className="min-w-0 whitespace-pre-wrap break-words text-lg font-semibold leading-[var(--paper-line-height)]">
           <span className="font-hand text-xl text-accent">{number}.</span> {formatText(item.prompt)}
         </h3>
         <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />

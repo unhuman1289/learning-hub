@@ -9,6 +9,7 @@ import type { BookPage, NotebookTab, Route } from "../use-route";
 import { coverTransition, type TrackId } from "../model";
 import { LubeckWindow, useBerlinClock } from "../lubeck/window";
 import { words } from "../words";
+import { SketchIcon } from "../sketch-icons";
 
 const tabs = [
   { page: "hom-nay", label: "Hôm nay", color: "bg-postit-mint" },
@@ -43,12 +44,12 @@ export function Book({ title, go, children, paged = false, ...current }: {
     <OakDesk drawers={!reading} className={reading ? "sm:[&>.bg-oak-planks]:pt-2" : undefined}>
     <div className="flex items-center justify-between gap-3 text-oak-ink">
       <RouteLink route={close} go={go} className="inline-flex min-h-11 items-center gap-2 rounded-sm bg-oak-dark px-2 font-hand text-lg hover:underline">
-        <span aria-hidden="true">←</span>{words.action.close}
+        <SketchIcon name="closeBook" size={24} />{words.action.close}
       </RouteLink>
       {!legacy && <span aria-hidden="true" style={{ viewTransitionName: `cover-${current.id}` }}><MiniCover className="w-8" /></span>}
       {legacy && <h1 className="truncate rounded-sm bg-oak-dark px-2 font-print text-2xl" style={{ viewTransitionName: coverTransition[current.track] }}>{title}</h1>}
       <RouteLink route={settings} go={go} aria-label={words.place.settings}
-        aria-current={active === "cai-dat" || active === "muc-tieu" ? "page" : undefined} className="grid size-11 place-items-center rounded-sm bg-oak-dark hover:underline"><span aria-hidden="true" className="text-xl">⚙</span></RouteLink>
+        aria-current={active === "cai-dat" || active === "muc-tieu" ? "page" : undefined} className="grid size-11 place-items-center rounded-sm bg-oak-dark hover:underline"><SketchIcon name="settings" /></RouteLink>
     </div>
     <div style={{ viewTransitionName: "book" }} className="grid min-w-0 items-start gap-y-1 sm:grid-cols-[minmax(0,1fr)_6rem]">
       <nav aria-label="Trang trong sổ" className="flex flex-wrap items-center gap-1 sm:col-start-2 sm:row-start-1 sm:mt-9 sm:flex-col sm:items-stretch">

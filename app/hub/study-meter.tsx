@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Hourglass } from "lucide-react";
+import { SketchIcon } from "./sketch-icons";
 import { cx } from "../../components/notebook/paper";
 import { buttonClass } from "./ui";
 import type { StudyClock } from "./use-study-clock";
@@ -43,7 +43,7 @@ export function StudyMeter({ clock, labelFor }: { clock: StudyClock; labelFor: (
         className="flex min-h-11 items-center gap-2 rounded-[3px] bg-paper/85 px-2.5 text-ink-paper shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] transition-colors hover:bg-paper"
       >
         {/* The hourglass keeps turning over while time is being counted. */}
-        <Hourglass size={15} aria-hidden="true" className={cx(reached ? "text-ok" : "text-accent-paper", counting && "animate-hourglass")} />
+        <SketchIcon name="hourglass" size={15} className={cx(reached ? "text-ok" : "text-accent-paper", counting && "animate-hourglass")} />
         <span className="grid gap-1">
           <span className="text-xs font-semibold leading-none tabular-nums">{minutes}<span className="font-normal text-muted-paper">/{targetMinutes} phút</span></span>
           {/* A tiny ruler with a tick at each quarter of the target; it grows a little every few seconds. */}

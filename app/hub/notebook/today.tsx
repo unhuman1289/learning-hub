@@ -4,6 +4,7 @@ import type { ShelfSubject } from "../use-shelf";
 import type { Route } from "../use-route";
 import { AdaptiveRequests } from "../adaptive-requests";
 import { NewLessonRequest } from "../new-lesson-request";
+import { SketchIcon } from "../sketch-icons";
 import { pencil, pencilLink, skillLabel } from "../paper-bits";
 import { buttonClass, RouteLink } from "../ui";
 import { words } from "../words";
@@ -50,8 +51,9 @@ export function NotebookToday({ report, subject, book, learner, child, go, refre
         <RouteLink route={{ view: "lesson", id: primary.id }} go={go} className={buttonClass("primary", "mt-1")}>
           {primary.hasWork ? words.action.continue : words.action.open} <span aria-hidden="true">→</span>
         </RouteLink>
-      </div> : <p role="status" className={pencil}>
-        {writing ? "⌛ Bài hôm nay đang được soạn." : book.setup ? "Chưa lưu được bài đầu tiên." : "Bạn đã xong phần hôm nay."}
+      </div> : <p role="status" className={pencil + " flex items-center gap-2"}>
+        {writing ? <><SketchIcon name="hourglass" size={20} />Bài hôm nay đang được soạn.</>
+          : book.setup ? "Chưa lưu được bài đầu tiên." : "Bạn đã xong phần hôm nay."}
       </p>}
       {!!extras.length && <div className="mt-3"><h2 className="font-hand text-xl text-accent">Bài luyện thêm đang chờ</h2>
         <ul>{extras.map(row => <li key={row.id}><RouteLink route={{ view: "lesson", id: row.id }} go={go} className={pencilLink}>{row.title}</RouteLink>

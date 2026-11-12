@@ -32,13 +32,15 @@ export function LessonSummary({ lessonId, subjectId, learner, reflectionId, wait
     ["correctFirst", "đúng ngay"], ["correctAfterRetry", "đúng sau khi sửa"], ["needsCorrection", "cần sửa lại"],
     ["solutionsSeen", "đã xem lời giải"], ["unanswered", "chưa làm"], ["pending", "chờ chấm"],
   ] as const;
+  const needsWork = data && (data.needsCorrection > 0 || data.unanswered > 0);
   return (
     <section aria-label="Tổng kết bài">
       <h2 tabIndex={-1} className="font-hand text-[28px] leading-[3.5rem] text-accent">Tổng kết bài</h2>
       {error && <p role="alert">{error}</p>}
       {!data && !error && <p role="status" className={pencil}>Đang đọc tổng kết…</p>}
       {data && <>
-        {completed && <Stamp label={data.needsCorrection || data.unanswered ? "Cố lên!" : data.pending || data.solutionsSeen ? "Đã học" : "Giỏi lắm!"} pressed={justCompleted} />}
+        {completed && <Stamp label={needsWork ? "Cố lên!" : data.pending || data.solutionsSeen ? "Đã học" : "Giỏi lắm!"}
+          className={needsWork ? "border-warn! text-warn!" : undefined} pressed={justCompleted} />}
         <ul>
           {tally.filter(([key]) => data[key] > 0).map(([key, label]) => {
             const id = data.firstByResult?.[key];

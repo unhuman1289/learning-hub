@@ -1,9 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Patrick+Hand&display=swap');
 @import "tailwindcss";
 
-/* Unused shadcn starter components are not part of the notebook UI. */
-@source not "../components/ui";
-
 /*
   Sổ Học in a Landhaus study: lime-plaster walls, an oak-beamed ceiling, a painted bookcase with oak
   shelves and an oak desk. Notebooks are marble composition books with ruled paper and a pink margin.
@@ -376,6 +373,7 @@
 ::view-transition-group(*) { animation-duration: 560ms; animation-timing-function: cubic-bezier(0.45, 0, 0.2, 1); }
 html[data-vt="open"]::view-transition-new(book) { animation: book-rise 620ms cubic-bezier(0.2, 0.8, 0.25, 1) both; }
 html[data-vt="close"]::view-transition-old(book) { animation: book-sink 380ms ease-in both; }
+html[data-vt="turn"]::view-transition-image-pair(lesson-page) { overflow: clip; }
 html[data-vt="turn"]::view-transition-old(lesson-page) {
   transform-origin: left center;
   animation: page-turn 600ms cubic-bezier(0.45, 0.05, 0.3, 1) both;
@@ -388,8 +386,8 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
 }
 @keyframes book-sink { to { opacity: 0; transform: perspective(1400px) translateY(50px) rotateX(10deg) scale(0.95); } }
 @keyframes page-turn {
-  0% { transform: perspective(2000px) rotateY(0deg); filter: brightness(1); }
-  100% { transform: perspective(2000px) rotateY(-100deg); filter: brightness(0.7); opacity: 0.4; }
+  0% { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); transform: perspective(2000px) rotateY(0deg); filter: brightness(1); }
+  100% { clip-path: polygon(0 0, 100% 0, 75% 100%, 0 100%); transform: perspective(2000px) rotateY(-85deg); filter: brightness(0.7); opacity: 0.4; }
 }
 @keyframes page-under { from { filter: brightness(0.85); } to { filter: brightness(1); } }
 @media (prefers-reduced-motion: reduce) {
@@ -485,10 +483,27 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
   touch-action: pan-y;
   view-transition-name: lesson-page;
 }
-.spread-pages { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); }
+.spread-pages {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  box-shadow: 0 2px #e5d5b9, 0 4px #ccba9c, 0 5px 2px #39271680;
+}
 .lesson-spread[data-double="true"] .spread-pages {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 2px;
+}
+.lesson-spread[data-double="true"] .spread-pages::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0 auto 0 50%;
+  width: 12px;
+  translate: -50% 0;
+  content: "";
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 9px, #9d7658 9px 13px, transparent 13px 22px) center / 1px 100% no-repeat,
+    linear-gradient(to right, transparent, #49301c33 45%, #49301c55 50%, #49301c20 58%, transparent);
 }
 .spread-page {
   --margin-x: 2.25rem;

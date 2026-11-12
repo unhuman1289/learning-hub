@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { KeyRound } from "lucide-react";
+import { SketchIcon } from "../app/hub/sketch-icons";
 import { PaperDialog } from "../app/hub/paper-dialog";
 import { ProfileSettings } from "../app/hub/profile-settings";
 
@@ -258,7 +258,7 @@ function ManageButton({ busy, onManage }: { busy: boolean; onManage: (pin: strin
   if (!asking)
     return (
       <button type="button" className="inline-flex min-h-11 items-center gap-2 justify-self-start text-sm underline" onClick={() => setAsking(true)}>
-        <KeyRound size={18} aria-hidden /> Chế độ quản lý
+        <SketchIcon name="key" size={18} /> Chế độ quản lý
       </button>
     );
   return (

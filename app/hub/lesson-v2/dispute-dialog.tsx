@@ -1,4 +1,5 @@
 "use client";
+import { SketchIcon } from "../sketch-icons";
 
 import { pencil, pencilLink } from "../paper-bits";
 import { useState } from "react";
@@ -81,7 +82,8 @@ export function DisputeControl({ attemptId, dispute, readOnly, onChanged, child 
   return (
     <div className="flex flex-wrap items-baseline gap-x-4">
       {dispute && (
-        <p role="status" className={pencil}>
+        <p role="status" className={pencil + " flex items-center gap-2"}>
+          {(dispute.status === "upheld" || dispute.status === "overturned") && <SketchIcon name="refresh" size={16} />}
           {statusText[dispute.status] ?? "Đang xem lại."}
           {dispute.note ? ` ${dispute.note}` : ""}
         </p>

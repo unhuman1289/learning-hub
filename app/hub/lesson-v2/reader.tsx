@@ -391,10 +391,11 @@ export function LessonReader({
     {readonly && <p className={pencil}>Bạn đang xem bài của người học.</p>}
     {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}
     {error && <p role="alert" className="text-brick">{error}</p>}
-    <Spread blocks={blocks} startAt={startAt} jump={pageJump} child={child} status={state} />
+    <Spread blocks={blocks} startAt={startAt} jump={pageJump} child={child} status={state} onTurn={() => setJustCompleted(false)} />
   </Book>;
 
   function jump(block: string) {
+    if (block !== "summary") setJustCompleted(false);
     setPageJump(previous => ({ id: block, key: (previous?.key ?? 0) + 1 }));
   }
 }

@@ -5,7 +5,7 @@ import { LessonList } from "./lesson-v2/list";
 import { Book } from "./notebook/book";
 import {SubjectForm,SubjectFacts} from "./subject-view";
 import type {ShelfApi} from "./use-shelf";
-import { ArrowUpRight, Plus } from "lucide-react";
+import { SketchIcon } from "./sketch-icons";
 import { MarginDate, RuledPage, StickyNote, cx } from "../../components/notebook/paper";
 import { projects } from "../content";
 import { googleDocs } from "../google-docs";
@@ -214,13 +214,13 @@ function DocsPage({ track, workspace, openForm, readOnly, child }: { track: Trac
     <RuledPage className="min-h-[60vh]">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent">Tài liệu</h2>
-        {!readOnly && !child && <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ track })} className={buttonClass("secondary")}><Plus size={16} aria-hidden="true" /> Thêm tài liệu</button>}
+        {!readOnly && !child && <button type="button" disabled={!workspace.loaded} onClick={() => openForm({ track })} className={buttonClass("secondary")}><SketchIcon name="plus" size={16} /> Thêm tài liệu</button>}
       </div>
       {!child && <p className="max-w-[68ch] text-sm leading-7 text-muted">Bản đầy đủ nằm trên Google Drive. Ở đây chỉ giữ đường dẫn.</p>}
       <ul className="mt-7 grid max-w-[72ch] gap-7">
         {docs.map((doc) => (
           <li key={doc.id}>
-            <a href={doc.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold leading-7 text-accent hover:underline">{doc.title.replace("Learning Hub — ", "")} <ArrowUpRight size={15} aria-hidden="true" /></a>
+            <a href={doc.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold leading-7 text-accent hover:underline">{doc.title.replace("Learning Hub — ", "")} <SketchIcon name="external" size={15} /></a>
             <p className="leading-7 text-muted">{doc.description}</p>
           </li>
         ))}
@@ -228,7 +228,7 @@ function DocsPage({ track, workspace, openForm, readOnly, child }: { track: Trac
           <li key={note.id}>
             <div className="flex flex-wrap items-center gap-x-3">
               {note.url
-                ? <a href={note.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold leading-7 text-accent hover:underline">{note.title} <ArrowUpRight size={15} aria-hidden="true" /></a>
+                ? <a href={note.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold leading-7 text-accent hover:underline">{note.title} <SketchIcon name="external" size={15} /></a>
                 : <span className="font-semibold leading-7">{note.title}</span>}
               <button type="button" onClick={() => openForm({ track, note })} className="text-sm leading-7 text-muted hover:text-accent hover:underline">Sửa</button>
             </div>
