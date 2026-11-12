@@ -11,6 +11,36 @@
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
+    "knowledgeGaps": {
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "why": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "normal",
+              "high"
+            ]
+          }
+        },
+        "required": [
+          "question",
+          "why",
+          "priority"
+        ],
+        "additionalProperties": false
+      }
+    },
     "summary": {
       "type": "string",
       "maxLength": 3000

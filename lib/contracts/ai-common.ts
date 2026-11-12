@@ -65,10 +65,23 @@ export const roadmapStep = z.object({
  mode: z.enum(['review','new','mixed']),
 }).strict();
 export const roadmap = z.array(roadmapStep).min(5).max(10).describe("Đề xuất 5–10 bài tiếp theo theo mục tiêu, kỹ năng, tình huống; có thể cập nhật cả khi no_action. Không phải bài đã giao.");
+const knowledgeGaps = z.array(z.object({
+  question: text(300), why: text(300), priority: z.enum(['normal','high']),
+}).strict()).max(3).optional();
+const knowledge = z.object({
+  versionSeq: z.number().int().positive(),
+  notes: z.array(z.object({
+    id: z.string(), heading: text(180), body: text(1500), sourceId: z.string(), url: z.string(),
+    title: text(250), publisher: text(150), published_at: z.string().nullable(),
+    read_scope: z.enum(['full','partial','abstract']), score: z.number(),
+  }).strict()).max(6),
+}).strict().optional();
+
 export const planResult = z
   .object({
     contract: z.literal('plan-result/1'),
     contextHash: hash,
+    knowledgeGaps,
     summary: text(3000),
     subjects: z
       .array(
@@ -126,6 +139,7 @@ export const assessResult = z
   .object({
     contract: z.literal('assess-result/1'),
     contextHash: hash,
+    knowledgeGaps,
     summary: text(1200),
     grades: z
       .array(
@@ -269,6 +283,7 @@ export const planContext = z
     learningDay: text(10),
     timezone: z.literal('Europe/Berlin'),
     contextHash: hash,
+    knowledge,
     learner: learner
       .extend({
         targetMinutes: z.number(),
@@ -339,6 +354,7 @@ export const assessContext = z
     jobId: z.string(),
     purpose: z.enum(['submission', 'recheck']),
     contextHash: hash,
+    knowledge,
     learner,
     subject: z
       .object({

@@ -1,3 +1,4 @@
+import { contextExcerpt } from '../../knowledge/service.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { assessContext, type AssessContext } from '../../contracts/ai-common.ts';
@@ -93,8 +94,12 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
     )
     .bind(job.learner_id, sub.subject_id, addDays(job.learning_day, -13))
     .all<Record<string, unknown>>();
+  const knowledge = await contextExcerpt(db, {
+    subjectId:String(subject.id), query:[subject.title,lesson.title,lesson.objective].join(' '),
+  });
   const context: Record<string, unknown> = {
     contract: 'assess-context/1',
+    ...(knowledge ? {knowledge} : {}),
     jobId: job.id,
     purpose: job.purpose,
     contextHash: 'sha256:' + '0'.repeat(64),

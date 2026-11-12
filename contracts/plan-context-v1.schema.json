@@ -30,6 +30,85 @@
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
+    "knowledge": {
+      "type": "object",
+      "properties": {
+        "versionSeq": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "notes": {
+          "maxItems": 6,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "heading": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 1500
+              },
+              "sourceId": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 250
+              },
+              "publisher": {
+                "type": "string",
+                "maxLength": 150
+              },
+              "published_at": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "read_scope": {
+                "type": "string",
+                "enum": [
+                  "full",
+                  "partial",
+                  "abstract"
+                ]
+              },
+              "score": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "id",
+              "heading",
+              "body",
+              "sourceId",
+              "url",
+              "title",
+              "publisher",
+              "published_at",
+              "read_scope",
+              "score"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "versionSeq",
+        "notes"
+      ],
+      "additionalProperties": false
+    },
     "learner": {
       "type": "object",
       "properties": {

@@ -1,3 +1,4 @@
+import {jobGapStatements} from '../knowledge/service.ts';
 import {openWorkMinutesSql} from './open-work.ts';
 import { estimateCost } from './cost.ts';
 import { planResult, assessResult, type PlanContext, type AssessContext } from '../contracts/ai-common.ts';
@@ -133,7 +134,8 @@ export async function applyResult(
     .bind(hash, ...outcomeParams, JSON.stringify(usage), estimateCost(usage, priceTable), now.toISOString(), now.toISOString(), id, token);
   const cleanup = db.prepare('DELETE FROM ai_apply_guards WHERE token LIKE ?').bind(token + ':%');
   try {
-    await db.batch([claim, ...guards, ...prepared.statements, finish, cleanup]);
+    const gaps = await jobGapStatements(db, job, parsed.data.knowledgeGaps ?? [], token);
+    await db.batch([claim, ...guards, ...prepared.statements, ...gaps, finish, cleanup]);
   } catch (error) {
     if (String(error).includes('CHECK') || String(error).includes('UNIQUE'))
       throw new ApiError(409, 'Dữ liệu vừa thay đổi; đọc lại job trước khi gửi lại.');

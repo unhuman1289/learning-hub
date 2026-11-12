@@ -158,12 +158,13 @@ export const PLAN_CONTEXT_BYTES = 24000;
 export function compactPlanContext(context, budget = PLAN_CONTEXT_BYTES, log = () => {}) {
   let compact = compactOnce(context);
   const steps = [
+    ...(compact.knowledge ? [['knowledge', c => { delete c.knowledge; }]] : []),
     ['recentLessons', c => c.subjects.forEach(s => s.recentLessons.forEach(l => { l.items = []; }))],
     ['errorPatterns', c => c.subjects.forEach(s => { s.errorPatterns = s.errorPatterns.slice(0, 2); })],
     ['goal', c => c.subjects.forEach(s => { s.goal = s.goal.slice(0, 800); s.instructions = s.instructions.slice(0, 600); })],
   ];
   for (const [name, shrink] of steps) {
-    const size = JSON.stringify(compact).length;
+    const size = Buffer.byteLength(JSON.stringify(compact));
     if (size <= budget) break;
     shrink(compact);
     log({ event: 'context_trimmed', step: name, from: size });
