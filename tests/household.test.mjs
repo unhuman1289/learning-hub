@@ -157,3 +157,13 @@ test('profile emoji supports joined sequences, flags, and clearing without chang
   assert.deepEqual({ ...read() }, { ...before, avatar: '' });
   db.sqlite.close();
 });
+
+test('family door uses a small script-free password form', async () => {
+  const response = await householdGuard(req('/household'), { HOUSEHOLD_GATE: 'passphrase' });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /<form method="post" action="\/api\/household">/);
+  assert.match(html, /Phòng học cả nhà/);
+  assert.doesNotMatch(html, /<script/i);
+  assert.ok(Buffer.byteLength(html) <= 6144);
+});

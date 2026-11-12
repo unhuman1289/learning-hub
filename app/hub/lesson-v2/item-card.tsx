@@ -44,16 +44,16 @@ export function ItemCard({
   const locked = readOnly || disabled || uploading;
   return (
     <article className="pb-7">
-      <h3 id={"prompt-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
+      <h3 id={"question-" + item.id} className="whitespace-pre-wrap text-lg font-semibold leading-7">
         <span className="font-hand text-xl text-accent">{number}.</span> {formatText(item.prompt)}
       </h3>
       {item.instructions && <p className="text-muted">{formatText(item.instructions)}</p>}
       {item.input === "choice" ? (
-        <fieldset aria-labelledby={"prompt-" + item.id}>
+        <fieldset aria-labelledby={"question-" + item.id}>
           <legend className="sr-only">Chọn đáp án</legend>
           {item.choices?.map((choice) => (
             // Marked the way one does in a notebook: a pen tick in a circle, the chosen line underlined.
-            <label key={choice.id} className="flex cursor-pointer items-start gap-3">
+            <label key={choice.id} className="flex min-h-11 cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
                 className="peer sr-only"
@@ -82,7 +82,7 @@ export function ItemCard({
               onChange={(e) => onChange({ ...value, answer: e.target.value })}
               maxLength={8000}
               placeholder="Viết câu trả lời…"
-              className="block h-7 w-full border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted/70 focus:outline-none focus-visible:shadow-[inset_0_-2px_0_var(--color-accent)]"
+              className="block min-h-11 w-full border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted focus:border-b-2 focus:border-accent-paper"
             />
           ) : (
             <textarea
@@ -93,7 +93,7 @@ export function ItemCard({
               maxLength={8000}
               rows={5}
               placeholder="Viết bài làm ở đây…"
-              className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted/70 focus:outline-none focus-visible:shadow-[inset_3px_0_0_var(--color-accent)]"
+              className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted focus:border-b-2 focus:border-accent-paper max-h-[45dvh]"
             />
           )}
         </div>
@@ -101,7 +101,7 @@ export function ItemCard({
       {item.attachment !== "none" && (
         <div className="text-sm">
           <label htmlFor={"photo-" + item.id} className="block text-muted">
-            Ảnh bài làm {item.attachment === "required" ? "(cần có)" : "(tùy chọn)"} · giữ tối đa 30 ngày, không chụp thông tin định danh
+            Ảnh bài làm {item.attachment === "required" ? "(cần có)" : "(tuỳ chọn)"} · giữ tối đa 30 ngày, đừng chụp tên, địa chỉ hay giấy tờ
           </label>
           <input
             id={"photo-" + item.id}
@@ -141,7 +141,7 @@ export function ItemCard({
       {!readOnly && (
         // One action per question; hints and the solution are pencilled asides.
         <div className="flex h-14 flex-wrap items-center justify-between gap-x-4">
-          <button type="button" disabled={!canSubmit || uploading} onClick={onSubmit} className={buttonClass("secondary", "min-h-9")}>{submitLabel ?? "Kiểm tra"}</button>
+          <button type="button" disabled={!canSubmit || uploading} onClick={onSubmit} className={buttonClass("secondary", "min-h-11")}>{submitLabel ?? "Kiểm tra"}</button>
           <HintLinks item={item} disabled={locked} onReveal={onReveal} />
         </div>
       )}

@@ -1,6 +1,6 @@
-import { lessons, projects, tracks } from "../content";
-import { getLessonDetail, type LessonDetail, type LessonSource } from "../lesson-content";
-import { learningTracks, type LearningTrack } from "../../lib/daily-policy";
+import { lessons, projects, tracks } from "../content.ts";
+import { getLessonDetail, type LessonDetail, type LessonSource } from "../lesson-content.ts";
+import { learningTracks, type LearningTrack } from "../../lib/daily-policy.ts";
 import type { DailyLesson, DailyView } from "../../lib/daily-types";
 
 export type TrackId = LearningTrack;

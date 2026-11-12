@@ -32,5 +32,5 @@ export function useRunnerStatus(waiting: boolean) {
 export function GraderOffline({ waiting }: { waiting: boolean }) {
   const status = useRunnerStatus(waiting);
   if (!status || status.online) return null;
-  return <p role="status" className={pencil}>Máy chấm đang nghỉ. Bài đã lưu và sẽ được chấm khi máy bật lại.</p>;
+  return <p role="status" className={pencil}>Bài đã lưu, sẽ có lời phê sau.</p>;
 }

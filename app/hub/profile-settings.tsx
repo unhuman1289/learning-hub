@@ -8,7 +8,7 @@ import { apiJson } from "./api";
 type Settings = { displayName: string | null; avatar: string; personalPrompt: string; explainLanguage: string };
 
 /** Profile card (L5.5): name, icon, explanation language and the personal prompt the lesson writers and graders read. */
-export function ProfileSettings({ learner, title = "Hồ sơ của tôi" }: { learner: string; title?: string }) {
+export function ProfileSettings({ learner, title = "Về bạn" }: { learner: string; title?: string }) {
   const [settings, setSettings] = useState<Settings | null>(null),
     [state, setState] = useState(""),
     [error, setError] = useState("");
@@ -70,11 +70,8 @@ export function ProfileSettings({ learner, title = "Hồ sơ của tôi" }: { le
         </select>
       </label>
       <label className={labelClass + " sm:col-span-3"}>
-        Prompt cá nhân
-        <span className="text-sm font-normal text-muted">
-          Bạn muốn được dạy và sửa bài thế nào: phong cách, bối cảnh sống và làm việc, điều cần tránh. Người soạn và chấm bài đọc phần này; luật của
-          Hub vẫn được áp dụng.
-        </span>
+        Lời dặn
+        <span className="text-sm font-normal text-muted">Điều bạn muốn cô soạn và sửa bài lưu ý.</span>
         <textarea name="personalPrompt" maxLength={4000} rows={6} defaultValue={settings.personalPrompt} className={fieldClass} />
       </label>
       {error && (
@@ -84,7 +81,7 @@ export function ProfileSettings({ learner, title = "Hồ sơ của tôi" }: { le
       )}
       <div className="flex items-center gap-3 sm:col-span-3">
         <button type="submit" className={buttonClass("primary")}>
-          Lưu hồ sơ
+          Lưu
         </button>
         <span role="status" className="text-sm text-muted">
           {state}

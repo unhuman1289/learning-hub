@@ -8,9 +8,9 @@ export function NotebookCover({ title, lines = [], className }: { title: string;
     <div className={cx("@container relative aspect-[3/4] overflow-hidden rounded-[3px_8px_8px_3px] bg-marble shadow-cover", className)}>
       <div className="absolute inset-y-0 left-0 w-[14%] border-r border-black/40 bg-spine" />
       <div className="absolute left-[24%] right-[8%] top-[15%] rounded-[10cqw] border-[1.5cqw] border-label bg-label px-[8%] pb-[8%] pt-[7%] text-label-ink shadow-[inset_0_0_0_0.8cqw_var(--color-label-ink)]">
-        <p className="text-center font-hand text-[11cqw] leading-tight">{title}</p>
+        <p className="text-center font-hand text-[max(15px,11cqw)] leading-tight">{title}</p>
         {lines.map((line, index) => (
-          <p key={index} className="mt-[1cqw] truncate border-b-[0.6cqw] border-label-ink pl-[2cqw] font-hand text-[7.5cqw] leading-[1.5]">{line || " "}</p>
+          <p key={index} className="mt-[1cqw] truncate border-b-[0.6cqw] border-label-ink pl-[2cqw] font-hand text-[max(12px,7.5cqw)] leading-[1.5]">{line || " "}</p>
         ))}
       </div>
     </div>
@@ -50,10 +50,10 @@ export function StickyNote({ children, className, tone = "rose" }: { children: R
   );
 }
 
-export function Stamp({ date, className, pressed = false }: { date?: string; className?: string; pressed?: boolean }) {
+export function Stamp({ date, className, pressed = false, label }: { label?: string; date?: string; className?: string; pressed?: boolean }) {
   return (
-    <div aria-label={date ? `Đã học, ${date}` : "Đã học"} className={cx(pressed && "animate-stamp", "pointer-events-none grid size-20 -rotate-12 place-items-center rounded-full border-[3px] border-double border-ok text-center text-[11px] font-bold leading-tight tracking-[0.12em] text-ok opacity-90 sm:size-24 sm:text-[13px]", className)}>
-      <span>ĐÃ<br />HỌC{date && <><br /><span className="text-[10px] font-semibold tracking-normal">{date}</span></>}</span>
+    <div aria-label={label ?? (date ? `Đã học, ${date}` : "Đã học")} className={cx(pressed && "animate-stamp", "pointer-events-none grid size-20 -rotate-12 place-items-center rounded-full border-[3px] border-double border-ok text-center text-[11px] font-bold leading-tight tracking-[0.12em] text-ok opacity-90 sm:size-24 sm:text-[13px]", className)}>
+      <span>{label ?? <>ĐÃ<br />HỌC</>}{date && <><br /><span className="text-[10px] font-semibold tracking-normal">{date}</span></>}</span>
     </div>
   );
 }

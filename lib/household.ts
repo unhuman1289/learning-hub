@@ -108,7 +108,7 @@ const deny = (request: Request, status: number, message: string) =>
   new URL(request.url).pathname.startsWith('/api/')
     ? Response.json({ error: message }, { status, headers: { 'Cache-Control': 'no-store' } })
     : new Response(
-        `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Learning Hub</title><main style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem"><h1>Learning Hub</h1><p>${message}</p></main></html>`,
+        `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Phòng học cả nhà</title><main style="font-family:system-ui;max-width:32rem;margin:4rem auto;padding:0 1rem"><h1>Phòng học cả nhà</h1><p>${message}</p></main></html>`,
         { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } },
       );
 
@@ -129,7 +129,7 @@ export async function householdGuard(request: Request, b: HouseholdBindings, key
       ? new URL(b.ACCESS_TEAM_DOMAIN.startsWith('https://') ? b.ACCESS_TEAM_DOMAIN : 'https://' + b.ACCESS_TEAM_DOMAIN).origin
       : null;
     const audience = b.APP_ACCESS_AUD?.trim();
-    if (!issuer || !audience) return deny(request, 503, 'Cổng vào chưa được cấu hình.');
+    if (!issuer || !audience) return deny(request, 503, 'Cửa chưa sẵn sàng. Nhờ người quản lý xem giúp.');
     const token = request.headers.get('cf-access-jwt-assertion');
     if (!token || !(await verifyAccessUser(token, issuer, audience, keyResolver))) return deny(request, 403, 'Cần đăng nhập qua cổng của gia đình.');
     return null;
@@ -145,7 +145,20 @@ export async function householdGuard(request: Request, b: HouseholdBindings, key
 
 function passphrasePage(message: string, status = 200) {
   return new Response(
-    `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Learning Hub</title><main style="font-family:system-ui;max-width:28rem;margin:4rem auto;padding:0 1rem"><h1>Learning Hub</h1><form method="post" action="/api/household"><label>Mật khẩu gia đình<br><input type="password" name="passphrase" autocomplete="current-password" required style="width:100%;padding:.5rem;margin:.5rem 0"></label><button style="padding:.5rem 1rem">Vào</button></form>${message ? `<p role="alert">${message}</p>` : ''}</main></html>`,
+    `<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Phòng học cả nhà</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap');
+*{box-sizing:border-box}body{margin:0;min-height:100svh;display:grid;place-items:center;padding:1rem;background:#eee8db;color:#2e231a;font:1rem system-ui}
+main{width:min(100%,25rem);padding:2rem 1.5rem 2.5rem;border:8px solid #523822;border-radius:9rem 9rem 0 0;background:repeating-linear-gradient(90deg,#7c5434 0 32px,#775032 32px 34px,#825c3b 34px 65px);box-shadow:0 16px 34px #4b2c2455}
+.sky{height:7rem;border:6px solid #49301e;border-radius:8rem 8rem 0 0;background:linear-gradient(#a9ccde,#ecdfc3);box-shadow:inset 0 2px 5px #583a3340}
+h1,label{display:block;background:#f0deba;padding:.7rem;border-radius:.2rem}h1{font:2rem 'Patrick Hand',cursive;text-align:center;margin:1rem 0}input,button{min-height:44px;font:inherit}input{display:block;width:100%;margin-top:.4rem;background:#fdf9ef;color:#303139;border:1px solid #826749;padding:.4rem}
+button{display:block;margin:1rem auto 0;padding:.5rem 1.25rem;border:1px solid #5a2a20;border-radius:.3rem;background:#8e4636;color:#fff8f2;cursor:pointer}input:focus-visible,button:focus-visible{outline:3px solid #1d5680;outline-offset:3px}
+[role=alert]{background:#fdf9ef;color:#8e4636;padding:.65rem;font-weight:600}
+@media(prefers-color-scheme:dark){body{background:#201a16}.sky{background:linear-gradient(#223244,#68788a)}}
+</style>
+<main><div class="sky" aria-hidden="true"></div><h1>Phòng học cả nhà</h1>
+<form method="post" action="/api/household"><label>Mật khẩu gia đình<input type="password" name="passphrase" autocomplete="current-password" required></label><button>Vào nhà</button></form>
+${message ? `<p role="alert">${message}</p>` : ''}</main></html>`,
     { status, headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } },
   );
 }
@@ -154,7 +167,7 @@ async function acceptPassphrase(request: Request, b: HouseholdBindings) {
   if (request.headers.get('origin') !== url.origin ||
       !request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')) return passphrasePage('Yêu cầu không hợp lệ.', 403);
   const expected = b.HOUSEHOLD_PASSPHRASE_SHA256?.trim().toLowerCase();
-  if (!b.PROFILE_COOKIE_SECRET || b.PROFILE_COOKIE_SECRET.length < 32 || !expected || !/^[a-f0-9]{64}$/.test(expected)) return passphrasePage('Mật khẩu gia đình chưa được cấu hình.', 503);
+  if (!b.PROFILE_COOKIE_SECRET || b.PROFILE_COOKIE_SECRET.length < 32 || !expected || !/^[a-f0-9]{64}$/.test(expected)) return passphrasePage('Cửa chưa sẵn sàng. Nhờ người quản lý xem giúp.', 503);
   const reader = request.body?.getReader();
   if (!reader) return passphrasePage('Yêu cầu không hợp lệ.', 400);
   const decoder = new TextDecoder();

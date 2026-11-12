@@ -1,5 +1,6 @@
 "use client";
 
+import { words } from "../words";
 import { useCallback, useEffect, useState } from "react";
 import { apiJson, learnerQuery } from "../api";
 import { AdaptiveRequests } from "../adaptive-requests";
@@ -12,11 +13,11 @@ import { MarginDate } from "../../../components/notebook/paper";
 import { paperAction, PaperSummary, pencil, pencilLink, shortDay, skillLabel } from "../paper-bits";
 import type { Route } from "../use-route";
 
-type LessonRow = { id: string; title: string; completedAt: string | null; assignedDate: string; kind: string; slot: string; reason: string; minutes: number | null; skill: string | null };
+type LessonRow = { id: string; title: string; completedAt: string | null; assignedDate: string; kind: string; slot: string; reason: string; minutes: number | null; skill: string | null; hasWork: number };
 type Notebook = { lessons: LessonRow[]; nextOffset: number | null; adaptive: boolean; day: string; nightly: { status: string; outcome: string | null } | null; initial: { status: string } | null; setup: boolean };
-type Props = { subjectId: string; learner: string | null; go: (route: Route) => void; canRequest?: boolean; history?: boolean; showBoth?: boolean };
+type Props = { subjectId: string; learner: string | null; go: (route: Route) => void; canRequest?: boolean; history?: boolean; showBoth?: boolean; bookPage?: "today" | "contents" };
 
-function NotebookLessons({ subjectId, learner, go, canRequest = false, history = false, showBoth = false }: Props) {
+function NotebookLessons({ subjectId, learner, go, canRequest = false, history = false, showBoth = false, bookPage }: Props) {
   const [notebook, setNotebook] = useState<Notebook | null>(null), [error, setError] = useState("");
   const [older, setOlder] = useState<LessonRow[]>([]);
   const [offset, setOffset] = useState<number | undefined>();
@@ -56,7 +57,7 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
   const open = rows.filter(row => !row.completedAt);
   const primary = open.find(row => row.slot === "primary") ?? rows.find(row => row.slot === "primary" && row.assignedDate === notebook.day);
   const extras = open.filter(row => row.id !== primary?.id);
-  const kindLabel = (row: LessonRow) => row.kind === "diagnostic" ? "Bài đầu tiên" : row.kind === "new" ? "Học mới" : row.kind === "exploration" ? "Cá nhân hóa" : row.kind === "review" ? "Ôn tập" : "Luyện tập";
+  const kindLabel = (row: LessonRow) => row.kind === "diagnostic" ? words.lessonKind.diagnostic : row.kind === "new" ? words.lessonKind.new : row.kind === "exploration" ? words.lessonKind.own : row.kind === "review" ? words.lessonKind.review : words.lessonKind.practice;
   const done = rows.filter(row => row.completedAt).sort((a,b) => b.completedAt!.localeCompare(a.completedAt!));
   const historyList = (
     <>
@@ -67,21 +68,21 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
           return <li key={row.id} className="relative">
             {(i === 0 || shortDay(done[i - 1].completedAt!) !== day) && <MarginDate>{day}</MarginDate>}
             <span className={pencil}>{kindLabel(row)}{row.skill ? ` · ${skillLabel(row.skill)}` : ""} · </span>
-            <RouteLink route={{view:"lesson",id:row.id}} go={go} className="underline decoration-rule underline-offset-4 hover:decoration-accent">{row.title}</RouteLink>
+            <RouteLink route={{view:"lesson",id:row.id}} go={go} className={pencilLink}>{row.title}</RouteLink>
           </li>;
         })}
       </ul>
       {!done.length && <p className={pencil}>Chưa có bài nào học xong.</p>}
       {error && <p role="alert">{error}</p>}
       {nextOffset !== null && <button type="button" className={pencilLink} disabled={loadingOlder} onClick={() => void loadMore()}>Xem thêm bài</button>}
-      <HistoryPanel subjectId={subjectId} learner={learner} />
+      <HistoryPanel subjectId={subjectId} learner={learner} downloads={!bookPage} />
     </>
   );
-  if (history) return historyList;
+  if (history || bookPage === "contents") return historyList;
   const firstLessonStatus = initialStatus === "leased"
-    ? "Đang soạn lộ trình và bài đầu tiên…"
-    : initialStatus === "queued" ? "Bài đầu tiên đang chờ máy soạn nhận."
-    : initialStatus ? "Chưa lưu được bài đầu tiên." : "Chưa xếp được lượt soạn bài đầu tiên.";
+    ? "Đang chuẩn bị bài đầu tiên…"
+    : initialStatus === "queued" ? "Đang chuẩn bị bài đầu tiên…"
+    : initialStatus ? "Chưa lưu được bài đầu tiên." : words.status.notWritten;
   const emptyStatus = notebook.setup ? firstLessonStatus
     : nightlyStatus === "queued" || nightlyStatus === "leased" ? "Bài hôm nay chưa soạn xong."
     : nightlyStatus === "succeeded" ? "Bạn đã xong phần hôm nay."
@@ -93,10 +94,10 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
       <div className={showRequestTabs ? "grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(9rem,13rem)]" : undefined}>
         <div className="min-w-0">
         {primary ? <>
-          <p className={pencil}>{primary.kind === "diagnostic" ? "Bài đầu tiên" : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Học tiếp"}{primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason ? ` · ${primary.reason}` : ""}</p>
+          <p className={pencil}>{primary.kind === "diagnostic" ? "Bài đầu tiên" : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Bài đang học"}{primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason ? ` · ${primary.reason}` : ""}</p>
           <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4">
             <p className="min-w-0 break-words text-lg font-semibold">{primary.title}</p>
-            <RouteLink route={{view:"lesson",id:primary.id}} go={go} className={paperAction}>Mở bài</RouteLink>
+            <RouteLink route={{view:"lesson",id:primary.id}} go={go} className={paperAction}>{primary.hasWork && !primary.completedAt ? words.action.continue : words.action.open}</RouteLink>
           </div>
         </> : emptyStatus && <p role="status" className={pencil}>{emptyStatus}</p>}
         {canRequest && !notebook.setup && !notebook.adaptive && !open.length && !learner &&
@@ -107,7 +108,7 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
       {extras.length > 0 && <>
         <p className={pencil}>Bài khác đang mở</p>
         <ul>{extras.map(row => <li key={row.id}>
-          <RouteLink route={{view:"lesson",id:row.id}} go={go} className="underline decoration-rule underline-offset-4 hover:decoration-accent">{row.title}</RouteLink>
+          <RouteLink route={{view:"lesson",id:row.id}} go={go} className={pencilLink}>{row.title}</RouteLink>
           {row.minutes ? <span className={pencil}> · {row.minutes} phút</span> : null}
         </li>)}</ul>
       </>}
@@ -115,14 +116,14 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
     {canRequest && !notebook.setup && !notebook.adaptive && <details>
       <summary className="min-h-11 cursor-pointer">Yêu cầu khác</summary><NotebookRequests subjectId={subjectId} learner={learner} />
     </details>}
-    <details className="mt-7"><PaperSummary>Bài đã học</PaperSummary>{historyList}</details>
+    {!bookPage && <details className="mt-7"><PaperSummary>Bài đã học</PaperSummary>{historyList}</details>}
   </>;
   return <>
     <section className="space-y-3 bg-paper py-3" aria-label="Bài hiện tại">
       {open.length ? <ul className="space-y-2">
         {open.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
           <p className="font-semibold">{row.title}</p>
-          <RouteLink route={{view:"lesson",id:row.id}} go={go} className={paperAction}>Mở bài</RouteLink>
+          <RouteLink route={{view:"lesson",id:row.id}} go={go} className={paperAction}>{row.hasWork ? words.action.continue : words.action.open}</RouteLink>
         </li>)}
       </ul> : <>
         <p className="text-sm text-muted">Sổ không còn bài đang mở.</p>

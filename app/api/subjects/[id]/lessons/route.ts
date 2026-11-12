@@ -23,7 +23,7 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     : null;
   const { results = [] } = await db
     .prepare(
-      "SELECT id,json_extract(payload,'$.title') AS title,assigned_date AS assignedDate,completed_at AS completedAt,kind,slot,reason,est_minutes AS minutes,(SELECT name FROM skills WHERE id=json_extract(learning_lessons.payload,'$.targetSkills[0]') AND learner_id=learning_lessons.user_id AND subject_id=learning_lessons.subject_id) AS skill FROM learning_lessons WHERE user_id=? AND subject_id=? AND package_version='2' ORDER BY completed_at IS NOT NULL, coalesce(completed_at,updated) DESC,id DESC LIMIT 51 OFFSET ?",
+      "SELECT id,json_extract(payload,'$.title') AS title,assigned_date AS assignedDate,completed_at AS completedAt,kind,slot,reason,est_minutes AS minutes,EXISTS(SELECT 1 FROM attempts WHERE lesson_id=learning_lessons.id) AS hasWork,(SELECT name FROM skills WHERE id=json_extract(learning_lessons.payload,'$.targetSkills[0]') AND learner_id=learning_lessons.user_id AND subject_id=learning_lessons.subject_id) AS skill FROM learning_lessons WHERE user_id=? AND subject_id=? AND package_version='2' ORDER BY completed_at IS NOT NULL, coalesce(completed_at,updated) DESC,id DESC LIMIT 51 OFFSET ?",
     )
     .bind(learner, id, offset)
     .all();

@@ -18,7 +18,7 @@ export async function readNotebookOverview(db: EvidenceDb, learner: string, subj
        GROUP BY a.day`,
     ).bind(learner, subject, start, today).all<{ day: string; total: number; correct: number }>(),
     db.prepare(
-      `SELECT k.id,k.name,st.mastery,st.next_review_day AS reviewDay
+      `SELECT k.id,k.key,k.name,st.mastery,st.next_review_day AS reviewDay
        FROM skills k JOIN skill_states st ON st.skill_id=k.id AND st.learner_id=k.learner_id
        WHERE k.learner_id=? AND k.subject_id=? AND k.status<>'retired' AND st.mastery<>'not_assessed'
        ORDER BY CASE
@@ -26,7 +26,7 @@ export async function readNotebookOverview(db: EvidenceDb, learner: string, subj
          WHEN st.mastery IN ('introduced','developing') THEN 1
          ELSE 2 END, k.path_order,k.id
        LIMIT 3`,
-    ).bind(learner, subject, today).all<{ id: string; name: string; mastery: string; reviewDay: string | null }>(),
+    ).bind(learner, subject, today).all<{ id: string; key: string; name: string; mastery: string; reviewDay: string | null }>(),
     db.prepare(
       `SELECT e.id,e.label,e.occurrences,e.days_seen AS daysSeen,e.confidence,e.status
        FROM error_patterns e JOIN skills k ON k.id=e.skill_id AND k.learner_id=e.learner_id AND k.subject_id=e.subject_id
@@ -53,6 +53,7 @@ export async function readNotebookOverview(db: EvidenceDb, learner: string, subj
     skills: (skills.results ?? []).map(skill => ({
       id: skill.id,
       name: skill.name,
+      facet: /^[gpn]-/.test(skill.key) ? skill.key[0] : null,
       state: skill.mastery === 'needs_review' || (skill.reviewDay && skill.reviewDay <= today)
         ? 'review' as const : skill.mastery === 'demonstrated' ? 'demonstrated' as const : 'learning' as const,
     })),

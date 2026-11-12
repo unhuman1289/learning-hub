@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { shortDay, pencilLink } from "./paper-bits";
 import { apiJson } from "./api";
 
 type Row = {
@@ -16,7 +17,15 @@ type Row = {
 const mark: Record<string, string> = { correct: "✓", partial: "½", incorrect: "✗", ungradable: "?" };
 
 /** "Lịch sử làm bài" in a notebook (L5.6): the last 30 days of graded answers, with CSV and Markdown downloads. */
-export function HistoryPanel({ subjectId, learner }: { subjectId: string; learner: string | null }) {
+export function HistoryDownloads({ subjectId, learner }: { subjectId: string; learner: string | null }) {
+  const query = new URLSearchParams({ subject: subjectId, ...(learner ? { learner } : {}), days: "3660" });
+  return <p className="mt-2 flex flex-wrap gap-4">
+    <a className={pencilLink} href={`/api/history?${query}&format=md`}>Tải Markdown</a>
+    <a className={pencilLink} href={`/api/history?${query}&format=csv`}>Tải CSV</a>
+  </p>;
+}
+
+export function HistoryPanel({ subjectId, learner, downloads = true }: { subjectId: string; learner: string | null; downloads?: boolean }) {
   const [rows, setRows] = useState<Row[] | null>(null),
     [error, setError] = useState(""),
     [open, setOpen] = useState(false);
@@ -37,15 +46,8 @@ export function HistoryPanel({ subjectId, learner }: { subjectId: string; learne
   }, [open, query]);
   return (
     <details className="my-6 rounded border border-line bg-paper p-4" onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}>
-      <summary className="cursor-pointer font-hand text-2xl">Lịch sử làm bài</summary>
-      <p className="mt-2 flex flex-wrap gap-4 text-sm">
-        <a className="underline" href={`/api/history?${query}&format=md&days=3660`}>
-          Tải Markdown
-        </a>
-        <a className="underline" href={`/api/history?${query}&format=csv&days=3660`}>
-          Tải CSV
-        </a>
-      </p>
+      <summary className="min-h-11 cursor-pointer font-hand text-2xl">Lịch sử làm bài</summary>
+      {downloads && <HistoryDownloads subjectId={subjectId} learner={learner} />}
       {error && (
         <p role="alert" className="text-accent">
           {error}
@@ -58,11 +60,11 @@ export function HistoryPanel({ subjectId, learner }: { subjectId: string; learne
           {rows.map((r, i) => (
             <li key={i} className="border-b border-line pb-2 text-sm leading-6">
               <span className="text-muted">
-                {r.day} · {r.lesson} · {r.itemId} · lần {r.attemptNo}
+                {shortDay(r.day)} · {r.lesson}{/^i\d+$/.test(r.itemId) ? ` · Câu ${Number(r.itemId.slice(1))}` : ""} · lần {r.attemptNo}
               </span>{" "}
               <strong>{r.result ? (mark[r.result] ?? r.result) : "Đang chờ chấm"}</strong>
               <p className="whitespace-pre-wrap">{r.answer}</p>
-              {r.feedback && <p className="text-red-800 dark:text-red-300">{r.feedback}</p>}
+              {r.feedback && <p className="text-brick">{r.feedback}</p>}
               {r.correction && <p className="whitespace-pre-wrap">Lời giải: {r.correction}</p>}
             </li>
           ))}

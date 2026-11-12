@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { KeyRound } from "lucide-react";
 import { PaperDialog } from "../app/hub/paper-dialog";
 import { ProfileSettings } from "../app/hub/profile-settings";
 
@@ -26,7 +27,7 @@ function Badge({ avatar, size = "size-8 text-lg" }: { avatar: string; size?: str
   return (
     <span
       aria-hidden="true"
-      className={`grid ${size} shrink-0 place-items-center rounded-full bg-paper/85 leading-none`}
+      className={`grid ${size} shrink-0 place-items-center rounded-full bg-paper/85 leading-none text-ink-paper`}
     >
       {shownEmoji(avatar)}
     </span>
@@ -38,7 +39,7 @@ function EmojiField({ value, onChange, disabled, inputRef }: {
 }) {
   return (
     <label className="grid justify-items-start gap-1 text-sm">
-      Emoji
+      Biểu tượng
       <input
         ref={inputRef}
         value={value}
@@ -74,18 +75,18 @@ function EmojiForm({ avatar, id, name, onSaved, onClose }: {
   }
   return (
     <form
-      aria-label={`Đổi emoji của ${name}`}
+      aria-label={`Đổi biểu tượng của ${name}`}
       className="grid gap-3 text-ink"
       onSubmit={(event) => { event.preventDefault(); void save(); }}
       onKeyDown={(event) => { if (event.key === "Escape" && !busy) { event.stopPropagation(); onClose(); } }}
     >
-      <p className="font-semibold">Emoji của {name}</p>
+      <p className="font-semibold">Biểu tượng của {name}</p>
       <EmojiField value={value} onChange={setValue} disabled={busy} inputRef={input} />
       <p className="text-sm text-muted">Nhập hoặc dán một emoji. Để trống để dùng mặc định.</p>
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       <div className="flex flex-wrap gap-2">
         <button disabled={busy} className="brick min-h-11 px-4 text-sm font-semibold disabled:opacity-50">{busy ? "Đang lưu…" : "Lưu emoji"}</button>
-        <button type="button" disabled={busy} onClick={onClose} className="min-h-11 px-3 text-sm underline">Hủy</button>
+        <button type="button" disabled={busy} onClick={onClose} className="min-h-11 px-3 text-sm underline">Huỷ</button>
       </div>
     </form>
   );
@@ -102,6 +103,7 @@ export function ProfilePicker() {
     [role, setRole] = useState<"adult" | "child">("adult"),
     [avatar, setAvatar] = useState(""),
     [editing, setEditing] = useState<Profile | null>(null),
+    [selected, setSelected] = useState<string | null>(null),
     [version, setVersion] = useState(0);
   useEffect(() => {
     let live = true;
@@ -143,22 +145,29 @@ export function ProfilePicker() {
       )}
       {!profiles && !error && <p role="status">Đang tải hồ sơ…</p>}
       {profiles && (
-        <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <ul className="profile-hooks grid grid-cols-2 gap-x-4 gap-y-7 pt-8 sm:grid-cols-3">
           {profiles.map((p) => (
             <li key={p.id}>
               <button
                 type="button"
                 disabled={busy}
-                onClick={() => void run({ action: "select", id: p.id }, () => window.location.reload())}
-                className="grid w-full justify-items-center gap-2 rounded-lg border border-line bg-paper p-4 hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-50"
+                onClick={() => {
+                  setSelected(p.id);
+                  void run({ action: "select", id: p.id }, () => {
+                    if (matchMedia("(prefers-reduced-motion: reduce)").matches) window.location.reload();
+                    else window.setTimeout(() => window.location.reload(), 300);
+                  });
+                }}
+                className="profile-tag grid w-full justify-items-center gap-2 rounded-sm border border-line bg-paper p-4 text-ink-paper hover:border-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+                data-selected={selected === p.id && !error}
               >
                 <Badge avatar={p.avatar} size="size-14 text-2xl" />
-                <span className="font-semibold">{p.displayName}</span>
-                <span className="text-sm text-muted">{p.role === "child" ? "Trẻ em" : "Người lớn"}</span>
+                <span className="font-hand text-xl">{p.displayName}</span>
+                {manage && <span className="text-sm text-muted-paper">{p.role === "child" ? "Trẻ em" : "Người lớn"}</span>}
               </button>
               {manage && (
-                <button type="button" onClick={() => setEditing(p)} aria-label={`Đổi emoji của ${p.displayName}`} className="min-h-11 w-full text-sm text-accent underline">
-                  Đổi emoji
+                <button type="button" onClick={() => setEditing(p)} aria-label={`Đổi biểu tượng của ${p.displayName}`} className="min-h-11 w-full text-sm text-accent underline">
+                  Đổi biểu tượng
                 </button>
               )}
             </li>
@@ -186,8 +195,8 @@ export function ProfilePicker() {
               />
             )}
             {!adding ? (
-              <button type="button" className="justify-self-start underline" onClick={() => setAdding(true)}>
-                Thêm hồ sơ
+              <button type="button" className="min-h-11 justify-self-start underline" onClick={() => setAdding(true)}>
+                + Thêm hồ sơ
               </button>
             ) : (
               <form
@@ -209,7 +218,7 @@ export function ProfilePicker() {
                     maxLength={40}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="rounded border border-line bg-paper p-2"
+                    className="rounded border border-line bg-paper p-2 text-ink-paper"
                   />
                 </label>
                 <label className="grid gap-1 text-sm">
@@ -217,24 +226,24 @@ export function ProfilePicker() {
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as "adult" | "child")}
-                    className="rounded border border-line bg-paper p-2"
+                    className="rounded border border-line bg-paper p-2 text-ink-paper"
                   >
                     <option value="adult">Người lớn</option>
                     <option value="child">Trẻ em</option>
                   </select>
                 </label>
                 <EmojiField value={avatar} onChange={setAvatar} disabled={busy} />
-                <button disabled={busy} className="rounded-md border border-line bg-paper px-3 py-2 disabled:opacity-50">
+                <button disabled={busy} className="rounded-md border border-line bg-paper px-3 py-2 text-ink-paper disabled:opacity-50">
                   Lưu
                 </button>
               </form>
             )}
             <button
               type="button"
-              className="justify-self-start text-sm underline"
+              className="inline-flex min-h-11 items-center gap-2 justify-self-start text-sm underline"
               onClick={() => void run({ action: "unmanage" }, () => { setEditing(null); setVersion((v) => v + 1); })}
             >
-              Thoát chế độ quản lý
+              Thoát quản lý
             </button>
           </>
         )}
@@ -248,12 +257,12 @@ function ManageButton({ busy, onManage }: { busy: boolean; onManage: (pin: strin
     [pin, setPin] = useState("");
   if (!asking)
     return (
-      <button type="button" className="justify-self-start text-sm underline" onClick={() => setAsking(true)}>
-        Chế độ quản lý
+      <button type="button" className="inline-flex min-h-11 items-center gap-2 justify-self-start text-sm underline" onClick={() => setAsking(true)}>
+        <KeyRound size={18} aria-hidden /> Chế độ quản lý
       </button>
     );
   return (
-    <form
+    <PaperDialog title="Chế độ quản lý" labelId="profile-manage" onClose={() => setAsking(false)}><form
       className="flex flex-wrap items-end gap-2"
       onSubmit={(e) => {
         e.preventDefault();
@@ -261,20 +270,20 @@ function ManageButton({ busy, onManage }: { busy: boolean; onManage: (pin: strin
       }}
     >
       <label className="grid gap-1 text-sm">
-        PIN quản lý (bỏ trống nếu chưa đặt)
+        Mã quản lý (bỏ trống nếu chưa đặt)
         <input
           inputMode="numeric"
           pattern="\d{0,8}"
           maxLength={8}
           value={pin}
           onChange={(e) => setPin(e.target.value)}
-          className="w-32 rounded border border-line bg-paper p-2"
+          className="w-32 rounded border border-line bg-paper p-2 text-ink-paper"
         />
       </label>
-      <button disabled={busy} className="rounded-md border border-line bg-paper px-3 py-2 disabled:opacity-50">
+      <button disabled={busy} className="rounded-md border border-line bg-paper px-3 py-2 text-ink-paper disabled:opacity-50">
         Bật
       </button>
-    </form>
+    </form></PaperDialog>
   );
 }
 
@@ -304,8 +313,8 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
       <button
         ref={avatarButton}
         type="button"
-        aria-label="Đổi emoji hồ sơ"
-        title="Đổi emoji hồ sơ"
+        aria-label="Đổi biểu tượng hồ sơ"
+        title="Đổi biểu tượng hồ sơ"
         aria-expanded={editing}
         aria-controls={editing ? editorId : undefined}
         onClick={() => setEditing((open) => !open)}
@@ -314,7 +323,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
         <Badge avatar={avatar} />
       </button>
       {editing && (
-        <div id={editorId} className="absolute right-0 top-full z-10 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-line bg-paper p-4">
+        <div id={editorId} className="absolute right-0 top-full z-10 mt-2 w-[min(18rem,calc(100vw-2rem))] rounded-lg border border-line bg-paper p-4 text-ink-paper">
           <EmojiForm
             avatar={avatar}
             name={name}
@@ -336,7 +345,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
           type="button"
           disabled={busy}
           onClick={() => void act({ action: "unmanage" })}
-          className="min-h-9 shrink-0 rounded-md border border-oak-dark/60 bg-paper/85 px-3 text-sm text-ink disabled:opacity-50"
+          className="min-h-11 shrink-0 rounded-md border border-oak-dark/60 bg-paper/85 px-3 text-sm text-ink-paper disabled:opacity-50"
         >
           Thoát quản lý
         </button>
@@ -345,7 +354,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
         type="button"
         disabled={busy}
         onClick={() => void act({ action: "leave" })}
-        className="min-h-9 shrink-0 rounded-md border border-oak-dark/60 bg-paper/85 px-3 text-sm text-ink hover:border-accent hover:text-accent-hover disabled:opacity-50"
+        className="min-h-11 shrink-0 rounded-md border border-oak-dark/60 bg-paper/85 px-3 text-sm text-ink-paper hover:border-accent hover:text-accent-hover disabled:opacity-50"
       >
         Đổi người
       </button>

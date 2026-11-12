@@ -11,10 +11,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { Drafts } from "../lesson-page";
-import { RuledPage } from "../../../components/notebook/paper";
 import { buttonClass } from "../ui";
 import { Sheet } from "./sheet";
-import { Stage } from "./stage";
+import { PaperConfirm } from "../paper-confirm";
+import { words } from "../words";
+import { ItemCard } from "./item-card";
+import { Spread, type SpreadBlock } from "../notebook/spread";
+import { shortDay } from "../paper-bits";
 import { Feedback, type SubmissionView } from "./feedback";
 type Lesson = Awaited<ReturnType<typeof readLessonV2>> & { lastSubmission?: SubmissionView | null };
 class RequestError extends Error {
@@ -38,6 +41,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 }
 export function LessonReader({
   id,
+  child = false,
   learner,
   drafts,
   onLoaded,
@@ -47,12 +51,13 @@ export function LessonReader({
   id: string;
   learner: string | null;
   drafts: Drafts;
+  child?: boolean;
   onLoaded?: (id: string, subject: string) => void;
   go: (route: Route) => void;
   onCompleted?: () => Promise<void>;
 }) {
   const [lesson, setLesson] = useState<Lesson | null>(null),
-    [view, setView] = useState<"work" | "summary" | null>(null);
+    [pageJump, setPageJump] = useState<{ id: string; key: number } | null>(null);
   const [answers, setAnswers] = useState<DraftAnswers>({}),
     [error, setError] = useState(""),
     [state, setState] = useState(""),
@@ -89,7 +94,7 @@ export function LessonReader({
             next = x.answers;
             revision.current = x.revision;
             if (x.revision !== result.draftRevision) {
-              setError("Nháp trên trang khác phiên bản đã lưu. Sao chép bài làm trước khi tải lại; chưa tự ghi đè.");
+              setError("Bài trên máy này khác bản đã lưu. Chép bài làm ra trước, rồi tải lại trang.");
               ready.current = false;
             } else ready.current = true;
           } catch {
@@ -257,10 +262,13 @@ export function LessonReader({
       setBusy(false);
     }
   }
-  async function complete() {
+  async function complete(confirmed = false) {
     if (!lesson || busy || pending) return;
-    if (!lesson.completedAt && lesson.items.some(i => !history.some(s => s.attempts.some(a => a.item_id === i.id))) &&
-      !window.confirm("Bài còn câu chưa làm. Bạn muốn kết thúc bài này?")) return;
+    if (!lesson.completedAt && unanswered > 0 && !confirmed) {
+      setConfirmFinish(true);
+      return;
+    }
+    setConfirmFinish(false);
     setBusy(true);
     setError("");
     try {
@@ -272,7 +280,7 @@ export function LessonReader({
         body: JSON.stringify({ completed: !fresh.lesson.completedAt, expectedUpdated: fresh.lesson.updated }),
       });
       setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
-      setView(result.completed ? "summary" : "work");
+      jump(result.completed ? "summary" : "head");
       await onCompleted?.();
     } catch (e) {
       setError((e as Error).message);
@@ -280,85 +288,96 @@ export function LessonReader({
       setBusy(false);
     }
   }
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  const unanswered = lesson?.items.filter(i => !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
   if (!lesson)
     return (
       <div role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">
         {error || "Đang mở bài…"}
       </div>
     );
-  const mode = view ?? (lesson.completedAt ? "summary" : "work");
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : undefined;
   const reflection = history.find(s => s.attempts.length > 0 && s.attempts.every(a => a.result));
   const frozen = readonly || !!lesson.completedAt;
   const openLesson = (next: string) => go({ view: "lesson", id: next });
-  return (
-    <RuledPage className="mx-auto max-w-4xl">
-      <RouteLink route={{view:"subject", id:lesson.subjectId}} go={go} className={pencilLink}>
-        ← {lesson.subjectTitle}
-      </RouteLink>
-      {readonly && <p className={pencil}>Đang xem bài của người học — chỉ đọc.</p>}
-      {(
-        <>
-          <h1 className="relative top-2.5 text-balance font-print text-[2rem] font-medium leading-[3.5rem]">{lesson.title}</h1>
-          {mode === "work" && <>
-            <p>{lesson.objective}</p>
-            <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
-          </>}
-          <GraderOffline waiting={waitingForGrade} />
-          {feedbackError && <p role="alert">{feedbackError} <button onClick={() => void refreshFeedback()} className={pencilLink}>Tải lại lời phê</button></p>}
-          {error && <p role="alert" className="text-brick">{error}</p>}
-          {mode === "summary" ? (
-            <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
-              reflectionId={reflection?.id} onOpen={openLesson} go={go} onHome={() => go({view:"desk"})} onReview={() => setView("work")} />
-          ) : (
-            <>
-              {(lesson.sheet || lesson.sections.length > 0 || lesson.diagram) && (
-                <details className="mt-7">
-                  <summary className="cursor-pointer font-hand text-xl leading-7 text-accent">Kiến thức và ví dụ</summary>
-                  <div>
-                    <Sheet sheet={lesson.sheet} formatText={formatText} />
-                    {lesson.sections.map((section, i) => (
-                      <section key={i} className="mt-7"><h2 className="font-hand text-xl leading-7">{section.heading}</h2><p className="whitespace-pre-wrap">{section.text}</p></section>
-                    ))}
-                    {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
-                    {lesson.sources.map((source, i) => (
-                      <p key={i} className="text-sm text-muted"><a href={source.url} target="_blank" rel="noreferrer" className="text-accent underline">{source.title}</a> · {source.readScope} · truy cập {source.retrievedAt} · xuất bản {source.publishedAt ?? "chưa rõ"}</p>
-                    ))}
-                  </div>
-                </details>
-              )}
-              {lesson.output && <p className="mt-7">Đầu ra: {lesson.output}</p>}
-              <div className="h-7" />
-              <Stage formatText={formatText} items={lesson.items} answers={answers} disabled={busy || !!pending}
-                readOnly={frozen} onChange={change} onReveal={reveal} actions={(item) => {
-                  const past = feedbackForItems(history,[item.id]), current = past[0];
-                  const previous = past.slice(1);
-                  const answer = answers[item.id]?.answer.trim();
-                  const hasWork = (answer && (item.input !== "choice" || answer !== "[]")) || !!answers[item.id]?.attachmentIds?.length;
-                  const latestAttempt = current?.attempts[0];
-                  const changed = !latestAttempt || latestAttempt.answer !== answers[item.id]?.answer || !!answers[item.id]?.attachmentIds?.length;
-                  const canSubmit = !busy && (pending === item.id || (!pending && !waiting(current) && !!hasWork && (changed || !latestAttempt?.result)));
-                  return {
-                    onSubmit: () => void submit(item.id), canSubmit,
-                    submitLabel: current ? "Kiểm tra lại" : "Kiểm tra",
-                    feedback: current && <>
-                      <Feedback submission={current} items={[item]} readOnly={frozen} formatText={formatText} onRefresh={() => void refreshFeedback()} />
-                      {previous.length > 0 && <details><summary className={pencilLink + " cursor-pointer"}>Lần trước</summary>
-                        {previous.map(s => <Feedback earlier key={s.id} submission={s} items={[item]} readOnly={frozen} formatText={formatText} />)}
-                      </details>}
-                    </>,
-                  };
-                }} />
-              <div className="flex h-14 flex-wrap items-center gap-x-5">
-                {!readonly && !lesson.completedAt && <button className={buttonClass("primary")} disabled={busy || !!pending} onClick={() => void complete()}>Xong bài</button>}
-                {!readonly && lesson.completedAt && <button className={pencilLink} disabled={busy || !!pending} onClick={() => void complete()}>Mở lại để sửa</button>}
-                {lesson.completedAt && <button className={pencilLink} onClick={() => setView("summary")}>Xem tổng kết</button>}
-                <span role="status" className={pencil}>{state}</span>
-              </div>
-            </>
-          )}
-        </>
-      )}
-    </RuledPage>
-  );
+  const doneIds = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
+  const firstUnanswered = lesson.items.findIndex(item => !doneIds.has(item.id));
+  const correction = lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? ""));
+  const startAt = lesson.completedAt ? "summary" : correction >= 0 ? `cau-${correction + 1}`
+    : firstUnanswered >= 0 ? `cau-${firstUnanswered + 1}` : "summary";
+  const blocks: SpreadBlock[] = [{ id: "head", kind: "head", node: <>
+    <h1 tabIndex={-1} className="text-balance font-print text-[1.75rem] leading-tight sm:text-[2rem]">{lesson.title}</h1>
+    <p className="mt-3">{lesson.objective}</p>
+    <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
+  </> }];
+  if (lesson.sheet || lesson.sections.length || lesson.diagram || lesson.sources.length) blocks.push({
+    id: "remember", kind: "remember", node: <>
+      <h2 tabIndex={-1} className="font-hand text-xl text-accent">{words.place.remember}</h2>
+      <Sheet sheet={lesson.sheet} formatText={formatText} />
+      {lesson.sections.map((section, i) => <section key={i} className="mt-4"><h3 className="font-hand text-xl">{section.heading}</h3><p className="whitespace-pre-wrap">{section.text}</p></section>)}
+      {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
+      {lesson.sources.map((source, i) => <p key={i} className="text-sm text-muted">
+        <a href={source.url} target="_blank" rel="noreferrer" className={pencilLink}>{source.title}</a> · Đã đọc · {shortDay(source.retrievedAt)}
+        <span className="block">{source.readScope}</span>
+      </p>)}
+    </>,
+  });
+  for (const [index, item] of lesson.items.entries()) {
+    const [current, ...previous] = feedbackForItems(history, [item.id]);
+    const answer = answers[item.id]?.answer.trim();
+    const hasWork = (answer && (item.input !== "choice" || answer !== "[]")) || !!answers[item.id]?.attachmentIds?.length;
+    const latest = current?.attempts[0];
+    const changed = !latest || latest.answer !== answers[item.id]?.answer || !!answers[item.id]?.attachmentIds?.length;
+    const canSubmit = !busy && (pending === item.id || (!pending && !waiting(current) && !!hasWork && (changed || !latest?.result)));
+    blocks.push({ id: `cau-${index + 1}`, kind: "item", label: `Câu ${index + 1} / ${lesson.items.length}`, long: item.input === "long" || item.prompt.length > 280,
+      node: <ItemCard formatText={formatText} item={item} number={index + 1}
+        value={answers[item.id] ?? { answer: "" }} disabled={busy || !!pending} readOnly={frozen}
+        onChange={value => change(item.id, value)} onReveal={level => reveal(item.id, level)}
+        onSubmit={() => void submit(item.id)} canSubmit={canSubmit}
+        submitLabel={current ? words.action.recheck : words.action.check}
+        feedback={current && <>
+          <Feedback submission={current} items={[item]} readOnly={frozen} child={child} formatText={formatText} onRefresh={() => void refreshFeedback()} />
+          <PreviousFeedback items={previous} item={item} readOnly={frozen} formatText={formatText} />
+        </>} />,
+    });
+  }
+  if (lesson.output) blocks.push({ id: "product", kind: "product", node: <p>{words.place.product} · {lesson.output}</p> });
+  blocks.push({ id: "summary", kind: "summary", node: <>
+    {!lesson.completedAt && unanswered > 0 && <p>Còn {unanswered} câu chưa làm. <button className={pencilLink} onClick={() => jump(`cau-${firstUnanswered + 1}`)}>Lật tới câu {firstUnanswered + 1}</button></p>}
+    {!readonly && !lesson.completedAt && <button className={buttonClass("primary")} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.finish}</button>}
+    {!readonly && lesson.completedAt && <button className={pencilLink} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.reopen}</button>}
+    <PaperConfirm open={confirmFinish && !busy && !pending}
+      message={`Còn ${unanswered} câu chưa làm. Vẫn xong bài?`} confirmLabel={words.action.finish}
+      onCancel={() => setConfirmFinish(false)} onConfirm={() => void complete(true)} />
+    <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
+      reflectionId={lesson.completedAt ? reflection?.id : undefined} onOpen={openLesson} go={go}
+      onHome={() => go({ view: "desk" })} onReview={() => jump("head")} completed={!!lesson.completedAt} />
+  </> });
+  return <div className="mx-auto w-full max-w-5xl">
+    <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 rounded-sm bg-oak-dark px-3 text-oak-ink">
+      <RouteLink route={{ view: "book", id: lesson.subjectId }} go={go} className="inline-flex min-h-11 items-center font-hand text-lg hover:underline">← {words.action.close}</RouteLink>
+      <span>{lesson.title}</span>
+      <span role="status" className="font-hand">{state}</span>
+    </header>
+    {readonly && <p className={pencil}>Bạn đang xem bài của người học.</p>}
+    <GraderOffline waiting={waitingForGrade} />
+    {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}
+    {error && <p role="alert" className="text-brick">{error}</p>}
+    <Spread blocks={blocks} startAt={startAt} jump={pageJump} storageKey={`lh-lesson-page:${cacheKey}`} />
+  </div>;
+
+  function jump(block: string) {
+    setPageJump(previous => ({ id: block, key: (previous?.key ?? 0) + 1 }));
+  }
+}
+
+function PreviousFeedback({ items, item, readOnly, formatText }: {
+  items: SubmissionView[]; item: Lesson["items"][number]; readOnly: boolean; formatText?: (text: string) => string;
+}) {
+  const [open, setOpen] = useState(false);
+  if (!items.length) return null;
+  return <div>
+    <button type="button" className={pencilLink} aria-expanded={open} onClick={() => setOpen(!open)}>Lần trước</button>
+    {open && items.map(submission => <Feedback earlier key={submission.id} submission={submission} items={[item]} readOnly={readOnly} formatText={formatText} />)}
+  </div>;
 }

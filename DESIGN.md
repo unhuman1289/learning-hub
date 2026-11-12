@@ -127,3 +127,11 @@ Current code links Docs only. OAuth consent, unattended write permissions and co
 Start with free managed infrastructure; benchmark before upgrades. AI research can run in a cloud scheduled task covered by an existing subscription. The task reads current progress through authorized tools and writes validated proposals. Hub remains usable if a task fails or the laptop is off; old lessons remain available.
 
 Git stores source. D1 stores state. Docs stores documents. Backups store private copies. These have separate permissions and migration lifecycles.
+
+## Cuốn sổ mở và trang bài
+
+Sổ chủ đề nằm trên bàn gỗ. Ba thẻ Mục lục, Hôm nay, Tiến độ dẫn đến từng trang. Bánh răng mở Cài đặt và nút Đóng sổ đưa về bàn học. Sổ nền giữ đường dẫn cũ và có thẻ riêng cho tài liệu.
+
+Giấy kẻ và giấy ô li giữ màu kem ở cả hai chế độ. Chữ trên giấy dùng token riêng, còn gỗ và tường đổi màu theo ánh sáng. Một trang bài trên điện thoại, hai trang cạnh nhau từ 1024px. Khối câu giữ nguyên khi chia trang. Trang khuất nằm ngoài luồng Tab và trình đọc màn hình. Phím mũi tên, nút mép trang và vuốt ngang đều lật được. Khi giảm chuyển động, trang đổi ngay.
+
+Lời chào lấy giờ Berlin. Câu khích lệ dựa trên việc học đã lưu ở các sổ đang dùng. Tên người, lời phê và nút bấm dùng tiếng Việt ngắn. Hồ sơ trẻ em có dòng kẻ rộng hơn, ngày học đủ mười phút có sticker và câu đã chấm có nút Hỏi bố mẹ.

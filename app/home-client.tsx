@@ -66,12 +66,12 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
   // Time with a notebook open counts as study time; nothing has to be logged by hand.
   const [lessonClock,setLessonClock]=useState<{id:string;subjectId:string}|null>(null);
   const onLessonLoaded=useCallback((id:string,subjectId:string)=>setLessonClock({id,subjectId}),[]);
-  const clock = useStudyClock(viewingId===null&&route.view==='lesson'&&lessonClock?.id===route.id?lessonClock.subjectId:(route.view === "notebook" ? route.track : route.view === "subject" && viewingId === null ? route.id : null));
+  const clock = useStudyClock(viewingId===null&&route.view==='lesson'&&lessonClock?.id===route.id?lessonClock.subjectId:(route.view === "notebook" ? route.track : route.view === "book" && viewingId === null ? route.id : null));
   const labelFor = (key: string) => (isTrack(key) ? trackInfo(key).title : shelf.subjects?.find((item) => item.id === key)?.title ?? "Sổ khác");
 
   const name = userName.trim() || userEmail.split("@")[0];
   const nav: { route: Route; label: string; icon: typeof House; on: boolean }[] = [
-    { route: { view: "desk" }, label: "Phòng học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "subject" || route.view === "lesson" },
+    { route: { view: "desk" }, label: "Bàn học", icon: House, on: route.view === "desk" || route.view === "notebook" || route.view === "book" || route.view === "lesson" },
     ...(isAdmin ? [{ route: { view: "admin" } as Route, label: "Quản trị", icon: ShieldCheck, on: route.view === "admin" }] : []),
   ];
 
@@ -81,20 +81,19 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
       <header className="sticky top-0 z-20 text-oak-ink" style={{ viewTransitionName: "site-header" }}>
         <div className="bg-oak">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
-          <RouteLink route={{ view: "desk" }} go={go} aria-label="Learning Hub · Phòng học" className="flex items-center gap-2.5 rounded-md">
-            <HouseLogo className="size-10 drop-shadow-[0_1px_1px_rgb(0_0_0/0.35)]" />
+          <RouteLink route={{ view: "desk" }} go={go} aria-label="Bàn học" className="flex items-center gap-2.5 rounded-md">
+            <HouseLogo className="size-11 drop-shadow-[0_1px_1px_rgb(0_0_0/0.35)]" />
             <span className="hidden leading-none sm:grid">
-              <span className="font-print text-xl font-medium">Learning Hub</span>
-              <span className="hidden font-hand text-sm opacity-80 sm:block">phòng học cả nhà</span>
+              <span className="font-print text-xl font-medium">Phòng học cả nhà</span>
             </span>
           </RouteLink>
-          <nav aria-label="Điều hướng chính" className="ml-4 hidden gap-1 lg:flex">
+          {nav.length >= 2 && <nav aria-label="Điều hướng chính" className="ml-4 hidden gap-1 lg:flex">
             {nav.map((item) => (
-              <RouteLink key={item.label} route={item.route} go={go} aria-current={item.on ? "page" : undefined} className={cx("rounded-full px-4 py-2 text-sm", item.on ? "bg-paper/85 font-semibold text-accent-hover shadow-[0_1px_2px_rgb(40_24_8/0.25)]" : "hover:bg-paper/40")}>
+              <RouteLink key={item.label} route={item.route} go={go} aria-current={item.on ? "page" : undefined} className={cx("rounded-full px-4 py-2 text-sm", item.on ? "bg-paper/85 font-semibold text-accent-paper shadow-[0_1px_2px_rgb(40_24_8/0.25)]" : "hover:bg-paper/40")}>
                 {item.label}
               </RouteLink>
             ))}
-          </nav>
+          </nav>}
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             <SaveIndicator workspace={workspace} />
             <StudyMeter clock={clock} labelFor={labelFor} />
@@ -105,7 +104,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
         <Beam />
       </header>
 
-      <main className="px-4 pb-32 pt-6 sm:px-6 lg:pb-16 lg:pt-8">
+      <main data-age={shelf.learners.find(l => viewingId ? l.id === viewingId : l.relation === "self")?.role} className={cx("px-4 pt-6 sm:px-6 lg:pb-16 lg:pt-8", nav.length >= 2 ? "pb-32" : "pb-8")}>
         {route.view === "desk" && (
           <Desk
             name={name}
@@ -118,22 +117,22 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
             hub2={hub2Enabled}
           />
         )}
-        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
-        {route.view === "subject" && <SubjectView id={route.id} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
+        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)} id={route.id} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
+        {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} hub2={hub2Enabled} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>
 
       <SaveProblem workspace={workspace} />
 
-      <nav aria-label="Điều hướng chính" style={{ viewTransitionName: "site-nav" }} className="bg-oak fixed inset-x-0 bottom-0 z-20 flex justify-around border-t-4 border-oak-dark px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 text-oak-ink shadow-[0_-6px_12px_-6px_rgb(40_24_8/0.4)] lg:hidden">
+      {nav.length >= 2 && <nav aria-label="Điều hướng chính" style={{ viewTransitionName: "site-nav" }} className="bg-oak fixed inset-x-0 bottom-0 z-20 flex justify-around border-t-4 border-oak-dark px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 text-oak-ink shadow-[0_-6px_12px_-6px_rgb(40_24_8/0.4)] lg:hidden">
         {nav.map(({ route: target, label, icon: Icon, on }) => (
-          <RouteLink key={label} route={target} go={go} aria-current={on ? "page" : undefined} className={cx("grid min-h-12 min-w-20 justify-items-center gap-0.5 rounded-md px-3 py-1 text-xs", on ? "bg-paper/85 font-semibold text-accent-hover" : "opacity-80")}>
+          <RouteLink key={label} route={target} go={go} aria-current={on ? "page" : undefined} className={cx("grid min-h-12 min-w-20 justify-items-center gap-0.5 rounded-md px-3 py-1 text-xs", on ? "bg-paper/85 font-semibold text-accent-paper" : "opacity-80")}>
             <Icon size={20} aria-hidden="true" />
             {label}
           </RouteLink>
         ))}
-      </nav>
+      </nav>}
 
       {form && <DocumentForm request={form} workspace={workspace} onClose={closeForm} />}
       {newNotebook && (
@@ -144,7 +143,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
           onCreated={(subject) => {
             setNewNotebook(false);
             if (viewingId) return;
-            go(subject.legacyTrack ? { view: "notebook", track: subject.legacyTrack, tab: "bai" } : { view: "subject", id: subject.id });
+            go(subject.legacyTrack ? { view: "notebook", track: subject.legacyTrack, tab: "bai" } : { view: "book", id: subject.id });
           }}
         />
       )}
@@ -162,12 +161,12 @@ function SaveProblem({ workspace }: { workspace: WorkspaceApi }) {
   if (!workspace.error && !(workspace.dirty && !workspace.saving)) return null;
   const notLoaded = !workspace.loaded;
   return (
-    <div role="alert" className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-xl flex-wrap items-center gap-3 rounded-md border border-accent bg-paper px-4 py-3 text-sm shadow-page lg:bottom-6">
+    <div role="alert" className="fixed inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-xl flex-wrap items-center gap-3 rounded-md border border-accent bg-paper px-4 py-3 text-sm text-ink-paper shadow-page lg:bottom-6">
       <span className="min-w-0 flex-1">
-        {notLoaded ? `Chưa tải được dữ liệu sổ: ${workspace.error}` : workspace.error ? `Chưa lưu được thay đổi: ${workspace.error}` : "Có thay đổi chưa lưu lên máy chủ."}
+        {notLoaded ? `Chưa tải được dữ liệu sổ: ${workspace.error}` : workspace.error ? `Chưa lưu được thay đổi: ${workspace.error}` : "Có thay đổi chưa lưu."}
       </span>
-      {!notLoaded && <button type="button" onClick={() => void workspace.save()} className={buttonClass("primary", "min-h-9 px-3")}>Lưu lại</button>}
-      <button type="button" onClick={() => void workspace.load()} className={buttonClass("ghost", "min-h-9")}>{notLoaded ? "Thử lại" : "Tải bản trên máy chủ"}</button>
+      {!notLoaded && <button type="button" onClick={() => void workspace.save()} className={buttonClass("primary", "min-h-11 px-3")}>Lưu lại</button>}
+      <button type="button" onClick={() => void workspace.load()} className={buttonClass("ghost", "min-h-11")}>{notLoaded ? "Thử lại" : "Mở bản đã lưu"}</button>
     </div>
   );
 }

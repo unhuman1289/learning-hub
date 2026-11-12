@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock } from "./lubeck/window";
 import { DeskProgress } from "./desk-progress";
 import { LearnedLessons } from "./learned-lessons";
 import { PaperDialog } from "./paper-dialog";
 import { ProfileSettings } from "./profile-settings";
 import { PostIt } from "../../components/notebook/post-it";
-import {TodayBoard} from "./today-board";
+import { TodayBoard, type TodayData } from "./today-board";
+import { useLiveRefresh } from "./use-live-refresh";
+import { apiJson } from "./api";
+import { words } from "./words";
 import { ContactBook } from "./guardian/contact-book";
 import { AlertCircle } from "lucide-react";
 import { Bookcase, OakDesk, Shelf } from "../../components/notebook/house";
@@ -55,6 +58,33 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   const selfId = viewing.learners.find((item) => item.relation === "self")?.id;
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
+  const [todayData, setTodayData] = useState<{ url: string; value: TodayData | null } | null>(null);
+  const [todayError, setTodayError] = useState("");
+  const [postItsDay, setPostItsDay] = useState<string | null>(null);
+  const todayUrl = "/api/today" + (viewing.id ? "?learner=" + encodeURIComponent(viewing.id) : "");
+  useEffect(() => {
+    if (!hub2) return;
+    let live = true;
+    apiJson<TodayData>(todayUrl).then(value => {
+      if (live) { setTodayData({ url: todayUrl, value }); setTodayError(""); }
+    }).catch(() => { if (live) setTodayError(words.error.unknown); });
+    return () => { live = false; };
+  }, [hub2, todayUrl]);
+  useLiveRefresh(async () => {
+    const value = await apiJson<TodayData>(todayUrl);
+    setTodayData({ url: todayUrl, value });
+    setTodayError("");
+  }, hub2);
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("lh-postits-day") === today) return;
+      sessionStorage.setItem("lh-postits-day", today);
+      const frame = requestAnimationFrame(() => setPostItsDay(today));
+      return () => cancelAnimationFrame(frame);
+    } catch { /* Animation is optional. */ }
+  }, [today]);
+  const data = todayData?.url === todayUrl ? todayData.value : null;
+  const animate = postItsDay === today;
   // The desk only holds lessons that still need attention.
   const visibleTracks=hub2?trackIds.filter(track=>shelf.subjects?.some(s=>s.legacyTrack===track)):trackIds;
   const lessons = visibleTracks.flatMap((track) => {
@@ -67,17 +97,15 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
                 const route: Route = { view: "notebook", track, tab: "bai", page: lesson.id };
                 const isNew = lesson.assignedDate === today && !lesson.response.trim();
                 return (
-                  <PostIt key={lesson.id} color={postitColor[track]} index={index}>
+                  <PostIt key={lesson.id} color={postitColor[track]} index={index} animate={animate}>
                     <p className="flex items-center justify-between gap-2 font-hand text-base leading-5">
                       <span className="opacity-75">{trackInfo(track).title} · {lesson.content.minutes} phút</span>
                       {isNew && <span className="-rotate-6 rounded-sm border-2 border-brick px-1.5 text-sm font-semibold uppercase tracking-wide text-brick">Mới</span>}
                     </p>
-                    {readOnly
-                      ? <p className="mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</p>
-                      : <RouteLink route={route} go={go} className="pencil-underline mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</RouteLink>}
+                    <p className="mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</p>
                     <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                       <span className="font-hand text-base opacity-75">{isNew ? "Bài mới hôm nay" : `Đang học · nhận ${shortDate(lesson.assignedDate)}`}</span>
-                      {!readOnly && <RouteLink route={route} go={go} className={postitAction}>{isNew ? "Bắt đầu" : "Học tiếp"}</RouteLink>}
+                      {!readOnly && <RouteLink route={route} go={go} className={postitAction}>{lesson.response.trim() ? words.action.continue : words.action.open}</RouteLink>}
                     </div>
                   </PostIt>
                 );
@@ -89,10 +117,11 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
       <section className="flex items-center gap-4">
         <CalendarLeaf clock={clock} />
         <div className="min-w-0">
-          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{readOnly ? `Kệ của ${viewedName}` : `Chào ${name}.`}</h1>
+          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
+          <p aria-live="off" className="min-h-7 font-hand text-lg text-accent">{data?.greeting.cheer}</p>
           {viewing.learners.length > 1 && (
-            <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem kệ của
-              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="rounded-md border border-rule bg-paper px-2 py-1 text-ink">
+            <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem bàn của
+              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
                 {viewing.learners.map((item) => (
                   <option key={item.id} value={item.relation === "self" ? "" : item.id}>{item.relation === "self" ? `${item.name} (tôi)` : item.name}</option>
                 ))}
@@ -114,7 +143,12 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
             <h2 className="font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
             <SeasonItem place="desk" month={clock?.month} />
           </div>
-          <TodayBoard key={viewing.id ?? "self"} learner={viewing.id} go={go} enabled={hub2} notes={notes} loadingLegacy={loading} />
+          <TodayBoard key={viewing.id ?? "self"} learner={viewing.id} go={go} enabled={hub2} notes={notes} loadingLegacy={loading}
+            data={data} loadError={todayError} animate={animate}
+            setData={update => setTodayData(current => ({
+              url: todayUrl,
+              value: typeof update === "function" ? update(current?.url === todayUrl ? current.value : null) : update,
+            }))} />
           {daily.error && (
             <p role="alert" className="mt-5 flex gap-2 rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">
               <AlertCircle size={16} className="mt-1 shrink-0" aria-hidden="true" />
@@ -151,7 +185,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         <LearnedLessons subjects={shelf.subjects ?? []} learner={viewing.id} go={(route) => { setDrawer(null); go(route); }} />
       </PaperDialog>}
       {drawer === "settings" && selfId && <PaperDialog title="Cài đặt" labelId="drawer-settings" onClose={() => setDrawer(null)}>
-        <ProfileSettings learner={selfId} title="Hồ sơ của tôi" />
+        <ProfileSettings learner={selfId} title="Về bạn" />
       </PaperDialog>}
       {hub2 && <DeskProgress key={viewing.id ?? "self"} subjects={shelf.subjects ?? []} learner={viewing.id} go={go} />}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
@@ -183,7 +217,7 @@ function PreparedNotebook({ track, daily, readOnly, go }: { track: TrackId; dail
 /** A notebook opened since Learning Hub 2.0. */
 function TopicNotebook({ subject, hasLesson, go }: { subject: ShelfSubject; hasLesson: boolean; go: (route: Route) => void }) {
   return (
-    <RouteLink route={{ view: "subject", id: subject.id }} go={go} aria-label={`Mở sổ ${subject.title}`} className="group block rounded-md" style={{ viewTransitionName: `cover-${subject.id}` }}>
+    <RouteLink route={{ view: "book", id: subject.id }} go={go} aria-label={`Mở sổ ${subject.title}`} className="group block rounded-md" style={{ viewTransitionName: `cover-${subject.id}` }}>
       <NotebookCover
         title={subject.title}
         lines={[hasLesson ? "đang học" : "chưa có bài"]}
