@@ -276,8 +276,10 @@ test('no_action is valid even when existing unfinished workload is over budget',
   const [lease] = await leaseJobs(db, client, input, 'test', next),
     job = await readJob(db, q.id),
     context = JSON.parse(job.context_snapshot);
+  db.sqlite.prepare("UPDATE ai_jobs SET error='Runner báo thất bại' WHERE id=?").run(lease.jobId);
   const r = await applyResult(db, client, lease.jobId, lease.leaseToken, plan(context, null), false, next);
   assert.equal(r.outcome.subjects[0].status, 'no_action');
+  assert.equal(db.sqlite.prepare('SELECT error FROM ai_jobs WHERE id=?').get(lease.jobId).error, null, 'a success clears the old failure text');
   assert.equal(db.sqlite.prepare('SELECT id FROM learning_lessons').get().id, lesson);
   db.sqlite.close();
 });

@@ -9,7 +9,7 @@ import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
 import { submitLesson } from '../lib/evidence/submit.ts';
 import { assessResult } from '../lib/contracts/ai-common.ts';
-import { processJob, userPrompt, systemPrompt, normalizePlan } from '../integrations/home-runner/job.mjs';
+import { processJob, userPrompt, systemPrompt, normalizePlan, compactPlanContext } from '../integrations/home-runner/job.mjs';
 import { strictSchema, stripOptionalNulls, parseJsonReply } from '../integrations/home-runner/schema.mjs';
 import { childEnv, codexEngine, qwenEngine } from '../integrations/home-runner/engines.mjs';
 import { leaseRequest, pollDelay, parseEnvFile, runOnce } from '../integrations/home-runner/runner.mjs';
@@ -144,7 +144,7 @@ const fakeEngine = (name, replies, vision = false) => {
       seen.push(input);
       const next = replies.shift();
       if (next instanceof Error) throw next;
-      return { json: next(JSON.parse(input.user.split('\n')[2])), usage: { model: name + ':m', inputTokens: 10, outputTokens: 5, ms: 7 } };
+      return { json: next(input.user.startsWith('Dữ liệu ngữ cảnh') ? JSON.parse(input.user.split('\n')[2]) : undefined), usage: { model: name + ':m', inputTokens: 10, outputTokens: 5, ms: 7 } };
     },
   };
 };
@@ -189,7 +189,7 @@ test('a rejected lesson goes back to Qwen with the draft and exact question path
   };
   const fixed = structuredClone(draft);
   fixed.explorations[0].lesson.items[1].prompt = 'Nói một câu về việc dời lịch khám.';
-  const qwen = fakeEngine('qwen', [() => draft, () => fixed]);
+  const qwen = fakeEngine('qwen', [() => draft, () => ({ fixes: [{ path: '/explorations/0/lesson/items/1', item: fixed.explorations[0].lesson.items[1] }] })]);
   const calls = [];
   const path = '/explorations/0/lesson/items/1/prompt';
   const hub = {
@@ -204,11 +204,52 @@ test('a rejected lesson goes back to Qwen with the draft and exact question path
     fail: async () => assert.fail('Expected the fixed draft to be saved'),
   };
   assert.equal((await processJob(hub, { kind: 'plan', jobId: 'job_plan' }, qwen)).status, 'succeeded');
+  // Round two resends only the broken item, not the whole rejected draft.
   assert.match(qwen.seen[1].user, new RegExp(path));
-  const rejected = JSON.parse(qwen.seen[1].user.split('<rejected_draft>\n')[1].split('\n</rejected_draft>')[0]);
-  assert.deepEqual(rejected.explorations[0].lesson, calls[0].body.explorations[0].lesson);
+  assert.doesNotMatch(qwen.seen[1].user, /rejected_draft/);
+  assert.ok(qwen.seen[1].user.length < qwen.seen[0].user.length + JSON.stringify(lesson.items[1]).length * 4 + 4000);
+  assert.deepEqual(qwen.seen[1].schema.properties.fixes.items.properties.path.enum, ['/explorations/0/lesson/items/1']);
   assert.deepEqual(calls.map(call => call.dryRun), [true, true, false]);
   assert.deepEqual(calls[2].body.explorations[0].lesson.items[0], calls[0].body.explorations[0].lesson.items[0]);
+});
+
+test('a duplicate found on the Mac is repaired before the Hub sees the draft', async () => {
+  const lesson = structuredClone(fixture);
+  const context = {
+    contract: 'plan-context/1', contextHash: 'sha256:' + '0'.repeat(64), purpose: 'daily',
+    subjects: ['sub_bbbbbbbbbbbbbbbbbbbb', 'sub_cccccccccccccccccccc'].map(subjectId => ({
+      subjectId, limits: {}, revision: 1, slot: { openPrimaryLessonId: null }, goal: '', instructions: '', progressSummary: '',
+      skills: [], errorPatterns: [], recentLessons: [{ items: [{ prompt: lesson.items[1].prompt }] }],
+    })),
+  };
+  const draft = {
+    contract: 'plan-result/1', contextHash: context.contextHash, summary: 'Bài mới', subjects: [],
+    explorations: [{ requestId: 'req_0123456789abcdefabcd', action: 'assign', subjectId: subject, lesson, reason: 'Luyện thêm.' }],
+    usage: { model: 'test', inputTokens: 0, outputTokens: 0, ms: 0 },
+  };
+  const fixedItem = { ...lesson.items[1], prompt: 'Viết một câu mới về việc hẹn lịch khám với bác sĩ.' };
+  const qwen = fakeEngine('qwen', [() => draft, () => ({ fixes: [{ path: '/explorations/0/lesson/items/1', item: fixedItem }] })]);
+  const dry = [];
+  const hub = {
+    context: async () => context,
+    async result(_lease, body, dryRun) { dry.push(body.explorations[0].lesson.items[1].prompt); return { status: 200, dryRun }; },
+    state: async () => ({ status: 'succeeded', outcome: { extraLessonIds: ['saved-lesson'] } }),
+    fail: async () => assert.fail('Expected the repaired draft to be saved'),
+  };
+  assert.equal((await processJob(hub, { kind: 'plan', jobId: 'job_dup' }, qwen)).status, 'succeeded');
+  assert.equal(dry[0], fixedItem.prompt, 'the Hub never received the duplicate');
+  assert.match(qwen.seen[1].user, /duplicate_item/);
+});
+
+test('plan context stays under its byte budget', () => {
+  const big = 'x'.repeat(2000);
+  const context = { subjects: [{
+    goal: big, instructions: big, progressSummary: '', skills: [], errorPatterns: [],
+    recentLessons: Array.from({ length: 4 }, () => ({ items: Array.from({ length: 4 }, () => ({ prompt: big })) })),
+  }] };
+  const compact = compactPlanContext(context, 6000);
+  assert.ok(JSON.stringify(compact).length <= 6000 + 1800 || compact.subjects[0].recentLessons.every(l => l.items.length === 0));
+  assert.ok(compact.subjects[0].recentLessons.every(l => l.items.every(item => item.prompt.length <= 80)));
 });
 
 test('Qwen without vision leaves photos with the Hub', async () => {
