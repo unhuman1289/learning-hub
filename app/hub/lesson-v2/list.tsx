@@ -1,8 +1,10 @@
 "use client";
 
+import { Contents } from "../notebook/contents";
+import type { NotebookLessonRow as LessonRow } from "../../../lib/lesson-v2/notebook-list";
 import { words } from "../words";
 import { useCallback, useEffect, useState } from "react";
-import { apiJson, learnerQuery } from "../api";
+import { apiJson } from "../api";
 import { AdaptiveRequests } from "../adaptive-requests";
 import { NotebookRequests } from "../requests-panel";
 import { HistoryPanel } from "../history-panel";
@@ -13,7 +15,6 @@ import { MarginDate } from "../../../components/notebook/paper";
 import { paperAction, PaperSummary, pencil, pencilLink, shortDay, skillLabel } from "../paper-bits";
 import type { Route } from "../use-route";
 
-type LessonRow = { id: string; title: string; completedAt: string | null; assignedDate: string; kind: string; slot: string; reason: string; minutes: number | null; skill: string | null; hasWork: number };
 type Notebook = { lessons: LessonRow[]; nextOffset: number | null; adaptive: boolean; day: string; nightly: { status: string; outcome: string | null } | null; initial: { status: string } | null; setup: boolean };
 type Props = { subjectId: string; learner: string | null; go: (route: Route) => void; canRequest?: boolean; history?: boolean; showBoth?: boolean; bookPage?: "today" | "contents" };
 
@@ -23,14 +24,17 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
   const [offset, setOffset] = useState<number | undefined>();
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [version, setVersion] = useState(0);
+  const all = !!bookPage;
+  const params = new URLSearchParams({ ...(learner ? { learner } : {}), ...(all ? { all: "1" } : {}) });
+  const lessonsUrl = `/api/subjects/${subjectId}/lessons?${params}`;
   const refresh = useCallback(() => setVersion(current => current + 1), []);
   useEffect(() => {
     let alive = true;
-    apiJson<Notebook>(`/api/subjects/${subjectId}/lessons${learnerQuery(learner)}`)
+    apiJson<Notebook>(lessonsUrl)
       .then(data => { if (alive) { setNotebook(data); setError(""); } })
       .catch((e: Error) => { if (alive) setError(e.message); });
     return () => { alive = false; };
-  }, [subjectId, learner, version]);
+  }, [lessonsUrl, version]);
   const nightlyStatus = notebook?.nightly?.status;
   const initialStatus = notebook?.initial?.status;
   const pending = [nightlyStatus, initialStatus].some(status => status === "queued" || status === "leased");
@@ -44,7 +48,7 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
     setLoadingOlder(true);
     try {
       const next = await apiJson<Notebook>(`/api/subjects/${subjectId}/lessons?` + new URLSearchParams({
-        ...(learner ? { learner } : {}), offset: String(nextOffset),
+        ...(learner ? { learner } : {}), ...(all ? { all: "1" } : {}), offset: String(nextOffset),
       }));
       setOlder(previous => [...previous, ...next.lessons]);
       setOffset(next.nextOffset ?? 0);
@@ -54,7 +58,7 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
       setLoadingOlder(false);
     }
   }
-  const open = rows.filter(row => !row.completedAt);
+  const open = rows.filter(row => !row.completedAt).sort((a,b) => b.assignedDate.localeCompare(a.assignedDate));
   const primary = open.find(row => row.slot === "primary") ?? rows.find(row => row.slot === "primary" && row.assignedDate === notebook.day);
   const extras = open.filter(row => row.id !== primary?.id);
   const kindLabel = (row: LessonRow) => row.kind === "diagnostic" ? words.lessonKind.diagnostic : row.kind === "new" ? words.lessonKind.new : row.kind === "exploration" ? words.lessonKind.own : row.kind === "review" ? words.lessonKind.review : words.lessonKind.practice;
@@ -78,7 +82,12 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
       <HistoryPanel subjectId={subjectId} learner={learner} downloads={!bookPage} />
     </>
   );
-  if (history || bookPage === "contents") return historyList;
+  if (bookPage === "contents") return <>
+    <Contents rows={rows} go={go} />
+    {error && <p role="alert">{words.error.unknown}</p>}
+    {nextOffset !== null && <button type="button" className={pencilLink} disabled={loadingOlder} onClick={() => void loadMore()}>Xem thêm bài</button>}
+  </>;
+  if (history) return historyList;
   const firstLessonStatus = initialStatus === "leased"
     ? "Đang chuẩn bị bài đầu tiên…"
     : initialStatus === "queued" ? "Đang chuẩn bị bài đầu tiên…"
@@ -96,7 +105,10 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
           {primary ? <div className="grid min-w-0 justify-items-start gap-1">
             <p className={pencil}>{primary.kind === "diagnostic" ? words.lessonKind.diagnostic : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Bài đang học"}</p>
             <h2 className="min-w-0 break-words font-print text-2xl leading-tight sm:text-[1.75rem]">{primary.title}</h2>
-            {primary.minutes ? <p className={pencil}>{primary.minutes} phút</p> : null}
+            {(primary.total || primary.minutes) ? <p className={pencil}>
+              {primary.total ? `${primary.attempted}/${primary.total} câu` : ""}
+              {primary.minutes ? `${primary.total ? " · " : ""}${primary.minutes} phút` : ""}
+            </p> : null}
             {primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason &&
               <p className="max-w-prose text-sm leading-6 text-muted">{primary.reason}</p>}
             <RouteLink route={{ view: "lesson", id: primary.id }} go={go} className={paperAction + " mt-1"}>

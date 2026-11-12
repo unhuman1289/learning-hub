@@ -77,7 +77,7 @@ test('v2 lessons: stored with items, one primary and one review per notebook per
   assert.equal(view.items[1].hintCount, 1);
   db.sqlite.prepare(`UPDATE learning_lessons SET support='{"i2":"hint1","i3":"solution"}' WHERE id=?`).run(id);
   const revealed = await readLessonV2(db, 'ech', id, new Set(['i1']));
-  assert.deepEqual(revealed.items[1].revealed, { hints: ['Sau Modalverb, động từ cuối câu ở dạng nào?'] });
+  assert.deepEqual(revealed.items[1].revealed, { hints: ['Sau Modalverb, động từ cuối câu ở dạng nào?'], solutionSeen: false });
   assert.equal(revealed.items[2].revealed.solution, 'Paul möchte einen Kuchen kaufen.');
   assert.equal(revealed.items[0].revealed.solution, 'b: Ich kann heute kochen.', 'graded items show their solution');
   await assert.rejects(readLessonV2(db, 'vu', id), (e) => e.status === 404, 'other learners cannot read it');

@@ -5,6 +5,7 @@ import { storage } from '../../../../../db/storage';
 import { usesAdaptivePlan } from '../../../../../lib/subjects/sql';
 import { resolveLearner } from '../../../../../lib/access';
 import { privateHeaders } from '../../../../../lib/lesson-v2/route-helpers';
+import { readNotebookLessons } from '../../../../../lib/lesson-v2/notebook-list';
 export const dynamic = 'force-dynamic';
 export async function GET(req: Request, context: { params: Promise<{ id: string }> }) {
   const user = await getHubUser();
@@ -16,23 +17,18 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
   if (learner instanceof Response) return learner;
   const subject = await db.prepare('SELECT status,legacy_track FROM subjects WHERE id=? AND learner_id=?').bind(id, learner).first<{ status: string; legacy_track: string | null }>();
   if (!subject) return Response.json({ error: 'Not found' }, { status: 404, headers: privateHeaders });
-  const offset = Math.max(0, Math.min(10000, Number.parseInt(new URL(req.url).searchParams.get('offset') ?? '0', 10) || 0));
+  const query = new URL(req.url).searchParams;
+  const offset = Math.max(0, Math.min(10000, Number.parseInt(query.get('offset') ?? '0', 10) || 0));
   const initial = subject.status === 'setup' && offset === 0
     ? await db.prepare("SELECT status FROM ai_jobs WHERE learner_id=? AND subject_id=? AND purpose='initial' ORDER BY created_at DESC LIMIT 1")
       .bind(learner, id).first<{ status: string }>()
     : null;
-  const { results = [] } = await db
-    .prepare(
-      "SELECT id,json_extract(payload,'$.title') AS title,assigned_date AS assignedDate,completed_at AS completedAt,kind,slot,reason,est_minutes AS minutes,EXISTS(SELECT 1 FROM attempts WHERE lesson_id=learning_lessons.id) AS hasWork,(SELECT name FROM skills WHERE id=json_extract(learning_lessons.payload,'$.targetSkills[0]') AND learner_id=learning_lessons.user_id AND subject_id=learning_lessons.subject_id) AS skill FROM learning_lessons WHERE user_id=? AND subject_id=? AND package_version='2' ORDER BY completed_at IS NOT NULL, coalesce(completed_at,updated) DESC,id DESC LIMIT 51 OFFSET ?",
-    )
-    .bind(learner, id, offset)
-    .all();
+  const rows = await readNotebookLessons(db, learner, id, query.get('all') === '1', offset);
   const adaptive = usesAdaptivePlan(id, subject.legacy_track, env.ADAPTIVE_PILOT_SUBJECT_ID);
   const day = berlinDay();
   const nightly = adaptive ? await db.prepare("SELECT status,outcome FROM ai_jobs WHERE learner_id=? AND subject_id=? AND adaptive=1 AND purpose='daily' AND learning_day=? ORDER BY created_at DESC LIMIT 1").bind(learner,id,day).first<{ status: string; outcome: string | null }>() : null;
   return Response.json({
-    lessons: results.slice(0, 50),
-    nextOffset: results.length > 50 ? offset + 50 : null,
+    ...rows,
     adaptive, day, nightly, initial, setup: subject.status === 'setup',
   }, { headers: privateHeaders });
 }

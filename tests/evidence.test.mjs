@@ -49,6 +49,8 @@ test('autograde matrix: exact sets, numeric units/tolerances and German normaliz
   for (const a of ['a', '["a"]', '["a","c","c"]', '["a","b"]', '["a","c","d"]', 'not json']) cases.push([choice, a, false]);
   assert.ok(cases.length >= 40);
   for (const [key, answer, correct] of cases) assert.equal(autoGrade(key, answer).result, correct ? 'correct' : 'incorrect', answer);
+  assert.equal(autoGrade(text, 'kochen').feedback, 'Đúng.');
+  assert.equal(autoGrade(text, 'kocht').feedback, 'Chưa đúng. Đọc lại đề và thử sửa nhé.');
 });
 test('evidence strength distinguishes help, retry, solution and ungradable', () => {
   assert.equal(evidenceStrength('correct', 'none', 1), 'E3');

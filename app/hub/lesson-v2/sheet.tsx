@@ -1,39 +1,48 @@
-"use client";
 import type { LessonPackageV2 } from "../../../lib/contracts/lesson-package-v2";
-export function Sheet({ sheet,formatText=(text:string)=>text }: { sheet: LessonPackageV2["sheet"];formatText?:(text:string)=>string }) {
-  if (!sheet) return null;
-  return (
-    <section aria-label="Tờ kiến thức" className="space-y-4">
-      <h2 className="font-hand text-2xl">Tờ kiến thức</h2>
-      <p className="whitespace-pre-wrap leading-7">{formatText(sheet.explanation)}</p>
-      {(
-        [
-          ["Quy tắc", sheet.rules],
-          ["Lỗi hay gặp", sheet.mistakes],
-          ["Mẹo", sheet.tips],
-          ["Tự kiểm tra", sheet.checklist],
-        ] as const
-      ).map(
-        ([title, items]) =>
-          items.length > 0 && (
-            <div key={title}>
-              <h3 className="font-semibold">{title}</h3>
-              <ul className="list-disc pl-6">
-                {items.map((text, i) => (
-                  <li key={i} className="leading-7">
-                    {formatText(text)}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ),
-      )}
-      {sheet.examples.map((e, i) => (
-        <blockquote key={i} className="border-l border-accent pl-4">
-          {e.correct ? "✓" : "✗"} {formatText(e.text)}
-          {e.note && <p>{formatText(e.note)}</p>}
-        </blockquote>
-      ))}
-    </section>
-  );
+import type { SpreadBlock } from "../notebook/spread";
+
+/** Keep whole words together while giving long explanations breakpoints between pages. */
+export function splitPaperText(value: string) {
+  const chunks: string[] = [];
+  for (const paragraph of value.split(/\n\s*\n/)) {
+    let line = "";
+    for (const word of paragraph.trim().split(/\s+/)) {
+      if (!word) continue;
+      if (line && line.length + word.length > 220) {
+        chunks.push(line);
+        line = "";
+      }
+      line += line ? " " + word : word;
+    }
+    if (line) chunks.push(line);
+  }
+  return chunks;
+}
+
+export function sheetBlocks(sheet: NonNullable<LessonPackageV2["sheet"]>, formatText: (text: string) => string): SpreadBlock[] {
+  const blocks: SpreadBlock[] = splitPaperText(sheet.explanation).map((value, index) => ({
+    id: `remember-explanation-${index}`, kind: "remember", text: [{ value }],
+    node: <p>{formatText(value)}</p>,
+  }));
+  const lists = [
+    ["rules", "Quy tắc", sheet.rules], ["mistakes", "Lỗi hay gặp", sheet.mistakes],
+    ["tips", "Mẹo", sheet.tips], ["checklist", "Tự kiểm tra", sheet.checklist],
+  ] as const;
+  for (const [id, title, values] of lists) for (const [i, value] of values.entries()) {
+    blocks.push({
+      id: `remember-${id}-${i}`, kind: "remember", text: [{ value }], reservedLines: i === 0 ? 1 : 0,
+      node: <>{i === 0 && <h2 className="font-hand text-lg">{title}</h2>}<p>• {formatText(value)}</p></>,
+    });
+  }
+  for (const [i, example] of sheet.examples.entries()) {
+    blocks.push({
+      id: `remember-example-${i}`, kind: "remember",
+      text: [{ value: example.text }, ...(example.note ? [{ value: example.note }] : [])],
+      node: <blockquote className="border-l border-accent pl-3">
+        {example.correct ? "✓" : "✗"} {formatText(example.text)}
+        {example.note && <p>{formatText(example.note)}</p>}
+      </blockquote>,
+    });
+  }
+  return blocks;
 }

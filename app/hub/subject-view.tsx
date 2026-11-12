@@ -10,8 +10,9 @@ import type { NotebookOverview } from "../../lib/learner-model/overview";
 import { apiJson, learnerQuery } from "./api";
 import { useLiveRefresh } from "./use-live-refresh";
 import { Book } from "./notebook/book";
+import { RecentNotebookReport } from "./notebook/today";
 import { BookProgress } from "./notebook/progress";
-import { HistoryDownloads } from "./history-panel";
+import { HistoryPanel } from "./history-panel";
 import { words } from "./words";
 
 export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfApi; canEdit: boolean; canManage: boolean; go: (route: Route) => void; hub2?: boolean }) {
@@ -39,15 +40,18 @@ function SubjectBook({ id, page = "hom-nay", shelf, canEdit, go, hub2 = false }:
       {!!subject.roadmap?.length && <section className="mb-4"><h2 className="font-hand text-xl text-accent">{words.place.next}</h2>
         <ol className="ml-5 list-decimal">{subject.roadmap.slice(0, 3).map((step, index) => <li key={index}>{step.title}</li>)}</ol></section>}
     </>}
-    <div hidden={page !== "hom-nay" && page !== "muc-luc"}>
-      {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth bookPage={page === "muc-luc" ? "contents" : "today"}
-        canRequest={!shelf.learner && (subject.status === "active" || subject.status === "setup")} />}
+    <div hidden={page !== "hom-nay" && page !== "muc-luc"} className={page === "hom-nay" ? "md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-7" : undefined}>
+      <div className={page === "hom-nay" ? "min-w-0 md:col-start-2 md:row-start-1" : undefined}>
+        {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth bookPage={page === "muc-luc" ? "contents" : "today"}
+          canRequest={!shelf.learner && (subject.status === "active" || subject.status === "setup")} />}
+      </div>
+      {page === "hom-nay" && hub2 && <div className="mt-6 md:col-start-1 md:row-start-1 md:mt-0"><RecentNotebookReport data={data} subject={subject} /></div>}
     </div>
     {page === "tien-do" && (data ? <BookProgress data={data} child={child} /> : <p role={error ? "alert" : "status"}>{error ? words.error.unknown : "Đang đọc tiến độ…"}</p>)}
     {page === "cai-dat" && <>
       {canEdit && !child && subject.status !== "archived"
         ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
-      {hub2 && !child && <HistoryDownloads subjectId={id} learner={shelf.learner} />}
+      {hub2 && !child && <HistoryPanel subjectId={id} learner={shelf.learner} />}
     </>}
   </Book>;
 }

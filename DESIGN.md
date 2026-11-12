@@ -136,4 +136,6 @@ Giấy kẻ và giấy ô li giữ màu kem ở cả hai chế độ. Chữ trê
 
 Lời chào lấy giờ Berlin. Câu khích lệ dựa trên việc học đã lưu ở các sổ đang dùng. Tên người, lời phê và nút bấm dùng tiếng Việt ngắn. Hồ sơ trẻ em có dòng kẻ rộng hơn, ngày học đủ mười phút có sticker và câu đã chấm có nút Hỏi bố mẹ.
 
-Giấy nhắc “Có câu cần sửa lại” mở đúng câu cần sửa. Link bài thông thường nhớ trang gần nhất, hoặc mở câu chưa làm đầu tiên. Mẩu giấy vàng mở từng gợi ý. Khi đang thao tác trong một câu, khung chờ bạn rời ô nhập hoặc nút rồi mới chia lại trang.
+Giấy nhắc “Có câu cần sửa lại” mở đúng câu cần sửa. Bài mới mở ở Ghi nhớ, bài dở mở ở câu chưa nộp đầu tiên, bài đã xong mở Tổng kết. Thẻ “?” mở giấy nổi với nút xem gợi ý và lời giải. Khung đo khoảng trống dưới thanh sổ để xếp câu lên từng trang. Câu viết ngắn có ô trả lời cạnh dấu Kiểm tra. Chấm lật trang nằm ở chân giấy. Gợi ý và lời phê cập nhật ngay trên trang đang mở.
+
+Ở bản làm việc v2, con dấu Kiểm tra báo khi chưa có câu trả lời. Ô lời phê chừa sẵn hai dòng và mở bản đầy đủ khi bấm. Trang bài dùng cùng khung và các thẻ với trang Hôm nay. Mục lục nhóm theo tháng giao bài.

@@ -61,7 +61,8 @@ export function Feedback({
         <div key={a.id}>
           {earlier && <p className={pencil}>Lần {a.attempt_no}: {formatText(answerLabel(a.answer, items.find((i) => i.id === a.item_id)))}</p>}
           <div className="flex flex-wrap items-baseline gap-x-3">
-            <ResultStamp result={a.result} />
+            <ResultStamp result={a.result} className={a.support === "solution" ? "opacity-60" : undefined} />
+            {a.support === "solution" && a.result === "correct" && <p className={pencil}>Đã xem lời giải, không tính điểm.</p>}
             {a.feedback && <RedPen className="min-w-0 flex-1 basis-60">{formatText(a.feedback)}</RedPen>}
           </div>
           {a.correction && <RedPen>✎ {formatText(a.correction)}</RedPen>}

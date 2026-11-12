@@ -2,8 +2,7 @@
 import {useLiveRefresh} from "../use-live-refresh";
 import {feedbackForItems} from "../../../lib/feedback-history";
 import {LessonSummary} from "./summary";
-import {GraderOffline} from "../runner-status";
-import {RouteLink} from "../ui";
+import {useRunnerStatus} from "../runner-status";
 import {pencil, pencilLink} from "../paper-bits";
 import type {Route} from "../use-route";
 import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
@@ -12,10 +11,12 @@ import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { Drafts } from "../lesson-page";
 import { buttonClass } from "../ui";
-import { Sheet } from "./sheet";
+import { sheetBlocks, splitPaperText } from "./sheet";
 import { PaperConfirm } from "../paper-confirm";
 import { words } from "../words";
 import { ItemCard } from "./item-card";
+import { initialLessonBlock } from "../notebook/page-blocks";
+import { Book } from "../notebook/book";
 import { Spread, type SpreadBlock } from "../notebook/spread";
 import { shortDay } from "../paper-bits";
 import { Feedback, type SubmissionView } from "./feedback";
@@ -282,6 +283,7 @@ export function LessonReader({
         body: JSON.stringify({ completed: !fresh.lesson.completedAt, expectedUpdated: fresh.lesson.updated }),
       });
       setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
+      setJustCompleted(result.completed);
       jump(result.completed ? "summary" : "head");
       await onCompleted?.();
     } catch (e) {
@@ -290,8 +292,10 @@ export function LessonReader({
       setBusy(false);
     }
   }
+  const runner = useRunnerStatus(waitingForGrade);
+  const [justCompleted, setJustCompleted] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
-  const unanswered = lesson?.items.filter(i => !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
+  const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
   if (!lesson)
     return (
       <div role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">
@@ -303,27 +307,41 @@ export function LessonReader({
   const frozen = readonly || !!lesson.completedAt;
   const openLesson = (next: string) => go({ view: "lesson", id: next });
   const doneIds = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
-  const firstUnanswered = lesson.items.findIndex(item => !doneIds.has(item.id));
+  const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !doneIds.has(item.id));
   const correction = openCorrection ? lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
-  const startAt = lesson.completedAt ? "summary" : correction >= 0 ? `cau-${correction + 1}`
-    : firstUnanswered >= 0 ? `cau-${firstUnanswered + 1}` : "summary";
-  const blocks: SpreadBlock[] = [{ id: "head", kind: "head", node: <>
-    <h1 tabIndex={-1} className="text-balance font-print text-[1.75rem] leading-tight sm:text-[2rem]">{lesson.title}</h1>
-    <p className="mt-3">{lesson.objective}</p>
-    <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
-  </> }];
-  if (lesson.sheet || lesson.sections.length || lesson.diagram || lesson.sources.length) blocks.push({
-    id: "remember", kind: "remember", node: <>
-      <h2 tabIndex={-1} className="font-hand text-xl text-accent">{words.place.remember}</h2>
-      <Sheet sheet={lesson.sheet} formatText={formatText} />
-      {lesson.sections.map((section, i) => <section key={i} className="mt-4"><h3 className="font-hand text-xl">{section.heading}</h3><p className="whitespace-pre-wrap">{section.text}</p></section>)}
-      {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
-      {lesson.sources.map((source, i) => <p key={i} className="text-sm text-muted">
+  const startAt = initialLessonBlock({ completed: !!lesson.completedAt, correction, firstUnanswered,
+    hasWork: doneIds.size > 0 || lesson.items.some(item => item.revealed.solutionSeen) || Object.values(answers).some(answer => {
+      const value = answer.answer.trim();
+      return (value && value !== "[]") || !!answer.attachmentIds?.length;
+    }) });
+  const blocks: SpreadBlock[] = [{ id: "head", kind: "head", reservedLines: 3,
+    text: [{ value: lesson.title }, { value: lesson.objective }, { value: lesson.why, handwriting: true }], node: <>
+      <h1 tabIndex={-1} className="text-balance font-print text-[1.75rem] leading-tight sm:text-[2rem]">{lesson.title}</h1>
+      <p className="mt-3">{lesson.objective}</p>
+      <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
+    </> }];
+  if (lesson.sheet) blocks.push(...sheetBlocks(lesson.sheet, formatText ?? (text => text)));
+  for (const [i, section] of lesson.sections.entries()) {
+    for (const [j, value] of splitPaperText(section.text).entries()) {
+      blocks.push({
+        id: `remember-section-${i}-${j}`, kind: "remember", reservedLines: j === 0 ? 1 : 0,
+        text: [{ value }],
+        node: <>{j === 0 && <h2 tabIndex={-1} className="font-hand text-xl">{section.heading}</h2>}<p>{value}</p></>,
+      });
+    }
+  }
+  if (lesson.diagram) blocks.push({ id: "diagram", kind: "remember", text: [{ value: lesson.diagram }],
+    node: <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre> });
+  for (const [i, source] of lesson.sources.entries()) {
+    blocks.push({
+      id: `source-${i}`, kind: "remember", reservedLines: 2,
+      text: [{ value: source.title }, { value: source.readScope }],
+      node: <p className="text-sm text-muted">
         <a href={source.url} target="_blank" rel="noreferrer" className={pencilLink}>{source.title}</a> · Đã đọc · {shortDay(source.retrievedAt)}
         <span className="block">{source.readScope}</span>
-      </p>)}
-    </>,
-  });
+      </p>,
+    });
+  }
   for (const [index, item] of lesson.items.entries()) {
     const [current, ...previous] = feedbackForItems(history, [item.id]);
     const answer = answers[item.id]?.answer.trim();
@@ -331,42 +349,48 @@ export function LessonReader({
     const latest = current?.attempts[0];
     const changed = !latest || latest.answer !== answers[item.id]?.answer || !!answers[item.id]?.attachmentIds?.length;
     const canSubmit = !busy && (pending === item.id || (!pending && !waiting(current) && !!hasWork && (changed || !latest?.result)));
-    blocks.push({ id: `cau-${index + 1}`, kind: "item", label: `Câu ${index + 1} / ${lesson.items.length}`, long: item.input === "long" || item.prompt.length > 280,
+    blocks.push({ id: `cau-${index + 1}`, kind: "item", label: `Câu ${index + 1}`, long: item.input === "long",
+      reservedLines: 4 + (item.input === "long" ? 5 : item.input === "short" && item.attachment !== "none" ? 1 : 0)
+        + (item.attachment !== "none" ? 2 : 0),
+      extraLine: item.prompt.length > 60,
+      text: [item.prompt, item.instructions, ...(item.choices ?? []).map(choice => choice.text)].filter((value): value is string => !!value).map(value => ({ value })),
       node: <ItemCard formatText={formatText} item={item} number={index + 1}
         value={answers[item.id] ?? { answer: "" }} disabled={busy || !!pending} readOnly={frozen}
         onChange={value => change(item.id, value)} onReveal={level => reveal(item.id, level)}
         onSubmit={() => void submit(item.id)} canSubmit={canSubmit}
         submitLabel={current ? words.action.recheck : words.action.check}
+        feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
+        feedbackPreview={latest?.feedback ? (formatText?.(latest.feedback) ?? latest.feedback)
+          : current && waiting(current) ? runner?.online === false ? words.status.gradeLater : words.status.grading
+          : latest?.result ? words.result[latest.result as keyof typeof words.result] : undefined}
         feedback={current && <>
           <Feedback submission={current} items={[item]} readOnly={frozen} child={child} formatText={formatText} onRefresh={() => void refreshFeedback()} />
           <PreviousFeedback items={previous} item={item} readOnly={frozen} formatText={formatText} />
         </>} />,
     });
   }
-  if (lesson.output) blocks.push({ id: "product", kind: "product", node: <p>{words.place.product} · {lesson.output}</p> });
+  if (lesson.output) blocks.push({ id: "product", kind: "product", text: [{ value: lesson.output }], node: <p>{words.place.product} · {lesson.output}</p> });
   blocks.push({ id: "summary", kind: "summary", node: <>
-    {!lesson.completedAt && unanswered > 0 && <p>Còn {unanswered} câu chưa làm. <button className={pencilLink} onClick={() => jump(`cau-${firstUnanswered + 1}`)}>Lật tới câu {firstUnanswered + 1}</button></p>}
     {!readonly && !lesson.completedAt && <button className={buttonClass("primary")} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.finish}</button>}
     {!readonly && lesson.completedAt && <button className={pencilLink} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.reopen}</button>}
     <PaperConfirm open={confirmFinish && !busy && !pending}
-      message={`Còn ${unanswered} câu chưa làm. Vẫn xong bài?`} confirmLabel={words.action.finish}
+      message="Bạn vẫn muốn đánh dấu xong bài này?" confirmLabel={words.action.finish}
       onCancel={() => setConfirmFinish(false)} onConfirm={() => void complete(true)} />
     <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
+      onQuestion={itemId => {
+        const index = lesson.items.findIndex(item => item.id === itemId);
+        if (index >= 0) jump(`cau-${index + 1}`);
+      }}
+      progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
       reflectionId={lesson.completedAt ? reflection?.id : undefined} onOpen={openLesson} go={go}
-      onHome={() => go({ view: "desk" })} onReview={() => jump("head")} completed={!!lesson.completedAt} />
+      onHome={() => go({ view: "book", id: lesson.subjectId })} onReview={() => jump("head")} completed={!!lesson.completedAt} justCompleted={justCompleted} />
   </> });
-  return <div className="mx-auto w-full max-w-5xl">
-    <header className="mb-3 flex flex-wrap items-center justify-between gap-x-4 rounded-sm bg-oak-dark px-3 text-oak-ink">
-      <RouteLink route={{ view: "book", id: lesson.subjectId }} go={go} className="inline-flex min-h-11 items-center font-hand text-lg hover:underline">← {words.action.close}</RouteLink>
-      <span>{lesson.title}</span>
-      <span role="status" className="font-hand">{state}</span>
-    </header>
+  return <Book id={lesson.subjectId} title={lesson.subjectTitle ?? lesson.title} page="lesson" go={go}>
     {readonly && <p className={pencil}>Bạn đang xem bài của người học.</p>}
-    <GraderOffline waiting={waitingForGrade} />
     {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}
     {error && <p role="alert" className="text-brick">{error}</p>}
-    <Spread blocks={blocks} startAt={startAt} preferStart={correction >= 0} jump={pageJump} storageKey={`lh-lesson-page:${cacheKey}`} />
-  </div>;
+    <Spread blocks={blocks} startAt={startAt} jump={pageJump} child={child} status={state} />
+  </Book>;
 
   function jump(block: string) {
     setPageJump(previous => ({ id: block, key: (previous?.key ?? 0) + 1 }));
