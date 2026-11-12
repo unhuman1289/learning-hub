@@ -15,7 +15,7 @@ Bản 1 viết 11/11/2026 trên `main` @ `9317f67`. **Bản 2 (12/11/2026)** m�
 |---|---|---|
 | Production · PR #114–118 | Bản 3 V1–V7 đã phát hành. PR #118 bổ sung vòng sửa theo lỗi Hub trả về và chỉnh chuyển động thời tiết. | VoiceOver, vuốt trên điện thoại thật và theo dõi lời chào qua ba ngày. |
 | 7–8 · Local bổ sung | Góp ý dùng dấu khoanh, trạng thái chờ chấm hiện cạnh câu, Tiến độ có ô tô màu và số ngày tuần này. Đã tách Cài đặt và gộp nút xin bài theo sổ. | Một số màn hình cũ vẫn dùng danh sách và yêu cầu riêng. Cần chuyển đường dẫn sổ nền và Sổ liên lạc trước khi bỏ các phần này. |
-| 9 · Local | Sáu dạng câu, bốn khối kiến thức, nháp và chấm v3, bật theo sổ và chỉ giao cho runner có khả năng v3. Migration 0022 đã diễn tập trên bản sao D1 production. | CI, kiểm trên staging, duyệt phát hành và bật một sổ pilot. |
+| 9 · Staging | Sáu dạng câu và bốn khối kiến thức. CI đạt. D1 staging đã áp 0022, Worker và smoke HTTPS đạt. Qwen soạn và chấm trên dữ liệu thử cục bộ. | Runner staging trả 401. Cần kiểm lại xác thực, thử sổ pilot trên staging rồi duyệt phát hành production. |
 
 Mốc nghiệm thu cũ ở Bản 3 giữ để đối chiếu. Các bước phát hành v3 và số đo Qwen ở cuối giai đoạn 9.
 
@@ -704,7 +704,8 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - **Giao diện.** Chrome 375, 768 và 1280 px kiểm sáu dạng câu lưu nháp, mở lại, nối cặp bằng phím và chạm giả lập, sắp thứ tự bằng Alt + phím mũi tên, đi qua điểm trên hình và thụt dòng trong ô code.
 - **Qwen `qwen/qwen3.6-35b-a3b`.** Sau khi sửa cách chấm theo từng tiêu chí, nhãn kết quả khớp 10/10 câu Rust và 9/10 câu Sinh học. JSON đạt 10/10 lượt gọi. Mẫu nhỏ do nhóm soạn theo rubric. Qwen tự ghi “Chưa chạy thử” ở 9/10 câu code và chỉ dòng ở 3/5 câu sai hoặc đúng một phần. Giao diện luôn hiện ghi chú chưa chạy thử sau khi có điểm.
 - **Luồng thật trên dữ liệu thử.** Qwen soạn một bài Rust v3 khoảng 80 giây, Hub lưu và đọc lại sáu câu. Lượt chấm sửa một lần theo lỗi kiểm tra rồi lưu điểm và lời phê.
-- **Phát hành.** Sau CI, áp 0022 trên staging, deploy Worker và cập nhật runner lên 1.4.0. Thử mở, làm, nộp bài cũ và một sổ v3 mới trên staging. Sau khi duyệt production, lặp lại theo thứ tự migration → Worker → runner → bật `limits.package = 3` cho một sổ Rust thử. Khi tắt pilot, đặt lại 2 và giữ Worker/runner đọc, nộp, chấm bài v3 đã lưu.
+- **Staging.** Đã sao lưu D1 staging. Hai migration 0018 và 0019 từng được áp dưới tên cũ. Đã đối chiếu cấu trúc và bổ sung tên chuẩn vào lịch sử, rồi áp 0017, 0020, 0021 và 0022. D1 không có lỗi khoá ngoại. Worker `28fa234e-6880-487f-ac3b-6b782ee1439c` qua smoke HTTPS, trang đăng nhập và 16 kiểm tra API từ chối khách chưa đăng nhập.
+- **Còn lại.** Runner 1.4.0 bị staging từ chối xác thực `401`. Đối chiếu lại service token, Access AUD và client trong `AUTOMATION_CLIENTS`, rồi thử bài cũ và một sổ v3 mới. Sau khi duyệt production, triển khai theo thứ tự migration → Worker → runner → bật `limits.package = 3` cho một sổ Rust thử. Khi tắt pilot, đặt lại 2 và giữ Worker/runner đọc, nộp, chấm bài v3 đã lưu.
 
 ---
 
