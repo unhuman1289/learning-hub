@@ -1,3 +1,4 @@
+import {mcpScopesFor} from './metadata';
 import {knowledgePrincipal,knowledgeTools,callKnowledgeTool} from '../knowledge/tools';
 import {createMcpHandler,McpServer} from '@modelcontextprotocol/server';
 import {createLocalJWKSet,jwtVerify} from 'jose';
@@ -11,8 +12,10 @@ import {readBoundedText} from './body';
 export async function mcpRequest(request:Request,env:HubAuthBindings){
  if(env.MCP_ENABLED!=='true'||env.HUB2_ENABLED!=='true')return Response.json({error:'Not found'},{status:404});
  const origin=env.APP_ORIGIN!;
+ const allowedScopes=mcpScopesFor(env.ENVIRONMENT).filter(scope=>scope.startsWith('hub:'));
+ const advertisedScope=env.ENVIRONMENT==='production'?'hub:knowledge':'hub:plan';
  // No caller identity headers or shared automation secrets participate in this boundary.
- const challenge={'WWW-Authenticate':`Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp", scope="hub:plan"`,'Cache-Control':'no-store'};
+ const challenge={'WWW-Authenticate':`Bearer resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp", scope="${advertisedScope}"`,'Cache-Control':'no-store'};
  const raw=request.headers.get('Authorization')??'';
  if(!/^Bearer [^\s]{1,8192}$/.test(raw))return Response.json({error:'OAuth token required'},{status:401,headers:challenge});
  const auth=createHubAuth(env);await auth.$context;
@@ -22,10 +25,10 @@ export async function mcpRequest(request:Request,env:HubAuthBindings){
   claims=(await jwtVerify(raw.slice(7),createLocalJWKSet(jwks),{issuer:origin+'/api/auth',audience:origin+'/mcp',algorithms:['EdDSA']})).payload;
   if(claims.cnf)throw Error('Sender-bound token not supported by this endpoint');
  }catch{return Response.json({error:'Invalid OAuth token'},{status:401,headers:challenge});}
- if(typeof claims.scope!=='string'||!claims.scope.split(' ').some(s=>['hub:plan','hub:assess','hub:knowledge'].includes(s)))return Response.json({error:'Insufficient scope'},{status:403,headers:{...challenge,'WWW-Authenticate':'Bearer error="insufficient_scope", scope="hub:plan"'}});
+ if(typeof claims.scope!=='string'||!claims.scope.split(' ').some(s=>allowedScopes.includes(s)))return Response.json({error:'Insufficient scope'},{status:403,headers:{...challenge,'WWW-Authenticate':`Bearer error="insufficient_scope", scope="${advertisedScope}"`}});
  const req=request;
   if(typeof claims.sub!=='string'||typeof claims.client_id!=='string')return Response.json({error:'OAuth identity required'},{status:403});
-  const scopes=claims.scope.split(' ');
+  const scopes=claims.scope.split(' ').filter(scope=>allowedScopes.includes(scope));
   const [principal,knowledge]=await Promise.all([
    scopes.some(scope=>scope==='hub:plan'||scope==='hub:assess')?plannerPrincipal(env.DB,claims.sub,claims.client_id,scopes).catch(()=>null):null,
    scopes.includes('hub:knowledge')?knowledgePrincipal(env.DB,claims.sub,claims.client_id,scopes).catch(()=>null):null,

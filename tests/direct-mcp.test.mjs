@@ -110,3 +110,12 @@ test('Knowledge OAuth requires an active adult administrator and current consent
  await assert.rejects(knowledgePrincipal(db,'owner','chatgpt-qa',['hub:knowledge']),{status:403});
  db.sqlite.close();
 });
+
+import {authorizationMetadata, mcpScopesFor} from '../lib/mcp/metadata.ts';
+test('production MCP advertises and accepts only the Knowledge OAuth task scope',()=>{
+ const scopes=mcpScopesFor('production');
+ assert.deepEqual(scopes,['openid','offline_access','hub:knowledge']);
+ assert.deepEqual(authorizationMetadata('https://learn.unhuman.cc','production').scopes_supported,scopes);
+ assert(mcpScopesFor('staging').includes('hub:plan'));
+ assert(mcpScopesFor('staging').includes('hub:assess'));
+});
