@@ -254,6 +254,7 @@ export function LessonReader({
       pendingSubmission.current = null;
       setPending(null);
       setState("Đã lưu");
+      window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
     } catch (e) {
       if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
         pendingSubmission.current = null;
@@ -285,6 +286,7 @@ export function LessonReader({
       setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
       setJustCompleted(result.completed);
       jump(result.completed ? "summary" : "head");
+      window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
       await onCompleted?.();
     } catch (e) {
       setError((e as Error).message);

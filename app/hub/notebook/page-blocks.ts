@@ -1,11 +1,12 @@
 type Text = { value: string; handwriting?: boolean };
 export type PageBlock = {
   id: string;
-  kind: "head" | "remember" | "item" | "product" | "summary";
+  kind: "head" | "remember" | "item" | "product" | "summary" | "notebook";
   text?: Text[];
   reservedLines?: number;
   long?: boolean;
   extraLine?: boolean;
+  breakBefore?: boolean;
 };
 
 export function pageGeometry(width: number, availableHeight: number, child: boolean, measuredWidth?: number) {
@@ -51,7 +52,7 @@ export function pageBlocks<T extends PageBlock>(blocks: T[], geometry: Geometry)
       pages.push([block]);
       continue;
     }
-    if (used + size > capacity) flush();
+    if (block.breakBefore || used + size > capacity) flush();
     current.push(block);
     used += size;
   }

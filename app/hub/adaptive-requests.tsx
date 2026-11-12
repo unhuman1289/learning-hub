@@ -6,6 +6,7 @@ import { apiJson } from "./api";
 import { cx } from "../../components/notebook/paper";
 import { clockTime, pencil, pencilLink } from "./paper-bits";
 import { buttonClass, RouteLink } from "./ui";
+import { RequestIcon } from "./notebook/request-icons";
 import type { Route } from "./use-route";
 
 type Mode = "learn" | "practice" | "personal";
@@ -28,9 +29,8 @@ function current(rows: RequestRow[], now: number) {
 const waiting = (row: RequestRow) => !row.resultLessonId && ["queued", "in_job"].includes(row.status) &&
   !["failed", "expired", "cancelled"].includes(row.jobStatus ?? "");
 
-/** `edge` hangs the three request flags on the page edge like index tabs (notebook page); otherwise they sit in the text. */
-export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false }: {
-  subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; edge?: boolean;
+export function AdaptiveRequests({ subjectId, learner, go, onSaved, icons = false }: {
+  subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; icons?: boolean;
 }) {
   const [rows, setRows] = useState<RequestRow[]>([]);
   const [personal, setPersonal] = useState(false);
@@ -45,7 +45,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
   const listUrl = "/api/requests?" + query.toString();
   const postUrl = "/api/requests" + (learner ? "?learner=" + encodeURIComponent(learner) : "");
   const pending = rows.some(waiting);
-  const flagStyle = cx(flag, edge ? "px-3 text-[17px] shadow-[0_2px_3px_-2px_rgb(0_0_0/0.3)]" : "px-4 text-lg shadow-[0_3px_6px_-3px_rgb(0_0_0/0.45)]");
+  const flagStyle = cx(flag, "px-4 text-lg shadow-[0_3px_6px_-3px_rgb(0_0_0/0.45)]");
 
   useEffect(() => {
     let active = true;
@@ -92,22 +92,38 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
   }
 
   return <div>
-    <div className={cx("flex flex-wrap gap-2 py-1.5", edge && "md:flex-col md:items-end md:gap-2 md:py-0")}>
+    {icons ? <div className="grid grid-cols-3 gap-x-1 text-center">
+      {modes.map(mode => {
+        const row = rows.find(item => item.mode === mode);
+        const ready = row?.resultLessonId;
+        const icon = <><span className="relative mx-auto grid size-14 place-items-center rounded border border-rule bg-paper text-ink-paper">
+          <RequestIcon mode={mode} />{ready && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-brick" />}
+        </span><span>{labels[mode]}</span></>;
+        return <div key={mode} className="min-w-0 font-hand">
+          {ready ? <RouteLink route={{ view: "lesson", id: ready }} go={go} aria-label={labels[mode] + " · Mở bài"}>{icon}</RouteLink>
+            : <button type="button" ref={mode === "personal" ? personalButton : undefined} aria-expanded={mode === "personal" ? personal : undefined}
+                className="w-full disabled:opacity-60" disabled={busy || !!row && waiting(row)}
+                onClick={() => mode === "personal" ? setPersonal(!personal) : void send(mode)}>{icon}</button>}
+          {row && <p role="status" className="text-sm leading-snug text-muted">{clockTime(row.createdAt)} · {ready ? words.status.ready : waiting(row) ? words.status.writing : "Thử lại"}</p>}
+        </div>;
+      })}
+    </div> : <div className="flex flex-wrap gap-2 py-1.5">
       {modes.map(mode => mode === "personal"
         ? <button key={mode} type="button" ref={personalButton} aria-expanded={personal} className={cx(flagStyle, flagColor[mode])} onClick={() => setPersonal(!personal)}>{labels[mode]}</button>
         : <button key={mode} type="button" disabled={busy} className={cx(flagStyle, flagColor[mode])} onClick={() => void send(mode)}>{labels[mode]}</button>)}
-    </div>
-    {personal && <form onSubmit={event => { event.preventDefault(); void send("personal"); }}>
+    </div>}
+    {personal && <form className={icons ? "mt-3 rounded-sm bg-postit-yellow p-2 text-postit-ink" : undefined}
+      onSubmit={event => { event.preventDefault(); void send("personal"); }}>
       <label className="block">{words.request.ownPrompt}
         <textarea className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 placeholder:text-muted/70 focus:border-b-2 focus:border-accent-paper" rows={2} autoFocus required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="Ví dụ: phân số, viết thư cho bạn." />
       </label>
       <div className="flex h-14 items-center gap-4">
-        <button className={buttonClass("secondary", "min-h-11")} disabled={busy || !note.trim()}>{words.request.title}</button>
+        <button className={buttonClass("secondary", "min-h-11")} disabled={busy || !note.trim()}>{icons ? "Gửi" : words.request.title}</button>
         <button type="button" className={pencilLink} onClick={() => { setPersonal(false); personalButton.current?.focus(); }}>Đóng</button>
       </div>
     </form>}
     {error && <p role="alert" className="text-brick">{error} {attempt && <button type="button" disabled={busy} className={pencilLink} onClick={() => void send(attempt.mode, attempt)}>{words.action.retry}</button>}</p>}
-    <ul aria-live="polite">
+    {!icons && <ul aria-live="polite">
       {rows.map(row => <li key={row.id} className={pencil}>
         {row.mode && labels[row.mode]} · {clockTime(row.createdAt)} ·{" "}
         {row.resultLessonId ? <>{words.status.ready} <RouteLink route={{view:"lesson",id:row.resultLessonId}} go={go} className={pencilLink}>Mở bài</RouteLink></>
@@ -117,6 +133,6 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
               else if (row.mode) void send(row.mode);
             }}>Thử lại</button>}</>}
       </li>)}
-    </ul>
+    </ul>}
   </div>;
 }

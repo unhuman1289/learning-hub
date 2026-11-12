@@ -28,3 +28,23 @@ test("notebook chapters use assignment dates and aggregate only the requested le
   assert.deepEqual((await readNotebookLessons(db, "other", subject, true, 0)).lessons, []);
   db.sqlite.close();
 });
+
+test("all lessons paginate at a month boundary when a chapter fits on the next read", async () => {
+  const db = memoryDb();
+  db.sqlite.exec(`INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at)
+    VALUES('de','learner','Deutsch','skill','active','learner','t','t');`);
+  const insert = db.sqlite.prepare(`INSERT INTO learning_lessons
+    (id,user_id,track,payload,assigned_date,response,updated,subject_id,package_version,template,kind,slot)
+    VALUES (?,'learner',NULL,'{"title":"Bài","items":[]}',?,'','t','de','2','skill','review','extra')`);
+  for (let index = 0; index < 402; index++) {
+    insert.run("lesson-" + index, index < 397 ? "2026-11-01" : "2026-10-31");
+  }
+  const first = await readNotebookLessons(db, "learner", "de", true, 0);
+  assert.equal(first.lessons.length, 397);
+  assert.equal(first.nextOffset, 397);
+  const second = await readNotebookLessons(db, "learner", "de", true, first.nextOffset);
+  assert.equal(second.lessons.length, 5);
+  assert.equal(second.nextOffset, null);
+  assert.ok(second.lessons.every(row => row.assignedDate === "2026-10-31"));
+  db.sqlite.close();
+});

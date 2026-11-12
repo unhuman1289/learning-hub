@@ -177,6 +177,8 @@ Các trạng thái bên dưới ghi theo mục tiêu từng phần. Mốc phát 
 
 **Nghiệm thu local PR 7-fix.** Bài Modalverb trong dữ liệu demo hiện có 8 câu. Cùng một lần mở câu 2 ở Chrome 1280×900: bản trước hiện 2 câu và đáy giấy ở 998px, bản mới hiện 4 câu và đáy ở 862px. Ở 1280×720, hai trang hiện 2 + 2 câu, đáy giấy ở 702px. Ở 768×1024 và 375×900, trang chứa câu 2 hiện hai câu, đáy giấy lần lượt ở 994px và 820px. Các trang bài này không cuộn nội dung. Tổng kết và khối quá dài vẫn có thể cuộn để đọc đủ. VoiceOver và vuốt trên điện thoại thật chờ chủ dự án thử. [Trước](assets/notebook-7-fix/before-1280x900.webp) · [Sau 900px](assets/notebook-7-fix/after-1280x900.webp) · [Sau 720px](assets/notebook-7-fix/after-1280x720.webp).
 
+**Nghiệm thu local PR 8-today.** Chrome 1280px và 375px với hồ sơ demo người lớn và trẻ em. Trang Hôm nay hiện bài bên phải, báo cáo bên trái; khổ nhỏ mở bài trước. Chuyển sang Mục lục dùng lại dữ liệu của sổ. Mỗi tháng bắt đầu ở trang mới và sự kiện `lh:lesson-changed` làm mới hai nguồn dữ liệu của sổ. Kiểm thử SQL xác nhận báo cáo tách theo sổ và phân trang theo tháng Berlin.
+
 ## 0. Quyết định và nguyên tắc
 
 **Quyết định của chủ dự án**

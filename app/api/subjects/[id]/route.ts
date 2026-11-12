@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { readNotebookOverview } from '../../../../lib/learner-model/overview';
+import { readNotebookReport } from '../../../../lib/notebook-report';
 import { berlinDay } from '../../../../lib/daily-policy';
 import { addDays } from '../../../../lib/learner-model/rules';
 import {readSubjectSkills,readSubjectEffort} from '../../../../lib/learner-model/recompute';
@@ -30,7 +31,10 @@ export async function GET(req: Request, context: Context) {
     const facts = await learnerFacts(db, user, learnerId);
     const includeSuspected = user.id !== learnerId || facts.learnerRole !== 'child';
     if (new URL(req.url).searchParams.get('view') === 'overview') {
-      return Response.json(await readNotebookOverview(db, learnerId, id, subject.legacyTrack, new Date(), includeSuspected), { headers });
+      const now = new Date();
+      const overview = await readNotebookOverview(db, learnerId, id, subject.legacyTrack, now, includeSuspected);
+      const report = await readNotebookReport(db, learnerId, id, overview, now, facts.learnerRole, subject.roadmap);
+      return Response.json({ ...overview, report }, { headers });
     }
     const details = await readSubjectSkills(db, learnerId, id);
     if (!includeSuspected) details.errors = details.errors.filter(e => e.confidence === 'confirmed');
