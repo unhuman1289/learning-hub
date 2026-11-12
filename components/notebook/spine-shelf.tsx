@@ -56,7 +56,8 @@ export function SpineShelves({ books, go, onNew }: { books: SpineBook[]; go: (ro
   const rows = useMemo(() => {
     const entries: Entry[] = books.map((book) => ({ kind: "book", book }));
     if (onNew) entries.push({ kind: "new" });
-    return chunkRows(entries, width === null ? 6 : capacity);
+    // An empty shelf still has its board.
+    return chunkRows(entries, width === null ? 6 : capacity).concat(entries.length ? [] : [[]]);
   }, [books, onNew, capacity, width]);
 
   return (

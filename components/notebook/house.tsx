@@ -31,10 +31,9 @@ export type BookcaseDoor = { label: string; onOpen: () => void };
 /**
  * White-painted Landhaus bookcase with oak trim: oak crown, oak shelves, an oak counter top and
  * white bead-board doors below. The doors that have something behind them carry a brass plate and open a dialog.
- * By default each child is one compartment (see `Shelf`); with `rows` the children are laid out by the caller.
  */
-export function Bookcase({ title, children, className, counterDecoration, doors = [], rows = false }: {
-  title: ReactNode; children: ReactNode; className?: string; counterDecoration?: ReactNode; doors?: BookcaseDoor[]; rows?: boolean;
+export function Bookcase({ title, children, className, counterDecoration, doors = [] }: {
+  title: ReactNode; children: ReactNode; className?: string; counterDecoration?: ReactNode; doors?: BookcaseDoor[];
 }) {
   return (
     <section aria-label="Tủ sách" className={cx("shadow-furniture", className)}>
@@ -42,10 +41,7 @@ export function Bookcase({ title, children, className, counterDecoration, doors 
       <div className="bg-oak relative z-[1] -mx-2 h-4 rounded-t-[4px] border-b-4 border-oak-dark/60 shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]" />
       <div className="bg-cabinet px-2.5 pb-3 pt-3 sm:px-3.5">
         <div className="mb-3 flex items-baseline justify-between gap-3 px-1 text-cabinet-ink">{title}</div>
-        <div className={cx(
-          "rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)]",
-          rows ? "grid gap-y-4" : "grid grid-cols-2 gap-y-4 min-[400px]:grid-cols-3 sm:grid-cols-3 lg:grid-cols-2",
-        )}>
+        <div className="grid gap-y-4 rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)]">
           {children}
         </div>
       </div>
@@ -86,16 +82,6 @@ function CupboardDoor({ side, door }: { side: "left" | "right"; door?: BookcaseD
     </button>
   ) : (
     <div className="rounded-[2px] bg-iron/85"><div className={panel}>{inside}</div></div>
-  );
-}
-
-/** One compartment of the bookcase: whatever stands in it rests on an oak shelf board. */
-export function Shelf({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex min-w-0 flex-col justify-end">
-      <div className="px-2 sm:px-3">{children}</div>
-      <div className="bg-oak mt-0 h-3 border-b-2 border-oak-dark/70 shadow-[0_4px_6px_-2px_rgb(0_0_0/0.45)]" />
-    </div>
   );
 }
 
