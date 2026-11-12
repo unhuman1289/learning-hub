@@ -62,6 +62,9 @@ export async function updateSubject(db: Db, learnerId: string, id: string, patch
   checkTransition(current, patch);
   const sets: string[] = [];
   const values: unknown[] = [];
+  // A deleted notebook keeps its history but frees its name, so the same title can be opened again.
+  if (patch.status === 'archived' && current.status !== 'archived')
+    patch = { ...patch, title: `${current.title.slice(0, 50)} (đã xoá ${now.toISOString().slice(0, 10)} ${id.slice(-4)})` };
   for (const [key, column] of Object.entries(columns)) {
     if (!(key in patch)) continue;
     const value = (patch as Record<string, unknown>)[key];

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { fieldClass, labelClass } from "../paper-dialog";
 import { paperAction, PaperSummary } from "../paper-bits";
 import type { ShelfApi, ShelfSubject } from "../use-shelf";
+import { PaperConfirm } from "../paper-confirm";
 
 export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
   const rows: [string, string][] = [["Mục tiêu", subject.goal], ["Trình độ", subject.level], ["Chương trình", subject.curriculum]];
@@ -72,5 +73,35 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
         <button type="submit" disabled={!changed || state === "saving"} className={paperAction}>{state === "saving" ? "Đang lưu…" : "Lưu"}</button>
       </div>
     </form>
+  );
+}
+
+/** Deleting hides the notebook from the shelf; the server keeps its history. */
+export function DeleteNotebook({ subject, shelf, onDeleted }: { subject: ShelfSubject; shelf: ShelfApi; onDeleted: () => void }) {
+  const [asking, setAsking] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function remove() {
+    setBusy(true);
+    setError("");
+    try {
+      await shelf.update(subject.id, { revision: subject.revision, status: "archived" });
+      await shelf.load();
+      onDeleted();
+    } catch (cause) {
+      setError((cause as Error).message);
+      setBusy(false);
+      setAsking(false);
+    }
+  }
+  return (
+    <section className="mt-10 border-t border-muted/30 pt-4">
+      <h3 className="font-hand text-xl leading-7">Xoá sổ</h3>
+      <p className="text-sm leading-6 text-muted">Sổ biến mất khỏi kệ và không soạn bài mới nữa.</p>
+      {error && <p role="alert" className="mt-2 rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
+      {!asking && <button type="button" className={paperAction + " mt-2"} onClick={() => setAsking(true)}>Xoá sổ “{subject.title}”</button>}
+      <PaperConfirm open={asking} message={`Xoá sổ “${subject.title}”? Sổ sẽ không còn trên kệ.`} confirmLabel={busy ? "Đang xoá…" : "Xoá sổ"}
+        onConfirm={() => { if (!busy) void remove(); }} onCancel={() => setAsking(false)} />
+    </section>
   );
 }

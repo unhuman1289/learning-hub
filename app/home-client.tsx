@@ -43,7 +43,9 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
   const [newNotebook, setNewNotebook] = useState(false);
   const viewedRole = viewingId ? shelf.learners.find((item) => item.id === viewingId)?.role : shelf.self?.role;
   // Children study in notebooks a guardian opens for them; adults, guardians and admins may open one.
-  const canOpenNotebook = viewingId === null ? shelf.self?.role !== "child" && !!shelf.self : viewedRole !== undefined;
+  // Everyone opens notebooks on their own shelf (children included); on another shelf, an adult who manages it.
+  const canOpenNotebook = viewingId === null || viewedRole !== undefined || shelf.self?.role !== "child";
+  const canEditNotebook = viewingId === null ? shelf.self?.role !== "child" && !!shelf.self : canOpenNotebook;
   const [form, setForm] = useState<FormRequest | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const drafts: Drafts = {
@@ -125,7 +127,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
           />
         )}
         {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
-        {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
+        {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canEditNotebook} canDelete={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
         {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>

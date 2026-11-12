@@ -126,6 +126,18 @@ test('create, list, update with optimistic concurrency and AI only on active not
   db.sqlite.close();
 });
 
+test('a deleted notebook leaves the shelf and frees its name', async () => {
+  const db = memoryDb();
+  const now = new Date('2026-10-12T10:00:00Z');
+  const first = await createSubject(db, 'ech', 'ech', parseSubjectInput({ title: 'Tiếng Đức' }), now);
+  const gone = await updateSubject(db, 'ech', first.id, parseSubjectPatch({ revision: first.revision, status: 'archived' }), now);
+  assert.equal(gone.status, 'archived');
+  assert.match(gone.title, /^Tiếng Đức \(đã xoá 2026-10-12 /);
+  assert.deepEqual(await listSubjects(db, 'ech'), []);
+  const again = await createSubject(db, 'ech', 'ech', parseSubjectInput({ title: 'Tiếng Đức' }), now);
+  assert.equal(again.title, 'Tiếng Đức');
+});
+
 test('learner settings: defaults, validated patch, role untouched', async () => {
   const db = memoryDb();
   assert.deepEqual(await readSettings(db, 'ech'), {

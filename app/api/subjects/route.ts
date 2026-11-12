@@ -3,9 +3,10 @@ import {enqueue} from '../../../lib/ai-jobs/queue';
 import { getHubUser } from '../../../lib/auth/session';
 import { storage } from '../../../db/storage';
 import { apiFailure } from '../../../lib/api-error';
-import { resolveLearner } from '../../../lib/access';
+import { learnerFacts, resolveLearner } from '../../../lib/access';
 import { parseSubjectInput } from '../../../lib/subjects/policy';
 import { createSubject, listSubjects } from '../../../lib/subjects/service';
+import { DEFAULT_LIMITS } from '../../../lib/subjects/sql';
 
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -24,16 +25,21 @@ export async function GET(req: Request) {
   }
 }
 
-/** Opens a new notebook in `setup`. Children cannot; a guardian opens it for them with ?learner=. */
+/** Opens a new notebook in `setup` for the learner (a child included) or, with ?learner=, for a learner the viewer manages. */
 export async function POST(req: Request) {
   const user = await getHubUser();
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401, headers });
   if (req.headers.get('origin') !== new URL(req.url).origin) return Response.json({ error: 'Origin rejected' }, { status: 403, headers });
   try {
     const db = storage();
-    const learnerId = await resolveLearner(db, user, req, 'edit_goals');
+    const learnerId = await resolveLearner(db, user, req, 'manage_notebooks');
     if (learnerId instanceof Response) return learnerId;
     const input = parseSubjectInput(await req.json());
+    // A child opens a notebook for themselves; limits and priority stay at the defaults a guardian can change later.
+    if (user.id === learnerId && (await learnerFacts(db, user, learnerId)).learnerRole === 'child') {
+      input.limits = { ...DEFAULT_LIMITS };
+      input.weight = 3;
+    }
     if (input.limits.package === 3 && (user.role !== 'admin' || input.legacyTrack))
       return Response.json({ error: 'Chỉ quản trị viên có thể bật thử dạng bài mới cho sổ riêng.' }, { status: 403, headers });
     const subject = await createSubject(db, learnerId, user.id, input);
