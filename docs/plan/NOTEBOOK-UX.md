@@ -1,6 +1,6 @@
 # Sổ học lật từng trang — plan chi tiết giao diện, chữ, làm bài
 
-Bản 1 viết 11/11/2026 trên `main` @ `9317f67`. **Bản 2 (12/11/2026)** mở rộng phạm vi đến giai đoạn 9. Đối chiếu production tại `27b19d1` (PR #114) và bản làm việc 7a.
+Bản 1 viết 11/11/2026 trên `main` @ `9317f67`. **Bản 2 (12/11/2026)** mở rộng phạm vi đến giai đoạn 9. Đối chiếu production tại `27b19d1` (PR #114) và bản làm việc 7a. **Bản 3 (12/11/2026)** nghiệm thu bản local `bbb6ca6` và ghi việc làm tiếp `V1–V8` (mục ngay dưới bảng tiến độ).
 
 **Cách đọc trạng thái**
 - **[XONG]**: đúng plan, đạt điều kiện.
@@ -20,6 +20,160 @@ Bản 1 viết 11/11/2026 trên `main` @ `9317f67`. **Bản 2 (12/11/2026)** m�
 | 9 · Local | Có Zod và JSON Schema v3, kiểm tra dữ liệu hình và chấm điểm từng phần cho năm dạng câu đóng. | Chưa có UI v3, lưu/đọc, tích hợp runner hay pilot. Hai ràng buộc D1 ở migration 0009 hiện chỉ nhận `package_version` 1/2 và `input_kind` choice/short/long. Cần chốt và kiểm thử đường lưu tương thích trước khi bật v3. |
 
 Các trạng thái bên dưới ghi theo mục tiêu từng phần. Mốc phát hành mới cần CI và nghiệm thu riêng. Các thay đổi local này chưa áp migration. Điều kiện lưu v3 phải được kiểm tra bằng bản sao D1 trước khi phát hành.
+
+## Bản 3 (12/11/2026) — nghiệm thu bản local `bbb6ca6` và việc làm tiếp
+
+**Cách nghiệm thu:** chạy `bbb6ca6` cục bộ (bản tách riêng, D1 local có bài thử "Modalverb: tự viết câu đúng", 5 câu), hồ sơ trẻ em Ếch, Chrome 1280×900, sáng. 374 test và typecheck đạt. Mọi việc dưới đây phải làm **trước khi** sang giai đoạn 9.
+
+**Làm đúng, giữ nguyên:**
+- Mở bài mới ở Ghi nhớ.
+- Giấy "?" nổi đè, không xô câu.
+- Lời giải hiện ngay; làm lại không tính điểm.
+- Con dấu "Kiểm tra" vẽ tay, luôn bấm được, nhắc khi chưa viết.
+- Bài nằm trong khung sổ.
+- Mục lục theo tháng.
+- Ghi chú trung thực về giới hạn D1.
+
+**Việc làm tiếp (mã `V…`, theo thứ tự).** Mỗi việc có: hiện trạng → việc cần làm → đạt khi.
+
+### V1. Trang đôi phải chứa nhiều câu và vừa màn hình (U7.1, U7.2) — ưu tiên cao nhất
+**Hiện trạng**
+- Ở 1280×900, **mỗi trang chỉ có một câu** (câu 1 một trang, câu 2 một trang), phần dưới trống.
+- Trang cao 704px nhưng bắt đầu ở y=294, nên **tràn quá đáy màn hình khoảng 100px**: phải vừa cuộn cửa sổ vừa lật trang.
+- Trang Ghi nhớ có `overflow: auto` và cuộn bên trong.
+
+**Nguyên nhân thấy trong code**
+- `reader.tsx:359` câu viết ngắn được chừa `reservedLines` = 5 + 2 = 7, cộng số dòng đề và 1 dòng dự trữ (`page-blocks.ts:37`), tức khoảng 10–11 dòng cho một câu một dòng trả lời. Bảng U7.2 chỉ cần: đề + 1 dòng viết + 1 dòng hành động + 2 dòng lời phê + 1 dòng cách.
+- `pageGeometry` (`page-blocks.ts:10-24`) lấy `window.innerHeight − 172`, nhưng khung sổ còn dải cửa sổ, thanh trên và bàn gỗ phía trên, nên số dòng tính ra lớn hơn chỗ thật.
+- CSS `.spread-page { height: var(--spread-height); overflow: auto }` (`globals.css:491-498`) không khớp với số dòng mà `pageBlocks` dùng.
+
+**Việc cần làm**
+1. **Đo chỗ thật:** `Spread` dùng `ResizeObserver` trên phần tử chứa trang, lấy `availableHeight = bottom của khung nhìn − top của .spread-pages − 16px`, rồi `lines = floor((availableHeight − 2×paddingLine) / line)`. Truyền `lines` vào `pageGeometry` thay cho `innerHeight − 172`.
+2. **Chiều cao trang = đúng số dòng:** đặt `--spread-height: calc(var(--page-lines) * var(--paper-line-height) + 2 * var(--paper-line-height))` với `--page-lines` lấy từ `geometry.lines`; đổi `overflow: auto` thành `overflow: hidden`.
+3. **Sửa `reservedLines` theo bảng U7.2:**
+   - Chọn: `số lựa chọn` (đã có trong `text`) + 1 hành động + 2 lời phê.
+   - Viết ngắn: 1 viết + 1 hành động + 2 lời phê.
+   - Viết dài: `min(10, max(5, gợi ý độ dài))` + 1 + 2.
+   - Ảnh: +2.
+   - Khoảng cách tới câu sau: +1, chỉ một lần.
+   - Bỏ dòng dự trữ chung `+1` trong `blockLines`; thay bằng dự trữ 1 dòng **cho đề có > 60 ký tự**.
+4. **Dải cửa sổ trong khung sổ:** khi đang mở bài, ẩn `WindowStrip` (`book.tsx`) ở mọi khổ màn hình, để trang có thêm khoảng 80px chiều cao. Chỉ hiện dải ở trang Hôm nay.
+5. **Ghi nhớ không cuộn:** tách khối `remember` theo từng phần của sheet (giải thích, Quy tắc, Lỗi hay gặp, Mẹo, Tự kiểm tra, ví dụ) thành nhiều khối nhỏ (`remember-explanation`, `remember-rules`…). `pageBlocks` xếp tiếp sang trang sau khi không vừa. Một khối vẫn lớn hơn một trang (hiếm) thì tách theo dòng của danh sách.
+6. **Trang đầu bài không bỏ trống:** khối `head` (tên, mục tiêu, lý do) và các khối Ghi nhớ xếp liên tục trên cùng trang; không ép `head` một trang riêng.
+
+**Đạt khi**
+- Ở 1280×900 với bài thử 5 câu: trang đôi đầu = tên bài + Ghi nhớ (không cuộn); trang đôi sau có **ít nhất 3 câu ngắn** (≥ 2 câu mỗi trang).
+- Ở 1280×720 và 768×1024 vẫn ≥ 2 câu ngắn mỗi trang.
+- Không trang nào có thanh cuộn bên trong.
+- Đáy trang nằm trong khung nhìn (không cuộn cửa sổ ở trang bài).
+- Mở "?", xem lời giải, nhận lời phê không đổi số trang và vị trí câu.
+
+**Test**
+- `tests/spread-pages.test.mjs` thêm fixture đúng bài thử (5 câu: 1 chọn 2 đáp án, 3 viết ngắn, 1 viết dài) với `lines` 18, 22, 26. Kỳ vọng số câu mỗi trang như trên.
+- Thêm Ghi nhớ dài 40 dòng → 2–3 trang, không khối nào vượt `lines`.
+
+### V2. Ô lời phê luôn có con dấu; câu tự chấm không xúi xem lời giải (U7.2, U7.4)
+**Hiện trạng**
+- Ô lời phê hai dòng chỉ có chữ đỏ. Con dấu Đúng/Sửa lại chỉ thấy khi mở chi tiết.
+- Câu tự chấm khi sai là "Chưa khớp đáp án. Xem lời giải rồi thử sửa lại." (`lib/evidence/autograde.ts:50`), trái quyết định 7 và D21.
+
+**Việc cần làm**
+1. Ô lời phê dòng 1: `ResultStamp` (cỡ nhỏ, cùng dòng) + 1–2 dòng bút đỏ cắt "…"; chạm mở giấy nhớ chi tiết như hiện có.
+2. `autograde.ts:50` đổi thành: đúng → "Đúng."; sai → "Chưa đúng. Đọc lại đề và thử sửa nhé." Không nhắc lời giải. Cập nhật test `tests/evidence.test.mjs` so chuỗi cũ.
+3. Câu đúng sau khi xem lời giải: con dấu "Đúng" nhạt **và** bút chì "Đã xem lời giải, không tính điểm" trong cùng ô (đã có, giữ).
+
+**Đạt khi:** mọi câu đã chấm thấy con dấu ngay trong ô, không cần mở chi tiết; grep "Xem lời giải rồi" trong `lib/` và `app/` không còn.
+
+### V3. Lời giải mở được ngay trong giấy "?" (U7.3)
+**Hiện trạng**
+- `hints.tsx` chỉ hiện "Xem lời giải" khi đã hết gợi ý (`!next`).
+- Mở giấy "?" là tự tiêu luôn gợi ý 1 (`onReveal(next)` trong `onClick`).
+
+**Việc cần làm**
+1. Mở giấy "?" **không** tự tiêu gợi ý. Bên trong có hai lựa chọn rõ: "Gợi ý 1" (hoặc "Gợi ý tiếp") và "Xem lời giải".
+2. "Xem lời giải" luôn có mặt, không hỏi lại (quyết định 7). Bấm thì đóng giấy, hiện lời giải ở ô lời phê.
+3. Màu giấy: vàng = chưa mở gì; vàng đậm = đã mở gợi ý; xanh nhạt = đã xem lời giải.
+
+**Đạt khi:** từ câu chưa làm, 2 chạm (mở "?" → "Xem lời giải") là thấy lời giải; mở "?" rồi đóng mà không bấm gì thì `support` của câu vẫn là `none`.
+
+### V4. Trang Hôm nay của sổ là trang đôi đầy đủ (U8.2, U8.3)
+**Hiện trạng** (`notebook/today.tsx`, `subject-view.tsx`):
+- Trang đơn.
+- Báo cáo chỉ 2 dòng ("3 ngày học · 9 phút", "Đúng ngay 0/1 câu").
+- Ba thẻ xin bài vẫn dán đè trên chữ ở mép phải.
+- "Làm tiếp" là link gạch chân, không phải nút chính.
+
+**Việc cần làm**
+1. Dùng `Spread` (trang đôi ≥ 1024px) cho trang Hôm nay.
+2. **Trang trái** theo U8.3, đủ các dòng: chương hiện tại, Tuần này (ngày, phút), Đúng ngay tuần này và tuần trước, Đã vững, Hay nhầm (tối đa 2), Sắp tới (3 bước lộ trình), câu khích lệ của sổ. Dữ liệu từ `lib/notebook-report.ts` (mới, U8.2), trả trong `?view=overview` khoá `report`.
+3. **Trang phải:**
+   - "Bài đang làm" với nút **gạch** "Mở bài" / "Làm tiếp" (nút chính duy nhất);
+   - "Bài luyện thêm đang chờ";
+   - ở **cuối trang** ba biểu tượng vẽ tay 56×56 có chữ dưới: Bài mới, Luyện thêm, Tự chọn (`notebook/request-icons.tsx`, chuyển từ `adaptive-requests.tsx`).
+   - **Bỏ** ba thẻ giấy dán ở mép.
+4. Trạng thái yêu cầu: một dòng chữ tay dưới biểu tượng; bài sẵn sàng thì chấm đỏ trên biểu tượng, chạm là mở bài.
+5. **Điện thoại:** trang phải hiện trước; vuốt sang để xem báo cáo.
+
+**Đạt khi:** ảnh chụp 1280×900 giống bản phác 12/11 (trái báo cáo, phải bài và ba biểu tượng); không còn thẻ dán đè chữ; có test `tests/notebook-report.test.mjs` (lọc theo sổ, tuần này/tuần trước, không số liệu).
+
+### V5. Dễ nhìn trên nền gỗ và bộ đếm trang (U7.8)
+**Hiện trạng**
+- Thẻ "Ghi nhớ" ở góc trên trái của khung là chữ hồng trên gỗ, gần như không đọc được.
+- Mũi tên lật trang mờ trên gỗ.
+- Hàng chấm đếm trang rất nhỏ và nằm giữa trang (sau nội dung), không ở chân trang.
+- Biểu tượng bìa sổ nhỏ giữa thanh trên.
+
+**Việc cần làm**
+1. Thẻ "Ghi nhớ" thành một thẻ giấy dán ở **mép trái** trang trái (cùng kiểu thẻ Hôm nay/Mục lục), chữ `text-postit-ink`.
+2. Góc lật trang: **góc giấy cong** 56×56 ở góc dưới mỗi trang (SVG vẽ tay), thay mũi tên.
+3. Bộ đếm: chấm 10px ở **chân trang** (dòng cuối của trang, căn giữa), chấm hiện tại tô đậm, `aria-hidden`; trình đọc màn hình dùng dòng trạng thái đã có.
+4. Chữ trên nền gỗ (thanh trên, nhãn) dùng `text-oak-ink` (sáng), tương phản ≥ 4.5:1.
+5. Biểu tượng bìa sổ ở thanh trên: bỏ, hoặc dùng làm điểm đến hiệu ứng bìa bay (U8.1) với cỡ ≥ 32px.
+
+**Đạt khi:** đo tương phản các chữ trên gỗ ≥ 4.5:1; góc lật bấm được 56×56; chấm đếm nằm trong dòng cuối của trang.
+
+### V6. Biểu tượng vẽ tay, gáy sổ, chỉ dựng trang gần (U7.7, U7.8)
+**Hiện trạng**
+- `spread.tsx` vẫn import `lucide-react`.
+- Chưa có `app/hub/sketch-icons.tsx`.
+- Chưa có gáy sổ.
+- Mọi trang đều được dựng (tổng kết tải và chạy dấu khi còn khuất).
+
+**Việc cần làm:** đúng U7.7 và U7.8. Tối thiểu cho đợt này:
+- `sketch-icons.tsx` có: lật trang, đóng sổ, bánh răng, Bài mới, Luyện thêm, Tự chọn, đồng hồ cát, mũi tên vòng.
+- Thay ở `spread.tsx`, `book.tsx`, `today.tsx`.
+- Gáy giữa hai trang.
+- Chỉ dựng trang đang mở ± 1 trang đôi.
+- Test R1.6c chặn `lucide-react` trong `app/hub/notebook/**` và `app/hub/lesson-v2/**`.
+
+### V7. Mỗi chương một trang, cập nhật sau khi nộp bài (U8.2, U8.5)
+**Hiện trạng**
+- Mục lục: nhiều chương nằm liền trên một trang.
+- Chữ rất nhỏ, có nhãn lạ "Thứ H6" dưới tên sổ.
+- Không làm mới sau khi nộp hoặc xong bài.
+
+**Việc cần làm**
+1. Mỗi chương (tháng) bắt đầu trang mới trong `Spread`.
+2. Dòng bài cỡ chữ thường (17px), loại bài bằng bút chì, ngày ở lề.
+3. Bỏ nhãn "Thứ H6" (kiểm tra nguồn trong `contents.tsx`).
+4. `useBook` (U8.2): cache theo `subjectId`, làm mới khi `visibilitychange` và khi trang bài phát `window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId } }))` sau nộp hoặc xong bài.
+
+**Test:** `tests/contents-chapters.test.mjs` (tháng và ngày Berlin quanh nửa đêm, đổi giờ 25/10, tháng trống).
+
+### V8. Ghi chú vận hành sửa theo đề nghị của Codex (đã đồng ý)
+1. **Lùi lại v3** (U9.5, phần "Thứ tự"): sau khi đã có bài v3, cách lùi an toàn là **tắt tạo bài v3** (đặt `limits.package = 2` cho sổ, runner ngừng nhận lượt v3) **và giữ khả năng đọc, nộp, chấm bài v3 đã lưu**. Không rollback Worker về bản không đọc được v3.
+2. **Eval** (U9.4): nghiệm thu pilot bằng **Qwen** (máy chấm mặc định), ghi tỉ lệ khớp thực tế. Codex chỉ chạy so sánh khi còn hạn mức, không là điều kiện bật.
+
+### Thứ tự giao việc
+1. **PR 7-fix:** V1, V2, V3, V5. Chạy thử 375 / 768 / 1280 (720 và 900 chiều cao), sáng và tối, hồ sơ người lớn và trẻ em; ảnh trước/sau trong PR.
+2. **PR 8-today:** V4, V7 (+ `notebook-report.ts`, `useBook`).
+3. **PR 7c-look:** V6.
+4. Merge và deploy từng PR sau khi chủ dự án duyệt. Chủ dự án tự thử VoiceOver và vuốt trên điện thoại thật.
+5. **Sau đó mới giai đoạn 9**:
+   - migration mở ràng buộc D1 (`0009_lessons_v2.sql:16` `package_version`, `:131` `input_kind`), diễn tập trên bản sao production trước, đối chiếu nháp, câu trả lời, điểm, khoá ngoại;
+   - giao diện nhập 6 dạng câu;
+   - runner nhận biết sổ v3;
+   - pilot một sổ mới với Qwen.
 
 ## 0. Quyết định và nguyên tắc
 
@@ -187,10 +341,10 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 
 | Việc | Trạng thái | Ghi chú |
 |---|---|---|
-| U4.1 Bố cục, kích thước trang | **[MỘT PHẦN]** | 7a đặt kích thước theo số dòng và dùng bộ đếm ở chân trang. Nội dung dài vẫn cuộn để giữ đầy đủ câu hỏi, nguồn và lời phê. → **U7.1–U7.2** |
+| U4.1 Bố cục, kích thước trang | **[MỘT PHẦN] → V1** | 7a đặt kích thước theo số dòng và dùng bộ đếm ở chân trang. Nội dung dài vẫn cuộn để giữ đầy đủ câu hỏi, nguồn và lời phê. → **U7.1–U7.2** |
 | U4.2 Khung lật trang | **[MỘT PHẦN]** | 7a chia trang từ dữ liệu bài. Phím, vuốt, mốc `#cau-N`, giảm chuyển động và `inert` đã có. Còn nghiệm thu thiết bị thật. |
 | U4.3 Trang bài trong khung | **[MỘT PHẦN]** | 7a mở bài mới ở Ghi nhớ, bài đang làm ở câu chưa nộp, bài xong ở Tổng kết. Giấy nhắc lỗi mở thẳng câu cần sửa. Có nút quay lại câu đang làm. Còn bài trong cùng khung sổ. → **U7.5, U8.4** |
-| U4.4 Từng câu | **[MỘT PHẦN]** | Giấy gợi ý nổi ở lề và mở theo thứ tự. Còn con dấu Kiểm tra và ô lời phê cố định. → **U7.3, U7.6** |
+| U4.4 Từng câu | **[MỘT PHẦN] → V2, V3** | Giấy gợi ý nổi ở lề và mở theo thứ tự. Còn con dấu Kiểm tra và ô lời phê cố định. → **U7.3, U7.6** |
 | U4.5 Tổng kết | **[MỘT PHẦN]** | Con dấu chỉ có khi đã xong, luôn màu xanh, hiệu ứng chạy khi trang còn khuất và chạy lại mỗi lần tải. Lựa chọn góp ý là radio có nền bo góc. Ba thẻ xin bài chỉ hiện sau khi xong. Số "chưa làm" lặp ba lần (`reader.tsx:346`, `summary.tsx:31`, `PaperConfirm`). → **U7.9** |
 
 ---
@@ -201,7 +355,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 |---|---|---|
 | U5.1 Route | **[XONG]** | Hiệu ứng "turn" chưa giới hạn trong cùng sổ (nhỏ, sửa ở U8.4). |
 | U5.2 Khung sổ | **[MỘT PHẦN]** | Bàn gỗ, dải cửa sổ, thẻ mép, "Đóng sổ" đã có. **Sai:** hiệu ứng bìa gắn vào `<h1>` nên bìa biến thành tiêu đề thay vì bay xuống và mở ra; bánh răng ở thanh trên; bài không mở trong khung sổ; dùng biểu tượng `lucide-react`. → **U8.1, U7.7** |
-| U5.3 Các trang sổ | **[MỘT PHẦN]** | Không có `notebook/contents.tsx`, `today.tsx`, `settings.tsx`, `useBook`; trang vẽ trong `subject-view.tsx` và `list.tsx`. Mỗi trang tải lại tổng quan. Không xoá tệp cũ nào. Mục lục còn `<details>` "Lịch sử làm bài"; Hôm nay còn `<details>` "Yêu cầu khác" với "Hỏi thêm"; nút chính là link gạch chân. → **U8.2–U8.7** |
+| U5.3 Các trang sổ | **[MỘT PHẦN] → V4, V7** | Không có `notebook/contents.tsx`, `today.tsx`, `settings.tsx`, `useBook`; trang vẽ trong `subject-view.tsx` và `list.tsx`. Mỗi trang tải lại tổng quan. Không xoá tệp cũ nào. Mục lục còn `<details>` "Lịch sử làm bài"; Hôm nay còn `<details>` "Yêu cầu khác" với "Hỏi thêm"; nút chính là link gạch chân. → **U8.2–U8.7** |
 
 ---
 
@@ -235,7 +389,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 
 **Mục tiêu:** trang bài giữ nguyên vị trí như vở. Mở bài vào Ghi nhớ. Mỗi câu một hành động chính bằng đồ vật vẽ tay. Lời giải hiện ngay. **Cỡ:** L, 3 PR (7a bố cục dòng, 7b từng câu, 7c tổng kết và vẻ ngoài sổ).
 
-### U7.1 Mô hình trang theo dòng (PR 7a)
+### U7.1 Mô hình trang theo dòng (PR 7a) — [MỘT PHẦN → V1]
 **Đơn vị:** một **dòng** = `--paper-line` (28px; trẻ em 32px). Mọi khoảng cách trên giấy là bội số dòng.
 
 **Kích thước trang** (thay `globals.css:478-500`):
@@ -274,7 +428,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 - mở gợi ý hoặc lời giải (thay `revealed`) không đổi số trang và vị trí từng câu;
 - chữ trẻ em 32px.
 
-### U7.2 Chừa sẵn chỗ cho mỗi câu (PR 7a)
+### U7.2 Chừa sẵn chỗ cho mỗi câu (PR 7a) — [MỘT PHẦN → V1, V2]
 **Số dòng cố định của một câu**, không đổi dù có lời phê hay không:
 
 | Phần | Số dòng |
@@ -291,7 +445,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 - Câu viết dài vượt cả trang: chỗ viết co còn `trang − (đề + 4)` dòng và cuộn bên trong; câu đó đứng một mình một trang.
 - **Bỏ** các dòng chữ xám dưới câu ("Thử sửa lại trước…", "Đang chấm lại. Điểm này tạm…", "Đã chấm lại…"). Thay bằng biểu tượng nhỏ ở lề phải của ô lời phê (đồng hồ cát = đang chấm, mũi tên vòng = đã chấm lại); chạm để đọc một câu giải thích.
 
-### U7.3 Gợi ý là giấy nhớ gấp ở lề (PR 7b)
+### U7.3 Gợi ý là giấy nhớ gấp ở lề (PR 7b) — [MỘT PHẦN → V3]
 - Mỗi câu có một **mẩu giấy nhớ gấp góc** ở lề phải, ngang dòng đề, 44×44px, nhãn ẩn "Gợi ý".
 - Chạm thì giấy mở ra **đè lên lề và phần trên của câu**, không chen dòng. Bên trong lần lượt có:
   - "Gợi ý 1";
@@ -301,7 +455,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 - Lời giải đã mở hiện cố định ở **ô lời phê** của câu (chữ bút chì xanh, khác bút đỏ), không đẩy dòng.
 - Tệp: `hints.tsx` viết lại thành `HintNote`; bỏ `HintLinks`/`Revealed`.
 
-### U7.4 Lời giải: hiện ngay, ghi nhận, làm lại không tính điểm (PR 7b)
+### U7.4 Lời giải: hiện ngay, ghi nhận, làm lại không tính điểm (PR 7b) — [XONG; câu tự chấm còn sai → V2]
 - Bỏ `PaperConfirm` khi mở lời giải (`hints.tsx:20`). Bấm "Xem lời giải" thì gọi `reveal(item, "solution")` và hiện ngay.
 - Câu nhận dấu bút chì **"Đã xem lời giải"** ở ô lời phê.
 - Lưu lần xem bằng `support='solution'` trên bài. Tổng kết xếp câu chưa nộp vào nhóm đã xem lời giải. Chỉ tạo bản ghi lần làm khi người học nộp câu trả lời.
@@ -316,7 +470,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
   - kỹ năng không tăng;
   - API `reveal` không còn bước xác nhận.
 
-### U7.5 Mở bài ở trang Ghi nhớ (PR 7a)
+### U7.5 Mở bài ở trang Ghi nhớ (PR 7a) — [XONG; Ghi nhớ còn cuộn → V1]
 `reader.tsx` quy tắc mở:
 1. **Bài chưa có câu trả lời nào: luôn mở trang Ghi nhớ đầu tiên** (bỏ `sessionStorage` cho trường hợp này).
 2. Bài đang làm dở: mở trang có câu chưa làm đầu tiên. Nếu đến từ giấy nhắc "Có câu cần sửa lại" thì mở trang câu cần sửa.
@@ -325,7 +479,7 @@ Câu mẫu cho các nhánh goal-today, review, open khác plan nhưng đúng ngu
 - Ghi nhớ dài tách theo đoạn qua nhiều trang (U7.1), không cuộn, không bị che.
 - Bỏ tiêu đề trùng "Tờ kiến thức" (`sheet.tsx:6-7`).
 
-### U7.6 Nút "Kiểm tra" là đồ vật trên giấy, không phải nút web (PR 7b)
+### U7.6 Nút "Kiểm tra" là đồ vật trên giấy, không phải nút web (PR 7b) — [XONG]
 Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `item-card.tsx:144`), nên trông như nút web.
 - Thay bằng **con dấu tay**: một vòng mực vẽ tay (SVG, nét bút chì) bao chữ tay "Kiểm tra", đặt ở **lề phải hàng hành động**.
   - Rê chuột hoặc focus: vòng đậm lên.
@@ -335,7 +489,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Component mới `app/hub/notebook/check-stamp.tsx`; `buttonClass("secondary")` không còn dùng trong trang bài.
 - Hàng hành động cao đúng 1 dòng, **không** `flex-wrap` (sửa lỗi tràn ở `item-card.tsx:143`, `adaptive-requests.tsx:104`, `summary.tsx:53`).
 
-### U7.7 Bộ biểu tượng vẽ tay thay `lucide-react` (PR 7c)
+### U7.7 Bộ biểu tượng vẽ tay thay `lucide-react` (PR 7c) — [CHƯA → V6]
 - Mới `app/hub/sketch-icons.tsx`: SVG nét 1.6px, đầu nét tròn, màu `currentColor`, cùng phong cách logo ngôi nhà, kích thước 24/32/40.
 - Bộ biểu tượng: mũi tên lật trang (góc giấy cong), đóng sổ (bìa sổ gập), bánh răng (vẽ tay), sổ có dấu trang (Bài mới), bút chì (Luyện thêm), tờ giấy và bút (Tự chọn), đồng hồ cát (đang chấm), mũi tên vòng (đã chấm lại), ngôi sao, móc treo, chìa khoá, tải xuống (phong bì).
 - Thay ở luồng học: `notebook/book.tsx`, `notebook/spread.tsx`, `desk.tsx`, `study-meter.tsx`, `paper-bits.tsx`, `paper-dialog.tsx` (nút đóng), `profile-controls.tsx`, `home-client.tsx`, `notebook-view.tsx`, `lesson-page.tsx`.
@@ -343,7 +497,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Test R1.6c chặn `lucide-react` trong tệp luồng học.
 - Thư mục `components/ui/*` (khoảng 60 tệp shadcn, không ai dùng) đưa vào danh sách xoá ở PR 7c, sau khi grep xác nhận không còn import.
 
-### U7.8 Trông như một cuốn sổ (PR 7c)
+### U7.8 Trông như một cuốn sổ (PR 7c) — [CHƯA → V5, V6]
 - **Gáy sổ** giữa hai trang: dải bóng đổ hai bên (gradient tối 12px), có lò xo hoặc đường khâu tuỳ loại sổ (sổ chủ đề: đường khâu chỉ).
 - Mép trang dưới có 2–3 lớp giấy xếp chồng (bóng mỏng) để thấy độ dày.
 - **Lật trang:**
@@ -352,7 +506,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
   - Sửa lỗi trang cũ trượt lệch ra ngoài khung khi lật: trang cũ nằm trong khung có `overflow: clip`.
 - **Chỉ dựng trang đang hiện và hai trang kề bên.** Trang khác là chỗ trống có chiều cao đúng, để khỏi tải tổng kết và hiệu ứng dấu khi trang còn khuất (sửa phát hiện "mọi trang đều dựng"). Focus khi lật đến tiêu đề phần, không đến `<p>` rỗng.
 
-### U7.9 Tổng kết là trang cuối có ý nghĩa (PR 7c)
+### U7.9 Tổng kết là trang cuối có ý nghĩa (PR 7c) — [MỘT PHẦN, chưa nghiệm thu bằng mắt ở Bản 3]
 - Trang tổng kết hiện **ngay cả khi chưa xong bài**, gồm:
   - kiểm điểm: đúng ngay, đúng sau khi sửa, xem lời giải, cần sửa lại, chưa làm, chờ chấm;
   - mỗi số có nút nhỏ "lật tới" câu đầu thuộc nhóm đó.
@@ -366,7 +520,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Ba biểu tượng xin bài (U8.5) ở cuối trang, **hiện cả khi chưa xong bài**.
 - "Đóng sổ" ở mọi nơi đều về **trang Hôm nay của sổ**. Về bàn học thì qua nút "Đóng sổ" ở trang sổ.
 
-### U7.10 Trạng thái lưu và chờ chấm nằm trên giấy (PR 7b)
+### U7.10 Trạng thái lưu và chờ chấm nằm trên giấy (PR 7b) — [CHƯA nghiệm thu ở Bản 3]
 - Bỏ dòng "Bài đã lưu, sẽ có lời phê sau." trên nền tường. Trạng thái lưu: chữ bút chì nhỏ ở góc dưới phải của trang đang mở ("Đã lưu").
 - Máy chấm vắng: biểu tượng đồng hồ cát ở ô lời phê của câu đang chờ; chạm thì hiện `words.status.gradeLater`.
 
@@ -376,14 +530,14 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 
 **Mục tiêu:** mở sổ thấy ngay đang học tới đâu, có bài gì, xin bài ở đâu. Mỗi tháng một chương. **Cỡ:** L, 3 PR (8a dữ liệu và khung, 8b trang Hôm nay và Mục lục, 8c bài trong khung sổ, dọn code cũ).
 
-### U8.1 Khung sổ (PR 8a) — `app/hub/notebook/book.tsx`
+### U8.1 Khung sổ (PR 8a) — `app/hub/notebook/book.tsx` — [MỘT PHẦN → V5]
 - **Bìa bay thật:** gắn `view-transition-name: cover-<id>` cho một `NotebookCover` thu nhỏ ở góc trên trái của khung sổ (không gắn vào `<h1>`). Hiệu ứng: bìa từ tủ bay xuống, lật mở (`book-rise`), rồi hiện trang Hôm nay.
 - Khung trang đôi dùng chung với trang bài (`Spread` sau U7.1), nên **sổ và bài là cùng một cuốn**.
 - Thẻ mép phải: **Hôm nay · Mục lục · Tiến độ**, giấy màu, chữ tay; thẻ của trang đang mở nhô ra hơn.
 - Bìa sau: biểu tượng bánh răng vẽ tay ở **góc dưới trái** trang phải, mở trang Cài đặt.
 - "Đóng sổ" (biểu tượng bìa gập) ở góc trên trái, về bàn với hiệu ứng `book-sink`.
 
-### U8.2 Dữ liệu một lần mỗi sổ (PR 8a) — `app/hub/notebook/use-book.ts`
+### U8.2 Dữ liệu một lần mỗi sổ (PR 8a) — `app/hub/notebook/use-book.ts` — [CHƯA → V4, V7]
 - `useBook(subjectId, learner)` gọi song song `/api/subjects/:id/lessons?all=1` và `/api/subjects/:id?view=overview`, giữ trong bộ nhớ theo `subjectId` khi lật giữa các trang.
 - Làm mới khi:
   - quay lại tab;
@@ -397,7 +551,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
   - Dùng lại truy vấn của `lib/greeting.ts`, lọc theo sổ: ngày học tuần này, phút tuần này, đúng ngay tuần này so với tuần trước, bài xong tuần này, kỹ năng vừa vững, hay nhầm (tối đa 2, nhãn qua `skillLabel`), kỹ năng cần ôn, ba bước sắp tới của lộ trình.
   - Câu khích lệ của sổ chọn bằng `greetingFor` với dữ liệu đã lọc.
 
-### U8.3 Trang Hôm nay = trang đôi đầu tiên khi mở sổ (PR 8b) — `app/hub/notebook/today.tsx`
+### U8.3 Trang Hôm nay = trang đôi đầu tiên khi mở sổ (PR 8b) — `app/hub/notebook/today.tsx` — [MỘT PHẦN → V4]
 **Trang trái — báo cáo gần đây** (theo bản phác 12/11):
 - Đầu trang (chữ tay nhạt): "Chương {tháng} · {tên chương}". Tên chương lấy từ bước lộ trình đang học hoặc tháng.
 - Tên sổ (2 dòng, chữ in).
@@ -421,7 +575,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 
 **Điện thoại:** trang phải (bài đang có và ba biểu tượng) hiện trước; vuốt sang để xem báo cáo.
 
-### U8.4 Mở bài trong khung sổ (PR 8c)
+### U8.4 Mở bài trong khung sổ (PR 8c) — [MỘT PHẦN: bài đã nằm trong khung sổ]
 - `?bai2=<id>` hiển thị trong cùng khung sổ (U8.1) của sổ chứa bài; thẻ mép vẫn còn.
 - Bấm **Mở bài** từ trang Hôm nay hoặc Mục lục thì **lật tới trang Ghi nhớ của bài** (U7.5), hiệu ứng `turn`.
 - Từ bài, thẻ "Hôm nay" hoặc "Đóng sổ" lật về trang Hôm nay.
@@ -429,7 +583,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Nút lùi trình duyệt lật lùi một trang sổ; lật câu trong bài không đẩy lịch sử.
 - `transitionKind` chỉ dùng `turn` trong cùng một sổ; khác sổ thì `close` rồi `open`.
 
-### U8.5 Mục lục theo chương tháng (PR 8b) — `app/hub/notebook/contents.tsx`
+### U8.5 Mục lục theo chương tháng (PR 8b) — `app/hub/notebook/contents.tsx` — [MỘT PHẦN → V7]
 - **Chương = tháng** (giờ Berlin) theo ngày giao bài (`assigned_date`); chương mới nhất ở đầu.
 - Mỗi chương bắt đầu trang mới, tiêu đề chữ in: "Chương 11 · Tháng 11/2026". Số chương đếm từ tháng của bài đầu tiên trong sổ.
 - Dòng phụ chữ tay: tên bước lộ trình chiếm nhiều bài nhất trong tháng.
@@ -441,7 +595,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Bỏ: `<details>` "Lịch sử làm bài" (`history-panel.tsx:48`); lịch sử từng câu và tải CSV/Markdown chuyển vào Cài đặt (người lớn).
 - Ngăn kéo "Bài đã học" trên bàn dùng cùng component, gộp mọi sổ (mỗi dòng có tên sổ).
 
-### U8.6 Trang Tiến độ và Cài đặt (PR 8b)
+### U8.6 Trang Tiến độ và Cài đặt (PR 8b) — [MỘT PHẦN: lịch sử đã ở Cài đặt]
 - `notebook/progress.tsx` (đã có) giữ.
   - Thêm "⭐ {n} ngày tuần này" cho trẻ em (R6.1c).
   - Thanh "Đúng ngay" vẽ thành hàng ô vuông tô màu trên giấy ô li thay thanh xám (thanh xám trông như lỗi trên điện thoại).
@@ -451,7 +605,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
   - lịch sử từng câu và tải CSV/Markdown (người lớn);
   - trẻ em chỉ xem.
 
-### U8.7 Dọn code cũ (PR 8c)
+### U8.7 Dọn code cũ (PR 8c) — [CHƯA]
 - **Xoá** sau khi chuyển xong: `subject-view.tsx` (trừ phần form đã chuyển), `lesson-v2/list.tsx`, `new-lesson-request.tsx`, phần người học của `requests-panel.tsx`, phần danh sách của `history-panel.tsx`, `learned-lessons.tsx` (thay bằng `contents.tsx` dạng nhiều sổ).
 - `adaptive-requests.tsx` chuyển thành `notebook/request-icons.tsx`.
 - Sổ kiểu cũ (`notebook-view.tsx`): dùng cùng khung, Mục lục theo tháng của các bài đã giao, giữ trang Tài liệu; chỉ đọc khi đã lưu trữ.
@@ -522,11 +676,13 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 - Prompt soạn (`plan-request.md`, `LESSON-DESIGN.md`):
   - hướng dẫn chọn dạng câu theo môn: Bio ưu tiên `label`, `order`, `match`, `table`; Rust ưu tiên `code` (sửa lỗi, viết hàm nhỏ), `cloze` cho cú pháp, `order` cho các bước borrow/ownership;
   - mỗi bài trộn ít nhất 2 dạng câu.
-- Eval: thêm 10 câu `code` Rust và 10 câu Bio vào `fixtures/eval/assess/`; ghi tỉ lệ khớp của Qwen và Codex trước khi bật cho người học.
+- Eval: thêm 10 câu `code` Rust và 10 câu Bio vào `fixtures/eval/assess/`; nghiệm thu bằng **Qwen** (máy chấm mặc định) và ghi tỉ lệ khớp thực tế trước khi bật cho người học. Codex chỉ là so sánh tuỳ chọn (V8.2).
 
 ### U9.5 Bật dần (PR 9d)
 - Cờ theo sổ `subjects.limits.package` = `2` hoặc `3`; mặc định `2`. Runner chỉ được giao viết bài v3 cho sổ đã bật.
 - Bật thử ở một sổ mới (ví dụ "Rust cơ bản" hoặc "Bio 10") trước khi đổi sổ Deutsch.
+- **Lùi lại:** đặt `limits.package = 2` để ngừng tạo bài v3; bài v3 đã lưu vẫn đọc, nộp, chấm được (V8.1).
+- **D1:** migration mở `package_version` và `input_kind` (`0009_lessons_v2.sql:16,131`) phải diễn tập trên bản sao production và đối chiếu nháp, câu trả lời, điểm, khoá ngoại trước khi áp.
 
 **Test giai đoạn 9:**
 - Schema v3 với ví dụ từng dạng câu và khối.
@@ -551,7 +707,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
 | 8c | Bài trong khung sổ, dọn code cũ (U8.4, U8.7) | M | 8b, 7c |
 | 9a–9d | Nhiều dạng bài (U9.1–U9.5) | L ×4 | 7a, 7b |
 
-Thứ tự đề xuất: **1c và 7a song song → 7b → 7c → 8a → 8b → 8c → 9a…9d.** Mỗi PR deploy production riêng sau khi chủ dự án duyệt; lùi bằng `wrangler rollback` (không có thay đổi dữ liệu trừ trường `limits.package` ở 9d, mặc định giữ hành vi cũ).
+Thứ tự đề xuất: **1c và 7a song song → 7b → 7c → 8a → 8b → 8c → 9a…9d.** Mỗi PR deploy production riêng sau khi chủ dự án duyệt. Giai đoạn 7–8 lùi bằng `wrangler rollback`. Từ giai đoạn 9, khi đã có bài v3 thì **không** rollback Worker về bản không đọc được v3; lùi bằng cách tắt tạo bài v3 (V8.1). **Thứ tự hiện hành: xem "Thứ tự giao việc" ở Bản 3.**
 
 ## Rủi ro và cách giảm
 
