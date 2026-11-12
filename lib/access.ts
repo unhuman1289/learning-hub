@@ -67,9 +67,9 @@ export function denied(viewer: Viewer, learnerId: string) {
  * Resolves `?learner=` for a request. Without it, the viewer acts on their own data.
  * Returns the learner id, or a 403/404 Response (see `denied`) when the viewer may not act on that learner.
  */
-export async function resolveLearner(db: Db, viewer: Viewer, request: Request, action: AccessAction): Promise<string | Response> {
+export async function resolveLearner(db: Db, viewer: Viewer, request: Request, action: AccessAction, readFacts?: (learnerId: string) => Promise<LearnerFacts>): Promise<string | Response> {
   const requested = new URL(request.url).searchParams.get('learner');
   const learnerId = requested ?? viewer.id;
-  if (!LEARNER_ID.test(learnerId) || !(await canAccessLearner(db, viewer, learnerId, action))) return denied(viewer, learnerId);
+  if (!LEARNER_ID.test(learnerId) || !(readFacts ? decideAccess(viewer, learnerId, action, await readFacts(learnerId)) : await canAccessLearner(db, viewer, learnerId, action))) return denied(viewer, learnerId);
   return learnerId;
 }

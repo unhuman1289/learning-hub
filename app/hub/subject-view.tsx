@@ -18,7 +18,7 @@ export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfAp
 function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
   const subject = shelf.subjects?.find((item) => item.id === id);
   const child = shelf.learners.find(learner => shelf.learner ? learner.id === shelf.learner : learner.relation === "self")?.role === "child";
-  const data = useBook(id, shelf.learner, hub2);
+  const data = useBook(id, shelf.learner, hub2 && page !== "cai-dat", page === "muc-luc");
   if (!subject) return <p className="mx-auto max-w-4xl text-muted">{shelf.subjects ? "Không tìm thấy sổ này." : shelf.error || "Đang mở sổ…"}</p>;
   const paged = hub2 && (page === "hom-nay" || page === "muc-luc");
   const loading = <p role={data.error ? "alert" : "status"} className="bg-paper p-4">{data.error ? words.error.unknown : "Đang đọc sổ…"}</p>;
@@ -27,7 +27,7 @@ function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, 
       ? <NotebookToday report={data.overview?.report} subject={subject} book={data.book} learner={shelf.learner} child={child} go={go} refresh={data.refresh} />
       : <Contents title={subject.title} rows={data.rows} child={child} go={go} loadingOlder={data.loadingOlder}
           loadMore={data.hasMore ? () => void data.loadMore() : undefined} /> : loading)}
-    {page === "tien-do" && (data.overview ? <BookProgress data={data.overview} child={child} /> : loading)}
+    {page === "tien-do" && (data.overview ? <BookProgress data={data.overview} child={child} /> : data.reportError ? <p role="alert">{words.error.unknown}</p> : loading)}
     {page === "cai-dat" && <>
       {canEdit && !child && subject.status !== "archived"
         ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}

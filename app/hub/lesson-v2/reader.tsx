@@ -76,7 +76,7 @@ export function LessonReader({
     saveInFlight = useRef<Promise<boolean> | null>(null),
     ready = useRef(false),
     generation = useRef(0);
-  const pendingSubmission = useRef<{ clientSubmissionId: string; draftRevision: number; stage: string | null; itemIds: string[] } | null>(null);
+  const pendingSubmission = useRef<{ clientSubmissionId: string; draftRevision: number; stage: string | null; itemIds: string[]; answers?: DraftAnswers } | null>(null);
   const cacheKey = "v2:" + id,
     readonly = learner !== null,
     url = `/api/lessons/${id}`,
@@ -140,7 +140,17 @@ export function LessonReader({
   const waiting = (submission?: SubmissionView) => !!submission &&
     submission.attempts.some(a => (!a.result && !["cancelled","failed","expired"].includes(submission.job_status ?? "")) || a.dispute?.status === "rechecking");
   const waitingForGrade = lesson?.items.some(item => waiting(feedbackForItems(history, [item.id])[0])) ?? false;
-  useLiveRefresh(refreshFeedback, !!lesson && !busy && waitingForGrade, 5000);
+  useLiveRefresh(async () => {
+    const active = lesson?.items.flatMap(item => {
+      const submission = feedbackForItems(history, [item.id])[0];
+      return waiting(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
+    }) ?? [];
+    const query = new URLSearchParams(suffix.slice(1));
+    query.set("watch", active.map(attempt => attempt.id).join(","));
+    query.set("rechecks", active.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(","));
+    const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
+    if (value.changed) await refreshFeedback();
+  }, !!lesson && !busy && waitingForGrade, 5000);
   const save = useCallback(async (): Promise<boolean> => {
     if (readonly || !ready.current) return false;
     if (saveInFlight.current) {
@@ -184,12 +194,12 @@ export function LessonReader({
     return promise;
   }, [readonly, url, cacheKey]);
   useEffect(() => {
-    if (!lesson || readonly || JSON.stringify(answers) === saved.current) return;
+    if (!lesson || readonly || busy || pending || JSON.stringify(answers) === saved.current) return;
     const timer = setTimeout(() => {
       void save();
     }, 800);
     return () => clearTimeout(timer);
-  }, [answers, lesson, readonly, save]);
+  }, [answers, lesson, readonly, busy, pending, save]);
   useEffect(() => {
     const leave = (e: BeforeUnloadEvent) => {
       if (JSON.stringify(latest.current) !== saved.current) {
@@ -211,14 +221,14 @@ export function LessonReader({
     setBusy(true);
     setError("");
     try {
-      await json(url + `/items/${itemId}/reveal`, {
+      const { support, submissions, ...revealed } = await json<Omit<Lesson["items"][number]["revealed"], "solutionSeen"> & { support: string; submissions?: SubmissionView[] }>(url + `/items/${itemId}/reveal`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ level }),
       });
-      const fresh = await json<{ lesson: Lesson }>(url);
-      setLesson(fresh.lesson);
-      if (level === "solution") await refreshFeedback();
+      setLesson(current => current && { ...current, items: current.items.map(item => item.id === itemId
+        ? { ...item, revealed: { ...revealed, solutionSeen: support === "solution" } } : item) });
+      if (submissions) setHistory(submissions);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -231,7 +241,7 @@ export function LessonReader({
     setError("");
     try {
       if (!pendingSubmission.current) {
-        if (!(await save())) return;
+        if (saveInFlight.current && !(await saveInFlight.current)) return;
         const item = lesson.items.find(i => i.id === itemId);
         if (!item) return;
         pendingSubmission.current = {
@@ -239,13 +249,15 @@ export function LessonReader({
           draftRevision: revision.current,
           stage: item.stage,
           itemIds: [itemId],
+          ...(JSON.stringify(latest.current) !== saved.current ? { answers: latest.current } : {}),
         };
         setPending(itemId);
       }
-      const request = () => json<{ submission: SubmissionView }>(url + "/submissions", {
+      const input = pendingSubmission.current;
+      const request = () => json<{ submission: SubmissionView; draftRevision: number }>(url + "/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(pendingSubmission.current),
+        body: JSON.stringify(input),
       });
       const response = await request().catch(error => {
         if (error instanceof RequestError && error.status >= 400 && error.status < 500) throw error;
@@ -253,9 +265,15 @@ export function LessonReader({
         return request();
       });
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
+      if (input.answers) {
+        revision.current = response.draftRevision;
+        saved.current = JSON.stringify(input.answers);
+        cache.current.set(cacheKey, JSON.stringify(latest.current) === saved.current ? undefined :
+          JSON.stringify({ revision: revision.current, answers: latest.current }));
+      }
       pendingSubmission.current = null;
       setPending(null);
-      setState("Đã lưu");
+      setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
     } catch (e) {
       if (e instanceof RequestError && e.status >= 400 && e.status < 500) {

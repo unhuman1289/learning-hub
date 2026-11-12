@@ -1,3 +1,4 @@
+import { measureStorage } from '../../../../db/timing';
 import { env } from 'cloudflare:workers';
 import { readNotebookOverview } from '../../../../lib/learner-model/overview';
 import { readNotebookReport } from '../../../../lib/notebook-report';
@@ -19,22 +20,29 @@ type Context = { params: Promise<{ id: string }> };
 const SUBJECT_ID = /^sub_[0-9a-f]{20}$/;
 
 export async function GET(req: Request, context: Context) {
-  const user = await getHubUser();
+  const timing = measureStorage();
+  const db = timing.db;
+  const user = await getHubUser(db);
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401, headers });
   try {
     const { id } = await context.params;
     if (!SUBJECT_ID.test(id)) return Response.json({ error: 'Not found' }, { status: 404, headers });
-    const db = storage();
-    const learnerId = await resolveLearner(db, user, req, 'read_progress');
+    let factsPromise: ReturnType<typeof learnerFacts> | undefined;
+    const readFacts = (id: string) => factsPromise ??= id === user.id && user.learnerRole
+      ? Promise.resolve({ learnerRole: user.learnerRole, viewerIsGuardian: false })
+      : learnerFacts(db, user, id);
+    const learnerId = await resolveLearner(db, user, req, 'read_progress', readFacts);
     if (learnerId instanceof Response) return learnerId;
     const subject = toView(await getSubject(db, learnerId, id));
-    const facts = await learnerFacts(db, user, learnerId);
+    const facts = await readFacts(learnerId);
     const includeSuspected = user.id !== learnerId || facts.learnerRole !== 'child';
     if (new URL(req.url).searchParams.get('view') === 'overview') {
       const now = new Date();
-      const overview = await readNotebookOverview(db, learnerId, id, subject.legacyTrack, now, includeSuspected);
-      const report = await readNotebookReport(db, learnerId, id, overview, now, facts.learnerRole, subject.roadmap);
-      return Response.json({ ...overview, report }, { headers });
+      const reading = readNotebookOverview(db, learnerId, id, subject.legacyTrack, now, includeSuspected);
+      const [overview, report] = await Promise.all([
+        reading, readNotebookReport(db, learnerId, id, reading, now, facts.learnerRole, subject.roadmap),
+      ]);
+      return Response.json({ ...overview, report }, { headers: { ...headers, "Server-Timing": timing.header() } });
     }
     const details = await readSubjectSkills(db, learnerId, id);
     if (!includeSuspected) details.errors = details.errors.filter(e => e.confidence === 'confirmed');
@@ -50,7 +58,7 @@ export async function GET(req: Request, context: Context) {
       const date = addDays(day,index-13);
       return { day: date, minutes: study.find(row => row.day === date)?.minutes ?? 0, lessons: activity.filter(row => row.day === date) };
     });
-    return Response.json({ timeline, subject, ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers });
+    return Response.json({ timeline, subject, ...details, effort:await readSubjectEffort(db,learnerId,id) }, { headers: { ...headers, "Server-Timing": timing.header() } });
   } catch (error) {
     return apiFailure(error, 'Chưa tải được sổ.', headers);
   }

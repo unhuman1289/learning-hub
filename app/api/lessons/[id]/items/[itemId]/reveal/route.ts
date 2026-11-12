@@ -1,3 +1,4 @@
+import { readLessonSubmissions } from '../../../../../../../lib/evidence/submit';
 import { getHubUser } from '../../../../../../../lib/auth/session';
 import { storage } from '../../../../../../../db/storage';
 import { apiFailure } from '../../../../../../../lib/api-error';
@@ -17,7 +18,9 @@ export async function POST(req: Request, context: Context) {
     const learnerId = await lessonTarget(db, user, req, id, 'edit_work');
     if (learnerId instanceof Response) return learnerId;
     const body = await req.json().catch(() => null) as { level?: unknown } | null;
-    return Response.json(await reveal(db, learnerId, id, itemId, body?.level), { headers: privateHeaders });
+    const result = await reveal(db, learnerId, id, itemId, body?.level);
+    const submissions = result.support === 'solution' ? await readLessonSubmissions(db, learnerId, id) : undefined;
+    return Response.json({ ...result, submissions }, { headers: privateHeaders });
   } catch (error) {
     return apiFailure(error, 'Chưa mở được gợi ý.', privateHeaders);
   }

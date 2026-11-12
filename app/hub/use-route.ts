@@ -72,9 +72,12 @@ function transitionKind(from: Route, to: Route): "open" | "close" | "turn" | "fa
 
 type ViewTransitionDocument = Document & { startViewTransition?: (update: () => void) => { finished: Promise<void> } };
 
+const deskRoute: Route = { view: "desk" };
+
 /** Address-bar routing inside the signed-in page, so lessons can be resumed and shared. */
 export function useRoute() {
-  const [route, setRoute] = useState<Route>({ view: "desk" });
+  const [matched, setRoute] = useState<Route | null>(null);
+  const route = matched ?? deskRoute;
   const current = useRef(route);
   useEffect(() => {
     current.current = route;
@@ -106,5 +109,5 @@ export function useRoute() {
     });
   }, []);
 
-  return { route, go };
+  return { route, go, ready: matched !== null };
 }

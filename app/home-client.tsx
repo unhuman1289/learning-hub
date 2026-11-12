@@ -28,7 +28,7 @@ import { isTrack, trackInfo } from "./hub/model";
 
 export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
-  const { route: requested, go } = useRoute();
+  const { route: requested, go, ready: routeReady } = useRoute();
   const workspace = useWorkspace();
   const daily = useDaily();
   // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
@@ -114,7 +114,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
       </header>
 
       <main data-age={shelf.learners.find(l => viewingId ? l.id === viewingId : l.relation === "self")?.role} className={cx("px-4 pt-6 sm:px-6 lg:pb-16 lg:pt-8", nav.length >= 2 ? "pb-32" : "pb-8")}>
-        {route.view === "desk" && (
+        {routeReady && route.view === "desk" && (
           <Desk
             name={name}
             go={go}

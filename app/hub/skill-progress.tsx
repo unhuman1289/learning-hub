@@ -57,7 +57,7 @@ function Progress({ subjectId, learner, canEdit, showPath = true }: { subjectId:
       alive = false;
     };
   }, [url]);
-  useLiveRefresh(load);
+  useLiveRefresh(load, true, null);
   async function setMastery(skill: Skill, value: string) {
     if (!note.trim()) {
       setError("Ghi lý do trước khi đặt trạng thái.");

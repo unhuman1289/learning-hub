@@ -13,10 +13,13 @@ export type BookLessons = {
 };
 type Overview = NotebookOverview & { report: NotebookReport };
 
-export function useBook(subjectId: string, learner: string | null, enabled: boolean) {
+export function useBook(subjectId: string, learner: string | null, enabled: boolean, history: boolean) {
   const [overview, setOverview] = useState<Overview | null>(null);
-  const [book, setBook] = useState<BookLessons | null>(null);
+  const [current, setCurrent] = useState<BookLessons | null>(null);
+  const [archive, setArchive] = useState<BookLessons | null>(null);
+  const book = history ? archive : current;
   const [older, setOlder] = useState<BookLessons | null>(null);
+  const [reportError, setReportError] = useState(false);
   const [error, setError] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const inFlight = useRef<AbortController | null>(null);
@@ -28,18 +31,21 @@ export function useBook(subjectId: string, learner: string | null, enabled: bool
     const request = new AbortController();
     inFlight.current = request;
     try {
-      const [data, lessons] = await Promise.all([
-        apiJson<Overview>(subjectUrl + "?view=overview" + params, { signal: request.signal }),
-        apiJson<BookLessons>(subjectUrl + "/lessons?all=1" + params, { signal: request.signal }),
-      ]);
+      const options = { signal: request.signal };
+      const report = history ? Promise.resolve() :
+        apiJson<Overview>(subjectUrl + "?view=overview" + params, options).then(data => {
+          if (!request.signal.aborted) { setOverview(data); setReportError(false); }
+        }).catch(() => { if (!request.signal.aborted) setReportError(true); });
+      const lessons = await apiJson<BookLessons>(subjectUrl + "/lessons?" + (history ? "all=1" : "view=open") + params, options);
       if (request.signal.aborted) return;
-      setOverview(data);
-      setBook(lessons);
+      if (history) setArchive(lessons);
+      else setCurrent(lessons);
       setError(false);
+      await report;
     } catch {
       if (!request.signal.aborted) setError(true);
     }
-  }, [enabled, params, subjectUrl]);
+  }, [enabled, history, params, subjectUrl]);
 
   useEffect(() => {
     const visible = () => { if (!document.hidden) void refresh(); };
@@ -58,7 +64,11 @@ export function useBook(subjectId: string, learner: string | null, enabled: bool
   }, [refresh, subjectId]);
 
   const pending = [book?.initial?.status, book?.nightly?.status].some(status => status === "queued" || status === "leased");
-  useLiveRefresh(refresh, enabled && pending, 5000);
+  useLiveRefresh(async () => {
+    const status = await apiJson<Pick<BookLessons, "initial" | "nightly" | "setup">>(subjectUrl + "/lessons?view=status" + params);
+    if (status.setup !== book?.setup || status.initial?.status !== book?.initial?.status ||
+        status.nightly?.status !== book?.nightly?.status) await refresh();
+  }, enabled && pending && !history, 5000);
   const nextOffset = older ? older.nextOffset : book?.nextOffset;
   const rows = [...new Map([...(older?.lessons ?? []), ...(book?.lessons ?? [])].map(row => [row.id, row])).values()];
   async function loadMore() {
@@ -74,5 +84,5 @@ export function useBook(subjectId: string, learner: string | null, enabled: bool
       setLoadingOlder(false);
     }
   }
-  return { book, overview, rows, error, refresh, loadMore, hasMore: nextOffset != null, loadingOlder };
+  return { book, overview, rows, error, reportError, refresh, loadMore, hasMore: nextOffset != null, loadingOlder };
 }
