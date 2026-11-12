@@ -43,5 +43,12 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
     ORDER BY CASE WHEN ?=1 THEN l.assigned_date END DESC, l.completed_at IS NOT NULL,
       coalesce(l.completed_at,l.updated) DESC,l.id DESC
   `).bind(learner, subject, Number(all), limit + 1, offset, Number(all)).all<NotebookLessonRow>();
-  return { lessons: results.slice(0, limit), nextOffset: results.length > limit ? offset + limit : null };
+  const hasMore = results.length > limit;
+  let end = limit;
+  if (all && hasMore) {
+    const nextMonth = results[limit].assignedDate.slice(0, 7);
+    const boundary = results.findIndex(row => row.assignedDate.startsWith(nextMonth));
+    if (boundary > 0) end = boundary;
+  }
+  return { lessons: results.slice(0, end), nextOffset: hasMore ? offset + end : null };
 }

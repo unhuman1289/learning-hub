@@ -1,16 +1,14 @@
 "use client";
 
-import { LessonList } from "./lesson-v2/list";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { fieldClass, labelClass } from "./paper-dialog";
 import { paperAction, PaperSummary } from "./paper-bits";
 import type { BookPage, Route } from "./use-route";
 import type { ShelfApi, ShelfSubject } from "./use-shelf";
-import type { NotebookOverview } from "../../lib/learner-model/overview";
-import { apiJson, learnerQuery } from "./api";
-import { useLiveRefresh } from "./use-live-refresh";
 import { Book } from "./notebook/book";
-import { RecentNotebookReport } from "./notebook/today";
+import { NotebookToday } from "./notebook/today";
+import { Contents } from "./notebook/contents";
+import { useBook } from "./notebook/use-book";
 import { BookProgress } from "./notebook/progress";
 import { HistoryPanel } from "./history-panel";
 import { words } from "./words";
@@ -22,32 +20,16 @@ export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfAp
 function SubjectBook({ id, page = "hom-nay", shelf, canEdit, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
   const subject = shelf.subjects?.find((item) => item.id === id);
   const child = shelf.learners.find(learner => shelf.learner ? learner.id === shelf.learner : learner.relation === "self")?.role === "child";
-  const [data, setData] = useState<NotebookOverview | null>(null);
-  const [error, setError] = useState(false);
-  const query = learnerQuery(shelf.learner);
-  const url = `/api/subjects/${id}?view=overview${query ? "&" + query.slice(1) : ""}`;
-  useEffect(() => {
-    if (!hub2) return;
-    let alive = true;
-    apiJson<NotebookOverview>(url).then(value => { if (alive) setData(value); }).catch(() => { if (alive) setError(true); });
-    return () => { alive = false; };
-  }, [hub2, url]);
-  useLiveRefresh(async () => { setData(await apiJson<NotebookOverview>(url)); setError(false); }, hub2);
+  const data = useBook(id, shelf.learner, hub2);
   if (!subject) return <p className="mx-auto max-w-4xl text-muted">{shelf.subjects ? "Không tìm thấy sổ này." : shelf.error || "Đang mở sổ…"}</p>;
-  return <Book id={id} title={subject.title} page={page} go={go}>
-    {page === "muc-luc" && <>
-      {subject.goal && <p className="mb-4 whitespace-pre-wrap font-hand text-xl">{subject.goal}</p>}
-      {!!subject.roadmap?.length && <section className="mb-4"><h2 className="font-hand text-xl text-accent">{words.place.next}</h2>
-        <ol className="ml-5 list-decimal">{subject.roadmap.slice(0, 3).map((step, index) => <li key={index}>{step.title}</li>)}</ol></section>}
-    </>}
-    <div hidden={page !== "hom-nay" && page !== "muc-luc"} className={page === "hom-nay" ? "md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] md:gap-7" : undefined}>
-      <div className={page === "hom-nay" ? "min-w-0 md:col-start-2 md:row-start-1" : undefined}>
-        {hub2 && <LessonList subjectId={id} learner={shelf.learner} go={go} showBoth bookPage={page === "muc-luc" ? "contents" : "today"}
-          canRequest={!shelf.learner && (subject.status === "active" || subject.status === "setup")} />}
-      </div>
-      {page === "hom-nay" && hub2 && <div className="mt-6 md:col-start-1 md:row-start-1 md:mt-0"><RecentNotebookReport data={data} subject={subject} /></div>}
-    </div>
-    {page === "tien-do" && (data ? <BookProgress data={data} child={child} /> : <p role={error ? "alert" : "status"}>{error ? words.error.unknown : "Đang đọc tiến độ…"}</p>)}
+  const paged = hub2 && (page === "hom-nay" || page === "muc-luc");
+  const loading = <p role={data.error ? "alert" : "status"} className="bg-paper p-4">{data.error ? words.error.unknown : "Đang đọc sổ…"}</p>;
+  return <Book id={id} title={subject.title} page={page} go={go} paged={paged}>
+    {paged && (data.book ? page === "hom-nay"
+      ? <NotebookToday report={data.overview?.report} subject={subject} book={data.book} learner={shelf.learner} child={child} go={go} refresh={data.refresh} />
+      : <Contents title={subject.title} rows={data.rows} child={child} go={go} loadingOlder={data.loadingOlder}
+          loadMore={data.hasMore ? () => void data.loadMore() : undefined} /> : loading)}
+    {page === "tien-do" && (data.overview ? <BookProgress data={data.overview} child={child} /> : loading)}
     {page === "cai-dat" && <>
       {canEdit && !child && subject.status !== "archived"
         ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}

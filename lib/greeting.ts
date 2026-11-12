@@ -4,35 +4,35 @@ import { berlinDay } from "./daily-policy.ts";
 const dayAt = (day: string, offset: number) =>
   new Date(Date.parse(day) + offset * 86_400_000).toISOString().slice(0, 10);
 
-export async function readGreetingFacts(db: EvidenceDb, learner: string, now: Date) {
+export async function readGreetingFacts(db: EvidenceDb, learner: string, now: Date, subject: string | null = null) {
   const day = berlinDay(now);
   const week = dayAt(day, -6);
   const fortnight = dayAt(day, -13);
   const [study, grades, lessons, skills] = await Promise.all([
     db.prepare(`SELECT st.day, sum(st.seconds) seconds FROM study_time st
       JOIN subjects s ON s.learner_id=st.user_id AND (s.id=st.track OR s.legacy_track=st.track)
-      WHERE st.user_id=? AND st.day<=? AND s.status='active' GROUP BY st.day
+      WHERE st.user_id=? AND st.day<=? AND s.status='active' AND (? IS NULL OR s.id=?) GROUP BY st.day
       HAVING sum(st.seconds)>=120 ORDER BY st.day DESC LIMIT 365`)
-      .bind(learner, day).all<{ day: string; seconds: number }>(),
+      .bind(learner, day, subject, subject).all<{ day: string; seconds: number }>(),
     db.prepare(`SELECT a.day>=? AS recent, count(*) AS total, sum(g.result='correct') AS correct
       FROM attempts a JOIN grades g ON g.id=a.current_grade_id AND g.attempt_id=a.id
       JOIN learning_lessons l ON l.id=a.lesson_id
       JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id
-      WHERE a.learner_id=? AND a.day BETWEEN ? AND ? AND s.status='active'
+      WHERE a.learner_id=? AND a.day BETWEEN ? AND ? AND s.status='active' AND (? IS NULL OR s.id=?)
       AND a.attempt_no=1 AND a.support='none' AND a.status='graded'
       AND g.result IN ('correct','partial','incorrect') GROUP BY recent`)
-      .bind(week, learner, fortnight, day).all<{ recent: number; total: number; correct: number }>(),
+      .bind(week, learner, fortnight, day, subject, subject).all<{ recent: number; total: number; correct: number }>(),
     db.prepare(`SELECT l.completed_at, s.title FROM learning_lessons l
       JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id
-      WHERE l.user_id=? AND s.status='active' AND l.package_version='2'
+      WHERE l.user_id=? AND s.status='active' AND l.package_version='2' AND (? IS NULL OR s.id=?)
       AND (l.completed_at IS NULL OR l.completed_at>=?)`)
-      .bind(learner, dayAt(week, -1)).all<{ completed_at: string | null; title: string }>(),
+      .bind(learner, subject, subject, dayAt(week, -1)).all<{ completed_at: string | null; title: string }>(),
     db.prepare(`SELECT st.mastery, st.next_review_day, st.last_independent_at, sk.name
       FROM skill_states st JOIN subjects s ON s.id=st.subject_id AND s.learner_id=st.learner_id
       JOIN skills sk ON sk.id=st.skill_id
-      WHERE st.learner_id=? AND s.status='active' AND sk.status='active'
+      WHERE st.learner_id=? AND s.status='active' AND sk.status='active' AND (? IS NULL OR s.id=?)
       ORDER BY st.last_independent_at DESC, sk.id`)
-      .bind(learner).all<{ mastery: string; next_review_day: string | null; last_independent_at: string | null; name: string }>(),
+      .bind(learner, subject, subject).all<{ mastery: string; next_review_day: string | null; last_independent_at: string | null; name: string }>(),
   ]);
   const days = new Set(study.results?.map((row) => row.day));
   let cursor = days.has(day) ? day : dayAt(day, -1);

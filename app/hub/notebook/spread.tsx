@@ -96,11 +96,12 @@ export function Spread({ blocks, startAt, jump, child = false, status }: {
   }
 
   const visibleLabels = pages.slice(first, last).flatMap(page => page).filter(block => block.kind === "item");
+  const hasMemory = blocks.some(block => block.id === "head");
   const firstQuestion = visibleLabels[0]?.id.slice(4);
   const lastQuestion = visibleLabels.at(-1)?.id.slice(4);
   const caption = first + 1 === last ? `Trang ${last} trên ${count}` : `Trang ${first + 1}–${last} trên ${count}`;
   return (<div className="spread-shell">
-    <nav aria-label="Ghi nhớ của bài" className="spread-memory mx-auto flex max-w-5xl flex-wrap gap-x-4 px-2 font-hand text-oak-ink">
+    {hasMemory && <nav aria-label="Ghi nhớ của bài" className="spread-memory mx-auto flex max-w-5xl flex-wrap gap-x-4 px-2 font-hand text-oak-ink">
       <button type="button" className="min-h-11 rounded-sm bg-postit-yellow px-3 text-postit-ink hover:underline" onClick={() => {
         const current = pages[index]?.find(block => block.id === selection);
         if (current?.kind === "item") setReturnTo(current.id);
@@ -113,7 +114,7 @@ export function Spread({ blocks, startAt, jump, child = false, status }: {
       }}>Ghi nhớ</button>
       {returnTo && pages[first]?.some(block => block.kind === "head") && <button type="button" className="min-h-11 px-2 hover:underline"
         onClick={() => { shouldFocus.current = true; setSelection(returnTo); setReturnTo(undefined); }}>Quay lại câu đang làm</button>}
-    </nav>
+    </nav>}
     <div ref={frame} className="lesson-spread" data-double={double}
       style={{ "--spread-height": `${(geometry.lines + 2) * geometry.line}px`, "--spread-width": `${geometry.width * step + (double ? 2 : 0)}px` } as CSSProperties}
       onKeyDown={event => {
@@ -146,10 +147,10 @@ export function Spread({ blocks, startAt, jump, child = false, status }: {
           return <section key={page[0].id} data-offpage={!visible} inert={!visible} aria-hidden={!visible || undefined} aria-roledescription="trang"
             aria-label={`Trang ${n + 1}`} className="spread-page bg-ruled">
             <div className="spread-paper-body" data-overflow={page.some(block =>
-              block.kind === "summary" || block.long || blockLines(block, geometry) > geometry.lines - 1)}>
+              block.kind === "notebook" || block.kind === "summary" || block.long || blockLines(block, geometry) > geometry.lines - 1)}>
             <p tabIndex={-1} data-page-focus className="spread-page-label font-hand text-sm text-muted">{page[0].kind === "summary" ? "Tổng kết" : page[0].kind === "item"
                 ? page.length > 1 && page.at(-1)?.kind === "item" ? `Câu ${page[0].id.slice(4)}–${page.at(-1)?.id.slice(4)}` : page[0].label
-                : "Ghi nhớ"}</p>
+                : page[0].kind === "notebook" ? page[0].label : "Ghi nhớ"}</p>
             {page.map(block => <div key={block.id} data-block={block.id} data-kind={block.kind} className="spread-block">{block.node}</div>)}
             </div>
             <p aria-hidden="true" className="spread-page-count text-center font-hand text-sm text-muted">{count <= 12

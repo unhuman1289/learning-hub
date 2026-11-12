@@ -23,8 +23,8 @@ const legacyTabs = [
   { page: "tai-lieu", label: "Tài liệu", color: "bg-postit-rose" },
 ] as const;
 
-export function Book({ title, go, children, ...current }: {
-  title: string; go: (route: Route) => void; children: ReactNode;
+export function Book({ title, go, children, paged = false, ...current }: {
+  title: string; go: (route: Route) => void; children: ReactNode; paged?: boolean;
 } & BookNavigation) {
   const legacy = "track" in current;
   const settings: Route = legacy
@@ -36,7 +36,7 @@ export function Book({ title, go, children, ...current }: {
   const active = legacy ? current.tab : current.page;
   const reading = active === "lesson";
   const close: Route = !legacy && reading ? { view: "book", id: current.id, page: "hom-nay" } : { view: "desk" };
-  return <div className={`mx-auto w-full ${reading ? "max-w-[76rem]" : "max-w-5xl"}`}>
+  return <div className={`mx-auto w-full ${reading || paged ? "max-w-[76rem]" : "max-w-5xl"}`}>
     {!legacy && active === "hom-nay" && <div className="mx-auto hidden max-w-3xl overflow-hidden rounded-t-sm xl:block">
       <WindowStrip />
     </div>}
@@ -56,7 +56,7 @@ export function Book({ title, go, children, ...current }: {
           aria-current={active === tab.page ? "page" : undefined}
           className={`inline-flex min-h-11 items-center justify-center rounded-sm px-3 font-hand text-lg text-postit-ink hover:underline aria-[current=page]:underline ${tab.color}`}>{tab.label}</RouteLink>)}
       </nav>
-      {legacy || reading
+      {legacy || reading || paged
         ? <div className="min-w-0 sm:col-start-1 sm:row-start-1">{children}</div>
         : <RuledPage className="min-h-[26rem] shadow-page sm:col-start-1 sm:row-start-1">
           <h1 className="mb-4 break-words font-print text-4xl leading-tight">{title}</h1>
