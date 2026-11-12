@@ -1,18 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { berlinClock, typicalWeather, type BerlinClock, type Moon, type Weather } from "../../../lib/lubeck/sky";
+import { berlinClock, deviceClock, typicalWeather, type BerlinClock, type Moon, type Weather } from "../../../lib/lubeck/sky";
 import { deskItem, shelfItem } from "./items";
 import { mountScene } from "./scene";
 
 type Ambient = { weather: Weather | null; moon: Moon | null };
 const AMBIENT_REFRESH = 30 * 60 * 1000;
 
-/** The device clock, read as Lübeck time; empty until mounted so server and client markup agree. */
-export function useBerlinClock(interval = 30000) {
+/** The device clock, read as Lübeck time (or, with `deviceClock`, in the device's own zone); empty until mounted so server and client markup agree. */
+export function useBerlinClock(interval = 30000, read: (now: Date) => BerlinClock = berlinClock) {
   const [clock, setClock] = useState<BerlinClock>();
   useEffect(() => {
-    const update = () => setClock(berlinClock(new Date()));
+    const update = () => setClock(read(new Date()));
     update();
     const timer = window.setInterval(update, interval);
     document.addEventListener("visibilitychange", update);
@@ -20,8 +20,13 @@ export function useBerlinClock(interval = 30000) {
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", update);
     };
-  }, [interval]);
+  }, [interval, read]);
   return clock;
+}
+
+/** The learner's own date and hour. */
+export function useDeviceClock(interval = 30000) {
+  return useBerlinClock(interval, deviceClock);
 }
 
 /**

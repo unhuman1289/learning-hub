@@ -20,7 +20,8 @@ export function sortToday(rows: (TodayItem & { weight?: number })[], minutes: nu
     .sort((a, b) => rank[a.category] - rank[b.category] || (b.weight ?? 0) - (a.weight ?? 0) || a.id.localeCompare(b.id, 'en'))
     .map((r) => ({ ...r, optional: minutes >= target }));
 }
-export async function todayFor(db: EvidenceDb, learner: string, now = new Date(), viewer = learner) {
+/** `hour` is the learner's own clock hour (greeting words only); without it the greeting follows Berlin. */
+export async function todayFor(db: EvidenceDb, learner: string, now = new Date(), viewer = learner, hour: number | null = null) {
   const day = berlinDay(now),
     setting = await db
       .prepare('SELECT st.daily_target_minutes, st.role, coalesce(st.display_name,u.name) name FROM "user" u LEFT JOIN learner_settings st ON st.user_id=u.id WHERE u.id=?')
@@ -97,7 +98,7 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
   const name = setting?.name ?? "bạn";
   const greeting = viewer === learner
     ? greetingFor({ ...await readGreetingFacts(db, learner, now), minutesToday: minutes, targetMinutes },
-      { name, day, hour: berlinHour(now), role: setting?.role ?? "adult" })
+      { name, day, hour: hour ?? berlinHour(now), role: setting?.role ?? "adult" })
     : { hello: `Bàn của ${name}`, cheer: null, kind: null };
   return {
     greeting,

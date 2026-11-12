@@ -76,3 +76,22 @@ test('one failing service does not hide the other, and only Lübeck coordinates 
   for (const url of urls) assert.match(url, /^https:\/\/(api\.open-meteo\.com|api\.met\.no)\/.*53\.87.*10\.69/);
   assert.match(urls[1], /date=2026-11-11&offset=%2B01%3A00/);
 });
+
+test("the device clock follows the device's own zone, not Berlin's", async () => {
+  const { deviceClock, berlinClock } = await import("../lib/lubeck/sky.ts");
+  const before = process.env.TZ;
+  try {
+    process.env.TZ = "Asia/Ho_Chi_Minh";
+    const now = new Date("2026-11-12T13:30:00Z");
+    const local = deviceClock(now);
+    assert.equal(local.hour, 20.5);
+    assert.equal(local.offsetHours, 7);
+    assert.equal(local.day, 12);
+    assert.equal(berlinClock(now).hour, 14.5);
+    // Late evening in Berlin is already the next day in Vietnam.
+    assert.equal(deviceClock(new Date("2026-11-12T20:00:00Z")).day, 13);
+    assert.equal(berlinClock(new Date("2026-11-12T20:00:00Z")).day, 12);
+  } finally {
+    if (before === undefined) delete process.env.TZ; else process.env.TZ = before;
+  }
+});
