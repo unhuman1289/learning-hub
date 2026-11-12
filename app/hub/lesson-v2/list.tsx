@@ -91,22 +91,25 @@ function NotebookLessons({ subjectId, learner, go, canRequest = false, history =
   const showRequestTabs = canRequest && !notebook.setup && notebook.adaptive;
   if (showBoth) return <>
     <section aria-label="Bài hôm nay">
-      <div className={showRequestTabs ? "grid items-start gap-4 md:grid-cols-[minmax(0,1fr)_minmax(9rem,13rem)]" : undefined}>
+      <div className={showRequestTabs ? "grid items-start gap-5 md:grid-cols-[minmax(0,1fr)_minmax(9rem,13rem)] md:gap-8" : undefined}>
         <div className="min-w-0">
-        {primary ? <>
-          <p className={pencil}>{primary.kind === "diagnostic" ? "Bài đầu tiên" : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Bài đang học"}{primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason ? ` · ${primary.reason}` : ""}</p>
-          <div className="flex min-h-14 flex-wrap items-center justify-between gap-x-4">
-            <p className="min-w-0 break-words text-lg font-semibold">{primary.title}</p>
-            <RouteLink route={{view:"lesson",id:primary.id}} go={go} className={paperAction}>{primary.hasWork && !primary.completedAt ? words.action.continue : words.action.open}</RouteLink>
-          </div>
-        </> : emptyStatus && <p role="status" className={pencil}>{emptyStatus}</p>}
-        {canRequest && !notebook.setup && !notebook.adaptive && !open.length && !learner &&
-          <NewLessonRequest subjectId={subjectId} onOpen={id => go({view:"lesson", id})} />}
+          {primary ? <div className="grid min-w-0 justify-items-start gap-1">
+            <p className={pencil}>{primary.kind === "diagnostic" ? words.lessonKind.diagnostic : primary.assignedDate === notebook.day ? "Gợi ý hôm nay" : "Bài đang học"}</p>
+            <h2 className="min-w-0 break-words font-print text-2xl leading-tight sm:text-[1.75rem]">{primary.title}</h2>
+            {primary.minutes ? <p className={pencil}>{primary.minutes} phút</p> : null}
+            {primary.kind !== "diagnostic" && primary.assignedDate === notebook.day && primary.reason &&
+              <p className="max-w-prose text-sm leading-6 text-muted">{primary.reason}</p>}
+            <RouteLink route={{ view: "lesson", id: primary.id }} go={go} className={paperAction + " mt-1"}>
+              {primary.hasWork && !primary.completedAt ? words.action.continue : words.action.open} <span aria-hidden="true">→</span>
+            </RouteLink>
+          </div> : emptyStatus && <p role="status" className={pencil}>{emptyStatus}</p>}
+          {canRequest && !notebook.setup && !notebook.adaptive && !open.length && !learner &&
+            <NewLessonRequest subjectId={subjectId} onOpen={id => go({view:"lesson", id})} />}
         </div>
         {showRequestTabs && <AdaptiveRequests edge subjectId={subjectId} learner={learner} go={go} onSaved={refresh} />}
       </div>
       {extras.length > 0 && <>
-        <p className={pencil}>Bài khác đang mở</p>
+        <p className={pencil + " mt-5"}>Bài khác đang mở</p>
         <ul>{extras.map(row => <li key={row.id}>
           <RouteLink route={{view:"lesson",id:row.id}} go={go} className={pencilLink}>{row.title}</RouteLink>
           {row.minutes ? <span className={pencil}> · {row.minutes} phút</span> : null}

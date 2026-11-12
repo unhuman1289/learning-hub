@@ -15,7 +15,7 @@ const labels = { learn: words.request.new, practice: words.request.practice, per
 const modes: Mode[] = ["learn", "practice", "personal"];
 const flagColor = { learn: "bg-postit-yellow", practice: "bg-postit-mint", personal: "bg-postit-rose" };
 /** A request flag: a strip of coloured paper stuck to the page. */
-const flag = "min-h-11 rounded-[2px] px-4 font-hand text-lg leading-7 text-postit-ink shadow-[0_3px_6px_-3px_rgb(0_0_0/0.45)] transition-transform hover:-translate-y-0.5 disabled:opacity-60 sm:hover:translate-y-0 sm:hover:-translate-x-1";
+const flag = "min-h-11 rounded-[2px] font-hand leading-7 text-postit-ink transition-transform hover:-translate-y-0.5 disabled:opacity-60 sm:hover:translate-y-0 sm:hover:-translate-x-1";
 const DAY = 24 * 60 * 60 * 1000;
 /** One line per kind of request: whatever is still being written, else the newest result or failure of the last day. */
 function current(rows: RequestRow[], now: number) {
@@ -45,6 +45,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
   const listUrl = "/api/requests?" + query.toString();
   const postUrl = "/api/requests" + (learner ? "?learner=" + encodeURIComponent(learner) : "");
   const pending = rows.some(waiting);
+  const flagStyle = cx(flag, edge ? "px-3 text-[17px] shadow-[0_2px_3px_-2px_rgb(0_0_0/0.3)]" : "px-4 text-lg shadow-[0_3px_6px_-3px_rgb(0_0_0/0.45)]");
 
   useEffect(() => {
     let active = true;
@@ -91,10 +92,10 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, edge = false
   }
 
   return <div>
-    <div className={cx("flex flex-wrap gap-2 py-1.5", edge && "md:flex-col md:items-end md:gap-3 md:py-0")}>
+    <div className={cx("flex flex-wrap gap-2 py-1.5", edge && "md:flex-col md:items-end md:gap-2 md:py-0")}>
       {modes.map(mode => mode === "personal"
-        ? <button key={mode} type="button" ref={personalButton} aria-expanded={personal} className={cx(flag, flagColor[mode])} onClick={() => setPersonal(!personal)}>{labels[mode]}</button>
-        : <button key={mode} type="button" disabled={busy} className={cx(flag, flagColor[mode])} onClick={() => void send(mode)}>{labels[mode]}</button>)}
+        ? <button key={mode} type="button" ref={personalButton} aria-expanded={personal} className={cx(flagStyle, flagColor[mode])} onClick={() => setPersonal(!personal)}>{labels[mode]}</button>
+        : <button key={mode} type="button" disabled={busy} className={cx(flagStyle, flagColor[mode])} onClick={() => void send(mode)}>{labels[mode]}</button>)}
     </div>
     {personal && <form onSubmit={event => { event.preventDefault(); void send("personal"); }}>
       <label className="block">{words.request.ownPrompt}
