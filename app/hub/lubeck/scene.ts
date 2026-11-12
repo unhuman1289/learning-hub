@@ -110,6 +110,23 @@ function cityDecor(month: number, day: number, night: boolean) {
   const snow = month === 12 || month <= 2;
   const flags = ["#e24b4a", "#f1c93b", "#3f8ad0", "#4fa85a", "#d86ab0"];
   if (snow) o += B("#ffffff", 44, 241, 462, 3) + B("#ffffff", 506, 222, 130, 3) + P("#ffffff", "177,66 185,50 193,66") + P("#ffffff", "317,66 325,50 333,66");
+  if (month === 1) {
+    // A snowman on the quay; in the first week the Sternsinger go from door to door behind their star.
+    o += C("#f7f4ec", 80, 236.5, 6.5) + C("#f7f4ec", 80, 226, 4.8) + C("#f7f4ec", 80, 218.5, 3.4);
+    o += B("#2b2b2e", 76, 214.6, 8, 1.3) + B("#2b2b2e", 77.4, 208.6, 5.2, 6.2) + B("#c8322e", 76.6, 222, 6.8, 2) + B("#c8322e", 81.5, 222, 2, 6);
+    o += P("#e08a2e", "80.6,218.4 85.6,219.2 80.6,220") + C("#2b2b2e", 79, 217.4, 0.5) + C("#2b2b2e", 81.6, 217.4, 0.5);
+    o += line("M75.6 226l-7-5M84.4 226l6-6", "#5a3b2c", 1);
+    if (day <= 6)
+      [[298, "#2f4f8a", 15], [310, "#8a3a4a", 12], [322, "#3f6b4c", 13]].forEach(([x, coat, h], i) => {
+        const cx = x as number, top = 243 - (h as number);
+        o += B(coat as string, cx - 3, top + 2, 6, (h as number) - 2) + C("#e9c9a8", cx, top - 0.5, 2.5);
+        o += P("#e2b13c", `${cx - 2.6},${top - 2.4} ${cx - 2.6},${top - 5.2} ${cx - 1.3},${top - 3.6} ${cx},${top - 5.6} ${cx + 1.3},${top - 3.6} ${cx + 2.6},${top - 5.2} ${cx + 2.6},${top - 2.4}`);
+        if (i === 0) {
+          o += line(`M${cx + 3} ${top + 4}L${cx + 6} 202`, "#5a3b2c", 1.1);
+          o += poly(`${cx + 6},194 ${cx + 7.8},199.4 ${cx + 13.4},199.4 ${cx + 8.9},202.8 ${cx + 10.6},208.2 ${cx + 6},205 ${cx + 1.4},208.2 ${cx + 3.1},202.8 ${cx - 1.4},199.4 ${cx + 4.2},199.4`, F("#f1c93b")) + GL(cx + 6, 201.6, 2.4, "#fff3c4");
+        }
+      });
+  }
   if (month === 2) {
     // Fasching bunting along the quay.
     for (let i = 0; i < 24; i++) {
