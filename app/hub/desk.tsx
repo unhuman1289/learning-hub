@@ -166,7 +166,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
           {shelf.subjects === null && <p className="col-span-full px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}
           {(shelf.subjects ?? []).map((subject) => (
             <Shelf key={subject.id}>
-              {subject.legacyTrack
+              {subject.legacyTrack && !hub2
                 ? <PreparedNotebook track={subject.legacyTrack} daily={daily} readOnly={readOnly} go={go} />
                 : <TopicNotebook subject={subject} hasLesson={v2Lessons.some(l=>l.subjectId===subject.id)} go={go} />}
             </Shelf>
