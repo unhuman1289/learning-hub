@@ -43,7 +43,8 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
   const [newNotebook, setNewNotebook] = useState(false);
   const viewedRole = viewingId ? shelf.learners.find((item) => item.id === viewingId)?.role : shelf.self?.role;
   // Children study in notebooks a guardian opens for them; adults, guardians and admins may open one.
-  const canOpenNotebook = viewingId === null ? shelf.self?.role !== "child" && !!shelf.self : viewedRole !== undefined;
+  // A profile just created may be missing from a list loaded earlier; the server still checks the permission.
+  const canOpenNotebook = viewingId === null ? shelf.self?.role !== "child" && !!shelf.self : viewedRole !== undefined || (!!shelf.self && shelf.self.role !== "child");
   const [form, setForm] = useState<FormRequest | null>(null);
   const [draftValues, setDraftValues] = useState<Record<string, string>>({});
   const drafts: Drafts = {
