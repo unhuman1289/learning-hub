@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { skyClock } from "../../lib/lubeck/sky";
-import { CalendarLeaf, LubeckWindow, SeasonItem, useBerlinClock, useDeviceClock } from "./lubeck/window";
+import { useEffect, useState } from "react";
+import { CalendarLeaf, LubeckWindow, SeasonItem, useSkyClock } from "./lubeck/window";
 import { DeskProgress } from "./desk-progress";
 import { LearnedLessons } from "./learned-lessons";
 import { PaperDialog } from "./paper-dialog";
@@ -56,9 +55,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   // Looking at a child's (guardian) or anyone's (admin) shelf is read-only; their own notes stay private.
   const readOnly = viewing.id !== null;
   // The date, the hour and the greeting are the learner's own; sun, moon and weather are Lübeck's.
-  const lubeck = useBerlinClock();
-  const deviceDay = useDeviceClock();
-  const clock = useMemo(() => (lubeck && deviceDay ? skyClock(lubeck, deviceDay) : undefined), [lubeck, deviceDay]);
+  const clock = useSkyClock();
   // How dark it is outside the window; after dusk the desk lamp comes on.
   const [darkness, setDarkness] = useState(0);
   const [drawer, setDrawer] = useState<"learned" | "settings" | null>(null);
@@ -142,7 +139,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
     <div className="mx-auto grid w-full max-w-6xl gap-8">
       {/* Entering the study: a greeting by the garden window. */}
       <section className="flex items-center gap-4">
-        <CalendarLeaf clock={deviceDay} />
+        <CalendarLeaf clock={clock} />
         <div className="min-w-0">
           <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
           <p aria-live="off" className="min-h-7 font-hand text-lg text-accent">{data?.greeting.cheer}</p>

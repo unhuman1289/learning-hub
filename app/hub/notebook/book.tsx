@@ -7,7 +7,7 @@ import { MiniCover, RuledPage } from "../../../components/notebook/paper";
 import { RouteLink } from "../ui";
 import type { BookPage, NotebookTab, Route } from "../use-route";
 import { coverTransition, type TrackId } from "../model";
-import { LubeckWindow, useBerlinClock } from "../lubeck/window";
+import { LubeckWindow, useSkyClock } from "../lubeck/window";
 import { words } from "../words";
 import { SketchIcon } from "../sketch-icons";
 
@@ -69,6 +69,6 @@ export function Book({ title, go, children, paged = false, ...current }: {
 }
 
 function WindowStrip() {
-  const clock = useBerlinClock();
+  const clock = useSkyClock();
   return <div className="h-20 overflow-hidden [&>svg]:-translate-y-18"><LubeckWindow clock={clock} /></div>;
 }

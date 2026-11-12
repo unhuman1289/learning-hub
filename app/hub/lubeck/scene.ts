@@ -1,4 +1,6 @@
 import { computedMoonPhase, dayOfYear, mix, moonProgress, skyState, sunTimes, type Moon, type Weather } from "../../../lib/lubeck/sky";
+import { B, C, D, F, GL, L, P, R, circ, ell, line, poly, rect, seeded } from "./svg";
+import { farLayer, frontLayer, kogge, midLayer } from "./town";
 
 /**
  * The view from the study window: old Lübeck in layers (far skyline, old town, Holstentor and the salt
@@ -7,57 +9,8 @@ import { computedMoonPhase, dayOfYear, mix, moonProgress, skyState, sunTimes, ty
  */
 export type SceneState = { hour: number; month: number; day: number; offsetHours: number; weather: Weather; moon: Moon | null };
 
-const R = Math.PI / 180;
-const GROUND = 250;
 const WEATHER_TILE = 340;
 const LANDSCAPE_TILE = 700;
-type Attr = string;
-const rect = (x: number, y: number, w: number, h: number, a: Attr) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" ${a}/>`;
-const poly = (points: string, a: Attr) => `<polygon points="${points}" ${a}/>`;
-const circ = (x: number | string, y: number | string, r: number | string, a: Attr) => `<circle cx="${x}" cy="${y}" r="${r}" ${a}/>`;
-const ell = (x: number, y: number, rx: number, ry: number, a: Attr) => `<ellipse cx="${x}" cy="${y}" rx="${rx}" ry="${ry}" ${a}/>`;
-const line = (d: string, color: string, width = 1.5) => `<path d="${d}" stroke="${color}" stroke-width="${width}" stroke-linecap="round" fill="none"/>`;
-const F = (color: string) => `fill="${color}"`;
-// data-c holds the daylight colour; draw() mixes it with haze, weather and night.
-const B = (c: string, x: number, y: number, w: number, h: number) => rect(x, y, w, h, `data-c="${c}"`);
-const P = (c: string, points: string) => poly(points, `data-c="${c}"`);
-const C = (c: string, x: number, y: number, r: number) => circ(x, y, r, `data-c="${c}"`);
-const BR = (c: string, x: number, y: number, w: number, h: number) => B(c, x, y, w, h) + rect(x, y, w, h, 'fill="url(#lhw-brick)"');
-const BP = (c: string, points: string) => P(c, points) + poly(points, 'fill="url(#lhw-brick)"');
-const RP = (c: string, points: string) => P(c, points) + poly(points, 'fill="url(#lhw-tile)"');
-const ST = (c: string, x: number, y: number, w: number, h: number) => B(c, x, y, w, h) + rect(x, y, w, h, 'fill="url(#lhw-stone)"');
-const SH = (x: number, y: number, w: number, h: number) => rect(x, y, w, h, 'fill="#101820" opacity=".2"');
-const D = (x: number, y: number, w: number, h: number) => rect(x, y, w, h, 'rx="1.5" fill="#1b1620"');
-const L = (x: number, y: number, w: number, h: number) => D(x, y, w, h) + rect(x, y, w, h, 'rx="1.5" class="lit" fill="#f7c66b"');
-const GL = (x: number, y: number, r: number, c = "#f7c66b") => circ(x, y, r, `class="lit" fill="${c}"`);
-
-/** Outline of a stepped gable (Treppengiebel) standing on the ground line. */
-function stepped(x: number, w: number, y: number, steps: number, rise: number) {
-  let points = `${x},${GROUND} ${x},${y}`,
-    cx = x,
-    cy = y;
-  const tread = w / (2 * steps + 1);
-  for (let i = 0; i < steps; i++) {
-    cx += tread;
-    points += ` ${cx},${cy}`;
-    cy -= rise;
-    points += ` ${cx},${cy}`;
-  }
-  cx += tread;
-  points += ` ${cx},${cy}`;
-  for (let i = 0; i < steps; i++) {
-    cy += rise;
-    points += ` ${cx},${cy}`;
-    cx += tread;
-    points += ` ${cx},${cy}`;
-  }
-  return `${points} ${x + w},${GROUND}`;
-}
-
-function seeded(seed: number) {
-  let s = seed;
-  return () => (s = (s * 16807) % 2147483647) / 2147483647;
-}
 
 const SKELETON = `
 <defs>
@@ -66,10 +19,17 @@ const SKELETON = `
 <pattern id="lhw-brick" width="10" height="6" patternUnits="userSpaceOnUse"><path d="M0 .3H10M0 3.3H10M2 .3V3.3M7 3.3V6" stroke="#2a0f0a" stroke-opacity=".26" stroke-width=".6" fill="none"/></pattern>
 <pattern id="lhw-tile" width="6" height="4" patternUnits="userSpaceOnUse"><path d="M0 4q3-4.5 6 0" stroke="#1a0c08" stroke-opacity=".34" stroke-width=".7" fill="none"/></pattern>
 <pattern id="lhw-stone" width="16" height="8" patternUnits="userSpaceOnUse"><path d="M0 .3H16M0 4.3H16M5 .3V4.3M12 4.3V8" stroke="#2c2c2a" stroke-opacity=".22" stroke-width=".6" fill="none"/></pattern>
+<pattern id="lhw-glaze" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M3 .4L5.6 3L3 5.6L.4 3Z" fill="#1d1418" fill-opacity=".34"/></pattern>
+<pattern id="lhw-frieze" width="8" height="6" patternUnits="userSpaceOnUse"><circle cx="4" cy="3" r="1.7" fill="#1d1418" fill-opacity=".42"/><path d="M0 3h1.6M6.4 3H8" stroke="#1d1418" stroke-opacity=".4" stroke-width=".8"/></pattern>
+<linearGradient id="lhw-cyl"><stop offset="0" stop-color="#000" stop-opacity=".3"/><stop offset=".28" stop-color="#fff" stop-opacity=".1"/><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></linearGradient>
+<linearGradient id="lhw-cone"><stop offset="0" stop-color="#000" stop-opacity=".12"/><stop offset=".38" stop-color="#fff" stop-opacity=".12"/><stop offset=".62" stop-color="#000" stop-opacity=".1"/><stop offset="1" stop-color="#000" stop-opacity=".45"/></linearGradient>
+<linearGradient id="lhw-glow" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity=".3"/></linearGradient>
+<linearGradient id="lhw-depth" x2="0" y2="1"><stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".3"/></linearGradient>
 <pattern id="lhw-wood" width="220" height="42" patternUnits="userSpaceOnUse"><path d="M0 6c40-4 70 5 110 1s70-5 110-1M0 14c50 5 80-4 120 0s60 4 100 0M0 22c30-3 90 4 130 0s50-3 90 0M0 31c60 4 70-5 120-1s60 5 100 1M0 38c40-2 100 3 140 0s40-2 80 0" stroke="#3b2410" stroke-opacity=".32" stroke-width=".9" fill="none"/></pattern>
 </defs>
 <g clip-path="url(#lhw-clip)">
 <rect data-p="sky" x="44" y="24" width="592" height="302" fill="#b7c3cc"/>
+<rect data-p="glow" x="44" y="24" width="592" height="228" fill="url(#lhw-glow)"/>
 <rect data-p="horizon" x="44" y="170" width="592" height="82" fill="#f6c68e" opacity="0"/>
 <g data-p="stars"></g>
 <circle data-p="sun" cx="340" cy="120" r="15" fill="#fbe7a8"/>
@@ -81,6 +41,7 @@ const SKELETON = `
 <rect data-p="river" x="44" y="250" width="592" height="76" fill="#7f97a6"/>
 <g opacity=".44"><use href="#lhw-scene" transform="translate(0,500) scale(1,-1)"/></g>
 <rect data-p="veil" x="44" y="250" width="592" height="76" fill="#7f97a6" opacity=".3"/>
+<rect x="44" y="250" width="592" height="76" fill="url(#lhw-depth)"/>
 <g data-p="ripples" clip-path="url(#lhw-river-clip)"></g>
 <g data-p="water"></g>
 <rect data-p="fog" x="44" y="24" width="592" height="302" fill="#dfe4e6" opacity="0"/>
@@ -102,80 +63,7 @@ function staticLayers() {
   const cloudsHigh = cloud([[110, 62, 52, 13], [156, 52, 36, 11], [84, 70, 30, 8], [360, 48, 58, 14], [412, 58, 40, 10], [560, 70, 50, 12], [606, 60, 30, 9]]);
   const cloudsLow = cloud([[230, 108, 44, 9], [270, 100, 30, 8], [470, 118, 48, 9], [150, 128, 36, 7]]);
 
-  const farColor = "#7f8c9c",
-    copper = "#6a9c88",
-    slate = "#4a5661",
-    band = "#d9b48c";
-  let far = `<polygon data-c="${farColor}" points="44,${GROUND}`;
-  for (let x = 44; x <= 636; x += 12) far += ` ${x},${206 + Math.round(rnd() * 14)} ${x + 6},${198 + Math.round(rnd() * 12)}`;
-  far += ` 636,${GROUND}"/>`;
-  for (const [x, y, w] of [[92, 150, 8], [318, 134, 9], [340, 134, 9], [432, 156, 7], [604, 150, 8], [622, 150, 8], [210, 166, 6]])
-    far += B(farColor, x, y, w, GROUND - y) + P(farColor, `${x - 2},${y} ${x + w / 2},${y - 46} ${x + w + 2},${y}`);
-
-  // Old town: gabled merchant houses in three shapes, then St. Mary's with its twin copper spires.
-  const walls = ["#d9c7a3", "#b0604a", "#e3d5b8", "#9c4a3a", "#c9b79a", "#b56a52", "#d8cdb4", "#a85a44"];
-  let mid = "";
-  for (let i = 0; i < 16; i++) {
-    const x = 44 + i * 37,
-      w = 35,
-      height = 44 + ((i * 13) % 28),
-      y = GROUND - height,
-      wall = walls[i % 8];
-    if (i % 3 === 1) mid += BP(wall, stepped(x, w, y, 3, 7));
-    else if (i % 3 === 2)
-      mid += B(wall, x, y, w, height) + P(wall, `${x},${y} ${x + 6},${y - 12} ${x + 12},${y - 14} ${x + 17.5},${y - 24} ${x + 23},${y - 14} ${x + 29},${y - 12} ${x + 35},${y}`) + D(x + 15, y - 14, 5, 7);
-    else mid += B(wall, x, y, w, height) + RP("#a8432f", `${x - 2},${y} ${x + 17.5},${y - 24} ${x + 37},${y}`) + rect(x + 25, y - 22, 4, 10, F("#5a3b2c"));
-    for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) if (y + 6 + r * 12 < GROUND - 14) mid += ((i + r * 2 + c) % 4 === 0 ? L : D)(x + 5 + c * 10, y + 6 + r * 12, 5, 8);
-    mid += SH(x + w - 6, y, 6, height);
-  }
-  mid += BR("#a65a45", 516, 116, 22, 134) + BR("#a65a45", 546, 116, 22, 134) + P(copper, "513,116 527,36 541,116") + P(copper, "543,116 557,36 571,116");
-  mid += poly("527,36 531,116 541,116", 'fill="#101820" opacity=".2"') + poly("557,36 561,116 571,116", 'fill="#101820" opacity=".2"');
-  mid += BR("#a65a45", 538, 150, 8, 100) + BR("#9c513d", 568, 168, 68, 82) + P(copper, "568,168 578,142 636,142 636,168") + poly("568,168 578,142 636,142 636,168", 'fill="url(#lhw-tile)"');
-  for (const y of [124, 148, 176]) mid += D(523, y, 7, 16) + D(553, y, 7, 16);
-  mid += B(band, 516, 170, 22, 2.5) + B(band, 546, 170, 22, 2.5);
-  for (let i = 0; i < 5; i++) mid += D(576 + i * 12, 178, 5, 34) + rect(574 + i * 12, 214, 9, 36, 'fill="#101820" opacity=".14"');
-
-  // Riverside: two merchant houses, the Salzspeicher row, Holstentor, quay, lamps and the stone bridge.
-  let front = BP("#b0604a", stepped(52, 46, 172, 3, 9)) + BP("#8f4636", stepped(100, 44, 186, 3, 8)) + SH(92, 172, 6, 78) + SH(138, 186, 6, 64);
-  for (let r = 0; r < 4; r++)
-    for (let c = 0; c < 3; c++) {
-      front += ((r + c) % 3 === 0 ? L : D)(60 + c * 12, 178 + r * 14, 6, 9);
-      if (r < 3) front += ((r * 2 + c) % 4 === 0 ? L : D)(107 + c * 12, 192 + r * 14, 6, 9);
-    }
-  front += D(70, 234, 10, 16) + D(117, 236, 9, 14);
-  const storeHeights = [62, 74, 58, 72, 60, 70],
-    storeBricks = ["#a5523f", "#8a4234", "#b0604a", "#9c4a3a", "#a85a44", "#8f4636"];
-  for (let i = 0; i < 6; i++) {
-    const x = 378 + i * 21,
-      h = storeHeights[i],
-      y = GROUND - h;
-    front += BP(storeBricks[i], stepped(x, 20, y + 18, 2, 9)) + D(x + 8, y + 3, 4, 6);
-    for (let r = 0; r < 4; r++) for (let c = 0; c < 2; c++) if (y + 24 + r * 10 < GROUND - 14) front += ((i * 2 + r + c) % 5 === 0 ? L : D)(x + 3 + c * 9, y + 24 + r * 10, 5, 7);
-    front += D(x + 6, 238, 8, 12) + SH(x + 16, y + 18, 4, h - 18);
-  }
-  [150, 290].forEach((x0, k) => {
-    const cone = `${x0 - 5},130 ${x0 + 35},50 ${x0 + 75},130`;
-    front += BR("#9a4a38", x0, 130, 70, 120) + P(slate, cone) + poly(cone, 'fill="url(#lhw-tile)"') + poly(`${x0 + 35},50 ${x0 + 48},130 ${x0 + 75},130`, 'fill="#101820" opacity=".25"');
-    front += line(`M${x0 + 35} 50V38`, "#2b2b2e") + circ(x0 + 35, 36, 2.6, F("#c9a24a"));
-    for (const y of [144, 172, 200, 228]) front += B(band, x0, y, 70, 3);
-    [150, 178, 206].forEach((y, r) => {
-      for (let i = 0; i < 7; i++) front += ((i + r + k) % 5 === 0 ? L : D)(x0 + 5 + i * 9, y, 5, 14);
-    });
-    for (let i = 0; i < 9; i++) front += D(x0 + 3 + i * 7.4, 133, 4, 6);
-    front += ST("#7e3b2d", x0, 238, 70, 12) + SH(x0 + (k ? 54 : 0), 130, 16, 120);
-  });
-  front += BP("#a5523f", stepped(220, 70, 142, 3, 13)) + P(slate, "226,129 231,114 236,129") + P(slate, "250,103 255,84 260,103") + P(slate, "274,129 279,114 284,129");
-  front += B("#e8d3a0", 220, 176, 70, 8) + B(band, 220, 150, 70, 3) + B(band, 220, 208, 70, 3);
-  for (let i = 0; i < 11; i++) front += rect(224 + i * 6, 178.5, 3, 3, 'fill="#6b4a1e" opacity=".7"');
-  for (let i = 0; i < 5; i++) front += D(227 + i * 12, 156, 6, 14) + (i % 2 ? L : D)(227 + i * 12, 188, 6, 15);
-  front += D(250, 112, 10, 16) + '<path d="M239 250V226a16 16 0 0 1 32 0V250Z" fill="#17131c"/><path d="M239 226a16 16 0 0 1 32 0" fill="none" stroke="#e8d3a0" stroke-width="2.5"/>';
-  front += '<g data-p="trees"></g>' + ST("#8d8478", 44, 243, 462, 7);
-  for (const x of [66, 366]) front += line(`M${x} 243V214`, "#2b2b2e", 1.6) + circ(x, 212, 3.4, F("#3a3a3d")) + GL(x, 212, 3.4);
-  front += ST("#8d8478", 506, 224, 130, 13);
-  for (const x of [506, 566, 626]) front += ST("#7b7367", x, 237, 10, 13);
-  front += '<path d="M516 250q25-20 50 0M576 250q25-20 50 0" fill="none" stroke="#6e675c" stroke-width="3.5"/>' + line("M506 217H636", "#4a4a47");
-  for (let x = 512; x < 636; x += 12) front += line(`M${x} 224V217`, "#4a4a47", 1);
-  for (const x of [536, 600]) front += line(`M${x} 217V196`, "#2b2b2e", 1.6) + circ(x, 194, 3.4, F("#3a3a3d")) + GL(x, 194, 3.4);
+  const far = farLayer(), mid = midLayer(), front = frontLayer();
 
   const rippleLayers = ["", ""];
   for (let i = 0; i < 34; i++) {
@@ -222,6 +110,23 @@ function cityDecor(month: number, day: number, night: boolean) {
   const snow = month === 12 || month <= 2;
   const flags = ["#e24b4a", "#f1c93b", "#3f8ad0", "#4fa85a", "#d86ab0"];
   if (snow) o += B("#ffffff", 44, 241, 462, 3) + B("#ffffff", 506, 222, 130, 3) + P("#ffffff", "177,66 185,50 193,66") + P("#ffffff", "317,66 325,50 333,66");
+  if (month === 1) {
+    // A snowman on the quay; in the first week the Sternsinger go from door to door behind their star.
+    o += C("#f7f4ec", 80, 236.5, 6.5) + C("#f7f4ec", 80, 226, 4.8) + C("#f7f4ec", 80, 218.5, 3.4);
+    o += B("#2b2b2e", 76, 214.6, 8, 1.3) + B("#2b2b2e", 77.4, 208.6, 5.2, 6.2) + B("#c8322e", 76.6, 222, 6.8, 2) + B("#c8322e", 81.5, 222, 2, 6);
+    o += P("#e08a2e", "80.6,218.4 85.6,219.2 80.6,220") + C("#2b2b2e", 79, 217.4, 0.5) + C("#2b2b2e", 81.6, 217.4, 0.5);
+    o += line("M75.6 226l-7-5M84.4 226l6-6", "#5a3b2c", 1);
+    if (day <= 6)
+      [[298, "#2f4f8a", 15], [310, "#8a3a4a", 12], [322, "#3f6b4c", 13]].forEach(([x, coat, h], i) => {
+        const cx = x as number, top = 243 - (h as number);
+        o += B(coat as string, cx - 3, top + 2, 6, (h as number) - 2) + C("#e9c9a8", cx, top - 0.5, 2.5);
+        o += P("#e2b13c", `${cx - 2.6},${top - 2.4} ${cx - 2.6},${top - 5.2} ${cx - 1.3},${top - 3.6} ${cx},${top - 5.6} ${cx + 1.3},${top - 3.6} ${cx + 2.6},${top - 5.2} ${cx + 2.6},${top - 2.4}`);
+        if (i === 0) {
+          o += line(`M${cx + 3} ${top + 4}L${cx + 6} 202`, "#5a3b2c", 1.1);
+          o += poly(`${cx + 6},194 ${cx + 7.8},199.4 ${cx + 13.4},199.4 ${cx + 8.9},202.8 ${cx + 10.6},208.2 ${cx + 6},205 ${cx + 1.4},208.2 ${cx + 3.1},202.8 ${cx - 1.4},199.4 ${cx + 4.2},199.4`, F("#f1c93b")) + GL(cx + 6, 201.6, 2.4, "#fff3c4");
+        }
+      });
+  }
   if (month === 2) {
     // Fasching bunting along the quay.
     for (let i = 0; i < 24; i++) {
@@ -312,7 +217,7 @@ function cityDecor(month: number, day: number, night: boolean) {
     o += poly("222,160 224,166 230,166 225,170 227,176 222,172 217,176 219,170 214,166 220,166", F("#f1c93b"));
     for (let i = 0; i < 20; i++) o += GL(380 + i * 6.4, 238 - Math.sin((i / 19) * Math.PI) * 5, 1.6, i % 2 ? "#f7c66b" : "#9fe1cb");
   }
-  let water = boats + sail(434, 290, 1);
+  let water = kogge() + boats + sail(434, 290, 1);
   water += `<g class="lhw-swim-right">${swan(0, 292, 1.1)}${swan(-26, 298, 0.8)}${swan(-44, 295, 0.5)}${swan(-56, 299, 0.5)}</g>`;
   water += `<g class="lhw-swim-left">${duck(0, 312, 1)}${duck(18, 316, 0.8)}${duck(32, 311, 0.8)}</g>`;
   let fireworks = "";
@@ -444,6 +349,7 @@ export function mountScene(root: SVGSVGElement) {
     part("falling").innerHTML = season.falling;
 
     part("sky").setAttribute("fill", sky);
+    part("glow").setAttribute("opacity", ((1 - darkness) * (1 - weather.cloud * 0.5)).toFixed(2));
     part("horizon").setAttribute("opacity", (0.8 * warmth).toFixed(2));
     part("stars").setAttribute("opacity", (darkness > 0.7 ? ((darkness - 0.7) / 0.3) * (1 - weather.cloud) : 0).toFixed(2));
     part("birds").style.display = daylight && !weather.rain && !weather.snow ? "" : "none";
@@ -486,7 +392,7 @@ export function mountScene(root: SVGSVGElement) {
       color = mix(color, sky, Math.min(0.92, haze + (weather.fog && haze > 0 ? 0.25 : 0)));
       shape.setAttribute("fill", mix(color, mix("#221d2b", sky, haze * 0.7), darkness * 0.88));
     });
-    root.querySelectorAll("#lhw-scene .lit").forEach((light) => light.setAttribute("opacity", darkness.toFixed(2)));
+    root.querySelectorAll("#lhw-scene .lit, [data-p='water'] .lit").forEach((light) => light.setAttribute("opacity", darkness.toFixed(2)));
 
     const river = mix(mix(mix("#6fa0c4", "#7f8f99", weather.cloud), "#d9a877", warmth * 0.3), "#101626", darkness);
     part("river").setAttribute("fill", river);
