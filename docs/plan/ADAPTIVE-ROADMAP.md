@@ -12,10 +12,10 @@ Một cơ chế lên bài chung cho mọi sổ. Mỗi sổ có mục tiêu và c
 - **ChatGPT** (lịch Knowledge) tìm nguồn công khai theo câu hỏi Hub và Qwen ghi lại.
 
 **Tiêu chí xong.**
-1. Mở sổ mới chỉ bằng tên và nội dung muốn học. Hub có chuẩn học, 5–10 bước đầu và bài chẩn đoán.
+1. Mở sổ mới chỉ bằng tên và nội dung muốn học. Hub có chuẩn học, 8 bước đầu và bài chẩn đoán.
 2. Sau bài chẩn đoán, điểm xuất phát được đặt theo kết quả, không luôn là bước 1.
 3. Sau vài bài, Hub tự chọn đúng một trong: học bước mới, luyện điểm yếu, ôn đến hạn, thử bước khó hơn.
-4. Lộ trình không bao giờ cạn: còn ≤ 3 bước chưa mở thì Qwen viết thêm. Bước đã mở không bị sửa.
+4. Lộ trình không bao giờ cạn: cứ qua 3 bước (vào bước 4, 7, 10…) là Qwen viết thêm 3 bước, để phía trước luôn còn khoảng 7 bước chưa học. Bước đã mở không bị sửa.
 5. Bước sắp tới thiếu nguồn thì Hub tự ghi câu hỏi cho ChatGPT. Trong lúc chờ, Qwen vẫn soạn bài kỹ năng.
 6. Mỗi sổ hiện **đang luyện gì**, **đã làm được gì**, **vì sao bài tới khó hơn**.
 7. Hai người cùng học một chuẩn (ví dụ Rust) dùng chung nguồn công khai. Kết quả, bước và lộ trình vẫn riêng theo hồ sơ.
@@ -231,7 +231,7 @@ Ngoài ra:
 - **Trượt:** quay lại `practice` với kỹ năng có câu sai. Không phạt mastery ngoài luật hiện có.
 
 **R2.4. Đặt điểm xuất phát (placement).**
-- Bài chẩn đoán của lượt mở sổ có `step_role='placement'`. Mỗi câu gắn kỹ năng của một bước trong 5–8 bước đầu.
+- Bài chẩn đoán của lượt mở sổ có `step_role='placement'`. Mỗi câu gắn kỹ năng của một bước trong 5–6 bước đầu. Bước không có câu nào thì dừng xếp chỗ ở đó.
 - Khi bài chẩn đoán đã chấm xong, đi theo `ord`. Bước có mọi câu đúng lần đầu, không gợi ý → `placed`. Dừng ở bước đầu tiên có câu sai hoặc bỏ trống.
 - Nếu mọi bước đều `placed` → `roadmapTask='extend'` ở lượt kế, kèm ghi chú "trình độ cao hơn dự kiến".
 - `placed` không đổi `skill_states`. Kỹ năng đó vẫn có lịch ôn bình thường từ bằng chứng thật.
@@ -257,6 +257,7 @@ Ngoài ra:
 - `lib/roadmap/frameworks.ts` khai báo vài chuẩn, mỗi chuẩn có `key`, `label`, `levels` (mốc), `topicKey`:
   - `de-cefr`: A1.1 → C2;
   - `en-cefr`;
+  - `zh-hsk`: HSK 3.0, cấp 1 → 9 (ba bậc sơ, trung, cao);
   - `vn-gdpt-2018-toan` (lớp 1–12, mạch Số–Đại số / Hình học–Đo lường / Thống kê–Xác suất);
   - `rust-core`: cú pháp → hàm → kiểu → ownership → borrowing → lifetimes → traits → error handling → modules → async;
   - `python-core`;
@@ -267,7 +268,7 @@ Ngoài ra:
 - **Yêu cầu riêng thắng chuẩn.**
   - Prompt nói rõ: nếu `opening_brief` nêu giáo trình, kỳ thi hoặc chương trình riêng, dùng `custom` và giữ nguyên tên đó trong `curriculum`.
   - Ví dụ: "Toán 7 theo GDPT" → `vn-gdpt-2018-toan`, mốc "Lớp 7".
-- Lượt mở sổ trả 5–10 bước kèm `band`, `level_label`, `requires`. Bài chẩn đoán phủ 5–8 bước đầu (R2.4).
+- Lượt mở sổ trả đúng 8 bước kèm `band`, `level_label`, `requires`. Bài chẩn đoán phủ 5–6 bước đầu, mỗi bước ít nhất một câu (R2.4).
 
 **R3.2. `roadmapChanges` trong mọi kết quả soạn.**
 - `lib/contracts/ai-common.ts`: thêm `roadmapChanges` (≤ 6 thao tác).
@@ -279,14 +280,14 @@ Ngoài ra:
   - kỹ năng ngoài sổ;
   - vòng `requires`;
   - `band` tụt quá 1;
-  - tổng bước `planned` > 12;
+  - tổng bước `planned` > 13;
   - thao tác trùng tiêu đề trong 90 ngày.
 - Bước mới cần kỹ năng mới thì đi kèm `skillChanges.add`, giới hạn `limits.maxNewSkillsPerWeek` như hiện có.
 - Bỏ chặn ở `apply/plan.ts:33,66` cho `roadmapChanges`. Giữ chặn `roadmap` toàn phần.
 
 **R3.3. `roadmapTask` (Hub yêu cầu, Qwen làm trong cùng job).**
-- `extend`: còn ≤ 3 bước `planned` hợp lệ. Qwen thêm 3–6 bước.
-- `replan`: sổ có `roadmap='[]'` sau R0, hoặc sổ cũ có bài nhưng chưa có bước. Qwen đọc kỹ năng, lỗi và bài gần đây, rồi viết 5–10 bước.
+- `extend`: khi số bước `planned` còn ≤ 4. Với lộ trình 8 bước, đó là lúc qua 3 bước đầu và vào bước 4; sau đó là bước 7, 10… Qwen thêm đúng 3 bước. Nếu xếp chỗ hoặc bài thử làm nhảy nhiều bước một lúc, thêm theo lô 3 cho đến khi còn ≥ 7 bước `planned`, tối đa 2 lô mỗi job; lượt kế tiếp bù phần còn thiếu.
+- `replan`: sổ có `roadmap='[]'` sau R0, hoặc sổ cũ có bài nhưng chưa có bước. Qwen đọc kỹ năng, lỗi và bài gần đây, rồi viết 8 bước.
   - Hub đánh dấu `passed (mastery)` ngay các bước có kỹ năng đã vững. Phần này làm bằng luật, không do Qwen quyết.
 - `none`: không động vào lộ trình.
 - Mode `none` ở R2.2 luôn đi kèm `extend`. Lượt đó vẫn giao một bài ôn hoặc luyện nếu có kỹ năng, để người bấm "Xin bài" không về tay không.
@@ -301,12 +302,12 @@ Ngoài ra:
   - Thay đoạn `extra_practice` ưu tiên lỗi bằng "làm đúng `adaptive.mode`, `stepRole`, `difficulty`, `targetSkills`".
   - Thêm cách viết `roadmapChanges`, `framework`, và câu cho bài thử, bài xếp chỗ.
 - Cập nhật tương tự `deutsch-unhuman.md` cho đường ChatGPT/MCP.
-- `integrations/home-runner/job.mjs`: schema ràng buộc theo `roadmapTask`. Ví dụ `extend` cần `roadmapChanges` có ≥ 3 `append`.
+- `integrations/home-runner/job.mjs`: schema ràng buộc theo `roadmapTask`. Ví dụ `extend` cần `roadmapChanges` có đúng 3 `append` mỗi lô.
 - Runner khai báo capability `roadmap-v2`. Hub chỉ đặt `roadmapTask` khi runner có capability này, nếu không giữ hành vi cũ.
 - **v3 mặc định:** sổ mới không phải sổ trẻ em mặc định `limits.package=3` nếu chủ dự án đồng ý (mục 5). Giữ chặn bật tay cho sổ legacy.
 
 **Test:**
-- `tests/ai-jobs.test.mjs`: áp `roadmapChanges` hợp lệ và từ chối từng trường hợp; `extend` khi cạn bước; `replan` sau R0; framework `custom` thắng.
+- `tests/ai-jobs.test.mjs`: áp `roadmapChanges` hợp lệ và từ chối từng trường hợp; `extend` đúng lúc vào bước 4, 7 và sau khi xếp chỗ nhảy 4 bước; `replan` sau R0; framework `custom` thắng.
 - `tests/home-runner.test.mjs`: schema theo `roadmapTask` và capability.
 
 ### R4 · Nối Knowledge vào lộ trình (migration `0025_knowledge_topics.sql`)
@@ -379,7 +380,7 @@ Ngoài ra:
      - lỗi `Dativ` xác nhận → luyện;
      - qua bài thử;
      - mở bước mới;
-     - cạn bước → `extend`.
+     - vào bước 4 → `extend` thêm 3 bước, các bước đã học không đổi.
    - **Rust** (`rust-core`, mới bắt đầu):
      - hai hồ sơ cùng chủ đề;
      - một nguồn chung;
@@ -389,6 +390,12 @@ Ngoài ra:
      - `custom` không ghi đè chuẩn khi người học nêu GDPT;
      - `band` tăng theo bước;
      - trần độ khó của sổ trẻ em.
+   - **Tiếng Trung** (yêu cầu "học từ đầu, nói chuyện khi du lịch", kỳ vọng `zh-hsk`):
+     - lượt mở sổ trả 8 bước (pinyin, chào hỏi, số đếm, 是/不, hỏi đường, gọi món, 吗/呢, thời gian);
+     - chẩn đoán đúng hết bước 1–2, sai bước 3 → bước 1–2 `placed`, bài đầu là intro bước 3;
+     - qua bước 3, 4, 5 → vào bước 6, còn 3 bước `planned`; đã `extend` lúc vào bước 4 nên còn 6;
+     - ghi "theo giáo trình Hán ngữ quyển 1" → `custom`, không dùng `zh-hsk`;
+     - bước "Gọi món" thiếu nguồn → một gap `topic_key='zh-hsk'`.
 2. Chạy thật trên staging rồi production, với runner `--once`:
    - mở một sổ mới chỉ bằng tên + nội dung;
    - làm chẩn đoán;
