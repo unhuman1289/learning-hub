@@ -17,3 +17,8 @@ test("direct lesson links and legacy notebook routes still open", () => {
   const first = lessons[0];
   assert.deepEqual(parseRoute("?lesson=" + first.id), { view: "notebook", track: first.track, tab: "bai", page: first.id });
 });
+
+test("a desk correction link opens the lesson in correction mode", () => {
+  const route = { view: "lesson", id: "les_00000000000000000005", correction: true };
+  assert.deepEqual(parseRoute(routeHref(route).slice(1)), route);
+});

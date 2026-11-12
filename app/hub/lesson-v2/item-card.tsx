@@ -140,7 +140,7 @@ export function ItemCard({
       <Revealed item={item} formatText={formatText} />
       {!readOnly && (
         // One action per question; hints and the solution are pencilled asides.
-        <div className="flex h-14 flex-wrap items-center justify-between gap-x-4">
+        <div className="flex min-h-14 flex-wrap items-start justify-between gap-x-4 gap-y-2">
           <button type="button" disabled={!canSubmit || uploading} onClick={onSubmit} className={buttonClass("secondary", "min-h-11")}>{submitLabel ?? "Kiểm tra"}</button>
           <HintLinks item={item} disabled={locked} onReveal={onReveal} />
         </div>

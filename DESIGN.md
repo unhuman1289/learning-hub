@@ -135,3 +135,5 @@ Sổ chủ đề nằm trên bàn gỗ. Ba thẻ Mục lục, Hôm nay, Tiến �
 Giấy kẻ và giấy ô li giữ màu kem ở cả hai chế độ. Chữ trên giấy dùng token riêng, còn gỗ và tường đổi màu theo ánh sáng. Một trang bài trên điện thoại, hai trang cạnh nhau từ 1024px. Khối câu giữ nguyên khi chia trang. Trang khuất nằm ngoài luồng Tab và trình đọc màn hình. Phím mũi tên, nút mép trang và vuốt ngang đều lật được. Khi giảm chuyển động, trang đổi ngay.
 
 Lời chào lấy giờ Berlin. Câu khích lệ dựa trên việc học đã lưu ở các sổ đang dùng. Tên người, lời phê và nút bấm dùng tiếng Việt ngắn. Hồ sơ trẻ em có dòng kẻ rộng hơn, ngày học đủ mười phút có sticker và câu đã chấm có nút Hỏi bố mẹ.
+
+Giấy nhắc “Có câu cần sửa lại” mở đúng câu cần sửa. Link bài thông thường nhớ trang gần nhất, hoặc mở câu chưa làm đầu tiên. Mẩu giấy vàng mở từng gợi ý. Khi đang thao tác trong một câu, khung chờ bạn rời ô nhập hoặc nút rồi mới chia lại trang.

@@ -553,3 +553,17 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 6
     65% { rotate: -2deg; }
   }
 }
+
+.question-hint {
+  position: relative;
+  border-radius: 2px 2px 0 2px;
+  box-shadow: 0 4px 8px -5px rgb(56 39 14 / .55);
+}
+.question-hint::after {
+  position: absolute;
+  inset: auto 0 0 auto;
+  width: 9px;
+  height: 9px;
+  background: linear-gradient(135deg, #ceb763 50%, var(--color-paper) 50%);
+  content: "";
+}

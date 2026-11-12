@@ -7,19 +7,19 @@ import { pageBlocks, type PageBlock } from "./page-blocks";
 
 export type SpreadBlock = PageBlock & { node: ReactNode; label?: string };
 
-export function Spread({ blocks, startAt, storageKey, jump }: {
-  blocks: SpreadBlock[]; startAt?: string; storageKey: string; jump?: { id: string; key: number } | null;
+export function Spread({ blocks, startAt, storageKey, jump, preferStart = false }: {
+  blocks: SpreadBlock[]; startAt?: string; preferStart?: boolean; storageKey: string; jump?: { id: string; key: number } | null;
 }) {
   const [double, setDouble] = useState(false);
   const [selection, setSelection] = useState(startAt);
-  const areaInitiallyCompleted = useRef(startAt === "summary");
+  const preferInitialBlock = useRef(preferStart || startAt === "summary");
   const [fallback, setFallback] = useState(false);
   const [measurement, setMeasurement] = useState<{ heights: Record<string, number>; limit: number }>();
   const book = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const shouldFocus = useRef(false);
   const pointer = useRef<{ x: number; y: number } | null>(null);
-  const pages = pageBlocks(blocks, double ? 4 : 3, measurement);
+  const pages = pageBlocks(blocks, 3, measurement);
   const structure = pages.map(page => page.map(block => block.id).join(",")).join("|");
   const index = Math.max(0, pages.findIndex(page => page.some(block => block.id === (selection ?? startAt))));
   const step = double ? 2 : 1;
@@ -33,9 +33,13 @@ export function Spread({ blocks, startAt, storageKey, jump }: {
     const area = book.current;
     if (!area || typeof ResizeObserver === "undefined") return;
     let animation = 0;
-    const observer = new ResizeObserver(() => {
+    const measure = () => {
       cancelAnimationFrame(animation);
       animation = requestAnimationFrame(() => {
+        // Regrouping changes a block’s React parent. Wait until the learner leaves
+        // the controls to keep keyboard focus, text selection and open dialogs intact.
+        const active = document.activeElement;
+        if (active?.closest("[data-block]") && area.contains(active)) return;
         const line = getComputedStyle(area).getPropertyValue("--paper-line-height").trim() === "2rem" ? 32 : 28;
         const limit = Math.max(line * 10, Math.floor((innerHeight - 220) / line) * line);
         const heights = Object.fromEntries(Array.from(area.querySelectorAll<HTMLElement>("[data-block]"),
@@ -46,10 +50,18 @@ export function Spread({ blocks, startAt, storageKey, jump }: {
           return { heights, limit };
         });
       });
-    });
+    };
+    const observer = new ResizeObserver(measure);
+    area.addEventListener("focusout", measure);
+    window.addEventListener("resize", measure);
     observer.observe(area);
     area.querySelectorAll("[data-block]").forEach(block => observer.observe(block));
-    return () => { observer.disconnect(); cancelAnimationFrame(animation); };
+    return () => {
+      observer.disconnect();
+      area.removeEventListener("focusout", measure);
+      window.removeEventListener("resize", measure);
+      cancelAnimationFrame(animation);
+    };
   }, [structure, double]);
 
   useEffect(() => {
@@ -64,7 +76,7 @@ export function Spread({ blocks, startAt, storageKey, jump }: {
     function restore() {
       const hash = window.location.hash.match(/^#cau-(\d+)$/)?.[1];
       if (hash) { setSelection("cau-" + hash); return; }
-      if (areaInitiallyCompleted.current) return;
+      if (preferInitialBlock.current) return;
       try { setSelection(sessionStorage.getItem(storageKey) ?? undefined); } catch { /* Storage is optional. */ }
     }
     restore();
@@ -85,7 +97,8 @@ export function Spread({ blocks, startAt, storageKey, jump }: {
   useEffect(() => {
     if (!shouldFocus.current) return;
     shouldFocus.current = false;
-    const active = frame.current?.querySelector(".spread-page:not([inert])");
+    const active = frame.current?.querySelector(`.spread-page:not([inert]) [data-block="${CSS.escape(selection ?? "")}"]`)?.closest(".spread-page")
+      ?? frame.current?.querySelector(".spread-page:not([inert])");
     (active?.querySelector<HTMLElement>(":is(h1,h2,h3)[tabindex]") ??
       active?.querySelector<HTMLElement>("[data-page-focus]"))?.focus();
   }, [first, selection]);

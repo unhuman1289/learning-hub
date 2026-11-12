@@ -55,7 +55,7 @@ export function TodayBoard({ learner, go, enabled, notes, loadingLegacy, data, s
               {i.optional && i.category === "exploration" && <p className="mt-2 text-sm leading-6">Thêm nếu muốn — đã đạt mục tiêu phút hôm nay.</p>}
               <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                 {i.lessonId || learner ? (
-                  <RouteLink route={i.lessonId ? { view: "lesson", id: i.lessonId } : { view: "book", id: i.subjectId }} go={go} className={postitAction}>
+                  <RouteLink route={i.lessonId ? { view: "lesson", id: i.lessonId, correction: i.category === "correction" ? true : undefined } : { view: "book", id: i.subjectId }} go={go} className={postitAction}>
                     {i.hasWork ? words.action.continue : words.action.open}
                   </RouteLink>
                 ) : (

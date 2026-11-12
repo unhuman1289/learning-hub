@@ -11,14 +11,14 @@ export type Route =
   | { view: "admin" }
   | { view: "notebook"; track: TrackId; tab: NotebookTab; page?: string }
   | { view: "book"; id: string; page?: BookPage }
-  | { view: "lesson"; id: string };
+  | { view: "lesson"; id: string; correction?: true };
 
 const tabs: NotebookTab[] = ["bai", "muc-luc", "muc-tieu", "tai-lieu"];
 
 export function parseRoute(search: string): Route {
   const params = new URLSearchParams(search);
   const v2=params.get("bai2");
-  if(v2&&/^les_[0-9a-f]{20}$/.test(v2))return {view:"lesson",id:v2};
+  if(v2&&/^les_[0-9a-f]{20}$/.test(v2))return params.get("xem") === "sua" ? { view: "lesson", id: v2, correction: true } : { view: "lesson", id: v2 };
   const legacyLesson = params.get("lesson");
   if (legacyLesson) {
     const track = findStaticTrack(legacyLesson);
@@ -41,7 +41,10 @@ export function parseRoute(search: string): Route {
 
 export function routeHref(route: Route) {
   const params = new URLSearchParams();
-  if (route.view === "lesson") params.set("bai2",route.id);
+  if (route.view === "lesson") {
+    params.set("bai2", route.id);
+    if (route.correction) params.set("xem", "sua");
+  }
   if (route.view === "admin") params.set("trang", "quan-tri");
   if (route.view === "book") {
     params.set("sach", route.id);
@@ -86,7 +89,7 @@ export function useRoute() {
 
   const go = useCallback((next: Route) => {
     const href = routeHref(next);
-    if (href !== `${window.location.pathname}${window.location.search}`) window.history.pushState({}, "", href);
+    if (href !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.pushState({}, "", href);
     const update = () => {
       flushSync(() => setRoute(next));
       window.scrollTo({ top: 0 });
@@ -98,7 +101,7 @@ export function useRoute() {
     }
     const root = document.documentElement;
     root.dataset.vt = transitionKind(current.current, next);
-    doc.startViewTransition(update).finished.finally(() => {
+    void doc.startViewTransition(update).finished.catch(() => {}).finally(() => {
       delete root.dataset.vt;
     });
   }, []);
