@@ -177,7 +177,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     );
     if (s.roadmap) {
       if(s.roadmap.some(step=>step.skills.some(ref=>!resolve(ref)))) issue(path+'/roadmap','unknown_reference','Lộ trình tham chiếu kỹ năng ngoài sổ.');
-      statements.push(db.prepare(`UPDATE subjects SET roadmap=? WHERE ${gate}`).bind(JSON.stringify(s.roadmap.map(step=>({...step,skills:step.skills.map(ref=>resolve(ref))}))),...gateValues));
+      statements.push(db.prepare(`UPDATE subjects SET roadmap=? WHERE id=? AND learner_id=? AND ${gate}`).bind(JSON.stringify(s.roadmap.map(step=>({...step,skills:step.skills.map(ref=>resolve(ref))}))),s.subjectId,job.learner_id,...gateValues));
     }
     for (const change of s.skillChanges) {
       if (change.op === 'add')

@@ -1006,6 +1006,9 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   const subject = (await createSubject(db, learner, learner, parseSubjectInput({
     title: 'Toán 7', goal: 'Ôn phân số để thi, thích bài tập ngắn', curriculum: 'Sách đã chọn',
   }), now)).id;
+  db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('sub_bbbbbbbbbbbbbbbbbbbb','other','Rust','skill','active','other','t','t')").run();
+  const untouched = () => db.sqlite.prepare('SELECT id,roadmap,revision,updated_at FROM subjects WHERE id<>? ORDER BY id').all(subject);
+  const before = untouched();
   const setupRequest = parseRequest({ subjectId: subject, mode: 'learn', clientRequestId: crypto.randomUUID() });
   await assert.rejects(createRequest(db, {}, learner, learner, setupRequest, now), { status: 409 });
   assert.equal(db.sqlite.prepare('SELECT ai_enabled FROM subjects WHERE id=?').get(subject).ai_enabled, 0);
@@ -1026,6 +1029,7 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   settings.notebookSetup = { template: 'reading', goal: 'Ôn phân số để thi', level: 'Chưa đánh giá', curriculum: 'Đề xuất khác', instructions: 'Ưu tiên bài tập ngắn.' };
   const saved = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(saved.status, 200, JSON.stringify(saved));
+  assert.deepEqual(untouched(), before);
   const notebook = db.sqlite.prepare('SELECT template,goal,opening_brief,level,curriculum,instructions,roadmap,status,ai_enabled FROM subjects WHERE id=?').get(subject);
   assert.deepEqual({ ...notebook, roadmap: JSON.parse(notebook.roadmap).length }, {
     template: 'reading', goal: 'Ôn phân số để thi', opening_brief: 'Ôn phân số để thi, thích bài tập ngắn', level: 'Chưa đánh giá',
