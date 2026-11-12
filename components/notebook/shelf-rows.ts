@@ -1,9 +1,6 @@
 /** Geometry of a bookcase shelf with notebooks standing spine-out. Sizes are CSS pixels. */
 export const SPINE = { width: 36, gap: 3, height: 152, cover: 114, lift: 16, zoom: 1.12 } as const;
 
-/** Notebooks at or above this count stand spine-out; fewer lie face-out as before. */
-export const SPINE_FROM = 3;
-
 /** How many spines fit on one shelf board of the given inner width (at least one). */
 export function shelfCapacity(width: number, spine: number = SPINE.width, gap: number = SPINE.gap): number {
   if (!Number.isFinite(width) || width <= 0) return 1;

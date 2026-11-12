@@ -13,13 +13,11 @@ import { apiJson } from "./api";
 import { words } from "./words";
 import { ContactBook } from "./guardian/contact-book";
 import { SketchIcon } from "./sketch-icons";
-import { Bookcase, OakDesk, Shelf } from "../../components/notebook/house";
-import { NotebookCover } from "../../components/notebook/paper";
+import { Bookcase, OakDesk } from "../../components/notebook/house";
 import { SpineShelves, type SpineBook } from "../../components/notebook/spine-shelf";
-import { SPINE_FROM } from "../../components/notebook/shelf-rows";
 import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
-import type { ShelfApi, ShelfSubject } from "./use-shelf";
+import type { ShelfApi } from "./use-shelf";
 import { postitAction } from "./paper-bits";
 import { RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
@@ -95,9 +93,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   });
   const v2Lessons=daily.data?.v2Active??[];
   const loading = !daily.data && !daily.error;
-  // From three notebooks on they stand spine-out; one or two lie face-out as before.
   const subjects = shelf.subjects ?? [];
-  const spineOut = subjects.length >= SPINE_FROM;
   const spineBooks: SpineBook[] = subjects.map((subject) => {
     if (subject.legacyTrack && !hub2) {
       const track = subject.legacyTrack;
@@ -181,29 +177,13 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
 
         <Bookcase
           // Two shelves of spines still fit the screen; more than that scroll with the page.
-          className={!spineOut || subjects.length < 15 ? "lg:sticky lg:top-24" : undefined}
+          className={subjects.length < 15 ? "lg:sticky lg:top-24" : undefined}
           doors={doors}
-          rows={spineOut}
           counterDecoration={<SeasonItem place="shelf" month={clock?.month} />}
           title={<><h2 className="font-print text-xl font-medium">Tủ sách</h2><span className="text-sm opacity-80">Lấy một cuốn sổ</span></>}
         >
-          {shelf.subjects === null && <p className="col-span-full px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}
-          {spineOut && <SpineShelves books={spineBooks} go={go} onNew={canOpenNotebook ? onNewNotebook : null} />}
-          {!spineOut && subjects.map((subject) => (
-            <Shelf key={subject.id}>
-              {subject.legacyTrack && !hub2
-                ? <PreparedNotebook track={subject.legacyTrack} daily={daily} readOnly={readOnly} go={go} />
-                : <TopicNotebook subject={subject} hasLesson={v2Lessons.some(l=>l.subjectId===subject.id)} go={go} />}
-            </Shelf>
-          ))}
-          {!spineOut && canOpenNotebook && (
-            <Shelf>
-              <button type="button" onClick={onNewNotebook} className="grid aspect-[3/4] w-full place-items-center rounded-[3px_8px_8px_3px] border-2 border-dashed border-cabinet-ink/40 p-2 text-center hover:border-accent hover:bg-paper/40">
-                <span className="font-hand text-lg leading-6 text-cabinet-ink/80">+ Sổ mới</span>
-              </button>
-            </Shelf>
-          )}
-          
+          {shelf.subjects === null && <p className="px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}
+          {shelf.subjects !== null && <SpineShelves books={spineBooks} go={go} onNew={canOpenNotebook ? onNewNotebook : null} />}
         </Bookcase>
       </div>
       {drawer === "learned" && <PaperDialog title="Bài đã học" labelId="drawer-learned" onClose={() => setDrawer(null)}>
@@ -216,38 +196,5 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
     </div>
-  );
-}
-
-/** One of the five prepared notebooks, with its foundation lessons and assigned lessons. */
-function PreparedNotebook({ track, daily, readOnly, go }: { track: TrackId; daily: DailyApi; readOnly: boolean; go: (route: Route) => void }) {
-  const { active: current } = notebookPages(track, daily.data);
-  const cover = (
-    <NotebookCover
-      title={coverTitle[track]}
-      lines={[current && !current.completedAt ? "đang học" : "chưa có bài"]}
-      className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
-    />
-  );
-  // Opening another learner's notebook comes with the guardian view (Sổ liên lạc, H6.5).
-  if (readOnly) return <div className="group block rounded-md" aria-label={`Sổ ${trackInfo(track).title}`}>{cover}</div>;
-  return (
-    <RouteLink route={{ view: "notebook", track, tab: "bai" }} go={go} aria-label={`Mở sổ ${trackInfo(track).title}`} className="group block rounded-md" style={{ viewTransitionName: coverTransition[track] }}>
-      {cover}
-    </RouteLink>
-  );
-}
-
-
-/** A notebook opened since Learning Hub 2.0. */
-function TopicNotebook({ subject, hasLesson, go }: { subject: ShelfSubject; hasLesson: boolean; go: (route: Route) => void }) {
-  return (
-    <RouteLink route={{ view: "book", id: subject.id }} go={go} aria-label={`Mở sổ ${subject.title}`} className="group block rounded-md" style={{ viewTransitionName: `cover-${subject.id}` }}>
-      <NotebookCover
-        title={subject.title}
-        lines={[hasLesson ? "đang học" : "chưa có bài"]}
-        className="origin-bottom transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:-rotate-2"
-      />
-    </RouteLink>
   );
 }
