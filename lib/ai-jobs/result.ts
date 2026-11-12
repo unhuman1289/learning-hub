@@ -100,7 +100,7 @@ export async function applyResult(
   if ('outcomes' in prepared) {
     const fragments = prepared.outcomes.map(
       () =>
-        `json_object('subjectId',?,'status',CASE WHEN ? IN ('stale','rejected') THEN ? WHEN EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND updated_at=? AND revision=?) AND (?='no_action' OR EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=? AND subject_id=?)) THEN ? ELSE 'stale' END,'lessonIds',json(coalesce((SELECT json_group_array(id) FROM learning_lessons WHERE origin_job_id=? AND subject_id=?),'[]')),'reason',?)`,
+        `json_object('subjectId',?,'status',CASE WHEN ? IN ('stale','rejected','unchanged') THEN ? WHEN EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND updated_at=? AND revision=?) AND (?='no_action' OR EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=? AND subject_id=?)) THEN ? ELSE 'stale' END,'lessonIds',json(coalesce((SELECT json_group_array(id) FROM learning_lessons WHERE origin_job_id=? AND subject_id=?),'[]')),'reason',?)`,
     );
     outcomeSql = "json_object('subjects',json('[' || " + (fragments.length ? fragments.join(" || ',' || ") : "''") + " || ']'),'extraLessonIds',json(coalesce((SELECT json_group_array(id) FROM learning_lessons WHERE origin_job_id=? AND slot='extra'),'[]')))";
     outcomeParams = prepared.outcomes.flatMap((o) => [
@@ -128,7 +128,7 @@ export async function applyResult(
   const usage = parsed.data.usage;
   const finish = db
     .prepare(
-      `UPDATE ai_jobs SET status='succeeded',result_hash=?,outcome=${outcomeSql},usage=?,cost_usd=?,updated_at=?,finished_at=? WHERE id=? AND apply_token=?`,
+      `UPDATE ai_jobs SET status='succeeded',error=NULL,result_hash=?,outcome=${outcomeSql},usage=?,cost_usd=?,updated_at=?,finished_at=? WHERE id=? AND apply_token=?`,
     )
     .bind(hash, ...outcomeParams, JSON.stringify(usage), estimateCost(usage, priceTable), now.toISOString(), now.toISOString(), id, token);
   const cleanup = db.prepare('DELETE FROM ai_apply_guards WHERE token LIKE ?').bind(token + ':%');

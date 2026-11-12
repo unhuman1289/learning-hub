@@ -33,7 +33,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       if (s.action !== 'no_action' || s.primaryLesson || s.reviewSet || s.skillChanges.length ||
           s.roadmap || s.notebookSetup || s.requestsHandled.length || s.masteryProposals.length)
         issue(path, 'schema', 'Bài xin thêm chỉ được ghi qua yêu cầu của lượt này.');
-      outcomes.push({ subjectId: s.subjectId, status: 'no_action', lessonIds: [], reason: context.adaptive.reason });
+      outcomes.push({ subjectId: s.subjectId, status: 'unchanged', lessonIds: [], reason: context.adaptive.reason });
       continue;
     }
     const current = await db
@@ -53,7 +53,13 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       s.expectedOpenPrimaryLessonId !== c.slot.openPrimaryLessonId ||
       (slot?.id ?? null) !== s.expectedOpenPrimaryLessonId
     ) {
-      outcomes.push({ subjectId: s.subjectId, status: 'stale', lessonIds: [], reason: 'Sổ hoặc bài đang học đã thay đổi.' });
+      // Only a dropped primary/review lesson is stale; a subject this result leaves untouched (e.g. a request job whose
+      // lesson comes through explorations) is simply not acted on.
+      const dropped = Boolean(s.primaryLesson || s.reviewSet);
+      outcomes.push({
+        subjectId: s.subjectId, status: dropped ? 'stale' : 'unchanged', lessonIds: [],
+        reason: dropped ? 'Sổ hoặc bài đang học đã thay đổi.' : 'Không đổi gì ở sổ này.',
+      });
       continue;
     }
     if (context.adaptive) {
