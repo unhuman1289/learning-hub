@@ -7,9 +7,9 @@ import { apiJson, learnerQuery } from "../api";
 import { useLiveRefresh } from "../use-live-refresh";
 import { pencil, pencilLink, RedPen, skillLabel } from "../paper-bits";
 
-export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuestion, onReview, onHome, onReflection, completed = true, justCompleted = false }: {
+export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuestion, onReview, completed = true, justCompleted = false }: {
   lessonId: string; learner: string | null; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
-  completed?: boolean; justCompleted?: boolean; onReview: () => void; onHome: () => void; onReflection?: () => void;
+  completed?: boolean; justCompleted?: boolean; onReview: () => void;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
   const url = `/api/lessons/${lessonId}/summary${learnerQuery(learner)}`;
@@ -49,11 +49,7 @@ export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuest
         {data.needsPractice.length > 0 && <p>Nên luyện thêm: {data.needsPractice.map(skillLabel).join(", ")}.</p>}
         {data.comments.map(comment => <RedPen key={comment} className="mt-7">{comment}</RedPen>)}
       </>}
-      <div className="mt-4 flex min-h-14 flex-wrap items-center gap-x-5">
-        {onReflection && <button type="button" onClick={onReflection} className={pencilLink}>Góp ý cho bài sau <span aria-hidden="true">→</span></button>}
-        <button onClick={onReview} className={pencilLink}>{words.action.review}</button>
-        <button onClick={onHome} className={pencilLink}>{words.action.close}</button>
-      </div>
+      <button type="button" onClick={onReview} className={`${pencilLink} mt-4`}>{words.action.review}</button>
     </section>
   );
 }

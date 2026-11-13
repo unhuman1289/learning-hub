@@ -18,6 +18,7 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
   const paper = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const shouldFocus = useRef(false);
+  const turning = useRef(false);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const geometry = pageGeometry(viewport.width, viewport.height, child, viewport.pageWidth || undefined);
   const { double } = geometry;
@@ -83,15 +84,25 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
 
   function turn(page: number) {
     const block = pages[page]?.[0];
-    if (!block || page === first) return;
+    if (!block || page === first || turning.current) return;
     onTurn?.();
     shouldFocus.current = true;
     const update = () => setSelection(block.id);
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { update(); return; }
     if (document.startViewTransition && double) {
-      document.documentElement.setAttribute("data-vt", "turn");
+      const spread = frame.current;
+      if (!spread) { update(); return; }
+      const root = document.documentElement;
+      const direction = page > first ? "forward" : "back";
+      turning.current = true;
+      spread.dataset.turning = direction;
+      root.dataset.spreadTurn = direction;
       void document.startViewTransition(() => flushSync(update)).finished
-        .catch(() => {}).finally(() => { document.documentElement.removeAttribute("data-vt"); });
+        .catch(() => {}).finally(() => {
+          turning.current = false;
+          delete spread.dataset.turning;
+          delete root.dataset.spreadTurn;
+        });
     } else {
       setFallback(true);
       update();
@@ -150,7 +161,7 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
           const visible = n >= first && n < last;
           const nearby = n >= first - step && n < last + step;
           return <section key={page[0].id} data-offpage={!visible} inert={!visible} aria-hidden={!visible || undefined} aria-roledescription="trang"
-            aria-label={`Trang ${n + 1}`} className="spread-page bg-ruled">
+            aria-label={`Trang ${n + 1}`} data-side={n % 2 === 0 ? "left" : "right"} className="spread-page bg-ruled">
             <div className="spread-paper-body" data-overflow={page.some(block =>
               block.kind === "notebook" || block.kind === "summary" || block.long || blockLines(block, geometry) > geometry.lines - 1)}>
             <p tabIndex={-1} data-page-focus className="spread-page-label font-hand text-sm text-muted">{page[0].kind === "summary" ? (page[0].label ?? "Tổng kết") : page[0].kind === "item"
@@ -165,6 +176,7 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
               : `${n + 1} / ${count}`}</p>
           </section>;
         })}
+        {double && last - first === 1 && <div aria-hidden="true" className="spread-page bg-ruled" data-offpage="false" data-side="right" />}
       </div>
       <button type="button" className="spread-edge" aria-label="Trang sau" disabled={last >= count} onClick={() => turn(first + step)}><SketchTurnCorner /></button>
       {status && <p role="status" className="spread-save rounded-b-sm bg-paper px-2 font-hand text-sm text-ink-paper">{status}</p>}

@@ -381,6 +381,53 @@ html[data-vt="turn"]::view-transition-old(lesson-page) {
   z-index: 2;
 }
 html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 340ms ease-out both; }
+/* A leaf pivots at the gutter. The exposed pages stay flat while its two faces turn. */
+html[data-spread-turn]::view-transition-old(root),
+html[data-spread-turn]::view-transition-old(book),
+html[data-spread-turn="forward"]::view-transition-old(spread-left),
+html[data-spread-turn="back"]::view-transition-old(spread-right) { display: none; }
+
+html[data-spread-turn]::view-transition-new(root),
+html[data-spread-turn]::view-transition-new(book),
+html[data-spread-turn]::view-transition-group(spread-left),
+html[data-spread-turn]::view-transition-group(spread-right),
+html[data-spread-turn]::view-transition-new(spread-left),
+html[data-spread-turn]::view-transition-new(spread-right) { animation: none; }
+
+html[data-spread-turn]::view-transition-old(spread-left),
+html[data-spread-turn]::view-transition-old(spread-right),
+html[data-spread-turn]::view-transition-new(spread-left),
+html[data-spread-turn]::view-transition-new(spread-right) { mix-blend-mode: normal; }
+
+html[data-spread-turn="forward"]::view-transition-group(spread-right),
+html[data-spread-turn="back"]::view-transition-group(spread-left) { z-index: 2; }
+
+html[data-spread-turn="forward"]::view-transition-old(spread-right),
+html[data-spread-turn="back"]::view-transition-old(spread-left) {
+  animation: leaf-away 200ms ease-in both;
+}
+html[data-spread-turn="forward"]::view-transition-new(spread-left),
+html[data-spread-turn="back"]::view-transition-new(spread-right) {
+  animation: leaf-land 240ms ease-out 200ms both;
+}
+html[data-spread-turn]::view-transition-old(spread-right),
+html[data-spread-turn]::view-transition-new(spread-right) {
+  --leaf-edge: -90deg;
+  transform-origin: left center;
+}
+html[data-spread-turn]::view-transition-old(spread-left),
+html[data-spread-turn]::view-transition-new(spread-left) {
+  --leaf-edge: 90deg;
+  transform-origin: right center;
+}
+@keyframes leaf-away {
+  from { transform: perspective(1300px) rotateY(0); }
+  to { transform: perspective(1300px) rotateY(var(--leaf-edge)); }
+}
+@keyframes leaf-land {
+  from { transform: perspective(1300px) rotateY(var(--leaf-edge)); }
+  to { transform: perspective(1300px) rotateY(0); }
+}
 @keyframes book-rise {
   from { opacity: 0; transform: perspective(1400px) translateY(60px) rotateX(14deg) scale(0.94); }
   to { opacity: 1; transform: none; }
@@ -479,8 +526,10 @@ html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 3
   width: min(100%, calc(var(--spread-width) + 112px));
   margin-inline: auto;
   touch-action: pan-y;
-  view-transition-name: lesson-page;
 }
+html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
+.lesson-spread[data-turning] .spread-page[data-offpage="false"][data-side="left"] { view-transition-name: spread-left; }
+.lesson-spread[data-turning] .spread-page[data-offpage="false"][data-side="right"] { view-transition-name: spread-right; }
 .spread-pages {
   position: relative;
   display: grid;
