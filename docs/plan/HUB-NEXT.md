@@ -1,7 +1,8 @@
 # Kế hoạch: Learning Hub gọn lại, bàn học thư thái, luyện nghe — dev tách production, dùng tốt trên điện thoại ở Việt Nam
 
 - **Người thực hiện:** Codex (mã), Claude (mockup giao diện), chủ dự án (duyệt, thao tác trên Mac và Cloudflare).
-- **Ngày lập:** 13/11/2026, bản 2. **Trạng thái:** chưa code.
+- **Ngày lập:** 13/11/2026, bản 3 (sau audit phiên Codex tối 13/11). **Tiến độ:** xem `docs/plan/HUB-NEXT-STATUS.md`. Tệp này là nơi duy nhất ghi bước nào xong, bước nào dở; plan chỉ ghi việc cần làm.
+- **Cách giao việc cho Codex:** mục 10. Đọc mục này trước khi bắt đầu một bước.
 - **Mã đã đọc:** `main` tại `38aa632` (đã có Adaptive Roadmap #139–#142 và Knowledge K1–K5).
 - **Đã kiểm ngày 13/11 trên bản `main` mới nhất:**
   - `npm ci`, `npm run db:migrate:local` (đủ 0000–0025) và `npm run build` đều đạt;
@@ -226,7 +227,7 @@
 1. **Nhánh tính năng** từ `main`, dựng và thử trên **local**: test, typecheck, lint, build, e2e điện thoại (mục 4.6), chạy tay với runner fake hoặc Qwen.
 2. **PR:** CI đạt. Mô tả có ảnh chụp điện thoại khi đổi giao diện.
 3. **Merge** khi chủ dự án đồng ý.
-4. **Staging:** `release.mjs staging <tag-ứng-viên>` hoặc `deploy-staging.yml`. Chủ dự án hoặc Ếch thử trên điện thoại thật theo danh sách mục 4.7.
+4. **Staging:** chỉ deploy từ một commit đã push: `release.mjs staging <commit|tag>` hoặc `deploy-staging.yml`. **Không deploy staging từ cây làm việc chưa commit.** `/api/health` của staging phải trả đúng mã commit ngắn hoặc tag (`APP_VERSION`), để luôn biết staging đang chạy bản nào. Chủ dự án hoặc Ếch thử trên điện thoại thật theo danh sách mục 4.7.
 5. **Tag** `prod-YYYYMMDD-N` trên đúng commit đã thử ở staging.
 6. **Production:** `release.mjs production <tag>` sau khi chủ dự án đồng ý. Có migration thì đồng ý riêng cho migration.
 7. **Sau phát hành:** health, một lượt học thật trên điện thoại, kiểm job `succeeded` và id đã lưu.
@@ -343,12 +344,13 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 
 ## 5. Giai đoạn và PR
 
-**Thứ tự:** **E → S → C → V → P → M (cổng duyệt) → U → L → G → T**.
+**Thứ tự:** **E → S → C → V → P → M (cổng duyệt) → U → L → G → T**. Đây là thứ tự ưu tiên, không phải chuỗi chờ nhau:
 - C và V làm song song được, vì chỉ chung `lib/backup-contract.mjs`. Làm C trước rồi rebase V.
 - P (nền điện thoại) làm song song với C/V.
 - M làm song song với C, V, P.
-- U chỉ bắt đầu sau khi M được duyệt.
+- **U bắt đầu ngay khi M được duyệt.** U không chờ C, V, P lên production. Phần U cần từ P (API `/api/today` gom, thuộc tính ô nhập) làm cùng U nếu P chưa xong.
 - L1–L3 (backend nghe) làm song song với U. L5 (giao diện nghe) theo mockup đã duyệt.
+- **Một bước bị chặn** (ví dụ chờ Qwen, chờ chủ dự án) thì ghi vào STATUS rồi chuyển sang bước khác không phụ thuộc. Không thử lại vô hạn.
 
 **Mỗi PR:**
 - chạy `npm run test`, `typecheck`, `lint`, `contracts:check`, `build`, và từ P trở đi `npm run e2e`;
@@ -359,7 +361,7 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 ### E · Môi trường (mục 3)
 
 - **E1** (PR): `.dev.vars.example`, `dev-setup`, `dev:fresh`, `runner:local`, `runner:fake` cùng fixture, `dev:phone`, `dev:tunnel`, `docs/DEVELOPMENT.md`.
-- **E2** (PR): `scripts/release.mjs`, chốt chặn `deploy:production`, runner kiểm khớp tên cấu hình và host, `APP_VERSION` từ tag.
+- **E2** (PR): `scripts/release.mjs`, chốt chặn `deploy:production`, runner kiểm khớp tên cấu hình và host, `APP_VERSION` từ tag (production) hoặc mã commit ngắn (staging). `release.mjs staging` từ chối nếu commit chưa có trên `origin`.
 - **E3** (thao tác, chủ dự án đồng ý):
   - clone `~/Code/learning-hub-prod`;
   - tag đầu tiên `prod-20261113-1` trên commit đang chạy production (`38aa632`);
@@ -439,10 +441,27 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
   - xoá trigger `learning_lessons_v1_subject` và index `learning_lessons_v1_track_day_unique`;
   - kiểm toàn vẹn theo mẫu `0022`.
 
-**V3. Một gói bài (`0028_one_package.sql`):**
-- 14 bài v2 thành v3 bằng `json_set(payload,'$.contract','lesson-package/3','$.knowledge',json('[]'))` và `package_version='3'`.
-- Script diễn tập parse lại mọi payload bằng `lessonPackageV3`.
-- Bỏ `limits.package`, nhánh v2 trong `apply/*`, `job.mjs`, prompt. `lesson-package-v2.ts` đổi thành `lesson-items.ts`.
+**V3. Một định dạng lưu, giữ nguyên cách Qwen soạn (`0028_one_package.sql`):**
+
+*Sửa sau audit 13/11:* bản trước bắt mọi sổ soạn theo v3 đầy đủ. Qwen soạn Deutsch theo v3 bị Hub từ chối liên tục (đáp án sai định dạng, thiếu hai dạng câu), làm Codex sửa schema và chạy lại Qwen 48 lần. Gộp **định dạng lưu** là đủ. **Bộ dạng câu Qwen được dùng là cấu hình riêng của từng sổ**, không gắn với phiên bản gói.
+
+- **Dữ liệu:** bài v2 thành v3 bằng `json_set(payload,'$.contract','lesson-package/3','$.knowledge',json('[]'))` và `package_version='3'`. Production có 15 bài v2 (đếm ngày 13/11). Script diễn tập parse lại mọi payload bằng `lessonPackageV3`. Staging đã áp `0028`.
+- **Bộ dạng câu theo sổ:** thay `limits.package` bằng `limits.itemKinds`, mặc định theo chuẩn học:
+
+  | Sổ | `itemKinds` mặc định | Ràng buộc thêm |
+  |---|---|---|
+  | Ngôn ngữ (`de-cefr`, `en-cefr`, `zh-hsk`) | `choice`, `short`, `long`, `cloze` | Không bắt buộc ≥ 2 dạng câu. Không có khối `knowledge` dạng code |
+  | Lập trình (`rust-core`, `python-core`) | `choice`, `short`, `cloze`, `order`, `code` | Như sổ Rust thử nghiệm hiện tại |
+  | Khoa học, Toán | `choice`, `short`, `long`, `cloze`, `table`, `label` | ≥ 2 dạng câu |
+  | Khác | `choice`, `short`, `long` | — |
+
+  Thêm dạng mới cho một loại sổ chỉ sau khi qua cổng Q (dưới đây). Admin chỉnh được `itemKinds` trong Cài đặt sổ.
+- **`job.mjs`** dựng schema cho Qwen chỉ từ `itemKinds` của sổ. `validate.ts` chỉ áp ràng buộc của bộ đó.
+- **Cổng Q (Qwen soạn đúng)** phải đạt trên local, trước khi áp `0028` và mã V3 lên production:
+  1. Lưu các output Qwen đã bị từ chối làm fixture trong `tests/fixtures/qwen/`, sau khi xoá dữ liệu cá nhân. Thêm `npm run qwen:replay` chạy validator và bước sửa tự động trên fixture, **không gọi model**. Sửa schema hoặc validator đến khi fixture cũ được xử lý đúng: lưu được, hoặc bị từ chối với lý do rõ.
+  2. Rồi mới gọi Qwen thật: 5 lượt cho mỗi sổ Deutsch, Rust, Toán 7 trên `dev:fresh`. Đạt khi ≥ 5/5 Deutsch, ≥ 4/5 mỗi sổ còn lại được Hub lưu ngay hoặc sau một lần sửa tự động.
+  3. Mỗi lần thay đổi chỉ chạy tối đa **2 lượt Qwen** rồi xem kết quả. Chưa đạt thì quay lại bước 1 với output mới làm fixture. Sau 3 vòng vẫn chưa đạt thì dừng, ghi STATUS và báo chủ dự án.
+- **Mã:** bỏ nhánh v2 trong `apply/*`, `job.mjs`, prompt. `lesson-package-v2.ts` đổi thành `lesson-items.ts`.
 
 **V4. Hai nút yêu cầu:**
 - Người học còn **Bài tiếp theo** (`extra_practice`) và **Hỏi**.
@@ -486,7 +505,20 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 - Ếch hoàn thành danh sách `PHONE-CHECK.md` trên staging;
 - p75 thật từ Việt Nam được ghi một tuần.
 
-### M · Mockup để duyệt (cổng, Claude làm)
+### M · Mockup để duyệt (cổng)
+
+**Tình hình 13/11:** Codex đã có bản đầu trong `docs/mockups/` sau 4 vòng góp ý. Góp ý đã chốt:
+- giữ cửa sổ, kệ sách, bàn học, giấy nhớ và sổ;
+- cửa sổ trên điện thoại hiện đầy đủ, cho cuộn;
+- gáy sổ xếp dọc;
+- sổ là cuốn mở hai trang, lật có chuyển động và mép cong;
+- giấy ngả vàng cả ở chế độ tối.
+
+**Cách duyệt:** chủ dự án mở trang mockup trên điện thoại và máy tính, rồi trả lời một trong hai:
+- "Duyệt M1–M4" (có thể kèm "chỉnh X trong U");
+- danh sách chỗ cần sửa.
+
+Câu như "tạm được", "gần rồi" **chưa tính là duyệt**. Codex phải hỏi lại đúng câu: "Bạn duyệt M1–M4 chưa, hay cần sửa gì?" Mỗi vòng sửa mockup giới hạn trong một luồng Codex riêng.
 
 **Sản phẩm:**
 - Trang HTML tĩnh trong `docs/mockups/`, dùng đúng token, font và **cửa sổ Lübeck thật** (SVG xuất từ `app/hub/lubeck/scene.ts`).
@@ -513,6 +545,8 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 **Xong khi:** chủ dự án ghi "duyệt" cho từng mockup.
 
 ### U · Triển khai giao diện đã duyệt
+
+Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (mục 5). Ghi trong STATUS bản mockup nào đã được duyệt (đường dẫn và commit).
 
 - **U1. Bàn học:** `desk.tsx`, `today-board.tsx`, `desk-progress.tsx`, `components/notebook/*` theo M1, dùng `/api/today` gom của P3.
 - **U2. Bài học:**
@@ -673,7 +707,7 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 | 1 | E | Kịch bản 3.2 trên clone mới | — | Tag `prod-20261113-1`, chuyển runner, chốt chặn |
 | 2 | S | Diễn tập khôi phục | — | Sao lưu, xuất lưu trữ v1 |
 | 3 | C | MCP Inspector, runner local | Deploy, kiểm kết nối Knowledge | `0026`, deploy, gỡ kết nối cũ |
-| 4 | V | Migration trên bản sao | `0027`, `0028`, thử bài cũ | Như staging, sau khi đồng ý xoá v1 |
+| 4 | V | Migration trên bản sao; **cổng Q** (Qwen soạn đúng) | `0027`, `0028`, thử bài cũ | Như staging, sau khi đồng ý xoá v1 |
 | 5 | P | e2e điện thoại | Ếch kiểm `PHONE-CHECK.md` | `0029`, deploy, đo p75 một tuần |
 | 6 | M | — | — | (chỉ duyệt) |
 | 7 | U | `dev:phone` iPhone thật | Ếch và chủ dự án kiểm | Deploy |
@@ -708,9 +742,64 @@ Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: he
 
 ## 9. Chủ dự án cần quyết khi tới bước
 
-1. **E3:** đồng ý tạo `~/Code/learning-hub-prod`, tag `prod-20261113-1` trên `38aa632`, chuyển launchd runner.
+1. **E3:** đã xong ngày 13/11. `~/Code/learning-hub-prod` ở tag `prod-20261113-1` (`0625f56`, đúng bản production lúc đó), runner launchd chạy từ đó.
 2. Thư mục dev chính `~/Code/Learning Hub` đang ở nhánh `codex/phase-1-automation-cutover` có thay đổi chưa commit từ tháng 10: giữ nguyên, hay xem lại rồi dọn.
 3. **V2:** đồng ý xoá 4 bài v1 và các bảng v1 sau khi nhận tệp lưu trữ.
 4. **L2:** chọn giọng đọc cho mỗi ngôn ngữ (nghe thử trên Mac).
-5. **M:** duyệt mockup M1–M4.
+5. **M:** duyệt mockup M1–M4 bằng câu "Duyệt M1–M4" hoặc danh sách cần sửa (mục M).
 6. Thứ tự sau Nghe: chạy code có test (Rust, Python) hay toán từng bước (Toán 7).
+
+## 10. Cách giao việc cho Codex (sau audit 13/11)
+
+**Audit phiên Codex 13/11, 13:41–22:39:**
+- 147 triệu token đầu vào, 450 lệnh cho 29 tin nhắn.
+- Nguyên nhân:
+  1. **Một luồng duy nhất chạy từ 07/10**, nên mỗi lệnh đọc lại khoảng 290 nghìn token (cao nhất 450 nghìn).
+  2. **103 lệnh chỉ để chờ Qwen**, kiểm mỗi 1 giây, khoảng 30 triệu token.
+  3. **157 lệnh cần quyền cao**, mỗi lệnh qua model duyệt tự động, thêm khoảng 26 triệu token.
+  4. **Lệnh "làm tất cả… tự duyệt" không có điểm dừng**, gặp vòng lặp Qwen ở V3: 210 lệnh, khoảng 48 triệu token.
+  5. **Làm thẳng trên `main` không commit**, staging chạy code chưa commit.
+
+**Quy tắc từ nay:**
+1. **Mỗi bước (hoặc mỗi PR) một luồng Codex mới.** Không tiếp tục luồng cũ. Luồng mới chỉ đọc:
+   - `AGENTS.md`;
+   - mục của bước đó trong plan này;
+   - `docs/plan/HUB-NEXT-STATUS.md`.
+   Luồng sắp dài (khoảng 120 lệnh) thì dừng, cập nhật STATUS và để luồng mới làm tiếp.
+2. **STATUS là trí nhớ chung.** Cuối mỗi luồng, Codex cập nhật:
+   - bước nào xong, bước nào dở, đang bị chặn bởi gì;
+   - nhánh và PR;
+   - commit đang chạy trên staging và production;
+   - migration đã áp ở đâu;
+   - việc chờ chủ dự án.
+   Mỗi mục là một dòng ngắn, không kể lại quá trình.
+3. **Làm trên nhánh, commit theo từng bước nhỏ, mở PR.**
+   - Không sửa trực tiếp trên `main` ở thư mục dev chính.
+   - Staging chỉ deploy từ commit đã push, và health hiện đúng commit đó.
+4. **Lệnh chạy lâu** (Qwen, build, e2e):
+   - chạy nền, ghi log ra tệp;
+   - kiểm lại sau ít nhất 60 giây, hoặc chờ một lần đến khi xong;
+   - không đọc output mỗi giây.
+5. **Giới hạn thử lại:**
+   - Qwen tối đa 2 lượt mỗi lần thay đổi; sửa bằng fixture trước (cổng Q ở V3).
+   - Một lỗi sửa 3 vòng chưa xong thì dừng và báo, kèm 2–3 hướng xử lý.
+6. **Quyền chạy lệnh:** trong cấu hình Codex, cho phép sẵn các lệnh chỉ đọc (`rg`, `sed`, `cat`, `git status/diff/log`) và chạy kiểm tra local (`npm test`, `typecheck`, `lint`, `build`, `e2e`). Chỉ deploy, migration, lệnh ghi lên Cloudflare và lệnh mạng ra ngoài mới cần duyệt.
+7. **Điểm dừng bắt buộc (chờ chủ dự án):**
+   - duyệt mockup;
+   - merge;
+   - deploy production;
+   - migration production;
+   - xoá dữ liệu production;
+   - đổi quyền hoặc kết nối ChatGPT.
+   Codex hỏi một câu ngắn, có lựa chọn, rồi dừng.
+
+**Mẫu tin nhắn giao một bước:**
+
+```text
+Bước <tên> trong docs/plan/HUB-NEXT.md (bản trên nhánh docs/hub-next-plan hoặc main).
+Đọc AGENTS.md, mục <tên> của plan và docs/plan/HUB-NEXT-STATUS.md. Không đọc lại lịch sử khác.
+Làm trên nhánh codex/<tên-bước>, commit từng phần, mở PR.
+Dừng khi: <tiêu chí "Xong khi" của bước>, hoặc cần tôi quyết định, hoặc một lỗi đã thử 3 vòng.
+Cuối lượt: cập nhật STATUS, báo ngắn: đã xong gì, PR nào, cần tôi quyết gì.
+```
+
