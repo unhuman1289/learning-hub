@@ -114,6 +114,15 @@ for (const table of tables)
     sql += `INSERT OR IGNORE INTO "${table}" (${Object.keys(row)
       .map((k) => '"' + k + '"')
       .join(',')}) VALUES (${Object.values(row).map(literal).join(',')});\n`;
+// Only fill the empty roadmap on our sample notebook.
+sql += `UPDATE subjects SET roadmap=(
+  SELECT json_array(json_object('title','Động từ tình thái khi hẹn lịch',
+    'objective','Đặt lịch bằng tiếng Đức','situation','Hẹn đồng nghiệp',
+    'mode','new','skills',json_array(id)))
+  FROM skills WHERE subject_id=subjects.id AND key='modalverb-infinitiv'
+) WHERE id='sub_dddddddddddddddddddd' AND learner_id='demo-ech'
+  AND coalesce(json_array_length(roadmap),0)=0;
+`;
 mkdirSync('.wrangler', { recursive: true });
 const file = '.wrangler/hub2-demo.sql';
 writeFileSync(file, sql, { mode: 0o600 });
