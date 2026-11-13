@@ -10,14 +10,16 @@ import type { Route } from "../use-route";
 
 type Mode = "learn" | "practice" | "personal";
 type RequestRow = { id: string; mode: Mode | null; text: string; status: string; jobStatus: string | null; resultLessonId: string | null; responseNote: string | null; createdAt: string };
-type Input = { mode: Mode; clientRequestId: string; subjectId: string; note: string };
-const labels = { learn: words.request.new, practice: words.request.practice, personal: words.request.own };
-const modes: Mode[] = ["learn", "practice", "personal"];
+type Action = Exclude<Mode, "practice">;
+type Input = { mode: Action; clientRequestId: string; subjectId: string; note: string };
+const labels = { learn: words.request.new, personal: words.request.own };
+const actions: Action[] = ["learn", "personal"];
+const actionFor = (mode: Mode | null) => mode === "practice" ? "learn" : mode;
 const DAY = 24 * 60 * 60 * 1000;
 /** One line per kind of request: whatever is still being written, else the newest result or failure of the last day. */
-function current(rows: RequestRow[], now: number) {
-  return modes.flatMap(mode => {
-    const mine = rows.filter(row => row.mode === mode);
+function current(rows: RequestRow[], now: number, currentLessonId?: string) {
+  return actions.flatMap(mode => {
+    const mine = rows.filter(row => actionFor(row.mode) === mode && (!currentLessonId || row.resultLessonId !== currentLessonId));
     const row = mine.find(waiting) ?? mine.find(item => now - Date.parse(item.createdAt) < DAY);
     return row ? [row] : [];
   });
@@ -50,7 +52,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
         if (!active) return;
         if (requests.some(row => row.resultLessonId && !seen.current.has(row.id))) onSaved();
         requests.forEach(row => { if (row.resultLessonId) seen.current.add(row.id); });
-        setRows(current(requests, Date.now()));
+        setRows(current(requests, Date.now(), currentLessonId));
       } catch (cause) {
         if (active) setError((cause as Error).message);
       }
@@ -64,9 +66,9 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", visible);
     };
-  }, [listUrl, pending, onSaved]);
+  }, [listUrl, pending, onSaved, currentLessonId]);
 
-  async function send(mode: Mode, replay?: Input) {
+  async function send(mode: Action, replay?: Input) {
     if (inflight.current) return;
     inflight.current = true;
     setBusy(true);
@@ -75,7 +77,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
     setAttempt(input);
     try {
       const { request } = await apiJson<{ request: RequestRow }>(postUrl, { method: "POST", json: input });
-      setRows(shown => [request, ...shown.filter(row => row.mode !== request.mode)]);
+      setRows(shown => [request, ...shown.filter(row => actionFor(row.mode) !== mode)]);
       setAttempt(undefined);
       if (mode === "personal") { setPersonal(false); setNote(""); personalButton.current?.focus(); }
     } catch (cause) {
@@ -87,9 +89,9 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
   }
 
   return <div>
-    <div className="grid grid-cols-3 gap-x-1 text-center">
-      {modes.map(mode => {
-        const row = rows.find(item => item.mode === mode && (!currentLessonId || item.resultLessonId !== currentLessonId));
+    <div className="grid grid-cols-2 gap-x-3 text-center">
+      {actions.map(mode => {
+        const row = rows.find(item => actionFor(item.mode) === mode);
         const ready = row?.resultLessonId;
         const pending = !!row && waiting(row);
         const icon = <><span className="relative mx-auto grid size-14 place-items-center rounded border border-rule bg-paper text-ink-paper">
@@ -102,7 +104,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
                 className="w-full disabled:opacity-60" disabled={busy || pending}
                 onClick={() => mode === "personal" ? setPersonal(!personal) : void send(mode)}>{icon}</button>}
           {row && <p role="status" className="text-sm leading-snug text-muted">
-            {ready ? words.status.ready : pending ? clockTime(row.createdAt) + " · " + words.status.writing : row.responseNote || words.status.notWritten}
+            {ready ? row.responseNote || words.status.ready : pending ? clockTime(row.createdAt) + " · " + words.status.writing : row.responseNote || words.status.notWritten}
           </p>}
         </div>;
       })}
