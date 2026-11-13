@@ -63,7 +63,9 @@ export function autoGradeStructured(key: StructuredAnswerKey, answer: string): O
     correct = key.pairs.filter(([left, right]) => Object.hasOwn(pairs, left) && pairs[left] === right).length;
   } else if (key.type === "order") {
     total = key.sequence.length;
-    correct = Array.isArray(value) ? key.sequence.filter((expected, index) => value[index] === expected).length : 0;
+    const submitted = Array.isArray(value) ? value : [];
+    correct = Math.max(...[key.sequence, ...(key.sequences ?? [])].map(sequence =>
+      sequence.filter((expected, index) => submitted[index] === expected).length));
   } else {
     const cells = key.type === "cloze" ? key.blanks : key.type === "label" ? key.labels : key.cells;
     total = cells.length;

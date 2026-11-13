@@ -41,6 +41,17 @@ for (const [item, right, partial] of fixtures) {
   });
 }
 
+test("ordering accepts each declared permutation and rejects alternatives with missing steps", () => {
+  const item = fixtures[2][0];
+  const key = { ...item.key, sequences: [["b", "a", "c"]] };
+  const parsed = lessonPackageV3.parse(lesson({ ...item, key }));
+  assert.equal(autoGradeStructured(parsed.items[0].key, '["b","a","c"]').result, "correct");
+  assert.equal(autoGradeStructured(parsed.items[0].key, '["a","c","b"]').result, "correct");
+  assert.equal(lessonPackageV3.safeParse(lesson({
+    ...item, key: { ...key, sequences: [["b", "a"]] },
+  })).success, false);
+});
+
 test("code requires a rubric, and figures accept bounded data only", () => {
   const code = { input:"code", language:"rust", starter:"fn main() {}", lines:6,
     rubric:[{criterion:"Đúng yêu cầu",points:1},{criterion:"Tên rõ ràng",points:1}] };

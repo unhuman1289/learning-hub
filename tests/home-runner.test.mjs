@@ -213,6 +213,34 @@ test('a rejected lesson goes back to Qwen with the draft and exact question path
   assert.deepEqual(calls[2].body.explorations[0].lesson.items[0], calls[0].body.explorations[0].lesson.items[0]);
 });
 
+test('a whole-lesson retry uses Hub errors without resending the rejected package', async () => {
+  const context = {
+    contract: 'plan-context/1', contextHash: 'sha256:' + '0'.repeat(64), purpose: 'daily', subjects: [],
+  };
+  const draft = {
+    contract: 'plan-result/1', contextHash: context.contextHash, summary: 'Nội dung bản nháp cũ',
+    subjects: [], explorations: [], usage: { model: 'test', inputTokens: 0, outputTokens: 0, ms: 0 },
+  };
+  const qwen = fakeEngine('qwen', [() => draft, () => ({ ...draft, summary: 'Bản mới' })]);
+  const calls = [];
+  const hub = {
+    context: async () => context,
+    async result(_lease, body, dryRun) {
+      calls.push({ body, dryRun });
+      return calls.length === 1
+        ? { status: 422, body: { errors: [{ path: '/subjects/0/roadmapChanges', code: 'roadmap' }] } }
+        : { status: 200 };
+    },
+    state: async () => ({ status: 'succeeded' }),
+    fail: async () => assert.fail('Expected the regenerated result to be saved'),
+  };
+  assert.equal((await processJob(hub, { kind: 'plan', jobId: 'job_plan' }, qwen)).status, 'succeeded');
+  assert.match(qwen.seen[1].user, /roadmapChanges/);
+  assert.doesNotMatch(qwen.seen[1].user, /Nội dung bản nháp cũ/);
+  assert.deepEqual(calls.map(call => call.dryRun), [true, true, false]);
+  assert.equal(calls[2].body.summary, 'Bản mới');
+});
+
 test('a duplicate found on the Mac is repaired before the Hub sees the draft', async () => {
   const lesson = structuredClone(fixture);
   const context = {

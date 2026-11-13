@@ -909,6 +909,20 @@
                       "type": "string",
                       "pattern": "^[a-z0-9_-]{1,30}$"
                     }
+                  },
+                  "sequences": {
+                    "minItems": 1,
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "minItems": 2,
+                      "maxItems": 8,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9_-]{1,30}$"
+                      }
+                    }
                   }
                 },
                 "required": [

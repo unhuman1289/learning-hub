@@ -50,3 +50,5 @@ Khi `roadmapProtocol=2`, làm theo `adaptive.mode`, `stepRole`, `targetSkills` v
 Khi `roadmapTask=extend`, gửi 3–6 thao tác append trong `roadmapChanges`. Khi `replan`, gửi 5–10 `openingSteps` dựa trên kỹ năng và kết quả đã có. Bước mới tham chiếu kỹ năng bằng ID hoặc key của kỹ năng được thêm trong cùng kết quả. Nếu tham chiếu một bước mới cùng kết quả, đặt ref cho bước đó. Bài thử gồm 5–6 câu, tối thiểu hai câu vận dụng, ít nhất nửa số câu chấm ngay, có một câu ở mức khó cao nhất được giao, và không có gợi ý. Khi `knowledge.missingForStepIds` chứa bước đích, chọn bài kỹ năng.
 
 Với lượt xin bài khi `roadmapTask=none`, chỉ đề xuất `roadmapChanges` nếu nguồn mới hoặc bằng chứng học cho thấy cần chỉnh bước tương lai. Giữ bước dùng trong bài này. Chỉ thêm kỹ năng mới nếu cần cho bước đề xuất. Bài thử dùng 5–6 câu và đổi tình huống so với câu đã làm.
+
+Với câu trả lời ngắn có nhiều cách viết tương đương, ghi 2–6 đáp án đúng trong accepted, mỗi cách tối đa 3 từ. Với câu sắp xếp có nhiều thứ tự đúng, dùng sequence cho đáp án chính và sequences cho đến 4 thứ tự đúng khác.

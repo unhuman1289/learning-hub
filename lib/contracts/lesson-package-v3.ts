@@ -6,7 +6,12 @@ const id = z.string().regex(/^[a-z0-9_-]{1,30}$/);
 const cell = z.union([textKey, numericKey]);
 const clozeKey = z.object({ type: z.literal("cloze"), blanks: z.array(textKey).min(1).max(6) }).strict();
 const matchKey = z.object({ type: z.literal("match"), pairs: z.array(z.tuple([id, id])).min(2).max(8) }).strict();
-const orderKey = z.object({ type: z.literal("order"), sequence: z.array(id).min(2).max(8) }).strict();
+const orderSequence = z.array(id).min(2).max(8);
+const orderKey = z.object({
+  type: z.literal("order"),
+  sequence: orderSequence,
+  sequences: z.array(orderSequence).min(1).max(4).optional(),
+}).strict();
 const labelKey = z.object({ type: z.literal("label"), labels: z.array(textKey).min(1).max(8) }).strict();
 const tableKey = z.object({ type: z.literal("table"), cells: z.array(cell).min(1).max(36) }).strict();
 export const structuredAnswerKey = z.discriminatedUnion("type", [clozeKey, matchKey, orderKey, labelKey, tableKey]);
@@ -66,7 +71,11 @@ export const lessonPackageV3 = lessonPackageV2.extend({
       case "cloze": valid = item.key.blanks.length === item.fragments.length - 1; break;
       case "match": valid = permutation(item.key.pairs.map(pair => pair[0]), item.left.map(option => option.id))
         && permutation(item.key.pairs.map(pair => pair[1]), item.right.map(option => option.id)); break;
-      case "order": valid = permutation(item.key.sequence, item.steps.map(option => option.id)); break;
+      case "order": {
+        const stepIds = item.steps.map(option => option.id);
+        valid = [item.key.sequence, ...(item.key.sequences ?? [])].every(sequence => permutation(sequence, stepIds));
+        break;
+      }
       case "label": valid = item.marks.length === item.key.labels.length; break;
       case "table": valid = item.headers.length * item.rowLabels.length === item.key.cells.length; break;
     }

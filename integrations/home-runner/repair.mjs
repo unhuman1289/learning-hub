@@ -32,7 +32,7 @@ export function findDuplicates(plan, context) {
   for (const { path, lesson } of lessonsOf(plan))
     lesson.items.forEach((item, index) => {
       const key = norm(item.prompt);
-      if (seen.has(key)) errors.push({ path: `${path}/items/${index}/prompt`, code: 'duplicate_item', message: 'Câu trùng câu đã dùng gần đây hoặc trong lượt này. Đổi tình huống hoặc dạng bài.' });
+      if (seen.has(key)) errors.push({ path: `${path}/items/${index}/prompt`, code: 'duplicate_item', message: 'Câu trùng câu đã dùng gần đây hoặc trong lượt này. Viết đề cụ thể khác hẳn, kể cả khi chỉ dẫn chung giống nhau.' });
       seen.add(key);
     });
   return errors;
@@ -74,6 +74,11 @@ export function partialPrompt({ context, draft, groups, prompts }) {
     const lesson = at(draft, lessonPath);
     if (!lesson) continue;
     lines.push(`Bài ${lessonPath} — "${String(lesson.title ?? '').slice(0, 120)}"`);
+    const unchanged = lesson.items.filter((_, index) => !group.indices.has(index));
+    if (unchanged.length) {
+      lines.push('Đề khác trong cùng bài (không lặp): ' +
+        JSON.stringify(unchanged.map(item => String(item.prompt ?? '').slice(0, 160))).replaceAll('<', '\\u003c'));
+    }
     for (const index of [...group.indices].sort((a, b) => a - b)) {
       const item = lesson.items?.[index];
       if (!item) continue;

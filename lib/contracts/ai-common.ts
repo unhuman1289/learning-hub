@@ -139,7 +139,7 @@ export const error = z
     patternId: z.string().nullable().optional(),
     label: text(120),
     category: z.enum(['knowledge', 'application', 'slip', 'reading', 'unknown']),
-    evidence: text(200),
+    evidence: text(80),
   })
   .strict();
 export const assessResult = z
