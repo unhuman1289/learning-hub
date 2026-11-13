@@ -16,6 +16,7 @@ import { sheetBlocks, splitPaperText } from "./sheet";
 import { PaperConfirm } from "../paper-confirm";
 import { words } from "../words";
 import { ItemCard } from "./item-card";
+import { readOfflineDraft, writeOfflineDraft } from "./offline-draft";
 import { knowledgeBlocks } from "./figures";
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
 import { initialLessonBlock } from "../notebook/page-blocks";
@@ -23,6 +24,13 @@ import { Book } from "../notebook/book";
 import { Spread, type SpreadBlock } from "../notebook/spread";
 import { shortDay } from "../paper-bits";
 import { Feedback, type SubmissionView } from "./feedback";
+type PendingSubmission = {
+  clientSubmissionId: string;
+  draftRevision: number;
+  stage: string | null;
+  itemIds: string[];
+  answers?: DraftAnswers;
+};
 type Lesson = Awaited<ReturnType<typeof readLessonV2>> & { lastSubmission?: SubmissionView | null };
 class RequestError extends Error {
   constructor(
@@ -45,6 +53,7 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 }
 export function LessonReader({
   id,
+  ownerId,
   child = false,
   correction: openCorrection = false,
   learner,
@@ -54,6 +63,7 @@ export function LessonReader({
   go,
 }: {
   id: string;
+  ownerId: string;
   learner: string | null;
   drafts: Drafts;
   child?: boolean;
@@ -77,11 +87,12 @@ export function LessonReader({
     saveInFlight = useRef<Promise<boolean> | null>(null),
     ready = useRef(false),
     generation = useRef(0);
-  const pendingSubmission = useRef<{ clientSubmissionId: string; draftRevision: number; stage: string | null; itemIds: string[]; answers?: DraftAnswers } | null>(null);
-  const cacheKey = "v2:" + id,
+  const pendingSubmission = useRef<PendingSubmission | null>(null);
+  const cacheKey = "v2:" + ownerId + ":" + id,
     readonly = learner !== null,
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
+  const submissionKey = cacheKey + ":submission";
   const cache = useRef(drafts);
   useEffect(() => {
     cache.current = drafts;
@@ -92,14 +103,27 @@ export function LessonReader({
     json<{ lesson: Lesson }>(url + suffix)
       .then(({ lesson: result }) => {
         if (generation.current !== version) return;
-        const cached = cache.current.values[cacheKey];
+        const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
+        if (storedSubmission) {
+          try {
+            const queued = JSON.parse(storedSubmission) as PendingSubmission;
+            if (queued.itemIds?.length === 1 && result.items.some(item => item.id === queued.itemIds[0]) &&
+                typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
+              pendingSubmission.current = queued;
+              setPending(queued.itemIds[0]);
+            }
+          } catch {
+            writeOfflineDraft(submissionKey, undefined);
+          }
+        }
+        const cached = readonly ? undefined : cache.current.values[cacheKey] ?? readOfflineDraft(cacheKey);
         let next = result.draft;
         if (cached && !readonly) {
           try {
             const x = JSON.parse(cached);
             next = x.answers;
             revision.current = x.revision;
-            if (x.revision !== result.draftRevision) {
+            if (x.revision !== result.draftRevision && !pendingSubmission.current) {
               setError("Bài trên máy này khác bản đã lưu. Chép bài làm ra trước, rồi tải lại trang.");
               ready.current = false;
             } else ready.current = true;
@@ -112,6 +136,7 @@ export function LessonReader({
           revision.current = result.draftRevision;
           ready.current = true;
         }
+        if (pendingSubmission.current?.answers) next = pendingSubmission.current.answers;
         latest.current = next;
         saved.current = JSON.stringify(result.draft);
         setAnswers(next);
@@ -126,7 +151,7 @@ export function LessonReader({
       generation.current = version + 1;
       ready.current = false;
     };
-  }, [url, suffix, cacheKey, readonly, onLoaded]);
+  }, [url, suffix, cacheKey, readonly, onLoaded, submissionKey]);
   const refreshFeedback=useCallback(async()=>{
     const version=generation.current;
     try{
@@ -152,6 +177,10 @@ export function LessonReader({
     const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
     if (value.changed) await refreshFeedback();
   }, !!lesson && !busy && waitingForGrade, 5000);
+  const storeDraft = useCallback((value: string | undefined) => {
+    cache.current.set(cacheKey, value);
+    writeOfflineDraft(cacheKey, value);
+  }, [cacheKey]);
   const save = useCallback(async (): Promise<boolean> => {
     if (readonly || !ready.current) return false;
     if (saveInFlight.current) {
@@ -173,10 +202,10 @@ export function LessonReader({
         revision.current = result.revision;
         saved.current = snapshot;
         if (JSON.stringify(latest.current) === snapshot) {
-          cache.current.set(cacheKey, undefined);
+          storeDraft(undefined);
           setState("Đã lưu");
         } else {
-          cache.current.set(cacheKey, JSON.stringify({ revision: revision.current, answers: latest.current }));
+          storeDraft(JSON.stringify({ revision: revision.current, answers: latest.current }));
           setState("Chưa lưu");
         }
         return true;
@@ -193,7 +222,7 @@ export function LessonReader({
       });
     saveInFlight.current = promise;
     return promise;
-  }, [readonly, url, cacheKey]);
+  }, [readonly, url, storeDraft]);
   useEffect(() => {
     if (!lesson || readonly || busy || pending || JSON.stringify(answers) === saved.current) return;
     const timer = setTimeout(() => {
@@ -201,6 +230,14 @@ export function LessonReader({
     }, 800);
     return () => clearTimeout(timer);
   }, [answers, lesson, readonly, busy, pending, save]);
+  useEffect(() => {
+    if (!lesson || readonly || busy || pending) return;
+    function reconnect() {
+      if (JSON.stringify(latest.current) !== saved.current) void save();
+    }
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [lesson, readonly, busy, pending, save]);
   useEffect(() => {
     const leave = (e: BeforeUnloadEvent) => {
       if (JSON.stringify(latest.current) !== saved.current) {
@@ -215,7 +252,7 @@ export function LessonReader({
     const next = { ...latest.current, [itemId]: value };
     latest.current = next;
     setAnswers(next);
-    cache.current.set(cacheKey, JSON.stringify({ revision: revision.current, answers: next }));
+    storeDraft(JSON.stringify({ revision: revision.current, answers: next }));
     setState("Chưa lưu");
   }
   async function reveal(itemId: string, level: "hint1" | "hint2" | "solution") {
@@ -252,6 +289,7 @@ export function LessonReader({
           itemIds: [itemId],
           ...(JSON.stringify(latest.current) !== saved.current ? { answers: latest.current } : {}),
         };
+        writeOfflineDraft(submissionKey, JSON.stringify(pendingSubmission.current));
         setPending(itemId);
       }
       const input = pendingSubmission.current;
@@ -269,16 +307,19 @@ export function LessonReader({
       if (input.answers) {
         revision.current = response.draftRevision;
         saved.current = JSON.stringify(input.answers);
-        cache.current.set(cacheKey, JSON.stringify(latest.current) === saved.current ? undefined :
+        ready.current = true;
+        storeDraft(JSON.stringify(latest.current) === saved.current ? undefined :
           JSON.stringify({ revision: revision.current, answers: latest.current }));
       }
       pendingSubmission.current = null;
+      writeOfflineDraft(submissionKey, undefined);
       setPending(null);
       setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
     } catch (e) {
       if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
         pendingSubmission.current = null;
+        writeOfflineDraft(submissionKey, undefined);
         setPending(null);
         void refreshFeedback();
       }
@@ -376,7 +417,7 @@ export function LessonReader({
       reservedLines: 4 + inputLines(item) + (item.attachment !== "none" ? 2 : 0),
       extraLine: item.prompt.length > 60,
       text: [item.prompt, item.instructions, ...(item.choices ?? []).map(choice => choice.text)].filter((value): value is string => !!value).map(value => ({ value })),
-      node: <ItemCard formatText={formatText} item={item} number={index + 1}
+      node: <ItemCard germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(lesson.subjectTitle)} formatText={formatText} item={item} number={index + 1}
         value={answers[item.id] ?? { answer: item.input === "code" ? item.starter : "" }} hasAnswer={hasWork}
         disabled={busy || !!pending} readOnly={frozen}
         onChange={value => change(item.id, value)} onReveal={level => reveal(item.id, level)}

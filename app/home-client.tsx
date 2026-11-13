@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { SketchIcon } from "./hub/sketch-icons";
 import AuthControls from "../components/auth-controls";
 import { ProfileControls } from "../components/profile-controls";
@@ -11,7 +11,7 @@ import { Desk } from "./hub/desk";
 import { DocumentForm, type FormRequest } from "./hub/document-form";
 import type { Drafts } from "./hub/lesson-page";
 import { NotebookView } from "./hub/notebook-view";
-import { AdminView } from "./hub/pages";
+
 import { StudyMeter } from "./hub/study-meter";
 import { useStudyClock } from "./hub/use-study-clock";
 import { RouteLink, buttonClass } from "./hub/ui";
@@ -26,10 +26,12 @@ import {LessonReader} from "./hub/lesson-v2/reader";
 import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
-export default function Home({ userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
+const AdminView = lazy(() => import("./hub/pages").then(module => ({ default: module.AdminView })));
+
+export default function Home({ userId, userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userId: string; userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
   const { route: requested, go, ready: routeReady } = useRoute();
-  const workspace = useWorkspace();
+  const workspace = useWorkspace(!hub2Enabled);
   const daily = useDaily();
   // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
   const [viewingId, setViewingId] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
     return () => window.removeEventListener("beforeunload", leave);
   }, [unsaved]);
 
-  useWebMcp(workspace);
+  useWebMcp(workspace, !hub2Enabled);
   // Time with a notebook open counts as study time; nothing has to be logged by hand.
   const [lessonClock,setLessonClock]=useState<{id:string;subjectId:string}|null>(null);
   const onLessonLoaded=useCallback((id:string,subjectId:string)=>setLessonClock({id,subjectId}),[]);
@@ -104,7 +106,7 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
             ))}
           </nav>}
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
-            <SaveIndicator workspace={workspace} />
+            {!hub2Enabled && <SaveIndicator workspace={workspace} />}
             <StudyMeter clock={clock} labelFor={labelFor} />
             {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={shelf.learners.find(l=>l.relation==="self")?.id} /> : <AuthControls name={name} email={userEmail} />}
           </div>
@@ -126,13 +128,13 @@ export default function Home({ userEmail, userName, userRole,hub2Enabled=false,p
             hub2={hub2Enabled}
           />
         )}
-        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
+        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
         {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canEditNotebook} canDelete={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
         {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
-        {route.view === "admin" && (isAdmin ? <AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
+        {route.view === "admin" && (isAdmin ? <Suspense fallback={<p role="status">Đang mở Quản trị…</p>}><AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /></Suspense> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>
 
-      <SaveProblem workspace={workspace} />
+      {!hub2Enabled && <SaveProblem workspace={workspace} />}
 
       {nav.length >= 2 && <nav aria-label="Điều hướng chính" style={{ viewTransitionName: "site-nav" }} className="bg-oak fixed inset-x-0 bottom-0 z-20 flex justify-around border-t-4 border-oak-dark px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 text-oak-ink shadow-[0_-6px_12px_-6px_rgb(40_24_8/0.4)] lg:hidden">
         {nav.map(({ route: target, label, icon, on }) => (
@@ -181,9 +183,10 @@ function SaveProblem({ workspace }: { workspace: WorkspaceApi }) {
 }
 
 /** Browser agent tools (WebMCP). Staged changes still need a visible save. */
-function useWebMcp(workspace: WorkspaceApi) {
+function useWebMcp(workspace: WorkspaceApi, enabled: boolean) {
   const { latest, loaded, commit } = workspace;
   useEffect(() => {
+    if (!enabled) return;
     const ctx = (document as Document & { modelContext?: { registerTool: (tool: unknown, opts: { signal: AbortSignal }) => unknown } }).modelContext;
     if (!ctx?.registerTool) return;
     const lifecycle = new AbortController();
@@ -217,5 +220,5 @@ function useWebMcp(workspace: WorkspaceApi) {
       }
     }
     return () => lifecycle.abort();
-  }, [latest, loaded, commit]);
+  }, [latest, loaded, commit, enabled]);
 }

@@ -9,10 +9,12 @@ import { PaperDialog } from "../paper-dialog";
 import { SketchIcon } from "../sketch-icons";
 import { words } from "../words";
 import { uploadPhoto } from "./photo";
+import { germanCharacters, hasVietnameseTyping } from "./keyboard";
 import { StructuredInput } from "./inputs/structured";
 export function ItemCard({
   item,
   number,
+  germanInput = false,
   feedback,
   feedbackPreview,
   feedbackResult,
@@ -32,6 +34,7 @@ export function ItemCard({
   formatText?:(text:string)=>string;
   item: ItemView;
   number: number;
+  germanInput?: boolean;
   feedback?: (onCodeLine?: (line: number) => void) => ReactNode;
   feedbackPreview?: string;
   feedbackResult?: string | null;
@@ -51,6 +54,7 @@ export function ItemCard({
     [uploading, setUploading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   // A long question on a phone can push the result below the page; bring it into view when it changes.
+  const answerField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const resultRow = useRef<HTMLDivElement>(null);
   const shownResult = useRef(feedbackResult);
   useEffect(() => {
@@ -109,6 +113,10 @@ export function ItemCard({
           {item.input === "short" ? (
             <input
               id={fieldId}
+              ref={element => { answerField.current = element; }}
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               value={value.answer}
               disabled={locked}
               onChange={(e) => onChange({ ...value, answer: e.target.value })}
@@ -119,6 +127,10 @@ export function ItemCard({
           ) : (
             <textarea
               id={fieldId}
+              ref={element => { answerField.current = element; }}
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
               value={value.answer}
               disabled={locked}
               onChange={(e) => onChange({ ...value, answer: e.target.value })}
@@ -128,6 +140,27 @@ export function ItemCard({
               className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted focus:border-b-2 focus:border-accent-paper max-h-[45dvh]"
             />
           )}
+          {germanInput && !locked && <>
+            <div role="group" aria-label="Ký tự tiếng Đức" className="flex flex-wrap gap-x-1">
+              {germanCharacters.map(character => (
+                <button key={character} type="button" aria-label={"Chèn " + character}
+                  className={pencilLink + " inline-grid min-h-11 min-w-11 place-items-center text-lg"}
+                  onPointerDown={event => event.preventDefault()}
+                  onClick={() => {
+                    const field = answerField.current;
+                    if (!field) return;
+                    const start = field.selectionStart ?? value.answer.length;
+                    const end = field.selectionEnd ?? start;
+                    const answer = value.answer.slice(0, start) + character + value.answer.slice(end);
+                    if (answer.length > field.maxLength) return;
+                    onChange({ ...value, answer });
+                    field.focus();
+                    requestAnimationFrame(() => field.setSelectionRange(start + 1, start + 1));
+                  }}>{character}</button>
+              ))}
+            </div>
+            {hasVietnameseTyping(value.answer) && <p role="status" className="text-sm text-muted">Có dấu tiếng Việt. Bạn thử đổi sang bàn phím tiếng Đức.</p>}
+          </>}
         </div>
       ) : <StructuredInput item={item} value={value.answer} disabled={locked} focusLine={focusLine}
         onChange={answer => onChange({ ...value, answer })} />}

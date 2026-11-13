@@ -56,7 +56,9 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
     const windowSvg = svg.current;
     if (!windowSvg) return;
     let inView = true;
-    const syncMotion = () => windowSvg.toggleAttribute("data-motion-paused", document.hidden || !inView);
+    const connection = (navigator as Navigator & { connection?: EventTarget & { saveData?: boolean } }).connection;
+    const syncMotion = () => windowSvg.toggleAttribute("data-motion-paused", document.hidden || !inView || connection?.saveData === true);
+    connection?.addEventListener("change", syncMotion);
     const observer = new IntersectionObserver(([entry]) => {
       inView = entry.isIntersecting;
       syncMotion();
@@ -66,6 +68,7 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
     syncMotion();
     return () => {
       observer.disconnect();
+      connection?.removeEventListener("change", syncMotion);
       document.removeEventListener("visibilitychange", syncMotion);
     };
   }, []);
