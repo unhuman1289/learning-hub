@@ -91,7 +91,17 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     if(modern&&!initial&&task!=='replan'&&s.openingSteps)issue(path+'/openingSteps','schema','Chỉ lập bước đầu khi Hub yêu cầu.');
     if(modern&&task==='extend'&&(s.roadmapChanges?.filter(change=>change.op==='append').length??0)<3)
       issue(path+'/roadmapChanges','schema','Cần thêm ít nhất ba bước.');
-    if(modern&&task==='none'&&s.roadmapChanges?.length)issue(path+'/roadmapChanges','schema','Chưa cần thay đổi lộ trình.');
+    const optionalEdits=modern&&job.purpose==='request'&&task==='none';
+    if(modern&&task==='none'&&!optionalEdits&&s.roadmapChanges?.length)
+      issue(path+'/roadmapChanges','schema','Chưa cần thay đổi lộ trình.');
+    if(optionalEdits&&s.roadmapChanges?.length&&!result.explorations.some(e=>
+      e.action==='assign'&&e.lesson&&context.explorations.some(r=>r.requestId===e.requestId&&r.subjectId===s.subjectId)))
+      issue(path+'/roadmapChanges','roadmap','Đề xuất chỉnh bước phải đi cùng một bài đã soạn.');
+    const targetStep=context.adaptive?.step?.id;
+    if(job.purpose==='request'&&targetStep&&s.roadmapChanges?.some(change=>'stepId' in change&&change.stepId===targetStep))
+      issue(path+'/roadmapChanges','roadmap','Giữ bước đang dùng để soạn bài này.');
+    if(optionalEdits&&s.skillChanges.some(change=>change.op!=='add'))
+      issue(path+'/skillChanges','skill_graph','Giữ nguyên kỹ năng hiện có trong lượt xin bài.');
     if (s.action === 'issue') {
       outcomes.push({ subjectId: s.subjectId, status: 'rejected', lessonIds: [], reason: s.reason });
       continue;
@@ -262,7 +272,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             SELECT ?,EXISTS(SELECT 1 FROM roadmap_steps WHERE id=? AND learner_id=? AND subject_id=? AND revision=? AND status='planned')
             WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`)
             .bind(token+':step:'+step.id,step.id,job.learner_id,s.subjectId,step.revision,job.id,token));
-        statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
+        if(task==='replan')statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
       }catch(error){issue(path+'/roadmapChanges','roadmap',String((error as Error).message).slice(0,300));}
     }
     if(initial||task==='replan'){

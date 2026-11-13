@@ -75,8 +75,13 @@ function generationSchema(kind, context, schema) {
     delete subjects.items.properties.roadmap;
     if(context.roadmapProtocol===2){
       subjects.items.properties.progressSummary=schema.properties.subjects.items.properties.progressSummary;
-      if(context.adaptive.roadmapTask!=='none')
-        subjects.items.properties.skillChanges=schema.properties.subjects.items.properties.skillChanges;
+      const task=context.adaptive.roadmapTask;
+      subjects.items.properties.skillChanges=schema.properties.subjects.items.properties.skillChanges;
+      if(task==='none'){
+        const skills=subjects.items.properties.skillChanges;
+        skills.items={oneOf:skills.items.oneOf.filter(branch=>branch.properties.op.const==='add')};
+      }
+      if(task!=='replan')delete subjects.items.properties.openingSteps;
       if(context.adaptive.roadmapTask==='replan')subjects.items.required.push('openingSteps');
       if(context.adaptive.roadmapTask==='extend'){
         subjects.items.required.push('roadmapChanges');
@@ -92,6 +97,22 @@ function generationSchema(kind, context, schema) {
       explorations.items.properties.action = { const: 'assign' };
       const lesson = explorations.items.properties.lesson.anyOf.find(branch => branch.type === 'object');
       lesson.properties.kind = { enum: kinds };
+      if(context.roadmapProtocol===2){
+        lesson.properties.estMinutes={const:context.adaptive.minutes};
+        const targets=context.adaptive.targetSkills;
+        if(targets.length&&['learn','challenge'].includes(context.adaptive.mode)){
+          lesson.properties.targetSkills={type:'array',minItems:targets.length,maxItems:targets.length,items:{enum:targets}};
+        }
+        if(context.adaptive.mode==='challenge'){
+          lesson.properties.template={const:'skill'};
+          lesson.properties.items.minItems=5;
+          lesson.properties.items.maxItems=6;
+          const items=lesson.properties.items.items;
+          for(const branch of items.anyOf??[items]){
+            if(branch.properties?.hints)branch.properties.hints.maxItems=0;
+          }
+        }
+      }
       explorations.items.properties.lesson = lesson;
     }
     return request;
@@ -346,12 +367,13 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
     let draft;
+    let wholeLessonRepair = false;
     // A lesson with a few repeated or wrong items usually needs two corrections; grading needs one.
     const rounds = lease.kind === 'plan' ? 3 : 2;
     for (let round = 0; round < rounds; round++) {
       let result;
       // Only some items were rejected: resend just those, not the whole lesson.
-      const partial = lease.kind === 'plan' && draft && repair ? itemFailures(repair) : null;
+      const partial = lease.kind === 'plan' && !wholeLessonRepair && draft && repair ? itemFailures(repair) : null;
       try {
         if (partial) {
           const { text, paths } = partialPrompt({
@@ -365,9 +387,9 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         const out = await qwen.run({
           system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.roadmapProtocol !== 2 && context.subjects.some(subject => subject.limits?.package === 3)
             ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3. Bài chẩn đoán có đúng 5 câu i1–i5 và 8 kỹ năng step-1 đến step-8. Chỉ dùng các tham chiếu key:step-1 đến key:step-8. Nếu là Rust, i1 viết code; với môn khác, i1 nối cặp. Mỗi câu i2–i5 chỉ có một ô trống và đúng một nhóm đáp án. Kỹ năng tiên quyết chỉ tham chiếu bước trước.'
-            : '') + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Viết openingSteps khi mở sổ hoặc replan, dùng roadmapChanges append khi extend. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
+            : '') + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
-          user: userPrompt(promptContext, repair, draft),
+          user: userPrompt(promptContext, repair, wholeLessonRepair ? undefined : draft),
           schema,
           images,
         });
@@ -376,6 +398,10 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       } catch (error) {
         lastError = qwen.name + ': ' + (error instanceof Error ? error.message : String(error));
         log({ jobId: lease.jobId, engine: qwen.name, event: 'engine_error' });
+        if(partial&&round+1<rounds){
+          wholeLessonRepair=true;
+          continue;
+        }
         break;
       }
       const local = contract.zod.safeParse(result);
@@ -404,7 +430,17 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         log({ jobId: lease.jobId, engine: qwen.name, event: 'dry_run_422', errors: repair.slice(0, 10).map((e) => e.code + ' ' + e.path) });
         continue;
       }
-      await submit(hub, lease, validResult);
+      try {
+        await submit(hub, lease, validResult);
+      } catch(error) {
+        if(lease.kind!=='plan'||context.purpose!=='request'||!(error instanceof HubError)||error.status!==409)throw error;
+        const current=await hub.state(lease.jobId);
+        if(current.status==='leased'){
+          const next=await hub.fail(lease,'Sổ vừa đổi, cần đọc lại tiến độ.',true);
+          return {jobId:lease.jobId,status:next.status};
+        }
+        if(current.status!=='succeeded')throw error;
+      }
       const verified = await hub.state(lease.jobId);
       if (verified.status !== 'succeeded') throw Error('Hub chưa xác nhận kết quả (' + verified.status + ').');
       const lessonCount = lease.kind === 'plan' && verified.outcome

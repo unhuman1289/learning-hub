@@ -252,7 +252,7 @@ export async function prepareExplorations(
         .prepare(
           `UPDATE learner_requests SET status='done',result_lesson_id=?,response_note=?,processed_at=? WHERE id=? AND learner_id=? AND status IN ('queued','in_job') AND EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND ${gate}`,
         )
-        .bind(id, e.reason, stamp, e.requestId, job.learner_id, id, ...args),
+        .bind(id, context.adaptive?.reason ?? e.reason, stamp, e.requestId, job.learner_id, id, ...args),
     );
   }
   return { statements, guards, savedIds, minutes };

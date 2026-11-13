@@ -1160,5 +1160,26 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
   assert.equal(more.outcome.extraLessonIds.length,1);
   assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n,8);
   assert.equal(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE id=?').get(steps[0].id).status,'placed');
+  for (const valid of [true,false]) {
+    const stamp=new Date(later.getTime()+(valid?1000:2000));
+    const requested=await createRequest(db,{},learner,learner,parseRequest({
+      subjectId:notebook.id,mode:'practice',stepId:steps[0].id,clientRequestId:crypto.randomUUID(),
+    }),stamp);
+    const [pending]=await leaseJobs(db,client,{...input,capabilities:['adaptive-plan','roadmap-v2']},'test',stamp);
+    const ctx=JSON.parse((await readJob(db,pending.jobId)).context_snapshot);
+    assert.equal(ctx.adaptive.roadmapTask,'none');
+    const payload=plan(ctx,null);
+    const revised=db.sqlite.prepare("SELECT id,title FROM roadmap_steps WHERE subject_id=? AND status='planned' ORDER BY ord LIMIT 1").get(notebook.id);
+    payload.subjects[0].roadmapChanges=[{op:'revise',stepId:valid?revised.id:steps[0].id,fields:{title:'Đề xuất sửa bước'}}];
+    const lesson=structuredClone(practice);
+    lesson.items.forEach(item=>{item.prompt=(valid?'Buổi họp: ':'Nhà ga: ')+item.prompt;});
+    payload.explorations=[{requestId:requested.id,subjectId:notebook.id,action:'assign',reason:'Luyện bước đã qua',lesson}];
+    const applied=await applyResult(db,client,pending.jobId,pending.leaseToken,payload,false,stamp);
+    assert.equal(applied.status,200,JSON.stringify(applied));
+    assert.equal(applied.outcome.extraLessonIds.length,1);
+    assert.equal(db.sqlite.prepare('SELECT title FROM roadmap_steps WHERE id=?').get(revised.id).title,valid?'Đề xuất sửa bước':revised.title);
+    assert.equal(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE id=?').get(steps[0].id).status,'placed');
+    assert.equal((await applyResult(db,client,pending.jobId,pending.leaseToken,payload,false,stamp)).replayed,true);
+  }
   db.sqlite.close();
 });

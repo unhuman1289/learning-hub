@@ -33,13 +33,29 @@ export async function applyResult(
   let issues = parsed.success ? [] : parsed.error.issues.map((e) => ({ path: '/' + e.path.join('/'), code: 'schema', message: e.message }));
   if (parsed.success && parsed.data.contextHash !== job.context_hash) throw new ApiError(409, 'Ngữ cảnh không khớp lease.');
   const token = crypto.randomUUID();
-  const prepared = parsed.success
+  let prepared = parsed.success
     ? job.kind === 'plan'
       ? await preparePlan(db, job, JSON.parse(job.context_snapshot!) as PlanContext, parsed.data as typeof planResult._output, token, now)
       : job.purpose === 'recheck'
         ? await prepareRecheck(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
         : await prepareAssess(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
     : null;
+  let skippedRoadmap = false;
+  if(parsed.success&&job.kind==='plan'&&job.purpose==='request'&&prepared&&'outcomes' in prepared){
+    const context=JSON.parse(job.context_snapshot!) as PlanContext;
+    if(context.roadmapProtocol===2&&context.adaptive?.roadmapTask==='none'&&prepared.errors.some(issue=>
+      /^\/subjects\/\d+\/(roadmapChanges|openingSteps|skillChanges)(\/|$)/.test(issue.path))){
+      const result=parsed.data as typeof planResult._output;
+      const subjects=result.subjects.map(subject=>{
+        const copy={...subject,skillChanges:[]};
+        delete copy.roadmapChanges;
+        delete copy.openingSteps;
+        return copy;
+      });
+      prepared=await preparePlan(db,job,context,{...result,subjects},token,now);
+      skippedRoadmap=true;
+    }
+  }
   if (prepared) issues = prepared.errors;
   if (issues.length) {
     // A dry run is how a runner checks its draft; only real submissions count toward the 3-strike limit.
@@ -152,7 +168,7 @@ export async function applyResult(
       await recomputeSkill(db, job.learner_id, skillId, now,(JSON.parse(job.context_snapshot!) as AssessContext).lesson.lessonId).catch((error) =>
         console.error('Skill not recomputed after recheck:', error instanceof Error ? error.message : error),
       );
-  if(job.kind==='plan'&&job.subject_id&&'subjects' in parsed.data&&parsed.data.subjects.some(s=>s.roadmapChanges?.length||s.openingSteps?.length))
+  if(!skippedRoadmap&&job.kind==='plan'&&job.subject_id&&'subjects' in parsed.data&&parsed.data.subjects.some(s=>s.roadmapChanges?.length||s.openingSteps?.length))
     await checkCoverage(db,job.learner_id,job.subject_id).catch(()=>console.error('Roadmap coverage not refreshed.'));
   return { status: 200, outcome: JSON.parse(saved.outcome!), replayed: false };
 }
