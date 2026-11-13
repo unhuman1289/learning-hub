@@ -79,7 +79,7 @@ test('two Rust learners share verified sources and a gap, while their steps stay
   assert.equal((await readRoadmapProgress(db,'b',second.id)).done.length,0);
   assert.equal(await readRoadmapProgress(db,'a',second.id),null);
   const snapshot=Object.fromEntries(Object.entries(backupColumns).map(([table,columns])=>[
-    table,db.sqlite.prepare('SELECT '+columns.join(',')+' FROM '+table).all(),
+    table,db.sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE name=?").get(table) ? db.sqlite.prepare('SELECT '+columns.join(',')+' FROM '+table).all() : [],
   ]));
   const restored=memoryDb();t.after(()=>restored.sqlite.close());
   restored.sqlite.exec(buildRestoreSql({format:4,tables:snapshot}));

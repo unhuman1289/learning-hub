@@ -13,8 +13,6 @@ import { sendAlertDigest } from "../lib/alerts";
 import directMcp from './direct-mcp-worker';
 import {isDirectMcpRoute, isMcpAccountSignIn} from './mcp-routing';
 import {householdGuard, householdMode} from '../lib/household';
-import {deliverEvents} from '../lib/mcp/events';
-export {EventDispatcher} from './direct-mcp-worker';
 
 const berlinHour = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" });
 
@@ -59,8 +57,6 @@ export default {
   },
   scheduled(controller: ScheduledController, env: Cloudflare.Env, ctx: ExecutionContext) {
     const scheduledAt = new Date(controller.scheduledTime);
-    if(env.MCP_EVENTS_ENABLED==='true'&&env.DB)
-      ctx.waitUntil(deliverEvents(env as Parameters<typeof deliverEvents>[0],scheduledAt));
     if (env.HUB2_ENABLED === "true" && env.DB) {
       const steps = hub2Steps(env.DB, env, scheduledAt);
       if (steps.length) ctx.waitUntil(runSteps(steps));

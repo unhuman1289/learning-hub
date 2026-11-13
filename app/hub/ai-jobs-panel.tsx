@@ -3,7 +3,7 @@ import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./ui";
 import { apiJson } from "./api";
-type ApiBody = { error?: string; eventDispatchEnabled?: boolean; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
+type ApiBody = { error?: string; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
 type PlanNotebook = { id: string; title: string; aiEnabled: boolean; status: string };
 type Job = {
   id: string;
@@ -20,7 +20,6 @@ type Job = {
 export function AiJobsPanel() {
   const [jobs, setJobs] = useState<Job[]>([]),
     [error, setError] = useState(""),
-    [eventDispatchEnabled, setEventDispatchEnabled] = useState(false),
     [notice,setNotice]=useState(""),
     [pending,setPending]=useState<{learner:string;requestId:string;subjectId:string}|null>(null),
     [status, setStatus] = useState(""),
@@ -60,7 +59,6 @@ export function AiJobsPanel() {
       x = (await r.json()) as ApiBody;
     if (!r.ok) throw Error(x.error || "Chưa tải được nhật ký.");
     setJobs(x.jobs);
-    setEventDispatchEnabled(Boolean(x.eventDispatchEnabled));
   }
   useEffect(() => {
     let alive = true;
@@ -70,7 +68,6 @@ export function AiJobsPanel() {
         if (!r.ok) throw Error(x.error || "Chưa tải được nhật ký.");
         if (alive) {
           setJobs(x.jobs);
-          setEventDispatchEnabled(Boolean(x.eventDispatchEnabled));
         }
       })
       .catch((e) => {
@@ -125,20 +122,11 @@ export function AiJobsPanel() {
       setError((e as Error).message);
     }
   }
-  async function dispatch(id:string){
-    setBusy(true);setError('');setNotice('');
-    try{
-      const r=await fetch('/api/admin/ai-jobs/'+id+'/dispatch',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
-      const x=await r.json() as {error?:string;delivered?:number};
-      if(!r.ok)throw Error(x.error||'Chưa xác nhận gửi sự kiện.');
-      setNotice(x.delivered?'ChatGPT đã nhận thông báo. Đang chờ kết quả xử lý.':'Chưa gửi thêm thông báo: có thể đã gửi, đang chờ thử lại hoặc chưa có kết nối phù hợp.');await refresh();
-    }catch(e){setError((e as Error).message);}finally{setBusy(false);}
-  }
   return (
     <section aria-label="Lượt soạn và chấm" className="grid gap-4">
       <h2 className="font-print text-2xl">Lượt soạn và chấm</h2>
       <p className="text-sm text-muted">
-        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. {eventDispatchEnabled ? "Có thể gửi sự kiện cho lượt đang chờ." : "Máy ở nhà tự nhận lượt soạn và chấm."}
+        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. Máy ở nhà tự nhận lượt soạn và chấm.
       </p>
       <div className="flex flex-wrap gap-3">
         <label>
@@ -211,7 +199,6 @@ export function AiJobsPanel() {
                 Huỷ lượt
               </button>
             )}
-            {eventDispatchEnabled&&j.status==='queued'&&<button disabled={busy} className={buttonClass('secondary','ml-2 mt-2')} onClick={()=>void dispatch(j.id)}>Gửi thông báo</button>}
           </li>
         ))}
       </ul>

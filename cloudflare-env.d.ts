@@ -9,7 +9,6 @@ declare namespace Cloudflare {
     AI_COST_ALERT_USD?:string;
     AI_PRICE_TABLE?:string;
     AI_QUEUE?:Queue;
-    EVENT_DISPATCHER?:{dispatch(jobId:string):Promise<{delivered:number}>};
     ASSETS?: Fetcher;
     DB?: D1Database;
     BUCKET?: R2Bucket;

@@ -59,7 +59,7 @@ test('backup restore retains reflections and roadmap on a fresh isolated databas
  const {db,submission}=await setup();await saveReflection(db,'learner',submission.id,input,now);
  const path=Array.from({length:5},()=>({title:'Email',objective:'Viết',situation:'Công việc',skills:['sk_test'],mode:'new'}));
  db.sqlite.prepare('UPDATE subjects SET roadmap=? WHERE id=?').run(JSON.stringify(path),sid);
- const snapshot={format:4,tables:Object.fromEntries(Object.keys(backupColumns).map(t=>[t,db.sqlite.prepare(`SELECT * FROM ${t}`).all()]))};
+ const snapshot={format:4,tables:Object.fromEntries(Object.keys(backupColumns).map(t=>[t,db.sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE name=?").get(t) ? db.sqlite.prepare(`SELECT * FROM ${t}`).all() : []]))};
  const restored=memoryDb();restored.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES('learner','unhuman','test@example.test',1,1,1,'learner','active')").run();
  restored.sqlite.exec(buildRestoreSql(snapshot));
  assert.equal((await readReflection(restored,'learner',submission.id)).note,input.note);

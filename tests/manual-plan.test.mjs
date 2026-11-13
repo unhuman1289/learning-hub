@@ -22,11 +22,11 @@ test('manual plans reject foreign/archived notebooks and require a selection for
  const a=await createManualPlan(db,{},'owner',first,'de');assert(a.id);db.sqlite.close();
 });
 
-test('saved manual daily immediately dispatches its job; a failed dispatch keeps the same queued job for recovery',async()=>{
- const db=memoryDb();seed(db,'de','owner');const ids=[];
- const bindings={EVENT_DISPATCHER:{async dispatch(id){ids.push(id);throw Error('unavailable');}}};
- const a=await createManualPlan(db,bindings,'owner',first);assert.deepEqual(ids,[a.id]);
+test('manual daily keeps the same queued job for runner recovery',async()=>{
+ const db=memoryDb();seed(db,'de','owner');
+ const bindings={};
+ const a=await createManualPlan(db,bindings,'owner',first);
  assert.equal((await readManualPlan(db,'owner',first)).status,'queued');
- assert.equal((await createManualPlan(db,bindings,'owner',first)).id,a.id);assert.equal(ids.length,1);
+ assert.equal((await createManualPlan(db,bindings,'owner',first)).id,a.id);
  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM ai_jobs').get().n,1);db.sqlite.close();
 });

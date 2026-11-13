@@ -37,7 +37,7 @@ export async function GET(req: Request) {
       )
       .bind(status, status, learner, learner, kind, kind)
       .all();
-    return Response.json({ jobs: results, eventDispatchEnabled: env.AI_LOCAL_ONLY !== "true" && Boolean(env.EVENT_DISPATCHER) }, { headers });
+    return Response.json({ jobs: results }, { headers });
   } catch (e) {
     return apiFailure(e, 'Chưa tải được nhật ký xử lý.', headers);
   }

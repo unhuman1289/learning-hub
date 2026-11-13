@@ -84,10 +84,7 @@
             "binding": "AI_QUEUE"
           }
         ]
-      },
-      "services": [
-        {"binding":"EVENT_DISPATCHER","service":"learning-hub-mcp-staging","entrypoint":"EventDispatcher"}
-      ]
+      }
     },
     "production": {
       "placement": { "region": "azure:westeurope" },
@@ -108,7 +105,6 @@
         "AI_JOBS_DAILY_CAP": "300",
         "HUB2_ENABLED": "true",
         "MCP_ENABLED": "true",
-        "MCP_EVENTS_ENABLED": "false",
         "AI_LOCAL_ONLY": "true",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",

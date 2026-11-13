@@ -6,7 +6,6 @@ import { usesAdaptivePlan } from '../subjects/sql.ts';
 export type QueueBindings = {
   AI_LOCAL_ONLY?: string;
   ADAPTIVE_PILOT_SUBJECT_ID?: string;
-  EVENT_DISPATCHER?:{dispatch(jobId:string):Promise<{delivered:number}>};
   AI_JOBS_DAILY_CAP?: string;
   AI_QUEUE?: { send(body: unknown): Promise<unknown> };
   AI_DISPATCH_URL?: string;
@@ -169,7 +168,6 @@ export async function enqueue(
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
   if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {
-    await bindings.EVENT_DISPATCHER?.dispatch(saved.id).catch(() => console.error('Event dispatch unavailable; queued job retained.'));
     if (saved.trigger === 'on_demand')
       await dispatchJob(bindings, saved, now).catch(() => console.error('Dispatch unavailable; queued job retained.'));
   }

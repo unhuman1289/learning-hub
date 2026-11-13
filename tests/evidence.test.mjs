@@ -174,7 +174,7 @@ test('backup round trip retains fractional grades, retries and foreign keys', as
   db.sqlite.prepare("UPDATE grades SET score=0.75,result='partial'").run();
   const snapshot = {
     format: 4,
-    tables: Object.fromEntries(Object.keys(backupColumns).map((t) => [t, db.sqlite.prepare(`SELECT * FROM ${t}`).all()])),
+    tables: Object.fromEntries(Object.keys(backupColumns).map((t) => [t, db.sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE name=?").get(t) ? db.sqlite.prepare(`SELECT * FROM ${t}`).all() : []])),
   };
   const restored = memoryDb();
   restored.sqlite.exec('PRAGMA foreign_keys=ON');

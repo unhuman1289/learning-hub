@@ -12,14 +12,31 @@ export type LearningBackup = {
 const tableNames = Object.keys(backupColumns);
 const backupPrefix = (environment: string) => `learning-hub/${environment}/backups/`;
 
+async function snapshotQueries(db: JournalDb) {
+  // Old backup formats retain empty entries after a legacy table is retired.
+  const catalog = await db.prepare("SELECT name FROM sqlite_schema WHERE type='table'").all<{ name: string }>();
+  const present = new Set((catalog.results ?? []).map(row => row.name));
+  const retired = new Set([
+    'learning_workspace', 'learning_slots', 'learning_runs', 'runs', 'legacy_run_items',
+    'automation_runs', 'run_targets', 'run_items', 'run_events',
+    'mcp_event_subscriptions', 'mcp_event_deliveries',
+  ]);
+  return tableNames.map(table =>
+    !present.has(table) && retired.has(table)
+      ? db.prepare('SELECT 1 WHERE 0')
+      : db.prepare(`SELECT * FROM ${table} ORDER BY rowid`),
+  );
+}
+
 async function readConsistentSnapshot(
   db: JournalDb,
   deploymentId: string,
   now: Date,
   backupId = crypto.randomUUID(),
 ): Promise<LearningBackup> {
+  const queries = await snapshotQueries(db);
   const results = await db.batch(
-    tableNames.map((table) => db.prepare(`SELECT * FROM ${table} ORDER BY rowid`)),
+    queries,
   ) as { results?: Record<string, unknown>[] }[];
 
   if (results.length !== tableNames.length || tableNames.some((_, index) => !Array.isArray(results[index]?.results))) {
@@ -46,7 +63,7 @@ export async function createBackup(
   const createdAt = now.toISOString();
   const results = await db.batch([
     db.prepare('INSERT INTO backup_events(id,created_at,created_by) VALUES(?,?,?)').bind(backupId, createdAt, userId),
-    ...tableNames.map((table) => db.prepare(`SELECT * FROM ${table} ORDER BY rowid`)),
+    ...await snapshotQueries(db),
   ]) as { results?: Record<string, unknown>[] }[];
 
   if (results.length !== tableNames.length + 1 || tableNames.some((_, index) => !Array.isArray(results[index + 1]?.results))) {

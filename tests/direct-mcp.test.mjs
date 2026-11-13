@@ -111,11 +111,11 @@ test('Knowledge OAuth requires an active adult administrator and current consent
  db.sqlite.close();
 });
 
-import {authorizationMetadata, mcpScopesFor} from '../lib/mcp/metadata.ts';
+import {authorizationMetadata, mcpScopes} from '../lib/mcp/metadata.ts';
 test('production MCP advertises and accepts only the Knowledge OAuth task scope',()=>{
- const scopes=mcpScopesFor('production');
+ const scopes=mcpScopes;
  assert.deepEqual(scopes,['openid','offline_access','hub:knowledge']);
- assert.deepEqual(authorizationMetadata('https://learn.unhuman.cc','production').scopes_supported,scopes);
- assert(mcpScopesFor('staging').includes('hub:plan'));
- assert(mcpScopesFor('staging').includes('hub:assess'));
+ assert.deepEqual(authorizationMetadata('https://learn.unhuman.cc').scopes_supported,scopes);
+ assert(!mcpScopes.includes('hub:plan'));
+ assert(!mcpScopes.includes('hub:assess'));
 });
