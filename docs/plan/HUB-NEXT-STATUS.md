@@ -27,7 +27,7 @@ Cập nhật cuối mỗi luồng làm việc (plan mục 10). Mỗi dòng ngắ
 | P điện thoại | WIP tại `4c85759` | Có manifest, `keyboard.ts`, `offline-draft.ts`, tải riêng trang Quản trị; còn `/api/rum`, `/api/today` gom và e2e |
 | M mockup | **M1–M4 đã được chủ dự án duyệt ngày 14/11/2026**, [docs/mockups/index.html](../mockups/index.html) tại `35e863517e11a3f050ba7894129707309ca0881d` | Hoàn tất cổng M |
 | U1 bàn học | **Chủ dự án đã duyệt ảnh**, [draft PR #145](https://github.com/unhuman1289/learning-hub/pull/145), `codex/u-desk-lesson-notebook` từ `codex/hub-next-wip` | Chrome local 390/1280 px và `runner:fake` đạt; còn kiểm iPhone/Android/WebView thật |
-| U2 bài học | Bản local trên `codex/u2-lesson`, tách từ U1 | Chrome 390/1280 px và `runner:fake` đạt; chờ duyệt ảnh |
+| U2 bài học | [Draft PR #146](https://github.com/unhuman1289/learning-hub/pull/146), `codex/u2-lesson` từ nhánh U1 | Chrome 390/1280 px và `runner:fake` đạt; chờ duyệt ảnh |
 | U3–U4, L, G, T, K | Chưa bắt đầu | Chờ duyệt U2 trước khi làm U3 |
 
 ## Chờ chủ dự án
