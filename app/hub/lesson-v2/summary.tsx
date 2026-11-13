@@ -5,24 +5,17 @@ import { useEffect, useState } from "react";
 import type { LessonSummaryData } from "../../../lib/lesson-v2/summary";
 import { apiJson, learnerQuery } from "../api";
 import { useLiveRefresh } from "../use-live-refresh";
-import { NewLessonRequest } from "../new-lesson-request";
-import { AdaptiveRequests } from "../notebook/request-icons";
 import { pencil, pencilLink, RedPen, skillLabel } from "../paper-bits";
-import type { Route } from "../use-route";
-import { LessonReflection } from "./reflection";
 
-const noRefresh = () => undefined;
-
-export function LessonSummary({ lessonId, subjectId, learner, reflectionId, waiting, progressKey, onQuestion, onReview, onHome, onOpen, go, completed = true, justCompleted = false }: {
-  lessonId: string; subjectId: string; learner: string | null; reflectionId?: string; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
-  completed?: boolean; justCompleted?: boolean; onReview: () => void; onHome: () => void; onOpen: (id: string) => void; go: (route: Route) => void;
+export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuestion, onReview, onHome, onReflection, completed = true, justCompleted = false }: {
+  lessonId: string; learner: string | null; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
+  completed?: boolean; justCompleted?: boolean; onReview: () => void; onHome: () => void; onReflection?: () => void;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
-  const [adaptive, setAdaptive] = useState<boolean | null>(null);
   const url = `/api/lessons/${lessonId}/summary${learnerQuery(learner)}`;
   useEffect(() => {
     let live = true;
-    apiJson<{summary: LessonSummaryData; adaptive: boolean}>(url).then(({summary, adaptive}) => { if (live) { setData(summary); setAdaptive(adaptive); } })
+    apiJson<{summary: LessonSummaryData}>(url).then(({summary}) => { if (live) { setData(summary); setError(""); } })
       .catch((e: Error) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [url, waiting, progressKey]);
@@ -55,13 +48,9 @@ export function LessonSummary({ lessonId, subjectId, learner, reflectionId, wait
         <p className={pencil}>{data.minutes} phút học sổ này hôm nay{data.hintsUsed ? ` · ${data.hintsUsed} lần xem gợi ý` : ""}.</p>
         {data.needsPractice.length > 0 && <p>Nên luyện thêm: {data.needsPractice.map(skillLabel).join(", ")}.</p>}
         {data.comments.map(comment => <RedPen key={comment} className="mt-7">{comment}</RedPen>)}
-        {!learner && reflectionId && <LessonReflection key={reflectionId} submissionId={reflectionId} minutes={data.minutes} />}
       </>}
-      <div className="mt-7">
-        {!learner && adaptive === false && <NewLessonRequest subjectId={subjectId} onOpen={onOpen} />}
-        {!learner && adaptive && <AdaptiveRequests subjectId={subjectId} learner={learner} go={go} onSaved={noRefresh} currentLessonId={lessonId} />}
-      </div>
-      <div className="flex min-h-14 flex-wrap items-center gap-x-5">
+      <div className="mt-4 flex min-h-14 flex-wrap items-center gap-x-5">
+        {onReflection && <button type="button" onClick={onReflection} className={pencilLink}>Góp ý cho bài sau <span aria-hidden="true">→</span></button>}
         <button onClick={onReview} className={pencilLink}>{words.action.review}</button>
         <button onClick={onHome} className={pencilLink}>{words.action.close}</button>
       </div>

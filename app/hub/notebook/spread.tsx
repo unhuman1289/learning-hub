@@ -153,7 +153,7 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
             aria-label={`Trang ${n + 1}`} className="spread-page bg-ruled">
             <div className="spread-paper-body" data-overflow={page.some(block =>
               block.kind === "notebook" || block.kind === "summary" || block.long || blockLines(block, geometry) > geometry.lines - 1)}>
-            <p tabIndex={-1} data-page-focus className="spread-page-label font-hand text-sm text-muted">{page[0].kind === "summary" ? "Tổng kết" : page[0].kind === "item"
+            <p tabIndex={-1} data-page-focus className="spread-page-label font-hand text-sm text-muted">{page[0].kind === "summary" ? (page[0].label ?? "Tổng kết") : page[0].kind === "item"
                 ? page.length > 1 && page.at(-1)?.kind === "item" ? `Câu ${page[0].id.slice(4)}–${page.at(-1)?.id.slice(4)}` : page[0].label
                 : page[0].kind === "notebook" ? page[0].label : "Ghi nhớ"}</p>
             {nearby && viewport.pageWidth > 0 && page.map(block => <div key={block.id} data-block={block.id} data-kind={block.kind} className="spread-block">
