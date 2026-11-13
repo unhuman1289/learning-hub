@@ -381,37 +381,34 @@ html[data-vt="turn"]::view-transition-old(lesson-page) {
   z-index: 2;
 }
 html[data-vt="turn"]::view-transition-new(lesson-page) { animation: page-under 340ms ease-out both; }
-/* A leaf pivots at the gutter. The exposed pages stay flat while its two faces turn. */
+/* The stationary pages stay under the turning leaf until it settles. */
 html[data-spread-turn]::view-transition-old(root),
-html[data-spread-turn]::view-transition-old(book),
-html[data-spread-turn="forward"]::view-transition-old(spread-left),
-html[data-spread-turn="back"]::view-transition-old(spread-right) { display: none; }
+html[data-spread-turn]::view-transition-old(book) { display: none; }
 
 html[data-spread-turn]::view-transition-new(root),
 html[data-spread-turn]::view-transition-new(book),
 html[data-spread-turn]::view-transition-group(spread-left),
 html[data-spread-turn]::view-transition-group(spread-right),
-html[data-spread-turn]::view-transition-new(spread-left),
-html[data-spread-turn]::view-transition-new(spread-right) { animation: none; }
-
+html[data-spread-turn]::view-transition-group(spread-single),
 html[data-spread-turn]::view-transition-old(spread-left),
 html[data-spread-turn]::view-transition-old(spread-right),
+html[data-spread-turn]::view-transition-old(spread-single),
 html[data-spread-turn]::view-transition-new(spread-left),
-html[data-spread-turn]::view-transition-new(spread-right) { mix-blend-mode: normal; }
-
-html[data-spread-turn="forward"]::view-transition-group(spread-right),
-html[data-spread-turn="back"]::view-transition-group(spread-left) { z-index: 2; }
-
-html[data-spread-turn="forward"]::view-transition-old(spread-right),
-html[data-spread-turn="back"]::view-transition-old(spread-left) {
-  animation: leaf-away 200ms ease-in both;
+html[data-spread-turn]::view-transition-new(spread-right),
+html[data-spread-turn]::view-transition-new(spread-single) {
+  animation: none;
+  mix-blend-mode: normal;
 }
-html[data-spread-turn="forward"]::view-transition-new(spread-left),
-html[data-spread-turn="back"]::view-transition-new(spread-right) {
-  animation: leaf-land 240ms ease-out 200ms both;
+
+html[data-spread-turn] {
+  --leaf-duration: 520ms;
+  --leaf-ease: cubic-bezier(.42, 0, .25, 1);
 }
+
 html[data-spread-turn]::view-transition-old(spread-right),
-html[data-spread-turn]::view-transition-new(spread-right) {
+html[data-spread-turn]::view-transition-new(spread-right),
+html[data-spread-turn]::view-transition-old(spread-single),
+html[data-spread-turn]::view-transition-new(spread-single) {
   --leaf-edge: -90deg;
   transform-origin: left center;
 }
@@ -420,13 +417,42 @@ html[data-spread-turn]::view-transition-new(spread-left) {
   --leaf-edge: 90deg;
   transform-origin: right center;
 }
+html[data-spread-turn="forward"]::view-transition-old(spread-right),
+html[data-spread-turn="back"]::view-transition-old(spread-left) {
+  z-index: 1;
+  animation: leaf-away var(--leaf-duration) linear both;
+}
+html[data-spread-turn="forward"]::view-transition-new(spread-left),
+html[data-spread-turn="back"]::view-transition-new(spread-right) {
+  z-index: 1;
+  animation: leaf-land var(--leaf-duration) linear both;
+}
+html[data-spread-turn="forward"]::view-transition-old(spread-single) {
+  z-index: 1;
+  animation: leaf-single-away 390ms var(--leaf-ease) both;
+}
+html[data-spread-turn="back"]::view-transition-new(spread-single) {
+  z-index: 1;
+  animation: leaf-single-land 390ms var(--leaf-ease) both;
+}
 @keyframes leaf-away {
-  from { transform: perspective(1300px) rotateY(0); }
-  to { transform: perspective(1300px) rotateY(var(--leaf-edge)); }
+  from { transform: perspective(1500px) rotateY(0); filter: brightness(1); opacity: 1; animation-timing-function: cubic-bezier(.42, 0, 1, 1); }
+  50% { transform: perspective(1500px) rotateY(var(--leaf-edge)); filter: brightness(.82); opacity: 1; }
+  51%, to { transform: perspective(1500px) rotateY(var(--leaf-edge)); filter: brightness(.82); opacity: 0; }
 }
 @keyframes leaf-land {
-  from { transform: perspective(1300px) rotateY(var(--leaf-edge)); }
-  to { transform: perspective(1300px) rotateY(0); }
+  from, 50% { transform: perspective(1500px) rotateY(var(--leaf-edge)); filter: brightness(.82); }
+  from, 49% { opacity: 0; }
+  50% { opacity: 1; animation-timing-function: cubic-bezier(0, 0, .25, 1); }
+  to { transform: perspective(1500px) rotateY(0); filter: brightness(1); opacity: 1; }
+}
+@keyframes leaf-single-away {
+  from { transform: perspective(1500px) rotateY(0); filter: brightness(1); }
+  to { transform: perspective(1500px) rotateY(var(--leaf-edge)); filter: brightness(.82); }
+}
+@keyframes leaf-single-land {
+  from { transform: perspective(1500px) rotateY(var(--leaf-edge)); filter: brightness(.82); }
+  to { transform: perspective(1500px) rotateY(0); filter: brightness(1); }
 }
 @keyframes book-rise {
   from { opacity: 0; transform: perspective(1400px) translateY(60px) rotateX(14deg) scale(0.94); }
@@ -522,14 +548,14 @@ html[data-spread-turn]::view-transition-new(spread-left) {
 .lesson-spread {
   display: grid;
   position: relative;
-  grid-template-columns: 56px minmax(0, 1fr) 56px;
-  width: min(100%, calc(var(--spread-width) + 112px));
+  width: min(100%, var(--spread-width));
   margin-inline: auto;
   touch-action: pan-y;
 }
 html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
-.lesson-spread[data-turning] .spread-page[data-offpage="false"][data-side="left"] { view-transition-name: spread-left; }
-.lesson-spread[data-turning] .spread-page[data-offpage="false"][data-side="right"] { view-transition-name: spread-right; }
+.lesson-spread[data-turning][data-double="true"] .spread-page[data-offpage="false"][data-side="left"] { view-transition-name: spread-left; }
+.lesson-spread[data-turning][data-double="true"] .spread-page[data-offpage="false"][data-side="right"] { view-transition-name: spread-right; }
+.lesson-spread[data-turning][data-double="false"] .spread-page[data-offpage="false"] { view-transition-name: spread-single; }
 .spread-pages {
   position: relative;
   display: grid;
@@ -583,8 +609,39 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
 .spread-page-count { display: flex; align-items: center; justify-content: center; gap: 6px; }
 .spread-dot { width: 10px; height: 10px; border: 1px solid var(--color-accent-paper); border-radius: 50%; }
 .spread-dot[data-current="true"] { background: var(--color-accent-paper); }
-.spread-edge { display: grid; place-items: center; align-self: end; width: 56px; height: 56px; }
-.spread-save { position: absolute; bottom: 4px; right: 64px; }
+.spread-page[data-curl-left] { border-bottom-left-radius: 17px; }
+.spread-page[data-curl-right] { border-bottom-right-radius: 17px; }
+.spread-corner {
+  position: absolute;
+  z-index: 2;
+  inset: auto 0 0 auto;
+  width: 48px;
+  height: 48px;
+  cursor: pointer;
+}
+.spread-corner[data-previous="true"] { inset-inline: 0 auto; }
+.spread-corner svg {
+  position: absolute;
+  inset: auto 0 0 auto;
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+  fill: color-mix(in srgb, var(--color-paper) 87%, #b79a71);
+  stroke: #987c5e;
+  stroke-width: .6;
+  filter: drop-shadow(-1px -2px 2px #49301c50);
+  transform-origin: bottom right;
+  scale: var(--curl-scale, 1);
+  transition: scale 170ms ease-out;
+}
+.spread-corner[data-previous="true"] svg {
+  inset-inline: 0 auto;
+  transform-origin: bottom left;
+  filter: drop-shadow(1px -2px 2px #49301c50);
+}
+.spread-corner:hover, .spread-corner:focus-visible { --curl-scale: 1.35; }
+.spread-corner:focus-visible { outline-offset: -6px; }
+.spread-save { position: absolute; bottom: 4px; right: 48px; }
 .spread-question > div:first-child { position: relative; padding-inline-end: 48px; }
 .spread-question > div:first-child > div { position: absolute; inset-inline-end: 0; top: 0; }
 .spread-question[data-compact="short"] {
@@ -601,16 +658,9 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   .spread-question[data-compact="choice"] > fieldset:has(label) + .spread-check button { pointer-events: auto; }
   .spread-question[data-compact="choice"] > fieldset:has(+ .spread-check) label:last-child { padding-inline-end: 7.5rem; }
 }
-.spread-edge:disabled { opacity: .25; }
 @media (min-width: 1024px) {
   .spread-memory { position: absolute; z-index: 5; inset: 0 auto auto 0; width: 56px; padding: 0; }
   .spread-memory button { width: 100%; padding-inline: .15rem; }
-}
-@media (max-width: 639px) {
-  .lesson-spread { grid-template-columns: minmax(56px, 1fr) minmax(56px, 1fr); gap: 0; }
-  .spread-pages { grid-column: 1 / -1; grid-row: 1; }
-  .spread-edge:last-of-type { justify-self: end; }
-  .spread-save { bottom: 57px; right: 4px; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .animate-spread-turn { animation: spread-turn 300ms ease-out; }

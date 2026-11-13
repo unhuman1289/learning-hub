@@ -405,7 +405,7 @@ export function LessonReader({
         if (index >= 0) jump(`cau-${index + 1}`);
       }}
       progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
-      onReview={() => jump("head")} completed={!!lesson.completedAt} justCompleted={justCompleted} />
+      completed={!!lesson.completedAt} justCompleted={justCompleted} />
   </> });
   if (reflection) blocks.push({ id: "reflection", kind: "summary", label: "Góp ý",
     node: <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />,

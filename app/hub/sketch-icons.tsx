@@ -27,10 +27,3 @@ export function SketchIcon({ name, size = 24, className }: {
     <path d={strokes[name]} />
   </svg>;
 }
-
-export function SketchTurnCorner({ back = false }: { back?: boolean }) {
-  return <svg width="38" height="38" viewBox="0 0 40 40" aria-hidden="true" style={{ transform: back ? "scaleX(-1)" : undefined }}>
-    <path d="M4 5h31v18L20 35H4Z" fill="#f7eac9" stroke="#6b4e36" strokeWidth="1.5" strokeLinejoin="round" />
-    <path d="M20 35c4-4 7-9 6-14l9 2M10 17h10m-4-4 4 4-4 4" fill="none" stroke="#6b4e36" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>;
-}

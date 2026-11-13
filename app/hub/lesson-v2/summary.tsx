@@ -1,15 +1,14 @@
 "use client";
 import { Stamp } from "../../../components/notebook/paper";
-import { words } from "../words";
 import { useEffect, useState } from "react";
 import type { LessonSummaryData } from "../../../lib/lesson-v2/summary";
 import { apiJson, learnerQuery } from "../api";
 import { useLiveRefresh } from "../use-live-refresh";
-import { pencil, pencilLink, RedPen, skillLabel } from "../paper-bits";
+import { pencil, RedPen, skillLabel } from "../paper-bits";
 
-export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuestion, onReview, completed = true, justCompleted = false }: {
+export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false }: {
   lessonId: string; learner: string | null; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
-  completed?: boolean; justCompleted?: boolean; onReview: () => void;
+  completed?: boolean; justCompleted?: boolean;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
   const url = `/api/lessons/${lessonId}/summary${learnerQuery(learner)}`;
@@ -49,7 +48,6 @@ export function LessonSummary({ lessonId, learner, waiting, progressKey, onQuest
         {data.needsPractice.length > 0 && <p>Nên luyện thêm: {data.needsPractice.map(skillLabel).join(", ")}.</p>}
         {data.comments.map(comment => <RedPen key={comment} className="mt-7">{comment}</RedPen>)}
       </>}
-      <button type="button" onClick={onReview} className={`${pencilLink} mt-4`}>{words.action.review}</button>
     </section>
   );
 }
