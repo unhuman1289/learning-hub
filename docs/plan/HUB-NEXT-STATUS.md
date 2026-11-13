@@ -2,7 +2,7 @@
 
 Cập nhật cuối mỗi luồng làm việc (plan mục 10). Mỗi dòng ngắn, chỉ ghi sự thật đã kiểm.
 
-**Cập nhật:** 13/11/2026 23:45 (Claude, audit phiên Codex).
+**Cập nhật ngày 14/11/2026.** Nhánh `codex/hub-next-wip`, [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144).
 
 ## Môi trường
 
@@ -10,25 +10,27 @@ Cập nhật cuối mỗi luồng làm việc (plan mục 10). Mỗi dòng ngắ
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | **code chưa commit** từ `~/Code/Learning Hub` (health vẫn báo nhãn cũ `hub2-adaptive-roadmap-2026-11-12`) | Đã áp `0026`, `0027`, `0028` |
-| Dev chính | `~/Code/Learning Hub` trên `main` (`03902ed`) + 65 tệp sửa, 18 tệp mới **chưa commit** | Cần chuyển sang nhánh `codex/hub-next-wip` |
+| Staging | Worker version `70771acb-3c56-4ab8-ab08-e475e4e5efcd` (100% traffic, deploy 13/11 lúc 19:10 Berlin) | Health `ok`, D1 kết nối. Bản deploy từ checkout chưa commit, health vẫn mang nhãn `hub2-adaptive-roadmap-2026-11-12` và metadata không có Git SHA. Snapshot đối chiếu hiện có là `35e8635` (mã ứng dụng đến `4c85759`), chưa xác minh trùng khớp với bản build đang chạy. `0026`–`0028` đã áp theo audit 13/11. |
+| Dev chính | `~/Code/Learning Hub` trên `codex/hub-next-wip`, từ `main` sau PR #143 | Đã lưu 89 tệp thay đổi sau khi thay bản plan chưa track bằng bản trên `main`. |
 
 ## Các bước
 
 | Bước | Trạng thái | Còn lại |
 |---|---|---|
-| E1 local | Dở (chưa commit) | `dev-setup`, `fake-runner`, `DEVELOPMENT.md` đã có; cần commit và kiểm trên clone mới |
-| E2 phát hành | Dở | `release.mjs` chưa xong; health staging chưa hiện commit |
+| E1 local | WIP tại `42badfc` | Có `dev-setup`, `fake-runner`, `DEVELOPMENT.md`; còn kiểm trên clone mới |
+| E2 phát hành | WIP tại `42badfc` | `release.mjs` chưa xong; health staging chưa hiện commit |
 | E3 tách production | **Xong** | Gỡ `work/simpler-notebook-form` sau 24 giờ runner chạy ổn |
-| S chuẩn bị | **Xong** | Lưu trữ v1 ở `private-data/release-20261113/`; `AGENTS.md` đã duyệt (chưa commit); chủ dự án đã cho phép xoá v1 |
-| C bỏ ChatGPT soạn/chấm | Trên staging | Kiểm kết nối Knowledge có đăng nhập; production chờ đồng ý |
-| V1–V2 gỡ v1 | Trên staging (API v1 trả 410, `0027` đã áp) | Production chờ đồng ý |
-| V3 một gói bài | **Bị chặn** | Qwen soạn Deutsch theo v3 bị Hub từ chối. Làm theo V3 bản 3 (`itemKinds` theo sổ, cổng Q) |
-| P điện thoại | Dở (chưa commit) | Đã có manifest, `keyboard.ts`, `offline-draft.ts`, tách trang Quản trị; còn `/api/rum`, `/api/today` gom, e2e |
-| M mockup | Bản đầu trong `docs/mockups/` | **Chờ chủ dự án: "Duyệt M1–M4" hoặc danh sách sửa** |
+| S chuẩn bị | **Xong** | Lưu trữ v1 ở bộ nhớ riêng; `AGENTS.md` đã duyệt và lưu tại `42badfc`; chủ dự án đã cho phép xoá v1 |
+| C bỏ ChatGPT soạn/chấm | Trên staging theo audit 13/11; WIP tại `6eeb62d` | Kiểm kết nối Knowledge có đăng nhập; production chờ đồng ý |
+| V1–V2 gỡ v1 | Trên staging theo audit 13/11 (API v1 trả 410, `0027` đã áp); WIP tại `ffe4ec4` | Production chờ đồng ý |
+| V3 một gói bài | **Bị chặn**, WIP tại `f8c831a` | Qwen soạn Deutsch theo v3 bị Hub từ chối. Làm theo V3 bản 3 (`itemKinds` theo sổ, cổng Q) |
+| P điện thoại | WIP tại `4c85759` | Có manifest, `keyboard.ts`, `offline-draft.ts`, tải riêng trang Quản trị; còn `/api/rum`, `/api/today` gom và e2e |
+| M mockup | Bản đầu tại `35e8635` | **Chờ chủ dự án duyệt M1–M4 hoặc gửi danh sách sửa** |
 | U, L, G, T, K | Chưa bắt đầu | U bắt đầu ngay khi M được duyệt |
 
 ## Chờ chủ dự án
 
 1. Duyệt mockup M1–M4.
-2. Merge PR #143 (plan bản 3) để Codex đọc plan từ `main`.
+2. Review [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144) khi các bước sẵn sàng.
+
+Kiểm tra local đạt 402 test, typecheck, lint, contracts:check và build. Chưa kiểm điện thoại thật hoặc e2e. Lượt này không chạy Qwen, deploy hay áp migration.
