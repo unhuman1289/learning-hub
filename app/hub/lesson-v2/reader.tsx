@@ -1,66 +1,26 @@
 "use client";
-import {useLiveRefresh} from "../use-live-refresh";
-import {feedbackForItems} from "../../../lib/feedback-history";
-import {LessonSummary} from "./summary";
-import {LessonReflection} from "./reflection";
-import {useRunnerStatus} from "../runner-status";
-import {pencil, pencilLink} from "../paper-bits";
-import type {Route} from "../use-route";
-import {formatChemicalText,isChemistryNotebook} from "../../../lib/chemistry";
-import { useCallback, useEffect, useRef, useState } from "react";
-import type { readLessonV2 } from "../../../lib/lesson-v2/store";
-import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
-import type { Drafts } from "../lesson-page";
-import { buttonClass } from "../ui";
-import { sheetBlocks, splitPaperText } from "./sheet";
-import { PaperConfirm } from "../paper-confirm";
-import { words } from "../words";
-import { ItemCard } from "./item-card";
-import { readOfflineDraft, writeOfflineDraft } from "./offline-draft";
-import { knowledgeBlocks } from "./figures";
+
+import { feedbackForItems } from "../../../lib/feedback-history";
+import { formatChemicalText, isChemistryNotebook } from "../../../lib/chemistry";
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
-import { initialLessonBlock } from "../notebook/page-blocks";
+import { waitingForFeedback, useLessonSession, type Lesson } from "../lesson/use-session";
+import { LessonFlow } from "../lesson/flow";
+import { LessonItem } from "../lesson/item";
+import { LessonSummary } from "../lesson/summary";
 import { Book } from "../notebook/book";
-import { Spread, type SpreadBlock } from "../notebook/spread";
-import { shortDay } from "../paper-bits";
+import { PaperConfirm } from "../paper-confirm";
+import { pencil, pencilLink, shortDay } from "../paper-bits";
+import { buttonClass } from "../ui";
+import { words } from "../words";
+import type { Route } from "../use-route";
+import type { Drafts } from "../lesson-page";
 import { Feedback, type SubmissionView } from "./feedback";
-type PendingSubmission = {
-  clientSubmissionId: string;
-  draftRevision: number;
-  stage: string | null;
-  itemIds: string[];
-  answers?: DraftAnswers;
-};
-type Lesson = Awaited<ReturnType<typeof readLessonV2>> & { lastSubmission?: SubmissionView | null };
-class RequestError extends Error {
-  constructor(
-    message: string,
-    readonly status: number,
-  ) {
-    super(message);
-  }
-}
-async function json<T>(url: string, init?: RequestInit): Promise<T> {
-  let response: Response;
-  try {
-    response = await fetch(url, { cache: "no-store", ...init });
-  } catch {
-    throw new RequestError("Mất kết nối. Bài làm vẫn còn trên trang.", 0);
-  }
-  const value = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
-  if (!response.ok || !value) throw new RequestError(value?.error || "Chưa xác nhận thao tác.", response.status);
-  return value;
-}
+import { knowledgeBlocks } from "./figures";
+import { sheetBlocks } from "./sheet";
+import { LessonReflection } from "./reflection";
+
 export function LessonReader({
-  id,
-  ownerId,
-  child = false,
-  correction: openCorrection = false,
-  learner,
-  drafts,
-  onLoaded,
-  onCompleted,
-  go,
+  id, ownerId, child = false, correction = false, learner, drafts, onLoaded, onCompleted, go,
 }: {
   id: string;
   ownerId: string;
@@ -72,419 +32,122 @@ export function LessonReader({
   go: (route: Route) => void;
   onCompleted?: () => Promise<void>;
 }) {
-  const [lesson, setLesson] = useState<Lesson | null>(null),
-    [pageJump, setPageJump] = useState<{ id: string; key: number } | null>(null);
-  const [answers, setAnswers] = useState<DraftAnswers>({}),
-    [error, setError] = useState(""),
-    [state, setState] = useState(""),
-    [busy, setBusy] = useState(false),
-    [history,setHistory]=useState<SubmissionView[]>([]),
-    [feedbackError,setFeedbackError]=useState(""),
-    [pending, setPending] = useState<string | null>(null);
-  const revision = useRef(0),
-    latest = useRef<DraftAnswers>({}),
-    saved = useRef("{}"),
-    saveInFlight = useRef<Promise<boolean> | null>(null),
-    ready = useRef(false),
-    generation = useRef(0);
-  const pendingSubmission = useRef<PendingSubmission | null>(null);
-  const cacheKey = "v2:" + ownerId + ":" + id,
-    readonly = learner !== null,
-    url = `/api/lessons/${id}`,
-    suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
-  const submissionKey = cacheKey + ":submission";
-  const cache = useRef(drafts);
-  useEffect(() => {
-    cache.current = drafts;
-  }, [drafts]);
-  useEffect(() => {
-    const version = ++generation.current;
-    ready.current = false;
-    json<{ lesson: Lesson }>(url + suffix)
-      .then(({ lesson: result }) => {
-        if (generation.current !== version) return;
-        const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
-        if (storedSubmission) {
-          try {
-            const queued = JSON.parse(storedSubmission) as PendingSubmission;
-            if (queued.itemIds?.length === 1 && result.items.some(item => item.id === queued.itemIds[0]) &&
-                typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
-              pendingSubmission.current = queued;
-              setPending(queued.itemIds[0]);
-            }
-          } catch {
-            writeOfflineDraft(submissionKey, undefined);
-          }
-        }
-        const cached = readonly ? undefined : cache.current.values[cacheKey] ?? readOfflineDraft(cacheKey);
-        let next = result.draft;
-        if (cached && !readonly) {
-          try {
-            const x = JSON.parse(cached);
-            next = x.answers;
-            revision.current = x.revision;
-            if (x.revision !== result.draftRevision && !pendingSubmission.current) {
-              setError("Bài trên máy này khác bản đã lưu. Chép bài làm ra trước, rồi tải lại trang.");
-              ready.current = false;
-            } else ready.current = true;
-          } catch {
-            next = result.draft;
-            revision.current = result.draftRevision;
-            ready.current = true;
-          }
-        } else {
-          revision.current = result.draftRevision;
-          ready.current = true;
-        }
-        if (pendingSubmission.current?.answers) next = pendingSubmission.current.answers;
-        latest.current = next;
-        saved.current = JSON.stringify(result.draft);
-        setAnswers(next);
-        setLesson(result);
-        onLoaded?.(result.id, result.subjectId);
-        setState(JSON.stringify(next) === saved.current ? "" : "Chưa lưu");
-      })
-      .catch((e) => {
-        if (generation.current === version) setError(e.message);
-      });
-    return () => {
-      generation.current = version + 1;
-      ready.current = false;
-    };
-  }, [url, suffix, cacheKey, readonly, onLoaded, submissionKey]);
-  const refreshFeedback=useCallback(async()=>{
-    const version=generation.current;
-    try{
-      const value=await json<{submissions:SubmissionView[];lesson:Pick<Lesson,"items"|"stages">}>(url+"/feedback"+suffix);
-      if(generation.current!==version)return;
-      setHistory(value.submissions);setFeedbackError("");
-      // Add server-authored check questions without touching draft revision, answers or current page.
-      setLesson(current=>current?{...current,items:value.lesson.items,stages:value.lesson.stages}:current);
-    }catch(e){if(generation.current===version)setFeedbackError((e as Error).message);}
-  },[url,suffix]);
-  useEffect(()=>{void Promise.resolve().then(refreshFeedback);},[refreshFeedback]);
-  const waiting = (submission?: SubmissionView) => !!submission &&
-    submission.attempts.some(a => (!a.result && !["cancelled","failed","expired"].includes(submission.job_status ?? "")) || a.dispute?.status === "rechecking");
-  const waitingForGrade = lesson?.items.some(item => waiting(feedbackForItems(history, [item.id])[0])) ?? false;
-  useLiveRefresh(async () => {
-    const active = lesson?.items.flatMap(item => {
-      const submission = feedbackForItems(history, [item.id])[0];
-      return waiting(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
-    }) ?? [];
-    const query = new URLSearchParams(suffix.slice(1));
-    query.set("watch", active.map(attempt => attempt.id).join(","));
-    query.set("rechecks", active.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(","));
-    const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
-    if (value.changed) await refreshFeedback();
-  }, !!lesson && !busy && waitingForGrade, 5000);
-  const storeDraft = useCallback((value: string | undefined) => {
-    cache.current.set(cacheKey, value);
-    writeOfflineDraft(cacheKey, value);
-  }, [cacheKey]);
-  const save = useCallback(async (): Promise<boolean> => {
-    if (readonly || !ready.current) return false;
-    if (saveInFlight.current) {
-      await saveInFlight.current;
-      if (JSON.stringify(latest.current) === saved.current) return true;
-    }
-    const snapshot = JSON.stringify(latest.current);
-    if (snapshot === saved.current) return true;
-    const version = generation.current;
-    setState("Đang lưu…");
-    setError("");
-    const promise = json<{ revision: number }>(url + "/draft", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ revision: revision.current, answers: JSON.parse(snapshot) }),
-    })
-      .then((result) => {
-        if (generation.current !== version) return false;
-        revision.current = result.revision;
-        saved.current = snapshot;
-        if (JSON.stringify(latest.current) === snapshot) {
-          storeDraft(undefined);
-          setState("Đã lưu");
-        } else {
-          storeDraft(JSON.stringify({ revision: revision.current, answers: latest.current }));
-          setState("Chưa lưu");
-        }
-        return true;
-      })
-      .catch((e) => {
-        if (generation.current === version) {
-          setError(e.message);
-          setState("Chưa lưu");
-        }
-        return false;
-      })
-      .finally(() => {
-        saveInFlight.current = null;
-      });
-    saveInFlight.current = promise;
-    return promise;
-  }, [readonly, url, storeDraft]);
-  useEffect(() => {
-    if (!lesson || readonly || busy || pending || JSON.stringify(answers) === saved.current) return;
-    const timer = setTimeout(() => {
-      void save();
-    }, 800);
-    return () => clearTimeout(timer);
-  }, [answers, lesson, readonly, busy, pending, save]);
-  useEffect(() => {
-    if (!lesson || readonly || busy || pending) return;
-    function reconnect() {
-      if (JSON.stringify(latest.current) !== saved.current) void save();
-    }
-    window.addEventListener("online", reconnect);
-    return () => window.removeEventListener("online", reconnect);
-  }, [lesson, readonly, busy, pending, save]);
-  useEffect(() => {
-    const leave = (e: BeforeUnloadEvent) => {
-      if (JSON.stringify(latest.current) !== saved.current) {
-        e.preventDefault();
-        e.returnValue = "";
-      }
-    };
-    window.addEventListener("beforeunload", leave);
-    return () => window.removeEventListener("beforeunload", leave);
-  }, []);
-  function change(itemId: string, value: DraftAnswers[string]) {
-    const next = { ...latest.current, [itemId]: value };
-    latest.current = next;
-    setAnswers(next);
-    storeDraft(JSON.stringify({ revision: revision.current, answers: next }));
-    setState("Chưa lưu");
-  }
-  async function reveal(itemId: string, level: "hint1" | "hint2" | "solution") {
-    setBusy(true);
-    setError("");
-    try {
-      const { support, submissions, ...revealed } = await json<Omit<Lesson["items"][number]["revealed"], "solutionSeen"> & { support: string; submissions?: SubmissionView[] }>(url + `/items/${itemId}/reveal`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ level }),
-      });
-      setLesson(current => current && { ...current, items: current.items.map(item => item.id === itemId
-        ? { ...item, revealed: { ...revealed, solutionSeen: support === "solution" } } : item) });
-      if (submissions) setHistory(submissions);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function submit(itemId: string) {
-    if (!lesson || busy || (pending && pending !== itemId)) return;
-    setBusy(true);
-    setError("");
-    try {
-      if (!pendingSubmission.current) {
-        if (saveInFlight.current && !(await saveInFlight.current)) return;
-        const item = lesson.items.find(i => i.id === itemId);
-        if (!item) return;
-        pendingSubmission.current = {
-          clientSubmissionId: crypto.randomUUID(),
-          draftRevision: revision.current,
-          stage: item.stage,
-          itemIds: [itemId],
-          ...(JSON.stringify(latest.current) !== saved.current ? { answers: latest.current } : {}),
-        };
-        writeOfflineDraft(submissionKey, JSON.stringify(pendingSubmission.current));
-        setPending(itemId);
-      }
-      const input = pendingSubmission.current;
-      const request = () => json<{ submission: SubmissionView; draftRevision: number }>(url + "/submissions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(input),
-      });
-      const response = await request().catch(error => {
-        if (error instanceof RequestError && error.status >= 400 && error.status < 500) throw error;
-        // Uncertain response: the same immutable submission key lets the server return the saved attempt.
-        return request();
-      });
-      setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
-      if (input.answers) {
-        revision.current = response.draftRevision;
-        saved.current = JSON.stringify(input.answers);
-        ready.current = true;
-        storeDraft(JSON.stringify(latest.current) === saved.current ? undefined :
-          JSON.stringify({ revision: revision.current, answers: latest.current }));
-      }
-      pendingSubmission.current = null;
-      writeOfflineDraft(submissionKey, undefined);
-      setPending(null);
-      setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
-      window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
-    } catch (e) {
-      if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
-        pendingSubmission.current = null;
-        writeOfflineDraft(submissionKey, undefined);
-        setPending(null);
-        void refreshFeedback();
-      }
-      setError((e as Error).message + (pendingSubmission.current ? " Bấm lại ở câu này khi có mạng để kiểm tra kết quả." : ""));
-    } finally {
-      setBusy(false);
-    }
-  }
-  async function complete(confirmed = false) {
-    if (!lesson || busy || pending) return;
-    if (!lesson.completedAt && unanswered > 0 && !confirmed) {
-      setConfirmFinish(true);
-      return;
-    }
-    setConfirmFinish(false);
-    setBusy(true);
-    setError("");
-    try {
-      if (!(await save())) return;
-      const fresh = await json<{ lesson: Lesson }>(url);
-      const result = await json<{ updated: string; completed: boolean; completedAt: string | null }>(url + "/completion", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ completed: !fresh.lesson.completedAt, expectedUpdated: fresh.lesson.updated }),
-      });
-      setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
-      setJustCompleted(result.completed);
-      jump(result.completed ? "summary" : "head");
-      window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
-      await onCompleted?.();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const runner = useRunnerStatus(waitingForGrade);
-  const [justCompleted, setJustCompleted] = useState(false);
-  const [confirmFinish, setConfirmFinish] = useState(false);
-  const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
-  if (!lesson)
-    return (
-      <div role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">
-        {error || "Đang mở bài…"}
-      </div>
-    );
-  const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : undefined;
-  const reflection = !learner && lesson.completedAt
-    ? history.find(submission => submission.attempts.length > 0 && submission.attempts.every(attempt => attempt.result))
-    : undefined;
+  const session = useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCompleted });
+  const { lesson, answers, history, readonly, busy, pending, error, feedbackError, state } = session;
+  if (!lesson) return <p role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">{error || "Đang mở bài…"}</p>;
+
+  const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;
+  const subject = lesson.subjectTitle || lesson.title;
   const frozen = readonly || !!lesson.completedAt;
-  const doneIds = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
-  const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !doneIds.has(item.id));
-  const correction = openCorrection ? lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
-  const hasWorkFor = (item: Lesson["items"][number]) =>
+  const answered = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
+  const hasAnswer = (item: Lesson["items"][number]) =>
     hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length;
-  const startAt = initialLessonBlock({ completed: !!lesson.completedAt, correction, firstUnanswered,
-    hasWork: doneIds.size > 0 || lesson.items.some(item => item.revealed.solutionSeen) || lesson.items.some(hasWorkFor) });
-  const blocks: SpreadBlock[] = [{ id: "head", kind: "head", reservedLines: 3,
-    text: [{ value: lesson.title }, { value: lesson.objective }, { value: lesson.why, handwriting: true }], node: <>
-      <h1 tabIndex={-1} className="text-balance font-print text-[1.75rem] leading-tight sm:text-[2rem]">{lesson.title}</h1>
-      <p className="mt-3">{lesson.objective}</p>
-      <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
-    </> }];
-  if (lesson.sheet) blocks.push(...sheetBlocks(lesson.sheet, formatText ?? (text => text)));
-  blocks.push(...knowledgeBlocks(lesson.knowledge ?? []));
-  for (const [i, section] of lesson.sections.entries()) {
-    for (const [j, value] of splitPaperText(section.text).entries()) {
-      blocks.push({
-        id: `remember-section-${i}-${j}`, kind: "remember", reservedLines: j === 0 ? 1 : 0,
-        text: [{ value }],
-        node: <>{j === 0 && <h2 tabIndex={-1} className="font-hand text-xl">{section.heading}</h2>}<p>{value}</p></>,
-      });
-    }
+  const correctionIndex = correction ? lesson.items.findIndex(item =>
+    ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
+  const summaryIndex = lesson.items.length + 1;
+  const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !answered.has(item.id));
+  let initialPage = 0;
+  if (lesson.completedAt) initialPage = summaryIndex;
+  else if (pending) initialPage = lesson.items.findIndex(item => item.id === pending) + 1;
+  else if (correctionIndex >= 0) initialPage = correctionIndex + 1;
+  else if (answered.size || lesson.items.some(item => item.revealed.solutionSeen || hasAnswer(item))) {
+    const draftIndex = lesson.items.findIndex(item =>
+      hasAnswer(item) && (!answered.has(item.id) || feedbackForItems(history, [item.id])[0]?.attempts[0]?.answer !== answers[item.id]?.answer));
+    initialPage = draftIndex >= 0 ? draftIndex + 1 : firstUnanswered >= 0 ? firstUnanswered + 1 : summaryIndex;
   }
-  if (lesson.diagram) blocks.push({ id: "diagram", kind: "remember", text: [{ value: lesson.diagram }],
-    node: <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre> });
-  for (const [i, source] of lesson.sources.entries()) {
-    blocks.push({
-      id: `source-${i}`, kind: "remember", reservedLines: 2,
-      text: [{ value: source.title }, { value: source.readScope }],
-      node: <p className="text-sm text-muted">
-        <a href={source.url} target="_blank" rel="noreferrer" className={pencilLink}>{source.title}</a> · Đã đọc · {shortDay(source.retrievedAt)}
-        <span className="block">{source.readScope}</span>
-      </p>,
-    });
-  }
-  for (const [index, item] of lesson.items.entries()) {
-    const [current, ...previous] = feedbackForItems(history, [item.id]);
-    const hasWork = hasWorkFor(item);
-    const latest = current?.attempts[0];
-    const changed = !latest || latest.answer !== answers[item.id]?.answer || !!answers[item.id]?.attachmentIds?.length;
-    const canSubmit = !busy && (pending === item.id || (!pending && !waiting(current) && !!hasWork && (changed || !latest?.result)));
-    blocks.push({ id: `cau-${index + 1}`, kind: "item", label: `Câu ${index + 1}`, long: item.input === "long",
-      reservedLines: 4 + inputLines(item) + (item.attachment !== "none" ? 2 : 0),
-      extraLine: item.prompt.length > 60,
-      text: [item.prompt, item.instructions, ...(item.choices ?? []).map(choice => choice.text)].filter((value): value is string => !!value).map(value => ({ value })),
-      node: <ItemCard germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(lesson.subjectTitle)} formatText={formatText} item={item} number={index + 1}
-        value={answers[item.id] ?? { answer: item.input === "code" ? item.starter : "" }} hasAnswer={hasWork}
-        disabled={busy || !!pending} readOnly={frozen}
-        onChange={value => change(item.id, value)} onReveal={level => reveal(item.id, level)}
-        onSubmit={() => void submit(item.id)} canSubmit={canSubmit}
-        submitLabel={current ? words.action.recheck : words.action.check}
-        gradeLater={!!current && waiting(current) && runner?.online === false} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
-        feedbackPreview={latest?.feedback ? (formatText?.(latest.feedback) ?? latest.feedback)
-          : current && waiting(current) ? runner?.online === false ? words.status.gradeLater : words.status.grading
-          : latest?.result ? words.result[latest.result as keyof typeof words.result] : undefined}
-        feedback={current ? onCodeLine => <>
-          <Feedback submission={current} items={[item]} onCodeLine={onCodeLine} readOnly={frozen} child={child} formatText={formatText} onRefresh={() => void refreshFeedback()} />
-          <PreviousFeedback items={previous} item={item} readOnly={frozen} formatText={formatText} />
-        </> : undefined} />,
-    });
-  }
-  if (lesson.output) blocks.push({ id: "product", kind: "product", text: [{ value: lesson.output }], node: <p>{words.place.product} · {lesson.output}</p> });
-  blocks.push({ id: "summary", kind: "summary", node: <>
-    {!readonly && !lesson.completedAt && <button className={buttonClass("primary")} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.finish}</button>}
-    {!readonly && lesson.completedAt && <button className={pencilLink} disabled={busy || !!pending} onClick={() => void complete()}>{words.action.reopen}</button>}
-    <PaperConfirm open={confirmFinish && !busy && !pending}
-      message="Bạn vẫn muốn đánh dấu xong bài này?" confirmLabel={words.action.finish}
-      onCancel={() => setConfirmFinish(false)} onConfirm={() => void complete(true)} />
-    <LessonSummary lessonId={id} learner={learner} waiting={waitingForGrade}
-      onQuestion={itemId => {
-        const index = lesson.items.findIndex(item => item.id === itemId);
-        if (index >= 0) jump(`cau-${index + 1}`);
-      }}
-      progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
-      completed={!!lesson.completedAt} justCompleted={justCompleted} />
-  </> });
-  if (reflection) blocks.push({ id: "reflection", kind: "summary", label: "Góp ý",
-    node: <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />,
-  });
-  return <Book id={lesson.subjectId} title={lesson.subjectTitle ?? lesson.title} page="lesson" go={go}>
-    {readonly && <p className={pencil}>Bạn đang xem bài của người học.</p>}
-    {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}
-    {error && <p role="alert" className="text-brick">{error}</p>}
-    <Spread blocks={blocks} startAt={startAt} jump={pageJump} child={child} status={state} onTurn={() => setJustCompleted(false)} />
+  const reflection = !learner && lesson.completedAt
+    ? history.find(entry => entry.attempts.length > 0 && entry.attempts.every(attempt => attempt.result))
+    : undefined;
+  const notes = <LessonNotes lesson={lesson} formatText={formatText} />;
+
+  return <Book id={lesson.subjectId} title={subject} page="lesson" go={go} focusedLesson>
+    {readonly && <p className="mb-1 font-hand text-lg text-oak-ink">Bạn đang xem bài của người học.</p>}
+    {feedbackError && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-ink-paper">
+      {feedbackError} <button onClick={() => void session.refreshFeedback()} className={pencilLink}>{words.action.retry}</button>
+    </p>}
+    {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
+    <LessonFlow initialPage={initialPage} count={lesson.items.length} subject={subject} notes={notes} reference={lesson.objective}
+      locked={busy || !!pending} status={state} page={(index, jump) => {
+        if (index === 0) return <>
+          <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
+          <p className="mt-3">{lesson.objective}</p>
+          <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
+          <details className="mt-3">
+            <summary className="min-h-11 cursor-pointer content-center font-hand text-xl text-accent-paper">Ghi nhớ và nguồn</summary>
+            {notes}
+          </details>
+        </>;
+        if (index === summaryIndex) return <>
+          <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
+            onQuestion={itemId => {
+              const itemIndex = lesson.items.findIndex(item => item.id === itemId);
+              if (itemIndex >= 0) jump(itemIndex + 1);
+            }}
+            progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
+            completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
+            {lesson.output && <p>{words.place.product} · {lesson.output}</p>}
+            {!readonly && <button type="button" className={buttonClass(lesson.completedAt ? "ghost" : "primary")}
+              disabled={busy || !!pending} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
+              {lesson.completedAt ? words.action.reopen : words.action.finish}
+            </button>}
+          </LessonSummary>
+          <PaperConfirm open={session.confirmFinish && !busy && !pending}
+            message="Bạn vẫn muốn đánh dấu xong bài này?" confirmLabel={words.action.finish}
+            onCancel={() => session.setConfirmFinish(false)} onConfirm={() => void session.complete(true)} />
+          {reflection && <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />}
+        </>;
+
+        const item = lesson.items[index - 1];
+        const [current, ...previous] = feedbackForItems(history, [item.id]);
+        const latest = current?.attempts[0];
+        const awaiting = waitingForFeedback(current);
+        const value = answers[item.id] ?? { answer: item.input === "code" ? item.starter : "" };
+        const changed = !latest || latest.answer !== value.answer || !!value.attachmentIds?.length;
+        const canSubmit = pending === item.id || (!pending && !awaiting && hasAnswer(item) && (changed || !latest?.result));
+        return <LessonItem key={item.id} item={item} value={value} formatText={formatText}
+          germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
+          disabled={busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
+          onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
+          onSubmit={() => void session.submit(item.id)} canSubmit={canSubmit} awaitingFeedback={awaiting && pending !== item.id}
+          submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
+          gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
+          feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :
+            latest?.result ? words.result[latest.result as keyof typeof words.result] : current ? words.status.gradeLater : undefined}
+          feedback={current ? onCodeLine => <>
+            <Feedback submission={current} items={[item]} onCodeLine={onCodeLine} readOnly={frozen} child={child}
+              formatText={formatText} onRefresh={() => void session.refreshFeedback()} />
+            <PreviousFeedback entries={previous} item={item} readOnly={frozen} formatText={formatText} />
+          </> : undefined} />;
+      }} />
   </Book>;
-
-  function jump(block: string) {
-    if (block !== "summary") setJustCompleted(false);
-    setPageJump(previous => ({ id: block, key: (previous?.key ?? 0) + 1 }));
-  }
 }
 
-function inputLines(item: Lesson["items"][number]) {
-  switch (item.input) {
-    case "long": return 5;
-    case "code": return item.lines + 1;
-    case "cloze": return Math.max(2, item.fragments.length);
-    case "match": return Math.max(item.left.length, item.right.length) * 2 + 1;
-    case "order": return item.steps.length * 2 + 2;
-    case "label": return 9 + item.marks.length * 2;
-    case "table": return (item.rowLabels.length + 1) * 2;
-    case "short": return Number(item.attachment !== "none");
-    default: return 0;
-  }
-}
-
-function PreviousFeedback({ items, item, readOnly, formatText }: {
-  items: SubmissionView[]; item: Lesson["items"][number]; readOnly: boolean; formatText?: (text: string) => string;
-}) {
-  const [open, setOpen] = useState(false);
-  if (!items.length) return null;
-  return <div>
-    <button type="button" className={pencilLink} aria-expanded={open} onClick={() => setOpen(!open)}>Lần trước</button>
-    {open && items.map(submission => <Feedback earlier key={submission.id} submission={submission} items={[item]} readOnly={readOnly} formatText={formatText} />)}
+function LessonNotes({ lesson, formatText }: { lesson: Lesson; formatText: (text: string) => string }) {
+  const blocks = [...(lesson.sheet ? sheetBlocks(lesson.sheet, formatText) : []), ...knowledgeBlocks(lesson.knowledge ?? [])];
+  return <div className="mt-4 grid gap-3">
+    {blocks.map(block => <div key={block.id}>{block.node}</div>)}
+    {lesson.sections.map((section, index) => <section key={index}>
+      <h2 className="font-hand text-xl">{section.heading}</h2>
+      <p className="whitespace-pre-wrap break-words">{formatText(section.text)}</p>
+    </section>)}
+    {lesson.diagram && <pre className="overflow-x-auto whitespace-pre text-sm">{lesson.diagram}</pre>}
+    {lesson.sources.map((source, index) => <p key={index} className="text-sm text-muted-paper">
+      <a href={source.url} target="_blank" rel="noreferrer" className={pencilLink}>{source.title}</a> · Đã đọc · {shortDay(source.retrievedAt)}
+      <span className="block">{source.readScope}</span>
+    </p>)}
   </div>;
+}
+
+function PreviousFeedback({ entries, item, readOnly, formatText }: {
+  entries: SubmissionView[];
+  item: Lesson["items"][number];
+  readOnly: boolean;
+  formatText: (text: string) => string;
+}) {
+  if (!entries.length) return null;
+  return <details>
+    <summary className={pencilLink + " min-h-11 content-center cursor-pointer"}>Lần trước</summary>
+    {entries.map(submission => <Feedback earlier key={submission.id} submission={submission} items={[item]}
+      readOnly={readOnly} formatText={formatText} />)}
+  </details>;
 }
