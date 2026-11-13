@@ -1,6 +1,7 @@
 import {env} from 'cloudflare:workers';
 import {readCurrentV2} from '../../../lib/lesson-v2/daily';
 import {getHubUser} from '../../../lib/auth/session';
+import {readBackupStatus} from '../../../lib/backup-store';
 import {readDaily} from '../../../lib/daily-store';
 import {apiFailure} from '../../../lib/api-error';
 import {storage} from '../../../db/storage';
@@ -14,7 +15,19 @@ export async function GET(req:Request){
  try{
   const learnerId=await resolveLearner(storage(),user,req,'read_work');
   if(learnerId instanceof Response)return learnerId;
-  const daily=await readDaily(learnerId,user.role==='admin'&&learnerId===user.id);return Response.json({...daily,...(env.HUB2_ENABLED==='true'?{v2Active:await readCurrentV2(storage(),learnerId)}:{})},{headers});
+  const admin = user.role === 'admin' && learnerId === user.id;
+  if (env.HUB2_ENABLED === 'true') {
+   const db = storage();
+   const [v2Active, backup] = await Promise.all([
+    readCurrentV2(db, learnerId),
+    admin ? readBackupStatus(db) : { lastCreatedAt: null, due: false },
+   ]);
+   return Response.json({
+    v2Active, backup, active: [], history: [], lastRun: null, runs: [],
+    health: { lastSuccessfulAt: null, stale: false, stalledRunId: null, latestFailed: false },
+   }, { headers });
+  }
+  return Response.json(await readDaily(learnerId, admin), { headers });
  }catch(e){console.error(e);return Response.json({error:'Không tải được bài học. Hãy thử lại.'},{status:503,headers});}
 }
 export async function POST(req:Request){

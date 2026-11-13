@@ -44,11 +44,11 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
         {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}
       </WoodFrame>
       <WoodFrame label="Xem thử cửa sổ"><WindowPreview /></WoodFrame>
-      <WoodFrame label="Dữ liệu lưu trữ">
+      {!hub2 && <WoodFrame label="Dữ liệu lưu trữ">
         <h2 className="font-print text-2xl font-medium">Dữ liệu lưu trữ</h2>
         <p className="mt-2 text-sm text-muted">Tải bản sao dữ liệu workspace cũ dưới dạng JSON.</p>
         <button type="button" onClick={exportWorkspace} className={buttonClass("secondary", "mt-4")}><Download size={16} aria-hidden="true" /> Tải bản sao</button>
-      </WoodFrame>
+      </WoodFrame>}
     </div>
   );
 }

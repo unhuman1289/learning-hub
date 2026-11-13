@@ -57,7 +57,7 @@ test('0009 keeps every lesson, answer, slot and automation reference', () => {
 });
 
 test('v2 lessons: stored with items, one primary and one review per notebook per day, secrets stripped', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   const now = 't';
   db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('sub_aaaaaaaaaaaaaaaaaaaa','ech','Deutsch','skill','active','ly',?,?)").run(now, now);
   const lesson = fixture('deutsch-modalverb');
@@ -89,7 +89,7 @@ test('v2 lessons: stored with items, one primary and one review per notebook per
 });
 
 test('format-3 backups restore into the rebuilt table; format-4 backups round-trip lessons and items', async () => {
-  const restored = memoryDb().sqlite;
+  const restored = memoryDb({ through: "0025" }).sqlite;
   restored.exec(buildRestoreSql({ format: 3, tables: {
     learning_workspace: [], learning_slots: [], learning_runs: [], runs: [], legacy_run_items: [], automation_runs: [], run_targets: [], run_items: [], run_events: [], backup_events: [], study_time: [], learner_settings: [],
     subjects: [{ id: 'sub_bbbbbbbbbbbbbbbbbbbb', learner_id: 'vu', title: 'Deutsch', template: 'skill', sensitivity: 'normal', goal: '', level: '', curriculum: '', limits: '{}', weight: 3, status: 'active', ai_enabled: 0, legacy_track: 'Deutsch', progress_summary: '', progress_updated_at: null, revision: 0, created_by: 'migration', created_at: 't', updated_at: 't' }],

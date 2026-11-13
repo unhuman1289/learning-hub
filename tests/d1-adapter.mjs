@@ -1,8 +1,8 @@
 import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,readdirSync} from 'node:fs';
-export function memoryDb(){
+export function memoryDb({ through = "0028" } = {}){
  const sqlite=new DatabaseSync(':memory:');
- for(const file of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())sqlite.exec(readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8'));
+ for(const file of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')&&f.slice(0,4)<=through).sort())sqlite.exec(readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8'));
  const api={
   sqlite,
   prepare(sql){let params=[];const stmt={

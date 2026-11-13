@@ -53,7 +53,7 @@ test('0007 creates one notebook per (learner, legacy track) and leaves lessons u
 });
 
 test('0007 constraints reject invalid notebooks, skills, guardians and requests', () => {
-  const db = memoryDb().sqlite;
+  const db = memoryDb({ through: "0025" }).sqlite;
   const now = '2026-10-12T10:00:00.000Z';
   const insert = (id, learner, title, template = 'skill') => db.prepare(insertSubjectSql).run(id, learner, title, template, 'normal', '', '', '', JSON.stringify(DEFAULT_LIMITS), 3, 'setup', null, learner, now, now);
   insert('sub_a', 'ech', 'Toán 7');
@@ -82,7 +82,7 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
     automation_runs: [], run_targets: [], run_items: [], run_events: [], backup_events: [], study_time: [],
     learner_settings: [{ user_id: 'vu', daily_target_minutes: 45, updated: 't' }],
   } };
-  const copy = memoryDb().sqlite;
+  const copy = memoryDb({ through: "0025" }).sqlite;
   copy.exec(buildRestoreSql(old));
   assert.equal(copy.prepare("SELECT role FROM learner_settings WHERE user_id='vu'").get().role, 'adult');
   const now = 't';
@@ -92,7 +92,7 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
   for (const table of ['learning_workspace', 'learning_lessons', 'learning_slots', 'learning_runs', 'runs', 'legacy_run_items', 'automation_runs', 'run_targets', 'run_items', 'run_events', 'backup_events', 'study_time', 'learner_settings', 'guardians', 'subjects', 'skills', 'learner_requests']) {
     tables[table] = copy.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row }));
   }
-  const restored = memoryDb().sqlite;
+  const restored = memoryDb({ through: "0025" }).sqlite;
   restored.exec(buildRestoreSql({ format: 3, tables }));
   for (const [table, rows] of Object.entries(tables)) assert.deepEqual(restored.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row })), rows, table);
   copy.close(); restored.close();

@@ -16,7 +16,7 @@ test('Berlin date and midnight cutoff follow winter, summer and DST changes',()=
 });
 test('actual SQLite writer keeps unfinished lessons, advances tracks separately and retains answers',()=>{
  const db=new DatabaseSync(':memory:');
- for(const file of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())db.exec(readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8'));
+ for(const file of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql') && f.slice(0,4) <= '0025').sort())db.exec(readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8'));
  const userA='learner-a',userB='learner-b';
  const run=(userId,track,expectedId,day,id=`les_${userId}_${day}_${track}`)=>{db.exec('BEGIN');let results;try{results=assignmentSql({userId,track,expectedId,day,id,content:JSON.stringify({title:'New lesson'}),now:`${day}T01:10:00.000Z`,cutoff:cutoffFor(day)}).map(q=>db.prepare(q.sql).run(...q.args));db.exec('COMMIT');}catch(e){db.exec('ROLLBACK');throw e}return Number(results[1].changes)};
  const current=(userId,track)=>db.prepare('SELECT l.* FROM learning_slots s JOIN learning_lessons l ON s.user_id=l.user_id AND s.lesson_id=l.id WHERE s.user_id=? AND s.track=?').get(userId,track);

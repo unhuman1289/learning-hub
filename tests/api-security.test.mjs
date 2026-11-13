@@ -74,7 +74,9 @@ test('daily read and write APIs scope progress to the active session user', () =
   const route = readFileSync(new URL('../app/api/daily/route.ts', import.meta.url), 'utf8');
   const view = readFileSync(new URL('../lib/daily-view.ts', import.meta.url), 'utf8');
   assert.match(route, /resolveLearner\(storage\(\),user,req,'read_work'\)/);
-  assert.match(route, /readDaily\(learnerId,user\.role==='admin'&&learnerId===user\.id\)/);
+  assert.match(route, /const admin = user\.role === 'admin' && learnerId === user\.id/);
+  assert.match(route, /readDaily\(learnerId, admin\)/);
+  assert.match(route, /readCurrentV2\(db, learnerId\)/);
   assert.match(route, /WHERE user_id=\? AND id=\?/);
   assert.match(route, /WHERE user_id=\? AND lesson_id=\?/);
   assert.match(view, /WHERE l\.user_id=\?/);

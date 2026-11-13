@@ -8,7 +8,7 @@ export function hub2Guard(request: Request, env: { HUB2_ENABLED?: string }): Res
   return Response.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
 }
 
-export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.Env, "ENVIRONMENT" | "STAGING_SPIKE_LOCKDOWN">): Response | null {
+export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.Env, "ENVIRONMENT" | "STAGING_SPIKE_LOCKDOWN" | "HUB2_ENABLED">): Response | null {
   const { pathname } = new URL(request.url);
 
   // The old scheduled endpoint relies on Sites' dispatch boundary. It must
@@ -18,6 +18,14 @@ export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.En
       { error: "This endpoint is not available on standalone Workers." },
       { status: 410, headers: { "Cache-Control": "no-store" } },
     );
+  }
+
+  const legacyAutomation = pathname === "/api/automation/v1" || pathname.startsWith("/api/automation/v1/");
+  const legacyWrite = pathname === "/api/daily" && request.method === "POST";
+  if (env.HUB2_ENABLED === "true" && (legacyAutomation || legacyWrite || pathname === "/api/state")) {
+    return Response.json({ error: "Tính năng v1 đã ngừng." }, {
+      status: 410, headers: { "Cache-Control": "no-store" },
+    });
   }
 
   // workers.dev is public. Until standalone authentication is complete,

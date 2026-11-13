@@ -93,7 +93,9 @@ const protectedChecks = [
 const protectedStatus = {};
 for (const [label, path, options] of protectedChecks) {
   const response = await request(path, options);
-  if (response.status !== 401) throw new Error(`${label} returned ${response.status} to an unauthenticated forged-header request.`);
+  const retired = path === '/api/state' || (path === '/api/daily' && options.method === 'POST');
+  const expected = retired ? 410 : 401;
+  if (response.status !== expected) throw new Error(`${label} returned ${response.status} to an unauthenticated forged-header request.`);
   protectedStatus[label] = response.status;
 }
 

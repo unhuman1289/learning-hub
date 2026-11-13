@@ -9,7 +9,7 @@ function insertLesson(db, { id, userId, track = 'Deutsch', date = '2026-10-08', 
 }
 
 test('daily reads return only the signed-in learner lessons, answers and history', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   insertLesson(db, { id: 'a-active', userId: 'learner-a', response: 'private answer A' });
   insertLesson(db, { id: 'a-history', userId: 'learner-a', date: '2026-10-07', response: 'old answer A' });
   insertLesson(db, { id: 'b-active', userId: 'learner-b', response: 'private answer B' });
