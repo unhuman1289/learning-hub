@@ -27,7 +27,7 @@ const client = {
   triggers: ['scheduled', 'on_demand', 'deferred'],
   learnerIds: [learner],
 };
-const fixture = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8'));
+const fixture = { ...JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8')), contract: 'lesson-package/3', knowledge: [] };
 function seed() {
   const db = memoryDb();
   db.sqlite
@@ -47,7 +47,7 @@ function seed() {
     .run(subject, learner, learner);
   return db;
 }
-const input = { kinds: ['plan'], max: 1, runner: { name: 'fake', version: '1', model: 'none' } };
+const input = { kinds: ['plan'], capabilities: ['lesson-v3'], max: 1, runner: { name: 'fake', version: '1', model: 'none' } };
 async function leasePlan(db) {
   const q = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
   const [lease] = await leaseJobs(db, client, input, 'test', now);
@@ -922,7 +922,7 @@ test('adaptive requests deduplicate concurrently and legacy clients cannot lease
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM ai_jobs').get().n, 1);
   await assert.rejects(createRequest(db, bindings, learner, learner, parseRequest({ ...data, note: 'Viết email xin nghỉ' }), now), { status: 409 });
   assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
-  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['adaptive-plan'] }, 'test', now);
+  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3','adaptive-plan'] }, 'test', now);
   assert.equal(lease.adaptive, true);
   const job = await readJob(db, lease.jobId);
   assert.equal(JSON.parse(job.context_snapshot).adaptive.mode, 'personal');
@@ -953,7 +953,7 @@ test('adaptive personal request saves a one-item lesson and does not block the n
   const request = await createRequest(db, bindings, learner, learner, parseRequest({
     subjectId: subject, mode: 'personal', note: 'Luyện modal verb khi hẹn lịch', clientRequestId: crypto.randomUUID(),
   }), now);
-  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['adaptive-plan'] }, 'test', now);
+  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3','adaptive-plan'] }, 'test', now);
   const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
   const result = plan(context, null);
   const lesson = { ...structuredClone(fixture), kind: 'exploration', estMinutes: 15, items: [fixture.items[0]],
@@ -980,7 +980,7 @@ test('manual Học mới advances the same roadmap that the nightly planner read
   const request = await createRequest(db, bindings, learner, learner, parseRequest({
     subjectId: subject, mode: 'learn', clientRequestId: crypto.randomUUID(),
   }), now);
-  const withCapability = { ...input, capabilities: ['adaptive-plan'] };
+  const withCapability = { ...input, capabilities: ['lesson-v3','adaptive-plan'] };
   const [lease] = await leaseJobs(db, client, withCapability, 'test', now);
   const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
   assert.equal(context.adaptive.step.title, 'Sắp lịch');
@@ -1052,17 +1052,17 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   db.sqlite.close();
 });
 
-test('v3 planning requires runner support and does not write a new lesson after disabling v3', async () => {
+test('v3 planning requires runner support and does not write a new lesson after item kinds change', async () => {
   const db = seed();
   try {
-    const limits = enabled => JSON.stringify({ maxDifficulty: 3, allowNewTopics: true, maxNewSkillsPerWeek: 5, package: enabled ? 3 : 2 });
+    const limits = enabled => JSON.stringify({ maxDifficulty: 3, allowNewTopics: true, maxNewSkillsPerWeek: 5, itemKinds: enabled ? ['choice','short','long','cloze'] : ['choice','short','long'] });
     db.sqlite.prepare("UPDATE subjects SET title='Sổ thử',limits=? WHERE id=?").run(limits(true), subject);
     const queued = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily', subjectId: subject }, now);
-    assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
+    assert.deepEqual(await leaseJobs(db, client, { ...input, capabilities: [] }, 'test', now), []);
     const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3'] }, 'test', now);
     assert.equal(lease.jobId, queued.id);
     const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
-    assert.equal(context.subjects[0].limits.package, 3);
+    assert.deepEqual(context.subjects[0].limits.itemKinds, ['choice','short','long','cloze']);
     const payload = structuredClone(fixture);
     const { choices, rubric, key, ...base } = payload.items[0];
     void choices; void rubric; void key;
@@ -1088,7 +1088,7 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     title: 'Deutsch mới', goal: 'Đặt lịch làm việc, trình độ A2',
   }), now);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
-  const [lease] = await leaseJobs(db, client, {...input, capabilities:['roadmap-v2']}, 'test', now);
+  const [lease] = await leaseJobs(db, client, {...input, capabilities:['lesson-v3','roadmap-v2']}, 'test', now);
   assert.equal(lease.jobId, job.id);
   const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
   assert.equal(context.roadmapProtocol, 2);
@@ -1138,7 +1138,7 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
   const request=await createRequest(db,{},learner,learner,parseRequest({
     subjectId:notebook.id,mode:'practice',stepId:steps[0].id,clientRequestId:crypto.randomUUID(),
   }),later);
-  const [followup]=await leaseJobs(db,client,{...input,capabilities:['adaptive-plan','roadmap-v2']},'test',later);
+  const [followup]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan','roadmap-v2']},'test',later);
   const next=JSON.parse((await readJob(db,followup.jobId)).context_snapshot);
   assert.equal(next.adaptive.roadmapTask,'extend');
   assert.equal(next.adaptive.step.id,steps[0].id);
@@ -1164,7 +1164,7 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     const requested=await createRequest(db,{},learner,learner,parseRequest({
       subjectId:notebook.id,mode:'practice',stepId:steps[0].id,clientRequestId:crypto.randomUUID(),
     }),stamp);
-    const [pending]=await leaseJobs(db,client,{...input,capabilities:['adaptive-plan','roadmap-v2']},'test',stamp);
+    const [pending]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan','roadmap-v2']},'test',stamp);
     const ctx=JSON.parse((await readJob(db,pending.jobId)).context_snapshot);
     assert.equal(ctx.adaptive.roadmapTask,'none');
     const payload=plan(ctx,null);

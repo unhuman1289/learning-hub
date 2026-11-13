@@ -28,7 +28,7 @@ const client = {
   learnerIds: [learner],
 };
 const runner = { name: 'test', version: '1', model: 'none' };
-const fixture = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8'));
+const fixture = { ...JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8')), contract: 'lesson-package/3', knowledge: [] };
 
 async function openSubmission() {
   const db = memoryDb();
@@ -46,7 +46,7 @@ async function openSubmission() {
     )
     .run(subject, learner, learner);
   await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
-  const [planLease] = await leaseJobs(db, client, { kinds: ['plan'], max: 1, runner }, 'test', now);
+  const [planLease] = await leaseJobs(db, client, { kinds: ['plan'], max: 1, runner, capabilities: ['lesson-v3'] }, 'test', now);
   const ctx = JSON.parse((await readJob(db, planLease.jobId)).context_snapshot);
   const plan = {
     contract: 'plan-result/1',
@@ -152,7 +152,7 @@ const fakeEngine = (name, replies, vision = false) => {
 test('a Qwen grade passes the dry run, is saved, verified and reports the engine', async () => {
   const { db, sub } = await openSubmission();
   const hub = memoryHub(db);
-  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
+  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner, capabilities: ['lesson-v3'] });
   const qwen = fakeEngine('qwen', [(c) => grade(c)]);
   const out = await processJob(hub, lease, qwen);
   assert.deepEqual(out, { jobId: lease.jobId, status: 'succeeded', engine: 'qwen' });
@@ -168,7 +168,7 @@ test('a Qwen grade passes the dry run, is saved, verified and reports the engine
 test('a 422 from the dry run goes back to the engine once with the error codes', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db);
-  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
+  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner, capabilities: ['lesson-v3'] });
   const qwen = fakeEngine('qwen', [(c) => grade(c, { evidence: 'không có trong bài' }), (c) => grade(c)]);
   const out = await processJob(hub, lease, qwen);
   assert.equal(out.status, 'succeeded');
@@ -294,7 +294,7 @@ test('Qwen without vision leaves photos with the Hub', async () => {
 test('an uncertain network failure after saving is verified, not resent with other data', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db, { failAfterApply: true });
-  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
+  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner, capabilities: ['lesson-v3'] });
   const out = await processJob(hub, lease, fakeEngine('qwen', [(c) => grade(c)]));
   assert.equal(out.status, 'succeeded');
   assert.equal(hub.calls.filter((c) => c.dryRun === false).length, 1);
@@ -305,7 +305,7 @@ test('an uncertain network failure after saving is verified, not resent with oth
 test('when Qwen fails the job goes back to the Hub queue with only a short reason', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db);
-  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner });
+  const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner, capabilities: ['lesson-v3'] });
   const out = await processJob(hub, lease, fakeEngine('qwen', [Error('down')]));
   assert.equal(out.status, 'failed');
   assert.deepEqual(hub.calls.at(-1), { fail: 'qwen: down', retryable: true });
@@ -524,7 +524,7 @@ test('after ChatGPT reports its usage limit Codex rests an hour so Qwen takes th
 test('v3 Rust diagnostic uses five questions and a stable acyclic skill vocabulary', async () => {
   const context = {
     contract: 'plan-context/1', purpose: 'initial', contextHash: 'sha256:' + 'a'.repeat(64),
-    subjects: [{ subjectId: subject, title: 'Rust cơ bản', goal: '', instructions: '', progressSummary: '', revision: 0, limits: { package: 3 },
+    subjects: [{ subjectId: subject, title: 'Rust cơ bản', goal: '', instructions: '', progressSummary: '', revision: 0, limits: {}, framework: { key: 'rust-core' },
       slot: { eligibleForPrimary: true, openPrimaryLessonId: null }, skills: [], errorPatterns: [], recentLessons: [] }],
   };
   const hub = { context: async () => context, fail: async () => undefined };
@@ -535,16 +535,15 @@ test('v3 Rust diagnostic uses five questions and a stable acyclic skill vocabula
   assert.equal(setup.skillChanges.prefixItems.length, 8);
   assert.deepEqual(setup.skillChanges.prefixItems[1].properties.prerequisites.items.enum, ['key:step-1']);
   const questions = setup.primaryLesson.properties.items.prefixItems.map(item => item.anyOf[0].properties);
-  assert.deepEqual(questions.map(question => question.input.const), ['code', 'cloze', 'cloze', 'cloze', 'cloze']);
-  assert.equal(questions[1].fragments.maxItems, 2);
-  assert.equal(questions[1].key.properties.blanks.maxItems, 1);
+  assert.equal(questions[0].input.const, 'code');
+  assert.deepEqual(setup.primaryLesson.properties.items.prefixItems[1].anyOf.map(item => item.properties.input.const), ['choice', 'short', 'cloze', 'order']);
 });
 
 test('modern Rust opening schema requires a framework and allows keyed placement items', async () => {
   const context = {
     contract:'plan-context/1', purpose:'initial', roadmapProtocol:2, contextHash:'sha256:'+'a'.repeat(64),
     subjects:[{subjectId:subject,title:'Rust',goal:'Học Rust',instructions:'',progressSummary:'',revision:0,
-      limits:{package:3},slot:{eligibleForPrimary:true,openPrimaryLessonId:null},skills:[],errorPatterns:[],recentLessons:[]}],
+      limits:{},framework:{key:'rust-core'},slot:{eligibleForPrimary:true,openPrimaryLessonId:null},skills:[],errorPatterns:[],recentLessons:[]}],
   };
   const hub={context:async()=>context,fail:async()=>undefined};
   let schema;
@@ -560,5 +559,5 @@ test('modern Rust opening schema requires a framework and allows keyed placement
     assert.equal(question.anyOf[0].properties.skills.items.const,skill);
     assert.equal(subjectSchema.properties.openingSteps.prefixItems[index].properties.skills.items.const,skill);
   }
-  assert.equal(questions[1].anyOf[0].properties.input.const,'cloze');
+  assert.ok(questions[1].anyOf.some(branch => branch.properties.input.const === 'cloze'));
 });

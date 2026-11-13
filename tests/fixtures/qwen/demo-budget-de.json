@@ -1,0 +1,375 @@
+{
+  "source": "Qwen local, Deutsch demo, Hub từ chối vì vượt tổng phút bài đang mở.",
+  "frameworkKey": "de-cefr",
+  "lesson": {
+    "contract": "lesson-package/3",
+    "kind": "diagnostic",
+    "template": "skill",
+    "title": "Văn bản mẫu",
+    "objective": "Văn bản mẫu",
+    "why": "Văn bản mẫu",
+    "reasonRefs": [
+      "key:step-1",
+      "key:step-2"
+    ],
+    "estMinutes": 15,
+    "level": "Văn bản mẫu",
+    "targetSkills": [
+      "key:step-1",
+      "key:step-2"
+    ],
+    "sheet": {
+      "rules": [
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "explanation": "Văn bản mẫu",
+      "examples": [
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        },
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        },
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        }
+      ],
+      "mistakes": [
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "tips": [
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "checklist": [
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ]
+    },
+    "sections": [
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      },
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      }
+    ],
+    "diagram": null,
+    "stages": [
+      {
+        "stage": "retrieval",
+        "itemIds": [
+          "i1",
+          "i2",
+          "i3"
+        ]
+      },
+      {
+        "stage": "sheet",
+        "itemIds": [
+          "i4",
+          "i5"
+        ]
+      },
+      {
+        "stage": "guided",
+        "itemIds": [
+          "i6",
+          "i7"
+        ]
+      },
+      {
+        "stage": "independent",
+        "itemIds": [
+          "i8",
+          "i9"
+        ]
+      }
+    ],
+    "items": [
+      {
+        "id": "i1",
+        "activity": "transform",
+        "input": "choice",
+        "skills": [
+          "key:step-1"
+        ],
+        "difficulty": 1,
+        "prompt": "Câu mẫu 1",
+        "choices": [
+          {
+            "id": "c",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "d",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "e",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "f",
+            "text": "Văn bản mẫu"
+          }
+        ],
+        "key": {
+          "type": "choice",
+          "correct": [
+            "c"
+          ]
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i2",
+        "activity": "transform",
+        "input": "choice",
+        "skills": [
+          "key:step-2"
+        ],
+        "difficulty": 1,
+        "prompt": "Câu mẫu 2",
+        "choices": [
+          {
+            "id": "c",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "d",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "e",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "f",
+            "text": "Văn bản mẫu"
+          }
+        ],
+        "key": {
+          "type": "choice",
+          "correct": [
+            "c"
+          ]
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i3",
+        "activity": "transform",
+        "input": "choice",
+        "skills": [
+          "key:step-3"
+        ],
+        "difficulty": 1,
+        "prompt": "Câu mẫu 3",
+        "choices": [
+          {
+            "id": "c",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "d",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "e",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "f",
+            "text": "Văn bản mẫu"
+          }
+        ],
+        "key": {
+          "type": "choice",
+          "correct": [
+            "c"
+          ]
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i4",
+        "activity": "transform",
+        "input": "choice",
+        "skills": [
+          "key:step-4"
+        ],
+        "difficulty": 2,
+        "prompt": "Câu mẫu 4",
+        "choices": [
+          {
+            "id": "c",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "d",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "e",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "f",
+            "text": "Văn bản mẫu"
+          }
+        ],
+        "key": {
+          "type": "choice",
+          "correct": [
+            "c"
+          ]
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i5",
+        "activity": "transform",
+        "input": "choice",
+        "skills": [
+          "key:step-5"
+        ],
+        "difficulty": 2,
+        "prompt": "Câu mẫu 5",
+        "choices": [
+          {
+            "id": "c",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "d",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "e",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "f",
+            "text": "Văn bản mẫu"
+          }
+        ],
+        "key": {
+          "type": "choice",
+          "correct": [
+            "c"
+          ]
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      }
+    ],
+    "output": null,
+    "sources": [],
+    "nextTopic": "key:step-6",
+    "knowledge": [
+      {
+        "kind": "table",
+        "headers": [
+          "Văn bản mẫu",
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "rows": [
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ]
+        ]
+      },
+      {
+        "kind": "table",
+        "headers": [
+          "Văn bản mẫu",
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "rows": [
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ]
+        ]
+      }
+    ]
+  },
+  "expectedIssues": []
+}

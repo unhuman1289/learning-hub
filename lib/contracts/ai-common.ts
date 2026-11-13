@@ -1,8 +1,9 @@
 import {frameworkInput} from '../roadmap/frameworks.ts';
 import {roadmapChanges,newStep} from '../roadmap/changes.ts';
 import { z } from 'zod/v4';
-import { lessonItem } from './lesson-package-v2.ts';
-import { lessonPackage } from './lesson-package-v3.ts';
+import { lessonItem } from './lesson-items.ts';
+import { itemKindsInput } from '../subjects/item-kinds.ts';
+import { lessonPackageV3 } from './lesson-package-v3.ts';
 z.config({ jitless: true });
 export const text = (max: number) => z.string().max(max);
 export const ref = z.string().regex(/^(sk_|key:)[a-zA-Z0-9_-]{1,80}$/);
@@ -97,8 +98,8 @@ export const planResult = z
             action: z.enum(['assign', 'no_action', 'issue']),
             reason: text(1000),
             skillChanges: z.array(skillChanges).max(40),
-            primaryLesson: lessonPackage.nullable(),
-            reviewSet: lessonPackage.nullable(),
+            primaryLesson: lessonPackageV3.nullable(),
+            reviewSet: lessonPackageV3.nullable(),
             masteryProposals: z.array(proposal).max(40),
             progressSummary: text(3000),
             roadmap: roadmap.optional(),
@@ -124,7 +125,7 @@ export const planResult = z
             requestId: z.string(),
             action: z.enum(['assign', 'decline']),
             subjectId: z.string().nullable(),
-            lesson: lessonPackage.nullable(),
+            lesson: lessonPackageV3.nullable(),
             reason: text(1000),
           })
           .strict(),
@@ -258,7 +259,7 @@ const subject = z
     /** The notebook's own prompt, e.g. the former ChatGPT Project instructions (L5.5). */
     instructions: text(4000),
     limits: z.object({ maxDifficulty: z.number(), allowNewTopics: z.boolean(), maxNewSkillsPerWeek: z.number(),
-      package: z.union([z.literal(2), z.literal(3)]).optional() }).strict(),
+      itemKinds: itemKindsInput }).strict(),
     weight: z.number(),
     revision: z.number().int(),
     progressSummary: text(3000),

@@ -15,7 +15,7 @@ export function SubjectView(props: { id: string; page?: BookPage; shelf: ShelfAp
   return <SubjectBook key={props.id + ":" + (props.shelf.learner ?? "self")} {...props} />;
 }
 
-function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
+function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, canManage, go, hub2 = false }: Parameters<typeof SubjectView>[0]) {
   const subject = shelf.subjects?.find((item) => item.id === id);
   const child = shelf.learners.find(learner => shelf.learner ? learner.id === shelf.learner : learner.relation === "self")?.role === "child";
   const data = useBook(id, shelf.learner, hub2 && page !== "cai-dat", page === "muc-luc");
@@ -32,7 +32,7 @@ function SubjectBook({ id, page = "hom-nay", shelf, canEdit, canDelete = false, 
       onPractice={() => go({ view: "book", id, page: "hom-nay" })} /> : data.reportError ? <p role="alert">{words.error.unknown}</p> : loading)}
     {page === "cai-dat" && <>
       {canEdit && subject.status !== "archived"
-        ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} /> : <SubjectFacts subject={subject} />}
+        ? <SubjectForm key={subject.id} subject={subject} shelf={shelf} hub2={hub2} canManage={canManage} /> : <SubjectFacts subject={subject} />}
       {hub2 && !child && <HistoryPanel subjectId={id} learner={shelf.learner} />}
       {canDelete && subject.status !== "archived" && <DeleteNotebook subject={subject} shelf={shelf} onDeleted={() => go({ view: "desk" })} />}
     </>}

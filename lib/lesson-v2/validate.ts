@@ -1,4 +1,5 @@
-import { lessonPackageV2 } from '../contracts/lesson-package-v2.ts';
+import { itemPolicy, type ItemKind } from '../subjects/item-kinds.ts';
+import { lessonPackageV2 } from '../contracts/lesson-items.ts';
 import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
@@ -15,6 +16,8 @@ export type ValidateOptions = {
   aiSizes?: boolean;
   adaptive?: boolean;
   subjectTitle?: string;
+  frameworkKey?: string;
+  itemKinds?: ItemKind[];
 };
 
 /** D20: items per lesson written by an AI runner, and at most four open answers so grading stays quick. */
@@ -83,8 +86,19 @@ export function validateLessonPackage(
   const issue = (path: string, code: string, message: string) => issues.push({ path, code, message });
   const maxDifficulty = options.maxDifficulty ?? 5;
 
-  if (lesson.contract === 'lesson-package/3' && options.aiSizes && new Set(items.map(item => item.input)).size < 2)
-    issue('/items', 'schema', 'Bài soạn phiên bản 3 cần ít nhất hai dạng câu.');
+  if (options.itemKinds) {
+    const policy = itemPolicy(options.frameworkKey);
+    if (new Set(items.map(item => item.input)).size < policy.minimum)
+      issue('/items', 'item_kinds', 'Chuẩn học này cần ít nhất hai dạng câu.');
+    items.forEach((item, index) => {
+      if (!options.itemKinds?.includes(item.input))
+        issue(`/items/${index}/input`, 'item_kinds', `Sổ này không dùng dạng câu "${item.input}".`);
+    });
+    if (!policy.codeKnowledge && lesson.contract === 'lesson-package/3')
+      lesson.knowledge.forEach((block, index) => {
+        if (block.kind === 'code') issue(`/knowledge/${index}`, 'item_kinds', 'Sổ ngôn ngữ không dùng khối mã.');
+      });
+  }
   const review = lesson.kind === 'review';
   const [minItems, maxItems] = options.adaptive ? [1, 25] : review ? [3, 10] : [3, 25];
   if (lesson.items.length < minItems || lesson.items.length > maxItems)

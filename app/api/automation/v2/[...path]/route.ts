@@ -9,7 +9,7 @@ import { apiFailure, ApiError } from '../../../../../lib/api-error';
 import { leaseJobs, leasedJob, readJob, heartbeat, permits } from '../../../../../lib/ai-jobs/lease';
 import { applyResult } from '../../../../../lib/ai-jobs/result';
 import { planContext, planResult, assessContext, assessResult } from '../../../../../lib/contracts/ai-common';
-import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-package-v2';
+import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-items';
 import { lessonPackageV3 } from '../../../../../lib/contracts/lesson-package-v3';
 import { historyMarkdown, readHistory } from '../../../../../lib/history';
 import { learnerStatus } from '../../../../../lib/status';

@@ -64,10 +64,7 @@ export async function leaseJobs(
   await recordPresence(db, client.id, input.runner, input.capabilities ?? [], now);
   const vision = input.capabilities?.includes('vision') && client.scopes.includes('attachments:read') ? 1 : 0;
   const packageFilter = input.capabilities?.includes('lesson-v3') ? '' : `
-    AND (kind<>'plan' OR NOT EXISTS(
-      SELECT 1 FROM subjects s WHERE s.learner_id=ai_jobs.learner_id AND json_extract(s.limits,'$.package')=3
-      AND (s.id=ai_jobs.subject_id OR (ai_jobs.purpose='daily' AND ai_jobs.subject_id IS NULL AND s.status='active' AND s.ai_enabled=1))
-    ))
+    AND kind<>'plan'
     AND (kind<>'assess' OR NOT EXISTS(
       SELECT 1 FROM learning_lessons l WHERE l.user_id=ai_jobs.learner_id AND l.package_version='3' AND l.id=CASE ai_jobs.purpose
         WHEN 'submission' THEN (SELECT s.lesson_id FROM submissions s WHERE s.id=ai_jobs.ref_id AND s.learner_id=ai_jobs.learner_id)

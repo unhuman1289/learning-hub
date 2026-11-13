@@ -63,7 +63,7 @@ test("code requires a rubric, and figures accept bounded data only", () => {
   assert.equal(lessonPackageV3.safeParse(lesson({...fixtures[0][0],fragments:["",""]})).success,false);
 });
 
-test("D1 round-trip preserves all v3 drafts and reads, submits and leases stored v3 after opt-out", async () => {
+test("D1 round-trip preserves all v3 drafts and reads, submits and leases stored v3 after changing item kinds", async () => {
   const db = memoryDb();
   try {
     const subjectId = "sub_99999999999999999999";
@@ -73,7 +73,7 @@ test("D1 round-trip preserves all v3 drafts and reads, submits and leases stored
     db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,1,1,1,'learner','active')")
       .run(learnerId, "Học thử", "learner-v3@example.test");
     db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,limits,created_by,created_at,updated_at) VALUES(?,?,?,'skill','active',?,?,?,?)")
-      .run(subjectId, learnerId, "Sinh học thử", JSON.stringify({ ...DEFAULT_LIMITS, package: 3 }), learnerId, stamp, stamp);
+      .run(subjectId, learnerId, "Sinh học thử", JSON.stringify({ ...DEFAULT_LIMITS, itemKinds: ['label', 'table'] }), learnerId, stamp, stamp);
     const inputs = [
       ...fixtures,
       [{ input: "code", language: "rust", starter: "fn count() {}", lines: 6,
@@ -89,8 +89,7 @@ test("D1 round-trip preserves all v3 drafts and reads, submits and leases stored
     assert.deepEqual(parsed.issues, []);
     const id = await insertLessonV2(db, { subjectId, learnerId, day: "2026-11-12", lesson: parsed.lesson, now });
     const answers = Object.fromEntries(inputs.map(([item, answer], i) => ["i" + (i + 1), { answer: item.input === "code" ? answer : JSON.stringify(answer) }]));
-    db.sqlite.prepare("UPDATE subjects SET limits=json_set(limits,'$.package',2) WHERE id=?").run(subjectId);
-    await assert.rejects(insertLessonV2(db, { subjectId, learnerId, day: "2026-11-13", lesson: parsed.lesson, now }), error => error.status === 409);
+    db.sqlite.prepare("UPDATE subjects SET limits=json_set(limits,'$.itemKinds',json('[\"choice\",\"short\"]')) WHERE id=?").run(subjectId);
     await saveDraft(db, learnerId, id, { revision: 0, answers }, now);
     const view = await readLessonV2(db, learnerId, id);
     assert.deepEqual(view.knowledge, exercise.knowledge);
@@ -121,4 +120,21 @@ test("D1 round-trip preserves all v3 drafts and reads, submits and leases stored
   } finally {
     db.sqlite.close();
   }
+});
+
+test('lesson validation uses notebook item kinds and keeps language code blocks out', () => {
+  const item = original.items.find(question => question.input === 'choice');
+  const singleKind = {
+    ...original, contract: 'lesson-package/3', knowledge: [],
+    items: [{ ...item, id: 'i1' }],
+    stages: [{ stage: 'independent', itemIds: ['i1'] }],
+  };
+  const language = { adaptive: true, frameworkKey: 'de-cefr', itemKinds: ['choice', 'cloze'] };
+  assert.deepEqual(validateLessonPackage(singleKind, language).issues, []);
+  const withCode = {
+    ...singleKind, knowledge: [{ kind: 'code', language: 'text', code: 'Hallo', notes: [] }],
+  };
+  assert.deepEqual(validateLessonPackage(withCode, language).issues.map(issue => issue.path), ['/knowledge/0']);
+  const math = { adaptive: true, frameworkKey: 'vn-gdpt-2018-toan', itemKinds: ['short', 'table'] };
+  assert.deepEqual(validateLessonPackage(singleKind, math).issues.map(issue => issue.path), ['/items', '/items/0/input']);
 });

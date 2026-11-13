@@ -1,3 +1,4 @@
+import { itemPolicy } from './item-kinds.ts';
 import {frameworkFor,inferFramework} from '../roadmap/frameworks.ts';
 import {listSteps} from '../roadmap/store.ts';
 import { ApiError } from '../api-error.ts';
@@ -17,11 +18,13 @@ export type SubjectView = {
 };
 
 export function toView(row: SubjectRow & { skill_count?: number }): SubjectView {
+  const framework: SubjectView['framework'] = row.framework ? JSON.parse(row.framework) : inferFramework(row.title,row.opening_brief??row.goal,row.curriculum);
+  const { maxDifficulty, allowNewTopics, maxNewSkillsPerWeek, itemKinds } = JSON.parse(row.limits) as SubjectLimits;
   return {
     id: row.id, title: row.title, template: row.template, sensitivity: row.sensitivity, goal: row.goal, level: row.level,
-    curriculum: row.curriculum, openingBrief: row.opening_brief, instructions: row.instructions ?? '', limits: JSON.parse(row.limits) as SubjectLimits, weight: row.weight, status: row.status,
+    curriculum: row.curriculum, openingBrief: row.opening_brief, instructions: row.instructions ?? '', limits: { maxDifficulty, allowNewTopics, maxNewSkillsPerWeek, ...(itemKinds ? { itemKinds } : {}) }, weight: row.weight, status: row.status,
     roadmap: JSON.parse(row.roadmap ?? '[]'),
-    framework:row.framework?JSON.parse(row.framework):inferFramework(row.title,row.opening_brief??row.goal,row.curriculum),
+    framework,
     aiEnabled: row.ai_enabled === 1, legacyTrack: row.legacy_track, progressSummary: row.progress_summary,
     progressUpdatedAt: row.progress_updated_at, revision: row.revision, skillCount: Number(row.skill_count ?? 0),
     createdAt: row.created_at, updatedAt: row.updated_at,
@@ -50,6 +53,9 @@ export async function subjectWithRoadmap(db:Db,learnerId:string,id:string){
 export async function createSubject(db: Db, learnerId: string, createdBy: string, input: SubjectInput, now = new Date()) {
   const id = newSubjectId();
   const stamp = now.toISOString();
+  const framework = inferFramework(input.title, input.goal, input.curriculum);
+  if (input.limits.itemKinds && input.limits.itemKinds.length < itemPolicy(framework.key).minimum)
+    throw new ApiError(400, 'Chuẩn học này cần ít nhất hai dạng câu.');
   try {
     await db.prepare(insertSubjectSql).bind(id, learnerId, input.title, input.template, input.sensitivity, input.goal, input.level, input.curriculum,
       JSON.stringify(input.limits), input.weight, input.legacyTrack ? 'active' : 'setup', input.legacyTrack ?? null, createdBy, stamp, stamp, input.legacyTrack ? null : input.goal || null).run();
@@ -70,6 +76,13 @@ export async function updateSubject(db: Db, learnerId: string, id: string, patch
   const current = await getSubject(db, learnerId, id);
   if (current.revision !== patch.revision) throw new ApiError(409, 'Sổ đã thay đổi ở nơi khác. Tải lại rồi sửa tiếp.');
   checkTransition(current, patch);
+  const view = toView(current);
+  const framework = patch.framework
+    ? frameworkFor(patch.framework, current.title, current.opening_brief ?? current.goal, patch.curriculum ?? current.curriculum)
+    : view.framework;
+  const kinds = patch.limits?.itemKinds ?? view.limits.itemKinds;
+  if (kinds && kinds.length < itemPolicy(framework.key).minimum)
+    throw new ApiError(400, 'Chuẩn học này cần ít nhất hai dạng câu.');
   const sets: string[] = [];
   const values: unknown[] = [];
   // A deleted notebook keeps its history but frees its name, so the same title can be opened again.
@@ -82,7 +95,6 @@ export async function updateSubject(db: Db, learnerId: string, id: string, patch
     values.push(key === 'limits' ? JSON.stringify(value) : key === 'aiEnabled' ? (value ? 1 : 0) : value);
   }
   if(patch.framework){
-    const framework=frameworkFor(patch.framework,current.title,current.opening_brief??current.goal,patch.curriculum??current.curriculum);
     sets.push('framework = ?','topic_key = ?','roadmap_replan = 1');
     values.push(JSON.stringify(framework),framework.topicKey);
   }

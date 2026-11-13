@@ -1,6 +1,6 @@
 import {isChemicalFormula,plainChemicalText} from '../chemistry.ts';
 import type { StructuredAnswerKey } from '../contracts/lesson-package-v3.ts';
-import type { AnswerKey } from '../contracts/lesson-package-v2.ts';
+import type { AnswerKey } from '../contracts/lesson-items.ts';
 import { parseNumericAnswer } from '../lesson-v2/numeric.ts';
 export type AutoGrade = { result: 'correct' | 'incorrect'; score: number; feedback: string };
 const normalizeText = (value: string) =>

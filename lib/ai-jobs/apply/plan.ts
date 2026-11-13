@@ -4,7 +4,7 @@ import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../..
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
 import { validateLessonPackage } from '../../lesson-v2/validate.ts';
-import { promptHash, newLessonId, lessonVersion } from '../../lesson-v2/store.ts';
+import { promptHash, newLessonId } from '../../lesson-v2/store.ts';
 import { cutoffFor } from '../../daily-policy.ts';
 import { addDays, clampMastery } from '../../learner-model/rules.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
@@ -287,16 +287,13 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true, adaptive: !!context.adaptive });
+      const checked = validateLessonPackage(packageInput, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       if(modern&&checked.lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))
         issue(path+'/'+field+'/template','roadmap','Bước chưa có nguồn. Hãy soạn bài kỹ năng.');
       const l = checked.lesson,
         slotKind = field === 'reviewSet' ? 'review' : 'primary';
-      const version = lessonVersion(l);
-      if (Number(version) !== (c.limits.package ?? 2))
-        issue(path + '/' + field + '/contract', 'schema', 'Phiên bản bài phải khớp cấu hình của sổ.');
       if ((field === 'reviewSet' && l.kind !== 'review') || (field === 'primaryLesson' && (l.kind === 'exploration' || (!context.adaptive && l.kind === 'review'))))
         issue(path + '/' + field, 'schema', 'Loại bài không khớp slot.');
       if (context.adaptive?.mode === 'learn' && !context.adaptive.targetSkills.some(id => l.targetSkills.includes(id) ||
@@ -352,8 +349,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       const stepId=stepRole&&stepRole!=='placement'?context.adaptive?.step?.id??null:l.kind==='new'?context.adaptive?.step?.id??null:null;
       const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
       if(modern)checkRoadmapLesson(resolved,context.adaptive,resultingSteps,initial,c.limits.maxDifficulty,msg=>issue(path+'/'+field,'roadmap',msg));
-      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))
-        AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=?)`;
+      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))`;
       const guardParams = [
         ...gateValues,
         job.learner_id,
@@ -361,7 +357,6 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         slotKind,
         job.learning_day,
         ...(slotKind === 'primary' ? [cutoffFor(job.learning_day)] : []),
-        s.subjectId, job.learner_id, Number(version),
       ];
       statements.push(
         db
@@ -375,7 +370,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             JSON.stringify(resolved),
             job.learning_day,
             now.toISOString(),
-            version,
+            '3',
             l.template,
             l.kind,
             slotKind,

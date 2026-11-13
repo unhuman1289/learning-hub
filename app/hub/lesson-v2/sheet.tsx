@@ -1,4 +1,4 @@
-import type { LessonPackageV2 } from "../../../lib/contracts/lesson-package-v2";
+import type { LessonPackageV2 } from "../../../lib/contracts/lesson-items";
 import type { SpreadBlock } from "../notebook/spread";
 
 /** Keep whole words together while giving long explanations breakpoints between pages. */

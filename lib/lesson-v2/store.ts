@@ -39,7 +39,7 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
     db.prepare(`INSERT INTO learning_lessons (id, user_id, track, payload, assigned_date, completed_at, response, updated, subject_id,
         package_version, template, kind, slot, reason, reason_refs, est_minutes, origin_job_id)
       SELECT ?, ?, NULL, ?, ?, NULL, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (?=0 OR NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR completed_at>=?)))
-        AND (?='2' OR EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND status='active' AND json_extract(limits,'$.package')=3))`)
+        AND (?='2' OR EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND status='active'))`)
       .bind(id, learnerId, JSON.stringify(lesson), day, now, subjectId, version, lesson.template, lesson.kind, slotFor(lesson.kind),
         (input.reason ?? lesson.why).slice(0, 400), JSON.stringify(lesson.reasonRefs), lesson.estMinutes, input.originJobId ?? null,input.guardCompletion?1:0,learnerId,subjectId,slotFor(lesson.kind),cutoffFor(day),version,subjectId,learnerId),
     ...lesson.items.map((item, index) => db.prepare(`INSERT INTO lesson_items (lesson_id, item_id, learner_id, subject_id, stage, activity, input_kind,

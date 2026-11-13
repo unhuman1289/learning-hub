@@ -210,9 +210,11 @@ Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiế
 - Đáp số theo quy ước Việt Nam (dấu phẩy thập phân); server nhận cả dấu chấm.
 - Rubric có 2–5 tiêu chí, mỗi tiêu chí gắn một kỹ năng (hoặc một khái niệm, với tiêu chí "kết nối"). Không chấm "tự nhiên như người bản xứ" vượt trình độ.
 
-### 5.4 Dạng câu phiên bản 3
+### 5.4 Dạng câu theo sổ
 
-Sổ bật `limits.package = 3` trộn ít nhất hai dạng câu trong mỗi bài. Sinh học ưu tiên nối cặp, sắp quy trình, điền bảng và gắn nhãn trên hình có sẵn. Rust ưu tiên sửa lỗi hoặc viết hàm ngắn, điền cú pháp và sắp các bước mượn dữ liệu. Bảng, sơ đồ, khối code và các bước được dựng từ dữ liệu của bài.
+Bài mới dùng `lesson-package/3`. Chỉ dùng các dạng trong `limits.itemKinds` của sổ. Sổ ngôn ngữ mặc định có trắc nghiệm, trả lời ngắn, tự luận và điền chỗ trống. Một bài có thể dùng một dạng và không dùng khối mã trong `knowledge`.
+
+Sổ lập trình mặc định có trắc nghiệm, trả lời ngắn, điền chỗ trống, sắp xếp và viết mã. Sổ Toán và khoa học mặc định có trắc nghiệm, trả lời ngắn, tự luận, điền chỗ trống, điền bảng và gắn nhãn. Cả hai nhóm cần ít nhất hai dạng trong mỗi bài. Sổ khác mặc định có trắc nghiệm, trả lời ngắn và tự luận. Dùng hình có sẵn, bảng và sơ đồ dựa trên dữ liệu của bài.
 
 Hub chấm theo từng ô hoặc vị trí của câu đóng. Qwen chấm câu code theo rubric, giữ điểm tiêu chí đã đạt và nêu số dòng khi chỉ lỗi. Lời phê nói rõ “Chưa chạy thử.”
 

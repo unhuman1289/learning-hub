@@ -32,14 +32,14 @@ export function fakeResult(context, fixture) {
       usage,
     };
   if (context.contract !== 'plan-context/1') throw Error('Unknown context contract.');
-  const lesson = structuredClone(fixture);
+  const lesson = { knowledge: [], ...structuredClone(fixture), contract: 'lesson-package/3' };
   const requests = context.purpose === 'request' ? context.explorations : [];
   return {
     contract: 'plan-result/1',
     contextHash: context.contextHash,
     summary: 'Kiểm thử giao bài qua API v2.',
     subjects: context.subjects.map((s) => {
-      const lesson = structuredClone(fixture),
+      const lesson = { knowledge: [], ...structuredClone(fixture), contract: 'lesson-package/3' },
         assign = context.purpose !== 'request' && s.slot.eligibleForPrimary;
       lesson.title = 'QA · ' + fixture.title;
       lesson.items = lesson.items.map((i) => ({ ...i, prompt: i.prompt + ' [bài thử ' + context.jobId + ']' }));
@@ -115,7 +115,7 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
     const leased = await call('/jobs/lease', 'POST', {
         kinds: ['assess', 'plan'],
         max: 1,
-        ...(baseUrl === 'http://localhost:5174' ? { capabilities: ['adaptive-plan', 'local-grading'] } : {}),
+        ...(baseUrl === 'http://localhost:5174' ? { capabilities: ['lesson-v3', 'adaptive-plan', 'local-grading'] } : {}),
         runner: { name: 'h5-fake-runner', version: '1', model: 'none' },
       }),
       job = leased.jobs[0];

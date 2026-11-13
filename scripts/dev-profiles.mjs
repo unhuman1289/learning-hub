@@ -9,14 +9,14 @@ const client = {
   keySha256: config.keySha256 ?? config.client.keySha256,
   scopes: ['jobs:plan', 'jobs:assess'],
   learnerIds: ['demo-ech'],
-  purposes: ['request', 'submission', 'recheck'],
+  purposes: ['initial', 'request', 'submission', 'recheck'],
   triggers: ['on_demand', 'deferred'],
 };
 const args = [
   'node_modules/wrangler/bin/wrangler.js', 'dev',
   '--config', 'dist/server/wrangler.json',
   '--local', '--persist-to', '.wrangler/state-demo',
-  '--ip', '127.0.0.1', '--port', '5174', '--inspector-port', '0',
+  '--ip', '127.0.0.1', '--port', process.env.HUB_DEMO_PORT ?? '5174', '--inspector-port', '0',
   '--var', 'HOUSEHOLD_GATE:passphrase',
   '--var', 'HOUSEHOLD_LEGACY_PROFILE_IDS:demo-admin,demo-adult,demo-ech',
   '--var', 'PROFILE_COOKIE_SECRET:' + config.cookieSecret,
