@@ -36,6 +36,10 @@ function notebookLessonSchema(subject) {
   const allowed = subject?.limits?.itemKinds ?? policy.kinds;
   const items = schema.properties.items;
   const [basic, ...structured] = items.items.anyOf;
+  // One blank per generated cloze keeps fragments and answer groups aligned.
+  const cloze = structured.find(branch => branch.properties.input.const === 'cloze');
+  Object.assign(cloze.properties.fragments, { minItems: 2, maxItems: 2 });
+  Object.assign(cloze.properties.key.properties.blanks, { minItems: 1, maxItems: 1 });
   const branches = ['choice', 'short', 'long'].map(kind => {
     const item = structuredClone(basic);
     item.properties.input = { const: kind };
@@ -63,7 +67,7 @@ function notebookLessonSchema(subject) {
 
 const nullablePackage = subject => ({ anyOf: [notebookLessonSchema(subject), { type: 'null' }] });
 
-export function generationSchema(kind, context, schema) {
+function generationSchema(kind, context, schema) {
   if (kind !== 'plan') return schema;
   schema = structuredClone(schema);
   const subjectProperties = schema.properties.subjects.items.properties;
@@ -422,12 +426,10 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
     let draft;
-    let wholeLessonRepair = false;
-    const rounds = 2;
-    for (let round = 0; round < rounds; round++) {
+    for (let round = 0; round < 2; round++) {
       let result;
       // Only some items were rejected: resend just those, not the whole lesson.
-      const partial = lease.kind === 'plan' && !wholeLessonRepair && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;
+      const partial = lease.kind === 'plan' && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;
       try {
         if (partial) {
           const { text, paths } = partialPrompt({
@@ -449,10 +451,6 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       } catch (error) {
         lastError = qwen.name + ': ' + (error instanceof Error ? error.message : String(error));
         log({ jobId: lease.jobId, engine: qwen.name, event: 'engine_error' });
-        if(partial&&round+1<rounds){
-          wholeLessonRepair=true;
-          continue;
-        }
         break;
       }
       const local = contract.zod.safeParse(result);
