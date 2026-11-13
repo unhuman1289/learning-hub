@@ -123,6 +123,21 @@ function generationSchema(kind, context, schema) {
             delete items.properties.choices;
             delete items.properties.rubric;
           }
+          if(targets.length){
+            const constrainedItems=lesson.properties.items;
+            constrainedItems.minItems=6;
+            constrainedItems.maxItems=6;
+            constrainedItems.items=false;
+            constrainedItems.prefixItems=Array.from({length:6},(_,index)=>{
+              const item=structuredClone(items);
+              for(const branch of item.anyOf??[item]){
+                const properties=branch.properties;
+                properties.id={const:'i'+(index+1)};
+                properties.skills={type:'array',minItems:1,maxItems:1,items:{const:targets[index%targets.length]}};
+              }
+              return item;
+            });
+          }
         }
       }
       explorations.items.properties.lesson = lesson;
@@ -405,7 +420,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         const out = await qwen.run({
           system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.roadmapProtocol !== 2 && context.subjects.some(subject => subject.limits?.package === 3)
             ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3. Bài chẩn đoán có đúng 5 câu i1–i5 và 8 kỹ năng step-1 đến step-8. Chỉ dùng các tham chiếu key:step-1 đến key:step-8. Nếu là Rust, i1 viết code; với môn khác, i1 nối cặp. Mỗi câu i2–i5 chỉ có một ô trống và đúng một nhóm đáp án. Kỹ năng tiên quyết chỉ tham chiếu bước trước.'
-            : '') + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
+            : '') + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
           user: userPrompt(promptContext, repair, wholeLessonRepair || context.adaptive?.mode==='challenge' ? undefined : draft),
           schema,
