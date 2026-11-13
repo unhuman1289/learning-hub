@@ -557,7 +557,9 @@ test('modern Rust opening schema requires a framework and allows keyed placement
   for(const [index,question] of questions.entries()){
     const skill='key:step-'+(index+1);
     assert.equal(question.anyOf[0].properties.skills.items.const,skill);
-    assert.equal(subjectSchema.properties.openingSteps.prefixItems[index].properties.skills.items.const,skill);
+    const step = subjectSchema.properties.openingSteps.prefixItems[index].properties;
+    assert.equal(step.skills.items.const,skill);
+    assert.equal(step.requires.maxItems,0);
   }
   assert.ok(questions[1].anyOf.some(branch => branch.properties.input.const === 'cloze'));
 });

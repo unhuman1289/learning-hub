@@ -4500,6 +4500,8 @@
                     "enum": [
                       "de-cefr",
                       "en-cefr",
+                      "zh-hsk",
+                      "vn-gdpt-2018-khtn",
                       "vn-gdpt-2018-toan",
                       "rust-core",
                       "python-core",
