@@ -57,7 +57,10 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
     if (!windowSvg) return;
     let inView = true;
     const connection = (navigator as Navigator & { connection?: EventTarget & { saveData?: boolean } }).connection;
-    const syncMotion = () => windowSvg.toggleAttribute("data-motion-paused", document.hidden || !inView || connection?.saveData === true);
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    const syncMotion = () => windowSvg.toggleAttribute(
+      "data-motion-paused", document.hidden || !inView || connection?.saveData === true || (memory !== undefined && memory <= 2),
+    );
     connection?.addEventListener("change", syncMotion);
     const observer = new IntersectionObserver(([entry]) => {
       inView = entry.isIntersecting;
@@ -95,7 +98,9 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
   }, [previewing]);
 
   useEffect(() => {
-    if (!svg.current || !clock) return;
+    if (!svg.current || !clock || document.hidden) return;
+    const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
+    if (draw.current && memory !== undefined && memory <= 2) return;
     draw.current ??= mountScene(svg.current);
     const darkness = draw.current({
       hour: clock.hour,
@@ -112,11 +117,11 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
 }
 
 /** This month's small object for the desk or the bookcase. */
-export function SeasonItem({ place, month }: { place: "desk" | "shelf"; month: number | undefined }) {
+export function SeasonItem({ place, month, className }: { className?: string; place: "desk" | "shelf"; month: number | undefined }) {
   const markup = useMemo(() => (month ? (place === "desk" ? deskItem(month) : shelfItem(month)) : ""), [place, month]);
   if (!markup) return null;
   return place === "desk"
-    ? <svg aria-hidden="true" viewBox="-28 -62 56 68" className="h-14 w-12 shrink-0 sm:h-16 sm:w-14" dangerouslySetInnerHTML={{ __html: markup }} />
+    ? <svg aria-hidden="true" viewBox="-28 -62 56 68" className={className ?? "h-14 w-12 shrink-0 sm:h-16 sm:w-14"} dangerouslySetInnerHTML={{ __html: markup }} />
     : <svg aria-hidden="true" viewBox="-16 -46 32 48" className="block h-11 w-8" dangerouslySetInnerHTML={{ __html: markup }} />;
 }
 

@@ -115,7 +115,7 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
     const leased = await call('/jobs/lease', 'POST', {
         kinds: ['assess', 'plan'],
         max: 1,
-        ...(baseUrl === 'http://localhost:5174' ? { capabilities: ['adaptive-plan', 'local-grading'] } : {}),
+        ...(url.hostname === 'localhost' ? { capabilities: ['adaptive-plan', 'local-grading'] } : {}),
         runner: { name: 'h5-fake-runner', version: '1', model: 'none' },
       }),
       job = leased.jobs[0];
@@ -142,9 +142,10 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2),
     arg = (k) => args[args.indexOf(k) + 1];
-  if (!args.includes('--credentials') || !args.includes('--origin'))
+  if (!args.includes('--credentials'))
     throw Error('Usage: --origin <localhost|staging> --credentials <private JSON> [--fixture <authored lesson>]');
   const credentials = JSON.parse(readFileSync(arg('--credentials'), 'utf8')),
     fixture = JSON.parse(readFileSync(args.includes('--fixture') ? arg('--fixture') : 'fixtures/lessons/deutsch-modalverb.json', 'utf8'));
-  console.log(JSON.stringify(await runFake({ baseUrl: arg('--origin'), credentials, fixture }), null, 2));
+  const baseUrl = args.includes('--origin') ? arg('--origin') : `http://localhost:${process.env.LEARNING_HUB_DEMO_PORT ?? '5174'}`;
+  console.log(JSON.stringify(await runFake({ baseUrl, credentials, fixture }), null, 2));
 }

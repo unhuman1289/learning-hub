@@ -1,8 +1,11 @@
 "use client";
 import {useLiveRefresh} from "./use-live-refresh";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LearnerSummary } from "../../lib/learners/list";
+import type { Greeting } from "../../lib/greeting";
+import type { TodayItem } from "../../lib/today";
+import type { StudyDay } from "../../lib/study-sql";
 import type { SubjectView } from "../../lib/subjects/service";
 
 export type ShelfSubject = SubjectView;
@@ -18,39 +21,75 @@ async function readJson<T>(response: Response, fallback: string): Promise<T> {
   return body;
 }
 
-/**
- * The shelf of one learner (the signed-in account when `learner` is null) and the list of
- * learners whose shelf this account may open. Nothing is shown as created before the server answers.
- */
-export function useShelf(learner: string | null) {
+type TodayData = {
+  subjects: ShelfSubject[];
+  learners: LearnerSummary[];
+  greeting: Greeting;
+  items: TodayItem[];
+  study: StudyDay;
+  adaptiveSubjects: string[];
+  preparing: { subjectId: string; title: string; writing: boolean }[];
+  gradingWaits: boolean;
+};
+
+/** Keep a shelf snapshot scoped to its learner, including the desk payload when on the desk. */
+export function useShelf(learner: string | null, desk: boolean, ready: boolean) {
   const [learners, setLearners] = useState<LearnerSummary[]>([]);
-  const [subjects, setSubjects] = useState<ShelfSubject[] | null>(null);
-  const [error, setError] = useState("");
+  const [snapshot, setSnapshot] = useState<{ learner: string | null; subjects: ShelfSubject[]; today?: TodayData }>();
+  const [failure, setFailure] = useState<{ learner: string | null; message: string }>();
+  const inFlight = useRef<AbortController>(undefined);
+  const current = snapshot?.learner === learner ? snapshot : undefined;
+  const error = failure?.learner === learner ? failure.message : "";
 
   const load = useCallback(async () => {
-    setError("");
+    inFlight.current?.abort();
+    const request = new AbortController();
+    inFlight.current = request;
+    const { signal } = request;
+    const params = new URLSearchParams(learner ? { learner } : {});
+    const init = { cache: "no-store" as const, signal };
     try {
-      const body = await readJson<{ subjects: ShelfSubject[] }>(await fetch(`/api/subjects${query(learner)}`, { cache: "no-store" }), "Chưa tải được tủ sách.");
-      setSubjects(body.subjects);
-    } catch (cause) {
-      setError((cause as Error).message);
+      if (desk) {
+        params.set("hour", String(new Date().getHours()));
+        const data = await readJson<TodayData>(await fetch(`/api/today?${params}`, init), "Chưa tải được bàn học.");
+        if (signal.aborted) return;
+        setLearners(data.learners);
+        setSnapshot({ learner, subjects: data.subjects, today: data });
+      } else {
+        const data = await readJson<{ subjects: ShelfSubject[] }>(await fetch(`/api/subjects${query(learner)}`, init), "Chưa tải được tủ sách.");
+        if (signal.aborted) return;
+        setSnapshot({ learner, subjects: data.subjects });
+      }
+      setFailure(undefined);
+    } catch {
+      if (!signal.aborted) setFailure({ learner, message: desk ? "Chưa tải được bàn học." : "Chưa tải được kệ sách." });
     }
-  }, [learner]);
+  }, [desk, learner]);
 
   useEffect(() => {
-    void Promise.resolve().then(() => { setSubjects(null); return load(); });
-  }, [load]);
+    if (!ready) return;
+    const initial = window.setTimeout(() => void load(), 0);
+    const reconnect = () => void load();
+    window.addEventListener("online", reconnect);
+    return () => {
+      window.clearTimeout(initial);
+      inFlight.current?.abort();
+      window.removeEventListener("online", reconnect);
+    };
+  }, [load, ready]);
 
   useEffect(() => {
-    let current = true;
-    fetch("/api/learners", { cache: "no-store" })
+    if (!ready || desk || learners.length) return;
+    const request = new AbortController();
+    fetch("/api/learners", { cache: "no-store", signal: request.signal })
       .then((response) => readJson<{ learners: LearnerSummary[] }>(response, ""))
-      .then((body) => { if (current) setLearners(body.learners); })
+      .then((body) => { if (!request.signal.aborted) setLearners(body.learners); })
       .catch(() => {});
-    return () => { current = false; };
-  }, []);
+    return () => request.abort();
+  }, [desk, learners.length, ready]);
 
-  useLiveRefresh(load, true, null);
+  useLiveRefresh(() => load(), ready, desk && current?.today &&
+    (current.today.preparing.length || current.today.gradingWaits) ? 15_000 : null);
 
   const create = useCallback(async (input: NewSubject) => {
     const body = await readJson<{ subject: ShelfSubject }>(await fetch(`/api/subjects${query(learner)}`, {
@@ -58,9 +97,14 @@ export function useShelf(learner: string | null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input),
     }), "Chưa mở được sổ mới.");
-    setSubjects((current) => [...(current ?? []), body.subject]);
+    setSnapshot((current) => ({
+      learner,
+      subjects: [...(current?.learner === learner ? current.subjects : []), body.subject],
+      today: current?.learner === learner ? current.today : undefined,
+    }));
+    if (desk && learner) await load();
     return body.subject;
-  }, [learner]);
+  }, [desk, learner, load]);
 
   const update = useCallback(async (id: string, patch: Record<string, unknown>) => {
     const body = await readJson<{ subject: ShelfSubject }>(await fetch(`/api/subjects/${id}${query(learner)}`, {
@@ -68,12 +112,14 @@ export function useShelf(learner: string | null) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(patch),
     }), "Chưa lưu được thay đổi.");
-    setSubjects((current) => (current ?? []).map((item) => (item.id === id ? body.subject : item)));
+    setSnapshot((current) => current?.learner === learner
+      ? { ...current, subjects: current.subjects.map(item => item.id === id ? body.subject : item) }
+      : current);
     return body.subject;
   }, [learner]);
 
   const self = learners.find((item) => item.relation === "self") ?? null;
-  return { learner, learners, self, subjects, error, load, create, update };
+  return { learner, learners, self, subjects: current?.subjects ?? null, today: desk ? current?.today : undefined, error, load, create, update };
 }
 
 export type ShelfApi = ReturnType<typeof useShelf>;

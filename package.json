@@ -28,8 +28,8 @@
     "deploy:mcp:staging": "node --import ./scripts/wrangler-env.mjs ./node_modules/wrangler/bin/wrangler.js deploy --config wrangler.mcp.jsonc --env staging",
     "dev:profiles": "node scripts/dev-profiles.mjs",
     "dev:setup": "node scripts/dev-setup.mjs",
-    "dev:seed": "LEARNING_HUB_LOCAL_STATE=.wrangler/state-demo npm run seed:hub2",
-    "runner:fake": "node --experimental-strip-types scripts/fake-runner.mjs --origin http://localhost:5174 --credentials .wrangler/demo-runner.json",
+    "dev:seed": "LEARNING_HUB_LOCAL_STATE=${LEARNING_HUB_DEMO_STATE:-.wrangler/state-demo} npm run seed:hub2",
+    "runner:fake": "node --experimental-strip-types scripts/fake-runner.mjs --credentials .wrangler/demo-runner.json",
     "runner:local": "node --experimental-strip-types scripts/run-demo-qwen.mjs",
     "dev:fresh": "npm run dev:setup && npm run dev:seed && npm run build"
   },
