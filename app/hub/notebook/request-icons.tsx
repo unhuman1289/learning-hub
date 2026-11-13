@@ -94,18 +94,22 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
         const row = rows.find(item => actionFor(item.mode) === mode);
         const ready = row?.resultLessonId;
         const pending = !!row && waiting(row);
-        const icon = <><span className="relative mx-auto grid size-14 place-items-center rounded border border-rule bg-paper text-ink-paper">
-          <SketchIcon name={mode} size={32} />{ready && <span aria-hidden="true" className="absolute right-1 top-1 size-2 rounded-full bg-brick" />}
-        </span><span>{labels[mode]}</span></>;
         return <div key={mode} className="min-w-0 font-hand">
-          {ready ? <RouteLink route={{ view: "lesson", id: ready }} go={go} aria-label={labels[mode] + " · Mở bài"}>{icon}</RouteLink>
-            : <button type="button" ref={mode === "personal" ? personalButton : undefined} aria-expanded={mode === "personal" ? personal : undefined}
-                aria-label={row && !pending ? words.action.retry + " · " + labels[mode] : undefined}
-                className="w-full disabled:opacity-60" disabled={busy || pending}
-                onClick={() => mode === "personal" ? setPersonal(!personal) : void send(mode)}>{icon}</button>}
+          <button type="button" ref={mode === "personal" ? personalButton : undefined}
+            aria-expanded={mode === "personal" ? personal : undefined}
+            className="w-full disabled:opacity-60" disabled={busy || pending}
+            onClick={() => mode === "personal" ? setPersonal(!personal) : void send(mode)}>
+            <span className="mx-auto grid size-14 place-items-center rounded border border-rule bg-paper text-ink-paper">
+              <SketchIcon name={mode} size={32} />
+            </span>
+            <span>{labels[mode]}</span>
+          </button>
           {row && <p role="status" className="text-sm leading-snug text-muted">
             {ready ? row.responseNote || words.status.ready : pending ? clockTime(row.createdAt) + " · " + words.status.writing : row.responseNote || words.status.notWritten}
           </p>}
+          {ready && <RouteLink route={{ view: "lesson", id: ready }} go={go} className={pencilLink}>
+            {words.action.open}
+          </RouteLink>}
         </div>;
       })}
     </div>

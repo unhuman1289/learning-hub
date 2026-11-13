@@ -2,6 +2,7 @@
 import {useLiveRefresh} from "../use-live-refresh";
 import {feedbackForItems} from "../../../lib/feedback-history";
 import {LessonSummary} from "./summary";
+import {LessonReflection} from "./reflection";
 import {useRunnerStatus} from "../runner-status";
 import {pencil, pencilLink} from "../paper-bits";
 import type {Route} from "../use-route";
@@ -325,9 +326,10 @@ export function LessonReader({
       </div>
     );
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : undefined;
-  const reflection = history.find(s => s.attempts.length > 0 && s.attempts.every(a => a.result));
+  const reflection = !learner && lesson.completedAt
+    ? history.find(submission => submission.attempts.length > 0 && submission.attempts.every(attempt => attempt.result))
+    : undefined;
   const frozen = readonly || !!lesson.completedAt;
-  const openLesson = (next: string) => go({ view: "lesson", id: next });
   const doneIds = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
   const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !doneIds.has(item.id));
   const correction = openCorrection ? lesson.items.findIndex(item => ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
@@ -397,15 +399,17 @@ export function LessonReader({
     <PaperConfirm open={confirmFinish && !busy && !pending}
       message="Bạn vẫn muốn đánh dấu xong bài này?" confirmLabel={words.action.finish}
       onCancel={() => setConfirmFinish(false)} onConfirm={() => void complete(true)} />
-    <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={waitingForGrade}
+    <LessonSummary lessonId={id} learner={learner} waiting={waitingForGrade}
       onQuestion={itemId => {
         const index = lesson.items.findIndex(item => item.id === itemId);
         if (index >= 0) jump(`cau-${index + 1}`);
       }}
       progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
-      reflectionId={lesson.completedAt ? reflection?.id : undefined} onOpen={openLesson} go={go}
-      onHome={() => go({ view: "book", id: lesson.subjectId })} onReview={() => jump("head")} completed={!!lesson.completedAt} justCompleted={justCompleted} />
+      completed={!!lesson.completedAt} justCompleted={justCompleted} />
   </> });
+  if (reflection) blocks.push({ id: "reflection", kind: "summary", label: "Góp ý",
+    node: <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />,
+  });
   return <Book id={lesson.subjectId} title={lesson.subjectTitle ?? lesson.title} page="lesson" go={go}>
     {readonly && <p className={pencil}>Bạn đang xem bài của người học.</p>}
     {feedbackError && <p role="alert">{words.error.unknown} <button onClick={() => void refreshFeedback()} className={pencilLink}>{words.action.retry}</button></p>}

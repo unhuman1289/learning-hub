@@ -1,18 +1,35 @@
 "use client";
 import {useEffect,useState} from "react";
-import {buttonClass} from "../ui";
+import {SketchIcon} from "../sketch-icons";
+import {apiJson} from "../api";
+import type {LessonSummaryData} from "../../../lib/lesson-v2/summary";
 import {fieldClass,labelClass} from "../paper-dialog";
 type Reflection={revision:number;difficulty:"easy"|"fit"|"hard";usefulness:"useful"|"mixed"|"not_useful";minutes:number;note:string};
-export function LessonReflection({submissionId, minutes}:{submissionId:string; minutes:number}){
+export function LessonReflection({submissionId, lessonId}:{submissionId:string; lessonId:string}){
  const [value,setValue]=useState<Reflection>({revision:0,difficulty:"fit",usefulness:"useful",minutes:45,note:""});
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
  const url=`/api/submissions/${submissionId}/reflection`;
  useEffect(()=>{let alive=true;fetch(url,{cache:"no-store"}).then(async r=>{const x=await r.json() as {error?:string;reflection?:Reflection};if(!r.ok)throw Error(x.error || "Chưa xác nhận góp ý.");if(alive){if(x.reflection)setValue(x.reflection);setReady(true);}}).catch(e=>{if(alive)setMessage(e.message);});return()=>{alive=false;};},[url]);
- async function save(e:React.FormEvent){e.preventDefault();setBusy(true);setMessage("");try{const r=await fetch(url,{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({...value,minutes:Math.max(1,Math.min(720,minutes))})}),x=await r.json() as {error?:string;revision:number};if(!r.ok)throw Error(x.error || "Chưa xác nhận góp ý.");setValue(v=>({...v,revision:x.revision}));setMessage("Đã lưu.");}catch(e){setMessage((e as Error).message);}finally{setBusy(false);}}
+ async function save(event: React.FormEvent<HTMLFormElement>) {
+   event.preventDefault();
+   setBusy(true);
+   setMessage("");
+   try {
+     const {summary} = await apiJson<{summary: LessonSummaryData}>(`/api/lessons/${lessonId}/summary`);
+     const minutes = Math.max(1, Math.min(720, summary.minutes));
+     const saved = await apiJson<{revision: number}>(url, {method: "PUT", json: {...value, minutes}});
+     setValue(current => ({...current, revision: saved.revision}));
+     setMessage("Đã lưu.");
+   } catch (error) {
+     setMessage((error as Error).message);
+   } finally {
+     setBusy(false);
+   }
+ }
  const difficulty = [["easy", "Dễ"], ["fit", "Vừa"], ["hard", "Khó"]] as const;
  const usefulness = [["useful", "Có ích"], ["mixed", "Bình thường"], ["not_useful", "Chưa có ích"]] as const;
- return <section className="mt-8 border-t border-line pt-4">
-   <h3 className="font-hand text-xl text-accent">Góp ý cho bài sau</h3>
+ return <section aria-label="Góp ý cho bài sau">
+   <h2 tabIndex={-1} className="font-hand text-[28px] leading-[3.5rem] text-accent">Góp ý cho bài sau</h2>
    <form onSubmit={save} className="mt-3 grid gap-3">
      <fieldset><legend className={labelClass}>Độ khó</legend><div className="flex flex-wrap gap-2">
        {difficulty.map(([id, label]) => <label key={id} className="flex min-h-11 cursor-pointer items-center gap-2 px-1">
@@ -31,7 +48,10 @@ export function LessonReflection({submissionId, minutes}:{submissionId:string; m
      <label className={labelClass}>Bạn muốn bài sau đổi gì?
        <input className={fieldClass + " min-h-11"} maxLength={1500} value={value.note} onChange={e => setValue(v => ({ ...v, note: e.target.value }))} />
      </label>
-     <button className={buttonClass("secondary", "justify-self-start")} disabled={!ready || busy}>{busy ? "Đang lưu…" : "Lưu"}</button>
+     <button type="submit" className="inline-flex min-h-11 items-center gap-2 justify-self-start px-2 font-hand text-xl text-accent hover:text-accent-hover enabled:hover:underline decoration-dotted underline-offset-4 disabled:opacity-50" disabled={!ready || busy}>
+       <SketchIcon name="check" size={23} className="rounded-full border border-current p-0.5" />
+       {busy ? "Đang lưu…" : "Lưu"}
+     </button>
      {message && <p role="status">{message}</p>}
    </form>
  </section>;

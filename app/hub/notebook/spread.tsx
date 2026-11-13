@@ -3,7 +3,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { flushSync } from "react-dom";
 import { blockLines, pageBlocks, pageGeometry, type PageBlock } from "./page-blocks";
-import { SketchTurnCorner } from "../sketch-icons";
 
 export type SpreadBlock = PageBlock & { node: ReactNode; label?: string };
 
@@ -18,6 +17,7 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
   const paper = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const shouldFocus = useRef(false);
+  const turning = useRef(false);
   const pointer = useRef<{ x: number; y: number } | null>(null);
   const geometry = pageGeometry(viewport.width, viewport.height, child, viewport.pageWidth || undefined);
   const { double } = geometry;
@@ -83,15 +83,25 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
 
   function turn(page: number) {
     const block = pages[page]?.[0];
-    if (!block || page === first) return;
+    if (!block || page === first || turning.current) return;
     onTurn?.();
     shouldFocus.current = true;
     const update = () => setSelection(block.id);
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) { update(); return; }
-    if (document.startViewTransition && double) {
-      document.documentElement.setAttribute("data-vt", "turn");
+    if (document.startViewTransition) {
+      const spread = frame.current;
+      if (!spread) { update(); return; }
+      const root = document.documentElement;
+      const direction = page > first ? "forward" : "back";
+      turning.current = true;
+      spread.dataset.turning = direction;
+      root.dataset.spreadTurn = direction;
       void document.startViewTransition(() => flushSync(update)).finished
-        .catch(() => {}).finally(() => { document.documentElement.removeAttribute("data-vt"); });
+        .catch(() => {}).finally(() => {
+          turning.current = false;
+          delete spread.dataset.turning;
+          delete root.dataset.spreadTurn;
+        });
     } else {
       setFallback(true);
       update();
@@ -132,7 +142,7 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
         turn(destination);
       }}
       onPointerDown={event => {
-        pointer.current = event.pointerType === "touch" && !editable(event.target)
+        pointer.current = event.pointerType === "touch" && !editable(event.target) && !(event.target instanceof Element && event.target.closest(".spread-corner"))
           ? { x: event.clientX, y: event.clientY } : null;
       }}
       onPointerUp={event => {
@@ -144,16 +154,17 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
         if (Math.abs(x) >= 40 && Math.abs(x) > Math.abs(y) * 1.35) turn(first + (x < 0 ? step : -step));
       }}
       onPointerCancel={() => { pointer.current = null; }}>
-      <button type="button" className="spread-edge" aria-label="Trang trước" disabled={first === 0} onClick={() => turn(first - step)}><SketchTurnCorner back /></button>
       <div ref={paper} className={fallback ? "spread-pages animate-spread-turn" : "spread-pages"} onAnimationEnd={() => setFallback(false)}>
         {pages.map((page, n) => {
           const visible = n >= first && n < last;
           const nearby = n >= first - step && n < last + step;
-          return <section key={page[0].id} data-offpage={!visible} inert={!visible} aria-hidden={!visible || undefined} aria-roledescription="trang"
-            aria-label={`Trang ${n + 1}`} className="spread-page bg-ruled">
+          const previous = n === first && first > 0;
+          const next = n === last - 1 && last < count;
+          return <section key={page[0].id} data-curl-left={previous || undefined} data-curl-right={next || undefined} data-offpage={!visible} inert={!visible} aria-hidden={!visible || undefined} aria-roledescription="trang"
+            aria-label={`Trang ${n + 1}`} data-side={n % 2 === 0 ? "left" : "right"} className="spread-page bg-ruled">
             <div className="spread-paper-body" data-overflow={page.some(block =>
               block.kind === "notebook" || block.kind === "summary" || block.long || blockLines(block, geometry) > geometry.lines - 1)}>
-            <p tabIndex={-1} data-page-focus className="spread-page-label font-hand text-sm text-muted">{page[0].kind === "summary" ? "Tổng kết" : page[0].kind === "item"
+            <p tabIndex={-1} data-page-focus className="spread-page-label font-hand text-sm text-muted">{page[0].kind === "summary" ? (page[0].label ?? "Tổng kết") : page[0].kind === "item"
                 ? page.length > 1 && page.at(-1)?.kind === "item" ? `Câu ${page[0].id.slice(4)}–${page.at(-1)?.id.slice(4)}` : page[0].label
                 : page[0].kind === "notebook" ? page[0].label : "Ghi nhớ"}</p>
             {nearby && viewport.pageWidth > 0 && page.map(block => <div key={block.id} data-block={block.id} data-kind={block.kind} className="spread-block">
@@ -163,12 +174,24 @@ export function Spread({ blocks, startAt, jump, child = false, status, onTurn }:
             <p aria-hidden="true" className="spread-page-count text-center font-hand text-sm text-muted">{count <= 12
               ? Array.from({ length: count }, (_, index) => <span key={index} className="spread-dot" data-current={index === n} />)
               : `${n + 1} / ${count}`}</p>
+            {previous && <PageCorner previous onTurn={() => turn(first - step)} />}
+            {next && <PageCorner onTurn={() => turn(first + step)} />}
           </section>;
         })}
+        {double && last - first === 1 && <div aria-hidden="true" className="spread-page bg-ruled" data-offpage="false" data-side="right" />}
       </div>
-      <button type="button" className="spread-edge" aria-label="Trang sau" disabled={last >= count} onClick={() => turn(first + step)}><SketchTurnCorner /></button>
       {status && <p role="status" className="spread-save rounded-b-sm bg-paper px-2 font-hand text-sm text-ink-paper">{status}</p>}
       <p role="status" className="sr-only">{caption}{firstQuestion && (firstQuestion === lastQuestion ? `, câu ${firstQuestion}` : `, câu ${firstQuestion} đến ${lastQuestion}`)}</p>
     </div>
   </div>);
+}
+
+function PageCorner({ previous = false, onTurn }: { previous?: boolean; onTurn: () => void }) {
+  return <button type="button" className="spread-corner" data-previous={previous}
+    aria-label={previous ? "Trang trước" : "Trang sau"} onClick={onTurn}>
+    <svg aria-hidden="true" viewBox="0 0 32 32">
+      <path d="M31 1C29 17 19 28 1 31c8-2 13-7 14-15 8 0 13-5 16-15Z"
+        transform={previous ? "translate(32 0) scale(-1 1)" : undefined} />
+    </svg>
+  </button>;
 }
