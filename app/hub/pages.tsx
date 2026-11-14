@@ -12,6 +12,7 @@ import { ImportPanel } from "./lesson-v2/import-panel";
 import { AiJobsPanel } from "./ai-jobs-panel";
 import { AdminAttention, AdminGradingQuality, type ReadLearnerNames } from "./admin-disputes";
 import { FamilyAdmin } from "./family-admin";
+import { PerfTable } from "./perf-table";
 import { buttonClass } from "./ui";
 import { apiJson } from "./api";
 import type { LearnerSummary } from "../../lib/learners/list";
@@ -91,10 +92,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
           </div>}
 
           {opened.has("system") && <div hidden={selection !== "system"} className="grid min-w-0 gap-5">
-            <section aria-labelledby="admin-speed">
-              <h3 id="admin-speed" className="font-print text-xl">Thời gian mở câu đầu tiên · p75</h3>
-              <p className="mt-1 text-sm text-muted-paper">Chưa có số đo theo quốc gia. Dữ liệu sẽ hiện khi có kết quả đo từ người dùng.</p>
-            </section>
+            <PerfTable active={selection === "system"} />
             {hub2 && <>
               <AdminDetails title="Lượt soạn và chấm"><AiJobsPanel active={selection === "system"} /></AdminDetails>
               <AdminDetails title="Chất lượng chấm"><AdminGradingQuality readNames={readNames} /></AdminDetails>
