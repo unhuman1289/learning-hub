@@ -27,10 +27,10 @@ function current(rows: RequestRow[], now: number, currentLessonId?: string) {
 const waiting = (row: RequestRow) => !row.resultLessonId && ["queued", "in_job"].includes(row.status) &&
   !["failed", "expired", "cancelled"].includes(row.jobStatus ?? "");
 
-export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLessonId }: {
-  subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; currentLessonId?: string;
+export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, currentLessonId }: {
+  initial: RequestRow[]; subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; currentLessonId?: string;
 }) {
-  const [rows, setRows] = useState<RequestRow[]>([]);
+  const [rows, setRows] = useState<RequestRow[]>(() => current(initial, Date.now(), currentLessonId));
   const [personal, setPersonal] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -38,7 +38,7 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
   const [attempt, setAttempt] = useState<Input>();
   const inflight = useRef(false);
   const personalButton = useRef<HTMLButtonElement>(null);
-  const seen = useRef(new Set<string>());
+  const seen = useRef(new Set(initial.filter(row => row.resultLessonId).map(row => row.id)));
   const query = new URLSearchParams({ subjectId, ...(learner ? { learner } : {}) });
   const listUrl = "/api/requests?" + query.toString();
   const postUrl = "/api/requests" + (learner ? "?learner=" + encodeURIComponent(learner) : "");
@@ -58,7 +58,6 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
       }
     };
     const visible = () => { if (!document.hidden) void load(); };
-    void load();
     document.addEventListener("visibilitychange", visible);
     const timer = pending ? window.setInterval(visible, 5000) : undefined;
     return () => {

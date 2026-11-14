@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { KnowledgePanel } from "../admin/knowledge-panel";
 import { WindowPreview } from "./lubeck/preview";
 import { Download } from "lucide-react";
@@ -10,9 +10,11 @@ import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
 import { ImportPanel } from "./lesson-v2/import-panel";
 import { AiJobsPanel } from "./ai-jobs-panel";
-import { AdminAttention, AdminGradingQuality } from "./admin-disputes";
+import { AdminAttention, AdminGradingQuality, type ReadLearnerNames } from "./admin-disputes";
 import { FamilyAdmin } from "./family-admin";
 import { buttonClass } from "./ui";
+import { apiJson } from "./api";
+import type { LearnerSummary } from "../../lib/learners/list";
 import type { DailyApi } from "./use-daily";
 import type { WorkspaceApi } from "./use-workspace";
 
@@ -26,6 +28,16 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
   const [opened, setOpened] = useState(() => new Set<Section>([selection]));
   const heading = useRef<HTMLHeadingElement>(null);
   const focusPanel = useRef(false);
+  const names = useRef<ReturnType<ReadLearnerNames> | null>(null);
+  const readNames = useCallback<ReadLearnerNames>(() => {
+    names.current ??= apiJson<{ learners: LearnerSummary[] }>("/api/learners")
+      .then(({ learners }) => new Map(learners.map(learner => [learner.id, learner.name])))
+      .catch(error => {
+        names.current = null;
+        throw error;
+      });
+    return names.current;
+  }, []);
 
 
   function select(next: Section) {
@@ -65,7 +77,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
           <h2 id="admin-panel-heading" ref={heading} tabIndex={-1} className="mb-4 font-print text-3xl">{sections[selection]}</h2>
 
           {hub2 && opened.has("attention") && <div hidden={selection !== "attention"}>
-            <AdminAttention onSystem={() => select("system")} />
+            <AdminAttention readNames={readNames} onSystem={() => select("system")} />
           </div>}
 
           {(opened.has("family") || selection === "family") && <div hidden={selection !== "family"} className="grid gap-6">
@@ -85,7 +97,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
             </section>
             {hub2 && <>
               <AdminDetails title="Lượt soạn và chấm"><AiJobsPanel active={selection === "system"} /></AdminDetails>
-              <AdminDetails title="Chất lượng chấm"><AdminGradingQuality /></AdminDetails>
+              <AdminDetails title="Chất lượng chấm"><AdminGradingQuality readNames={readNames} /></AdminDetails>
             </>}
             <AdminDetails title="Cập nhật bài và sao lưu">
               {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} />

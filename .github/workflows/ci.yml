@@ -38,13 +38,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium webkit
-      - run: npm run dev:fresh
-      - name: Run the phone checks with the local demo runner
-        run: |
-          npm run dev:profiles > /tmp/hub-phone-server.log 2>&1 &
-          server=$!
-          trap 'kill "$server" ${fake:+"$fake"} 2>/dev/null || true' EXIT
-          curl --retry 20 --retry-connrefused --retry-delay 1 --fail http://localhost:5174/api/health
-          (while npm run runner:fake; do sleep 5; done) > /tmp/hub-phone-runner.log 2>&1 &
-          fake=$!
-          PHONE_STEPS=2,3,4,5 npm run test:e2e
+      - run: npm run build
+      - name: Test the built Worker
+        run: npm run test:e2e:u5

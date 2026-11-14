@@ -4,19 +4,15 @@ import { useCallback, useEffect, useState } from "react";
 import { apiJson } from "./api";
 import { DisputeResolver, type DisputeItem } from "./dispute-resolver";
 import { QualityTable, type QualityRow } from "./quality-table";
-import type { LearnerSummary } from "../../lib/learners/list";
 import { useLiveRefresh } from "./use-live-refresh";
 import { buttonClass } from "./ui";
 
 type Review = DisputeItem & { learnerId: string };
 type Alert = { code: string; message: string };
 type Names = Map<string, string>;
+export type ReadLearnerNames = () => Promise<Names>;
 
-function learnerNames({ learners }: { learners: LearnerSummary[] }): Names {
-  return new Map(learners.map(learner => [learner.id, learner.name]));
-}
-
-export function AdminAttention({ onSystem }: { onSystem: () => void }) {
+export function AdminAttention({ onSystem, readNames }: { onSystem: () => void; readNames: ReadLearnerNames }) {
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [reviews, setReviews] = useState<Review[] | null>(null);
   const [names, setNames] = useState<Names>(new Map());
@@ -44,13 +40,13 @@ export function AdminAttention({ onSystem }: { onSystem: () => void }) {
         setReviews(disputes);
         setReviewError("");
         if (!disputes.length) return;
-        return apiJson<{ learners: LearnerSummary[] }>("/api/learners", options)
-          .then(data => { if (!request.signal.aborted) setNames(learnerNames(data)); })
+        return readNames()
+          .then(data => { if (!request.signal.aborted) setNames(data); })
           .catch(() => { /* The source notebook and request remain available. */ });
       })
       .catch(() => { if (!request.signal.aborted) setReviewError("Chưa tải được yêu cầu xem lại điểm."); });
     return () => request.abort();
-  }, [version, loadAlerts]);
+  }, [version, loadAlerts, readNames]);
 
   useLiveRefresh(() => loadAlerts(), true, 30_000);
 
@@ -79,7 +75,7 @@ export function AdminAttention({ onSystem }: { onSystem: () => void }) {
   </div>;
 }
 
-export function AdminGradingQuality() {
+export function AdminGradingQuality({ readNames }: { readNames: ReadLearnerNames }) {
   const [data, setData] = useState<{ quality: QualityRow[]; names: Names } | null>(null);
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
@@ -88,12 +84,12 @@ export function AdminGradingQuality() {
     const options = { signal: request.signal };
     Promise.all([
       apiJson<{ quality: QualityRow[] }>("/api/admin/quality", options),
-      apiJson<{ learners: LearnerSummary[] }>("/api/learners", options),
-    ]).then(([{ quality }, learners]) => {
-      if (!request.signal.aborted) { setData({ quality, names: learnerNames(learners) }); setError(false); }
+      readNames(),
+    ]).then(([{ quality }, names]) => {
+      if (!request.signal.aborted) { setData({ quality, names }); setError(false); }
     }).catch(() => { if (!request.signal.aborted) setError(true); });
     return () => request.abort();
-  }, [retry]);
+  }, [retry, readNames]);
 
   if (error) return <p role="alert">Chưa tải được chất lượng chấm. <button type="button" className={buttonClass("ghost")} onClick={() => {
     setError(false);

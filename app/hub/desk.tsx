@@ -2,14 +2,14 @@
 
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { CalendarLeaf, LubeckWindow, SeasonItem, useSkyClock } from "./lubeck/window";
+import { LazyProfileSettings } from "./profile-settings-loader";
 import { PaperDialog } from "./paper-dialog";
-import { ProfileSettings } from "./profile-settings";
 import { PostIt } from "../../components/notebook/post-it";
 import { TodayBoard } from "./today-board";
 import { words } from "./words";
 import { Bookcase, OakDesk } from "../../components/notebook/house";
 import { SpineShelves, type SpineBook } from "../../components/notebook/spine-shelf";
-import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
+import { berlinKey, coverTitle, coverTransition, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi } from "./use-shelf";
 import { postitAction } from "./paper-bits";
@@ -92,7 +92,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   const spineBooks: SpineBook[] = subjects.map((subject) => {
     if (subject.legacyTrack && !hub2) {
       const track = subject.legacyTrack;
-      const current = notebookPages(track, daily.data).active;
+      const current = daily.data?.active.find(lesson => lesson.track === track);
       return {
         id: subject.id, title: coverTitle[track], status: current && !current.completedAt ? "đang học" : "chưa có bài",
         route: readOnly ? null : { view: "notebook", track, tab: "bai" }, transition: coverTransition[track],
@@ -186,7 +186,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         <Suspense fallback={<p role="status">Đang mở bài đã học…</p>}><LearnedLessons subjects={shelf.subjects ?? []} learner={viewing.id} go={(route) => { setDrawer(null); go(route); }} /></Suspense>
       </PaperDialog>}
       {drawer === "settings" && selfId && <PaperDialog title="Cài đặt" labelId="drawer-settings" onClose={() => setDrawer(null)}>
-        <ProfileSettings learner={selfId} title="Về bạn" />
+        <LazyProfileSettings learner={selfId} title="Về bạn" />
       </PaperDialog>}
       {hub2 && !!shelf.subjects?.length && (
         <details className="mx-auto w-full max-w-3xl" onToggle={event => setShowProgress(event.currentTarget.open)}>

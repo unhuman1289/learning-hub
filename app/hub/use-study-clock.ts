@@ -21,7 +21,7 @@ const MAX_REPORT = 120;
  * day. Seconds not yet confirmed by the server are shown too and retried on the next report.
  */
 export function useStudyClock(
-  track: TrackId | null, loadStudy = true, deskStudy?: StudyDay, refreshDesk?: () => Promise<void>,
+  track: TrackId | null, loadStudy = true, deskStudy?: StudyDay, refreshDesk?: () => Promise<void>, lessonStudy?: StudyDay,
 ) {
   const [server, setServer] = useState<StudyDay | null>(null);
   const [pending, setPending] = useState<Partial<Record<TrackId, number>>>({});
@@ -46,6 +46,8 @@ export function useStudyClock(
   useEffect(() => {
     if (loadStudy) void Promise.resolve().then(load);
   }, [load, loadStudy]);
+
+  useEffect(() => { if (lessonStudy) void Promise.resolve(lessonStudy).then(setServer); }, [lessonStudy]);
 
   const addPending = useCallback((id: TrackId, seconds: number) => {
     const next = { ...pendingRef.current, [id]: (pendingRef.current[id] ?? 0) + seconds };

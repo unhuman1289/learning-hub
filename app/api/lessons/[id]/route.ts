@@ -1,3 +1,7 @@
+import { readStudyDay } from '../../../../lib/study-day';
+import { env } from 'cloudflare:workers';
+import { learnerFacts } from '../../../../lib/access';
+import { runnerStatus } from '../../../../lib/ai-jobs/lease';
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { apiFailure } from '../../../../lib/api-error';
@@ -18,11 +22,15 @@ export async function GET(req: Request, context: Context) {
     const learnerId = await lessonTarget(db, user, req, id, 'read_work');
     if (learnerId instanceof Response) return learnerId;
     if (new URL(req.url).searchParams.get('view') === 'reader') {
-      const [lesson, submissions] = await Promise.all([
+      const [lesson, submissions, facts, study] = await Promise.all([
         readLessonV2(db, learnerId, id),
         readLessonSubmissions(db, learnerId, id),
+        user.learnerRole && user.id === learnerId ? { learnerRole: user.learnerRole } : learnerFacts(db, user, learnerId),
+        readStudyDay(db, user.id),
       ]);
-      return Response.json({ lesson, submissions }, { headers: privateHeaders });
+      const runner = submissions.some(entry => entry.attempts.some(attempt => ("status" in attempt && attempt.status === "pending") || attempt.dispute?.status === "rechecking"))
+        ? await runnerStatus(db, env.GRADER_CLIENT_ID ?? "home-runner") : null;
+      return Response.json({ lesson, submissions, child: facts.learnerRole === "child", runner, study }, { headers: privateHeaders });
     }
     const lesson=await readLessonV2(db,learnerId,id);
     const latest=await db.prepare('SELECT id FROM submissions WHERE lesson_id=? AND learner_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').bind(id,learnerId).first<{id:string}>();

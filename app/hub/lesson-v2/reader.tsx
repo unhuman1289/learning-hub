@@ -13,6 +13,7 @@ import { PaperConfirm } from "../paper-confirm";
 import { pencil, pencilLink, shortDay } from "../paper-bits";
 import { buttonClass } from "../ui";
 import { words } from "../words";
+import type { StudyDay } from "../../../lib/study-sql";
 import type { Route } from "../use-route";
 import type { Drafts } from "../lesson-page";
 import { Feedback, type SubmissionView } from "./feedback";
@@ -21,20 +22,19 @@ import { sheetBlocks } from "./sheet";
 import { LessonReflection } from "./reflection";
 
 export function LessonReader({
-  id, ownerId, child = false, correction = false, learner, drafts, onLoaded, onCompleted, go,
+  id, ownerId, correction = false, learner, drafts, onLoaded, onCompleted, go,
 }: {
   id: string;
   ownerId: string;
   learner: string | null;
   drafts: Drafts;
-  child?: boolean;
   correction?: boolean;
-  onLoaded?: (id: string, subject: string) => void;
+  onLoaded?: (id: string, subject: string, study: StudyDay) => void;
   go: (route: Route) => void;
   onCompleted?: () => Promise<void>;
 }) {
   const session = useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCompleted });
-  const { lesson, answers, history, readonly, busy, pending, error, feedbackError, state } = session;
+  const { lesson, child, answers, history, readonly, busy, pending, error, feedbackError, state } = session;
   if (!lesson) return <p role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">{error || "Đang mở bài…"}</p>;
 
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;

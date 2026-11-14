@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { berlinClock, deviceClock, skyClock, typicalWeather, type BerlinClock, type Moon, type Weather } from "../../../lib/lubeck/sky";
 import { deskItem, shelfItem } from "./items";
-import { mountScene } from "./scene";
+import type { mountScene } from "./scene";
 
 type Ambient = { weather: Weather | null; moon: Moon | null };
 const AMBIENT_REFRESH = 30 * 60 * 1000;
@@ -101,16 +101,26 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
     if (!svg.current || !clock || document.hidden) return;
     const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     if (draw.current && memory !== undefined && memory <= 2) return;
-    draw.current ??= mountScene(svg.current);
-    const darkness = draw.current({
-      hour: clock.hour,
-      month: clock.month,
-      day: clock.day,
-      offsetHours: clock.offsetHours,
-      weather: weather ?? ambient.weather ?? typicalWeather(clock.month),
-      moon: previewing ? null : ambient.moon,
-    });
-    onDarkness?.(darkness);
+    const node = svg.current;
+    let active = true;
+    const paint = async () => {
+      const { mountScene } = await import("./scene");
+      if (!active) return;
+      draw.current ??= mountScene(node);
+      const darkness = draw.current({
+        hour: clock.hour,
+        month: clock.month,
+        day: clock.day,
+        offsetHours: clock.offsetHours,
+        weather: weather ?? ambient.weather ?? typicalWeather(clock.month),
+        moon: previewing ? null : ambient.moon,
+      });
+      onDarkness?.(darkness);
+    };
+    // First let the study controls paint and settle before loading the decorative scene.
+    const timer = draw.current ? undefined : window.setTimeout(() => void paint().catch(() => {}), 3000);
+    if (draw.current) void paint().catch(() => {});
+    return () => { active = false; window.clearTimeout(timer); };
   }, [clock, ambient, onDarkness, weather, previewing]);
 
   return <svg ref={svg} aria-hidden="true" viewBox="26 12 628 336" className={`lhw-window ${className ?? ""}`} style={{ display: "block", width: "100%" }} />;

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { lazy, Suspense, useState, type KeyboardEvent } from "react";
 import type { ItemView } from "../../../../lib/lesson-v2/store";
 import { parseStructuredAnswer } from "../../../../lib/lesson-v2/answer";
 import { SketchIcon } from "../../sketch-icons";
-import { FigureImage } from "../figures";
-import { CodeInput } from "./code";
+import { FigureImage } from "../figure-image";
+const CodeInput = lazy(() => import("./code").then(module => ({ default: module.CodeInput })));
 
 type StructuredItem = Extract<ItemView, { input: "cloze" | "match" | "order" | "label" | "table" | "code" }>;
 type Props = { value: string; onChange: (value: string) => void; disabled: boolean };
@@ -148,7 +148,7 @@ export function StructuredInput({ item, focusLine, ...props }: Props & { item: I
     case "order": return <OrderInput item={item} {...props} />;
     case "label": return <LabelInput item={item} {...props} />;
     case "table": return <TableInput item={item} {...props} />;
-    case "code": return <CodeInput item={item} focusLine={focusLine} {...props} />;
+    case "code": return <Suspense fallback={<p role="status">Đang mở ô viết mã…</p>}><CodeInput item={item} focusLine={focusLine} {...props} /></Suspense>;
     default: return null;
   }
 }

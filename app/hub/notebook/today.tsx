@@ -6,10 +6,12 @@ import { SketchIcon } from "../sketch-icons";
 import { pencil, pencilLink } from "../paper-bits";
 import { buttonClass, RouteLink } from "../ui";
 import { words } from "../words";
+import type { listRequests } from "../../../lib/requests/service";
 import type { BookLessons } from "./use-book";
 
-export function NotebookToday({ subject, book, learner, go, refresh }: {
+export function NotebookToday({ subject, book, learner, go, refresh, requests }: {
   subject: ShelfSubject; book: BookLessons; learner: string | null;
+  requests: Awaited<ReturnType<typeof listRequests>>;
   go: (route: Route) => void; refresh: () => void;
 }) {
   const open = book.lessons.filter(row => !row.completedAt);
@@ -34,8 +36,8 @@ export function NotebookToday({ subject, book, learner, go, refresh }: {
         <ul>{extras.map(row => <li key={row.id}><RouteLink route={{ view: "lesson", id: row.id }} go={go} className={pencilLink}>{row.title}</RouteLink>
           {row.minutes ? <span className={pencil}> · {row.minutes} phút</span> : null}</li>)}</ul></details>}
       {canRequest && <div className="mt-auto pt-3">
-        {book.adaptive ? <AdaptiveRequests subjectId={subject.id} learner={learner} go={go} onSaved={refresh} />
-          : !open.length && <NewLessonRequest subjectId={subject.id} onOpen={id => { void refresh(); go({ view: "lesson", id }); }} />}
+        {book.adaptive ? <AdaptiveRequests initial={requests} subjectId={subject.id} learner={learner} go={go} onSaved={refresh} />
+          : !open.length && <NewLessonRequest initial={requests} subjectId={subject.id} onOpen={id => { void refresh(); go({ view: "lesson", id }); }} />}
       </div>}
     </section>;
 }
