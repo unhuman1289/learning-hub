@@ -117,6 +117,7 @@ export function ItemCard({
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
+              autoComplete="off"
               value={value.answer}
               disabled={locked}
               onChange={(e) => onChange({ ...value, answer: e.target.value })}
@@ -131,6 +132,7 @@ export function ItemCard({
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
+              autoComplete="off"
               value={value.answer}
               disabled={locked}
               onChange={(e) => onChange({ ...value, answer: e.target.value })}
