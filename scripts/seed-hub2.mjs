@@ -44,6 +44,8 @@ function fixtureLesson(lesson, subjectId, learnerId) {
   const resolve = ref => ids.get(ref) ?? ref;
   return {
     ...lesson,
+    contract: 'lesson-package/3',
+    knowledge: [],
     reasonRefs: lesson.reasonRefs.map(resolve),
     targetSkills: lesson.targetSkills.map(resolve),
     items: lesson.items.map(item => ({

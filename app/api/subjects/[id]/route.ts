@@ -82,10 +82,10 @@ export async function PATCH(req: Request, context: Context) {
     if (learnerId instanceof Response) return learnerId;
     if (patch.limits) {
       const subject = await getSubject(db, learnerId, id);
-      const previous = JSON.parse(subject.limits).package ?? 2;
-      patch.limits.package ??= previous;
-      if (patch.limits.package !== previous && (user.role !== 'admin' || subject.legacy_track))
-        return Response.json({ error: 'Chỉ quản trị viên có thể đổi phiên bản dạng bài cho sổ riêng.' }, { status: 403, headers });
+      const previous = JSON.parse(subject.limits).itemKinds;
+      patch.limits.itemKinds ??= previous;
+      if (JSON.stringify(patch.limits.itemKinds) !== JSON.stringify(previous) && user.role !== 'admin')
+        return Response.json({ error: 'Chỉ quản trị viên có thể đổi dạng câu.' }, { status: 403, headers });
     }
     return Response.json({ subject: await updateSubject(db, learnerId, id, patch) }, { headers });
   } catch (error) {

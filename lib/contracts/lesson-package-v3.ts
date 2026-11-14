@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { lessonItem, lessonPackageV2, rubricCriterion, textKey, numericKey } from "./lesson-package-v2.ts";
+import { lessonItem, lessonPackageV2, rubricCriterion, textKey, numericKey } from "./lesson-items.ts";
 
 const text = (limit: number) => z.string().trim().min(1).max(limit);
 const id = z.string().regex(/^[a-z0-9_-]{1,30}$/);

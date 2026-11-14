@@ -4,6 +4,7 @@ import { useState } from "react";
 import { fieldClass, labelClass } from "../paper-dialog";
 import { paperAction, PaperSummary } from "../paper-bits";
 import type { ShelfApi, ShelfSubject } from "../use-shelf";
+import { itemPolicy, type ItemKind } from "../../../lib/subjects/item-kinds";
 import { frameworks } from "../../../lib/roadmap/frameworks";
 import { PaperConfirm } from "../paper-confirm";
 
@@ -21,15 +22,27 @@ export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
   );
 }
 
-export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSubject; shelf: ShelfApi; hub2?: boolean }) {
+const itemLabels: Record<ItemKind, string> = {
+  choice: "Trắc nghiệm", short: "Trả lời ngắn", long: "Viết tự luận", cloze: "Điền vào chỗ trống",
+  order: "Sắp xếp", code: "Viết mã", table: "Điền bảng", label: "Gắn nhãn", match: "Nối cặp",
+};
+
+export function SubjectForm({ subject, shelf, hub2 = false, canManage = false }: {
+  subject: ShelfSubject; shelf: ShelfApi; hub2?: boolean; canManage?: boolean;
+}) {
   type Draft = Partial<Pick<ShelfSubject, "goal" | "level" | "curriculum" | "instructions" | "aiEnabled">>;
   const [draft, setDraft] = useState<Draft>({});
   const [framework, setFramework] = useState(subject.framework.key);
   const [custom, setCustom] = useState(subject.framework.custom ?? "");
   const frameworkChanged = framework !== subject.framework.key || (framework === "custom" && custom.trim() !== subject.framework.custom);
+  const [editedKinds, setEditedKinds] = useState<ItemKind[] | null>(null);
+  const policy = itemPolicy(framework);
+  const kinds = editedKinds ?? subject.limits.itemKinds ?? policy.kinds;
+  const availableKinds = [...new Set([...policy.kinds, ...kinds, ...(subject.limits.itemKinds ?? [])])];
+  const kindsInvalid = canManage && kinds.length < policy.minimum;
   const [state, setState] = useState<"idle" | "saving" | "saved">("idle");
   const [error, setError] = useState("");
-  const changed = frameworkChanged || Object.entries(draft).some(([field, value]) => value !== subject[field as keyof Draft]);
+  const changed = editedKinds !== null || frameworkChanged || Object.entries(draft).some(([field, value]) => value !== subject[field as keyof Draft]);
 
   function edit(fields: Draft) {
     setDraft(current => ({ ...current, ...fields }));
@@ -40,7 +53,8 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
     setState("saving");
     setError("");
     try {
-      const saved = await shelf.update(subject.id, { revision: subject.revision, ...draft, ...(frameworkChanged ? { framework: { key: framework, ...(framework === "custom" ? { custom: custom.trim() } : {}) } } : {}) });
+      const saved = await shelf.update(subject.id, { revision: subject.revision, ...draft, ...(editedKinds ? { limits: { ...subject.limits, itemKinds: editedKinds } } : {}), ...(frameworkChanged ? { framework: { key: framework, ...(framework === "custom" ? { custom: custom.trim() } : {}) } } : {}) });
+      setEditedKinds(current => current === editedKinds ? null : current);
       setDraft(current => current === draft ? {} : current);
       setFramework(current => current === framework ? saved.framework.key : current);
       setCustom(current => current === custom ? saved.framework.custom ?? "" : current);
@@ -79,6 +93,17 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
         </label>
       )}
       {hub2 && <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={draft.aiEnabled ?? subject.aiEnabled} disabled={subject.status!=="active"} onChange={e => edit({ aiEnabled: e.target.checked })}/> Mỗi sáng có bài mới khi bạn đã xong bài hôm trước.</label>}
+      {hub2 && canManage && <fieldset className="grid gap-1" disabled={state === "saving"}>
+        <legend className={labelClass}>Dạng câu trong bài mới</legend>
+        {availableKinds.map(kind => <label key={kind} className="flex min-h-9 items-center gap-3 text-sm">
+          <input type="checkbox" checked={kinds.includes(kind)} onChange={event => {
+            setEditedKinds(event.target.checked ? [...kinds, kind] : kinds.filter(value => value !== kind));
+            setState("idle");
+          }} />
+          {itemLabels[kind]}
+        </label>)}
+        {kindsInvalid && <p role="status" className="text-sm text-muted">Chọn ít nhất {policy.minimum} dạng câu.</p>}
+      </fieldset>}
       {subject.openingBrief && <details>
         <PaperSummary>Nội dung lúc mở sổ</PaperSummary>
         <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-muted">{subject.openingBrief}</p>
@@ -86,7 +111,7 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
       {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
       <div className="flex flex-wrap items-center justify-end gap-3">
         <span role="status" className="text-sm text-muted">{state === "saved" && !changed ? "Đã lưu." : ""}</span>
-        <button type="submit" disabled={!changed || state === "saving"} className={paperAction}>{state === "saving" ? "Đang lưu…" : "Lưu"}</button>
+        <button type="submit" disabled={!changed || kindsInvalid || state === "saving"} className={paperAction}>{state === "saving" ? "Đang lưu…" : "Lưu"}</button>
       </div>
     </form>
   );

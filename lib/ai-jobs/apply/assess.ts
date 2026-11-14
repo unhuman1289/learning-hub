@@ -1,7 +1,7 @@
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { AssessContext, AssessResult } from '../../contracts/ai-common.ts';
 import { itemIssues } from '../../lesson-v2/validate.ts';
-import { lessonItem } from '../../contracts/lesson-package-v2.ts';
+import { lessonItem } from '../../contracts/lesson-items.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
 import type { Job } from '../context/common.ts';
 import {roadmapProgressWrite} from '../../roadmap/progress.ts';

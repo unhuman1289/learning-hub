@@ -1,6 +1,7 @@
 import {coverageState,stepQuery} from '../../roadmap/coverage.ts';
 import {listSteps} from '../../roadmap/store.ts';
 import {decideNext,roadmapSignals} from '../../roadmap/progress.ts';
+import { itemPolicy } from "../../subjects/item-kinds.ts";
 import {frameworks,inferFramework} from '../../roadmap/frameworks.ts';
 import { contextExcerpt } from '../../knowledge/service.ts';
 import { decideAdaptivePlan } from '../adaptive.ts';
@@ -161,10 +162,11 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       .first<{ aiGraded: number; disputed: number; overturned: number; keyIssues: number }>();
     const {results: reflections=[]} = await db.prepare('SELECT submission_id,lesson_id,difficulty,usefulness,minutes,note,updated_at FROM lesson_reflections WHERE learner_id=? AND subject_id=? ORDER BY updated_at DESC LIMIT 10').bind(job.learner_id,id).all<Record<string,unknown>>();
     const framework = s.framework ? JSON.parse(String(s.framework)) as ReturnType<typeof inferFramework> : inferFramework(String(s.title),String(s.opening_brief??s.goal??""),String(s.curriculum??""));
+    const { maxDifficulty, allowNewTopics, maxNewSkillsPerWeek, itemKinds } = JSON.parse(String(s.limits));
     list.push({
-      ...(roadmapV2 ? { framework: {key:framework.key,label:safeText(framework.label,sensitivity),
+      framework: {key:framework.key,label:safeText(framework.label,sensitivity),
         ...(framework.levelFrom?{levelFrom:safeText(framework.levelFrom,sensitivity)}:{}),
-        ...(framework.levelTo?{levelTo:safeText(framework.levelTo,sensitivity)}:{})} } : {}),
+        ...(framework.levelTo?{levelTo:safeText(framework.levelTo,sensitivity)}:{})},
       roadmap: (steps.length ? steps.filter(step=>step.status!=='retired').slice(-80).map(({id,title,objective,situation,skills,requires,mode,status,band,levelLabel})=>({id,title,objective,situation,skills,requires,mode,status,band,levelLabel})) : legacyRoadmap)
         .map((step:{title:string;objective:string;situation:string;skills:string[];mode:string})=>({...step,title:safeText(step.title,sensitivity),objective:safeText(step.objective,sensitivity),situation:safeText(step.situation,sensitivity)})),
       learnerReflections: reflections.map(f=>({submissionId:String(f.submission_id),lessonId:String(f.lesson_id),difficulty:String(f.difficulty),usefulness:String(f.usefulness),minutes:Number(f.minutes),note:safeText(f.note,sensitivity).slice(0,1500),updatedAt:String(f.updated_at)})),
@@ -176,7 +178,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       level: safeText(s.level, sensitivity),
       curriculum: safeText(s.curriculum, sensitivity),
       instructions: safeText(s.instructions ?? '', sensitivity).slice(0, 4000),
-      limits: JSON.parse(String(s.limits)),
+      limits: { maxDifficulty, allowNewTopics, maxNewSkillsPerWeek, itemKinds: itemKinds ?? itemPolicy(framework.key).kinds },
       weight: s.weight,
       revision: s.revision,
       progressSummary: safeText(s.progress_summary, sensitivity),

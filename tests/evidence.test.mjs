@@ -52,6 +52,28 @@ test('autograde matrix: exact sets, numeric units/tolerances and German normaliz
   assert.equal(autoGrade(text, 'kochen').feedback, 'Đúng.');
   assert.equal(autoGrade(text, 'kocht').feedback, 'Chưa đúng. Đọc lại đề và thử sửa nhé.');
 });
+test('ambiguous numbers ask for clarification without saving a submission or consuming an attempt', async () => {
+  const { db, id } = await seed();
+  const item = structuredClone(fixture.items[0]);
+  item.input = 'short';
+  item.key = { type: 'numeric', value: '1000', unit: null, tolerance: 0 };
+  db.sqlite.prepare('UPDATE lesson_items SET payload=? WHERE lesson_id=? AND item_id=?')
+    .run(JSON.stringify(item), id, item.id);
+  const request = { ...input(0, [item.id]), answers: { [item.id]: { answer: '1.000' } } };
+  await assert.rejects(submitLesson(db, 'learner', id, request), {
+    status: 422,
+    message: 'Bạn muốn viết 1000 hay 1?',
+  });
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM submissions').get().n, 0);
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 0);
+  const saved = await submitLesson(db, 'learner', id, {
+    ...request,
+    answers: { [item.id]: { answer: '1000' } },
+  });
+  assert.equal(saved.attempts[0].result, 'correct');
+  assert.equal(saved.attempts[0].attempt_no, 1);
+});
+
 test('evidence strength distinguishes help, retry, solution and ungradable', () => {
   assert.equal(evidenceStrength('correct', 'none', 1), 'E3');
   assert.equal(evidenceStrength('correct', 'none', 2), 'E2');

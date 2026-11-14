@@ -1,9 +1,10 @@
+import type { ItemKind } from './item-kinds.ts';
 import type { LearningTrack } from '../daily-policy.ts';
 
 export type SubjectTemplate = 'skill' | 'reading';
 export type SubjectSensitivity = 'normal' | 'clinical' | 'child_dev';
 export type SubjectStatus = 'setup' | 'active' | 'paused' | 'archived';
-export type SubjectLimits = { maxDifficulty: number; allowNewTopics: boolean; maxNewSkillsPerWeek: number; package?: 2 | 3 };
+export type SubjectLimits = { maxDifficulty: number; allowNewTopics: boolean; maxNewSkillsPerWeek: number; itemKinds?: ItemKind[] };
 
 export type SubjectRow = {
   id: string; learner_id: string; title: string; template: SubjectTemplate; sensitivity: SubjectSensitivity;

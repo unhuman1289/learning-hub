@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
-import { parseNumericAnswer } from '../lib/lesson-v2/numeric.ts';
+import { numericKeyValuePattern, parseNumericAnswer } from '../lib/lesson-v2/numeric.ts';
 
 const dir = new URL('../fixtures/contracts/lesson-v2/', import.meta.url);
 const fixtures = Object.fromEntries(
@@ -222,6 +222,11 @@ test('numeric answers: comma decimals, fractions, units', () => {
   const cases = [
     ['0,75', 0.75, ''],
     ['0.75', 0.75, ''],
+    ['0.125', 0.125, ''],
+    ['0.375', 0.375, ''],
+    ['-0.375 kg', -0.375, 'kg'],
+    ['00.125', 0.125, ''],
+    ['1 / 0.125', 8, ''],
     ['3/4', 0.75, ''],
     ['7,50 €', 7.5, '€'],
     ['-2', -2, ''],
@@ -230,6 +235,17 @@ test('numeric answers: comma decimals, fractions, units', () => {
   ];
   for (const [raw, value, unit] of cases) assert.deepEqual(parseNumericAnswer(raw), { value, unit }, raw);
   for (const raw of ['', 'sáu', '1/0', '1 1/2', '1.000,5', '1.000', '3/']) assert.equal(parseNumericAnswer(raw), null, raw);
+});
+
+test('numeric key pattern accepts zero-leading decimals and rejects ambiguous groups', () => {
+  const pattern = new RegExp(numericKeyValuePattern);
+  for (const key of ['0.125', '0.375', '-0.375', '+00.125', '0,375', '3/8', '0.375/2', '1000.125']) {
+    assert.match(key, pattern);
+    assert.ok(parseNumericAnswer(key), key);
+  }
+  for (const key of ['1.000', '-12.375', '01.125', '1.000,5', '2/0', '0.375 kg']) {
+    assert.doesNotMatch(key, pattern);
+  }
 });
 
 test('lessons from an AI runner follow D20 sizes; hand-imported lessons keep 3–25', async () => {

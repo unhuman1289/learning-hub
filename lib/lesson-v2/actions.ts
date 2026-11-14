@@ -3,7 +3,7 @@ import {roadmapProgressWrite} from '../roadmap/progress.ts';
 import {addDays} from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { berlinDay } from '../daily-policy.ts';
-import type { LessonItem } from '../contracts/lesson-package-v2.ts';
+import type { LessonItem } from '../contracts/lesson-items.ts';
 import type { Db } from '../subjects/service.ts';
 import type { Support } from './store.ts';
 

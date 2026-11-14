@@ -1,4 +1,5 @@
-import { lessonPackageV2 } from '../contracts/lesson-package-v2.ts';
+import { itemPolicy, isMathFramework, type ItemKind } from '../subjects/item-kinds.ts';
+import { lessonPackageV2 } from '../contracts/lesson-items.ts';
 import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
@@ -15,6 +16,8 @@ export type ValidateOptions = {
   aiSizes?: boolean;
   adaptive?: boolean;
   subjectTitle?: string;
+  frameworkKey?: string;
+  itemKinds?: ItemKind[];
 };
 
 /** D20: items per lesson written by an AI runner, and at most four open answers so grading stays quick. */
@@ -54,6 +57,10 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
     for (const id of item.key.correct) if (!ids.has(id)) issue('key/correct', 'schema', `Correct choice "${id}" is not among the choices.`);
   }
   if (item.key?.type === 'numeric' && !parseNumericAnswer(item.key.value)) issue('key/value', 'schema', 'Numeric key value is not a number.');
+  if (item.key?.type === 'table') item.key.cells.forEach((cell, index) => {
+    if (cell.type === 'numeric' && !parseNumericAnswer(cell.value))
+      issue(`key/cells/${index}/value`, 'schema', 'Numeric key value is not a number.');
+  });
   if (item.key?.type === 'text' && item.key.accepted.length > 1 && item.key.accepted.some((answer) => words(answer) > 3)) {
     // Several accepted long answers means the answer is not unique: grade it with a rubric (LESSON-DESIGN §5.3).
     issue('key/accepted', 'schema', 'Text keys accept answers of at most 3 words, or a single exact sentence; use a rubric otherwise.');
@@ -78,13 +85,40 @@ export function validateLessonPackage(
     };
   }
   const lesson = parsed.data;
+  if (options.aiSizes && lesson.contract === 'lesson-package/3' && isMathFramework(options.frameworkKey)) {
+    lesson.items = lesson.items.map(item => {
+      if ((item.input !== 'short' && item.input !== 'long') || item.key?.type !== 'text' ||
+          !item.key.accepted.some(answer => words(answer) > 3)) return item;
+      const { key: _key, ...open } = item;
+      void _key;
+
+      return {
+        ...open,
+        rubric: item.rubric ?? [
+          { criterion: 'Đáp ứng yêu cầu của đề bài', points: 1, skill: item.skills[0] },
+          { criterion: 'Nội dung toán học đúng theo lời giải mẫu hoặc cách giải tương đương', points: 1, skill: item.skills[0] },
+        ],
+      };
+    });
+  }
   const items: LessonItemAny[] = lesson.items;
   const issues: LessonIssue[] = [];
   const issue = (path: string, code: string, message: string) => issues.push({ path, code, message });
   const maxDifficulty = options.maxDifficulty ?? 5;
 
-  if (lesson.contract === 'lesson-package/3' && options.aiSizes && new Set(items.map(item => item.input)).size < 2)
-    issue('/items', 'schema', 'Bài soạn phiên bản 3 cần ít nhất hai dạng câu.');
+  if (options.itemKinds) {
+    const policy = itemPolicy(options.frameworkKey);
+    if (new Set(items.map(item => item.input)).size < policy.minimum)
+      issue('/items', 'item_kinds', 'Chuẩn học này cần ít nhất hai dạng câu.');
+    items.forEach((item, index) => {
+      if (!options.itemKinds?.includes(item.input))
+        issue(`/items/${index}/input`, 'item_kinds', `Sổ này không dùng dạng câu "${item.input}".`);
+    });
+    if (!policy.codeKnowledge && lesson.contract === 'lesson-package/3')
+      lesson.knowledge.forEach((block, index) => {
+        if (block.kind === 'code') issue(`/knowledge/${index}`, 'item_kinds', 'Sổ ngôn ngữ không dùng khối mã.');
+      });
+  }
   const review = lesson.kind === 'review';
   const [minItems, maxItems] = options.adaptive ? [1, 25] : review ? [3, 10] : [3, 25];
   if (lesson.items.length < minItems || lesson.items.length > maxItems)

@@ -2,7 +2,8 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
-import { lessonPackageV2 } from '../../lib/contracts/lesson-package-v2.ts';
+import { itemPolicy, isMathFramework } from '../../lib/subjects/item-kinds.ts';
+import { normalizeNumericKeyValue, numericKeyValuePattern } from '../../lib/lesson-v2/numeric.ts';
 import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
@@ -29,23 +30,83 @@ export function contractFor(kind) {
   return schemas[kind];
 }
 
-const packageSchemas = [lessonPackageV2, lessonPackageV3].map(contract => {
-  const schema = z.toJSONSchema(contract);
+function notebookLessonSchema(subject) {
+  const schema = z.toJSONSchema(lessonPackageV3);
   delete schema.$schema;
+  const policy = itemPolicy(subject?.framework?.key);
+  const allowed = subject?.limits?.itemKinds ?? policy.kinds;
+  const items = schema.properties.items;
+  const [basic, ...structured] = items.items.anyOf;
+  const constrainNumericKey = branches => {
+    const numeric = branches.find(branch => branch.properties.type.const === 'numeric');
+    numeric.properties.value.pattern = numericKeyValuePattern;
+  };
+  constrainNumericKey(basic.properties.key.oneOf);
+  const table = structured.find(branch => branch.properties.input.const === 'table');
+  constrainNumericKey(table.properties.key.properties.cells.items.anyOf);
+  // One blank per generated cloze keeps fragments and answer groups aligned.
+  const cloze = structured.find(branch => branch.properties.input.const === 'cloze');
+  Object.assign(cloze.properties.fragments, { minItems: 2, maxItems: 2 });
+  Object.assign(cloze.properties.key.properties.blanks, { minItems: 1, maxItems: 1 });
+  const branches = ['choice', 'short', 'long'].map(kind => {
+    const item = structuredClone(basic);
+    item.properties.input = { const: kind };
+    if (kind === 'choice') {
+      item.properties.key = item.properties.key.oneOf.find(key => key.properties.type.const === 'choice');
+      item.required.push('choices', 'key');
+      delete item.properties.rubric;
+    } else {
+      delete item.properties.choices;
+      if (kind === 'short') {
+        item.properties.key.oneOf = item.properties.key.oneOf.filter(key => key.properties.type.const !== 'choice');
+        item.required.push('key');
+        if (isMathFramework(subject?.framework?.key)) {
+          const text = item.properties.key.oneOf.find(key => key.properties.type.const === 'text');
+          text.properties.accepted.items.pattern = String.raw`^\s*\S+(?:\s+\S+){0,2}\s*$`;
+        }
+      } else {
+        delete item.properties.key;
+        item.required.push('rubric');
+      }
+    }
+    return item;
+  });
+  items.items = { anyOf: [...branches, ...structured].filter(branch => allowed.includes(branch.properties.input.const)) };
+  if (!policy.codeKnowledge)
+    schema.properties.knowledge.items.oneOf = schema.properties.knowledge.items.oneOf.filter(branch => branch.properties.kind.const !== 'code');
   return schema;
-});
+}
+
+const nullablePackage = subject => ({ anyOf: [notebookLessonSchema(subject), { type: 'null' }] });
 
 function generationSchema(kind, context, schema) {
   if (kind !== 'plan') return schema;
-  const versions = new Set(context.subjects.map(subject => subject.limits?.package ?? 2));
-  const v3 = versions.has(3);
   schema = structuredClone(schema);
-  const branches = v3 && versions.size > 1 ? packageSchemas : [packageSchemas[v3 ? 1 : 0]];
-  const nullablePackage = () => ({ anyOf: [...structuredClone(branches), { type: 'null' }] });
   const subjectProperties = schema.properties.subjects.items.properties;
-  subjectProperties.primaryLesson = nullablePackage();
-  subjectProperties.reviewSet = nullablePackage();
-  schema.properties.explorations.items.properties.lesson = nullablePackage();
+  const onlySubject = context.subjects.length === 1 ? context.subjects[0] : undefined;
+  subjectProperties.primaryLesson = nullablePackage(onlySubject);
+  subjectProperties.reviewSet = nullablePackage(onlySubject);
+  schema.properties.explorations.items.properties.lesson = nullablePackage(onlySubject);
+  if (context.subjects.length > 1) {
+    const { subjects, explorations } = schema.properties;
+    subjects.items = { anyOf: context.subjects.map(subject => {
+      const branch = structuredClone(subjects.items);
+      Object.assign(branch.properties, {
+        subjectId: { const: subject.subjectId },
+        primaryLesson: nullablePackage(subject),
+        reviewSet: nullablePackage(subject),
+      });
+      return branch;
+    }) };
+    const exploration = explorations.items;
+    explorations.items = { anyOf: [
+      ...context.subjects.map(subject => ({
+        ...exploration, properties: { ...exploration.properties, subjectId: { const: subject.subjectId }, lesson: nullablePackage(subject) },
+      })),
+      { ...exploration, properties: { ...exploration.properties, subjectId: { type: 'null' }, lesson: nullablePackage() } },
+    ] };
+    return schema;
+  }
   if (context.subjects.length === 1) {
     const [subject] = context.subjects;
     const subjects = schema.properties.subjects;
@@ -105,40 +166,6 @@ function generationSchema(kind, context, schema) {
       explorations.items.properties.action = { const: 'assign' };
       const lesson = explorations.items.properties.lesson.anyOf.find(branch => branch.type === 'object');
       lesson.properties.kind = { enum: kinds };
-      if (v3 && context.subjects.length === 1 &&
-          /(?:^|[-_])(?:cefr|hsk|actfl)(?:$|[-_])/i.test(context.subjects[0].framework?.key ?? '')) {
-        const knowledge = lesson.properties.knowledge;
-        const alternatives = knowledge.items.oneOf ?? knowledge.items.anyOf;
-        const key = knowledge.items.oneOf ? 'oneOf' : 'anyOf';
-        knowledge.items[key] = alternatives.filter(branch => branch.properties.kind.const !== 'code');
-      }
-      if (v3 && context.adaptive.mode !== 'challenge') {
-        const items = lesson.properties.items;
-        const [basic, ...structured] = items.items.anyOf;
-        const cloze = structuredClone(structured.find(branch => branch.properties.input.const === 'cloze'));
-        Object.assign(cloze.properties.fragments, { minItems: 2, maxItems: 2 });
-        Object.assign(cloze.properties.key.properties.blanks, { minItems: 1, maxItems: 1 });
-        const choice = structuredClone(basic);
-        choice.properties.input = { const: 'choice' };
-        choice.properties.key = choice.properties.key.oneOf.find(branch => branch.properties.type.const === 'choice');
-        choice.required.push('key', 'choices');
-        delete choice.properties.rubric;
-        const short = structuredClone(basic);
-        short.properties.input = { const: 'short' };
-        short.properties.key.oneOf = short.properties.key.oneOf.filter(key => key.properties.type.const !== 'choice');
-        short.required.push('key');
-        delete short.properties.choices;
-        delete short.properties.rubric;
-        const long = structuredClone(basic);
-        long.properties.input = { const: 'long' };
-        long.required.push('rubric');
-        delete long.properties.choices;
-        delete long.properties.key;
-        const remaining = structured.map(branch => branch.properties.input.const === 'cloze' ? cloze : branch);
-        items.items = { anyOf: [choice, short, long, ...remaining] };
-        items.minItems = Math.max(items.minItems ?? 0, 2);
-        items.prefixItems = [cloze, choice];
-      }
       if(context.roadmapProtocol===2){
         lesson.properties.estMinutes={const:context.adaptive.minutes};
         const targets=context.adaptive.targetSkills;
@@ -156,14 +183,6 @@ function generationSchema(kind, context, schema) {
             if(band&&branch.properties?.difficulty)branch.properties.difficulty={const:band};
             if(branch.properties?.skills&&targets.length)branch.properties.skills.items={enum:targets};
             if(branch.properties?.activity)branch.properties.activity={enum:['apply','transform','create','investigate']};
-          }
-          if(!items.anyOf){
-            items.properties.input={const:'short'};
-            items.properties.key.oneOf=items.properties.key.oneOf.filter(key=>key.properties.type.const==='text');
-            items.properties.key.oneOf[0].properties.accepted.maxItems=1;
-            items.required.push('key');
-            delete items.properties.choices;
-            delete items.properties.rubric;
           }
           if(targets.length){
             const constrainedItems=lesson.properties.items;
@@ -200,6 +219,7 @@ function generationSchema(kind, context, schema) {
   const item = subjects.items;
   const modern=context.roadmapProtocol===2;
   item.required.push(modern?'openingSteps':'roadmap','notebookSetup');
+  delete item.properties.roadmapChanges;
   if(modern){
     delete item.properties.roadmap;
     item.properties.notebookSetup.required.push('framework');
@@ -215,7 +235,7 @@ function generationSchema(kind, context, schema) {
   lesson.sheet = lesson.sheet.anyOf.find(branch => branch.type === 'object');
   lesson.items.minItems = 5;
   lesson.items.maxItems = 6;
-  if (v3 || modern) {
+  {
     const skillKeys = Array.from({ length: 8 }, (_, index) => 'step-' + (index + 1));
     const skillRefs = skillKeys.map(key => 'key:' + key);
     const addSkill = item.properties.skillChanges.items.oneOf.find(branch => branch.properties.op.const === 'add');
@@ -235,51 +255,31 @@ function generationSchema(kind, context, schema) {
         prefixItems:skillRefs.slice(0,5).map(skill=>({
           ...opening,properties:{...opening.properties,
             skills:{type:'array',minItems:1,maxItems:1,items:{const:skill}},
+            requires:{type:'array',maxItems:0},
           },
         })),
       };
     }else item.properties.roadmap.items.properties.skills.items = { enum: skillRefs };
     lesson.targetSkills.items = { enum: skillRefs };
     lesson.reasonRefs.items = { enum: skillRefs };
-    const oldQuestion=lesson.items.items;
-    const shortQuestion=()=>{
-      const question=structuredClone(oldQuestion);
-      question.required.push('key');
-      question.properties.input={const:'short'};
-      delete question.properties.choices;
-      delete question.properties.rubric;
-      question.properties.key.oneOf=question.properties.key.oneOf.filter(branch=>branch.properties.type.const==='text');
-      question.properties.key.oneOf[0].properties.accepted.maxItems=1;
-      return question;
-    };
-    const inputs = v3?oldQuestion.anyOf.filter(branch => branch.properties.input.const):[shortQuestion()];
-    const closed = inputs.filter(branch => branch.properties.input.const !== 'code');
-    const rust = /\brust\b/i.test(context.subjects[0].title);
-    const first = !v3?inputs:rust?inputs.filter(branch=>branch.properties.input.const==='code'):closed.filter(branch=>branch.properties.input.const==='match');
-    const cloze=v3?structuredClone(closed.find(branch=>branch.properties.input.const==='cloze')):null;
-    if(cloze){
-      Object.assign(cloze.properties.fragments,{minItems:2,maxItems:2});
-      Object.assign(cloze.properties.key.properties.blanks,{minItems:1,maxItems:1});
-    }
-    const rest=cloze?[cloze]:inputs;
+    const inputs = lesson.items.items.anyOf;
+    const closed = inputs.filter(branch => branch.properties.input.const !== 'long' && branch.properties.input.const !== 'code');
+    const policy = itemPolicy(onlySubject?.framework?.key);
+    const preferred = inputs.find(branch => branch.properties.input.const === 'code')
+      ?? closed.find(branch => branch.properties.input.const === 'choice')
+      ?? inputs[0];
+    const rest = closed.filter(branch => policy.minimum === 1 || branch !== preferred);
     const question = (branches, index) => ({ anyOf: branches.map(branch => ({
       ...branch, properties: {
-        ...branch.properties, id: { const: 'i' + (index + 1) }, skills: modern?{type:'array',minItems:1,maxItems:1,items:{const:skillRefs[index]}}:{ ...branch.properties.skills, items: { enum: skillRefs } },
+        ...branch.properties, id: { const: 'i' + (index + 1) },
+        skills: modern ? { type: 'array', minItems: 1, maxItems: 1, items: { const: skillRefs[index] } }
+          : { ...branch.properties.skills, items: { enum: skillRefs } },
       },
     })) });
     lesson.items = {
       type: 'array', minItems: 5, maxItems: 5, items: false,
-      prefixItems: [question(first, 0), ...Array.from({ length: 4 }, (_, index) => question(rest, index + 1))],
+      prefixItems: [question([preferred], 0), ...Array.from({ length: 4 }, (_, index) => question(rest.length ? rest : inputs, index + 1))],
     };
-  } else {
-    const question = lesson.items.items;
-    question.required.push('key');
-    question.properties.input = { const: 'short' };
-    delete question.properties.choices;
-    delete question.properties.rubric;
-    const keys = question.properties.key;
-    keys.oneOf = keys.oneOf.filter(branch => branch.properties.type.const !== 'choice');
-    keys.oneOf.find(branch => branch.properties.type.const === 'text').properties.accepted.maxItems = 1;
   }
   item.properties.reviewSet = { type: 'null' };
   return initial;
@@ -325,7 +325,9 @@ function compactOnce(context) {
   };
 }
 
-function normalizeLesson(lesson) {
+const normalizeNumericKey = key => key.type === 'numeric' ? { ...key, value: normalizeNumericKeyValue(key.value) } : key;
+
+export function normalizeLesson(lesson) {
   const review = lesson.kind === 'review';
   const allowed = review ? ['retrieval', 'independent'] : lesson.template === 'skill'
     ? ['retrieval', 'sheet', 'guided', 'independent'] : ['read', 'analyze', 'output'];
@@ -348,7 +350,13 @@ function normalizeLesson(lesson) {
   return {
     ...lesson,
     stages,
-    items: lesson.items.map(item => item.key?.type === 'choice' && item.choices?.length ? { ...item, input: 'choice' } : item),
+    items: lesson.items.map(item => {
+      if (item.key?.type === 'numeric') return { ...item, key: normalizeNumericKey(item.key) };
+      if (item.key?.type === 'table') return { ...item, key: { ...item.key, cells: item.key.cells.map(normalizeNumericKey) } };
+      if (item.key?.type === 'choice' && item.choices?.length && ['short', 'long', 'choice'].includes(item.input))
+        return { ...item, input: 'choice' };
+      return item;
+    }),
   };
 }
 
@@ -440,32 +448,23 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
     let draft;
-    let wholeLessonRepair = false;
-    // A lesson with a few repeated or wrong items usually needs two corrections; grading needs one.
-    const rounds = lease.kind === 'plan' ? 3 : 2;
-    for (let round = 0; round < rounds; round++) {
+    for (let round = 0; round < 2; round++) {
       let result;
       // Only some items were rejected: resend just those, not the whole lesson.
-      const partial = lease.kind === 'plan' && !wholeLessonRepair && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;
+      const partial = lease.kind === 'plan' && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;
       try {
         if (partial) {
           const { text, paths } = partialPrompt({
             context, draft, groups: partial, prompts: context.subjects.flatMap(subject => recentPrompts(subject)),
           });
-          const versions = new Set(context.subjects.map(subject => subject.limits?.package ?? 2));
-          const itemSchema = { anyOf: [...versions].map(version => packageSchemas[version === 3 ? 1 : 0].properties.items.items) };
+          const itemSchema = notebookLessonSchema(context.subjects.length === 1 ? context.subjects[0] : undefined).properties.items.items;
           const out = await qwen.run({ system: systemPrompt(lease.kind, lease.purpose), user: text, schema: partialSchema(itemSchema, paths), images: [] });
           result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
         } else {
         const out = await qwen.run({
-          system: systemPrompt(lease.kind, lease.purpose) + (lease.kind === 'plan' && context.roadmapProtocol !== 2 && context.subjects.some(subject => subject.limits?.package === 3)
-            ? '\n\nSổ limits.package=3 dùng hướng dẫn phiên bản 3. Bài chẩn đoán có đúng 5 câu i1–i5 và 8 kỹ năng step-1 đến step-8. Chỉ dùng các tham chiếu key:step-1 đến key:step-8. Nếu là Rust, i1 viết code; với môn khác, i1 nối cặp. Mỗi câu i2–i5 chỉ có một ô trống và đúng một nhóm đáp án. Kỹ năng tiên quyết chỉ tham chiếu bước trước.'
-            : '') + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
+          system: systemPrompt(lease.kind, lease.purpose) + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
-          user: userPrompt(promptContext, repair) + (lease.kind === 'plan' &&
-            context.purpose === 'request' && context.adaptive?.mode !== 'challenge' &&
-            context.subjects.length === 1 && context.subjects[0].limits?.package === 3
-            ? '\nCâu đầu điền một ô trống. Câu thứ hai chọn đáp án: mỗi lựa chọn có ID a, b, c… và key.correct dùng các ID đó. Mỗi câu có ID riêng.\n' + KEY_EXAMPLES : ''),
+          user: userPrompt(promptContext, repair),
           schema,
           images,
         });
@@ -474,10 +473,6 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       } catch (error) {
         lastError = qwen.name + ': ' + (error instanceof Error ? error.message : String(error));
         log({ jobId: lease.jobId, engine: qwen.name, event: 'engine_error' });
-        if(partial&&round+1<rounds){
-          wholeLessonRepair=true;
-          continue;
-        }
         break;
       }
       const local = contract.zod.safeParse(result);
