@@ -8,7 +8,7 @@ CREATE TABLE perf_daily (
   p75 INTEGER NOT NULL,
   p95 INTEGER NOT NULL,
   PRIMARY KEY (day, screen, country, device)
-) WITHOUT ROWID;
+);
 
 -- Counts by integer millisecond allow exact daily percentiles across beacon batches.
 CREATE TABLE perf_counts (
@@ -19,4 +19,4 @@ CREATE TABLE perf_counts (
   ms INTEGER NOT NULL,
   n INTEGER NOT NULL,
   PRIMARY KEY (day, screen, country, device, ms)
-) WITHOUT ROWID;
+);

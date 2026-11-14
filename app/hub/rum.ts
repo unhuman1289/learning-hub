@@ -1,6 +1,6 @@
 import {
   rumConnections, rumMaxMs, rumMaxSamples, type RumSample, type RumScreen,
-} from "../../lib/rum-contract";
+} from "../../lib/rum-contract.ts";
 
 const queued: RumSample[] = [];
 let timer: number | undefined;

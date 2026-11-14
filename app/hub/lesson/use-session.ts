@@ -289,7 +289,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         setPending(itemId);
       }
       const input = pendingSubmission.current;
-      const request = () => json<{ submission: SubmissionView; draftRevision: number }>(url + "/submissions", {
+      const request = () => json<{ submission: SubmissionView & { replayed: boolean }; draftRevision: number }>(url + "/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -299,7 +299,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         // Uncertain response: the same immutable submission key lets the server return the saved attempt.
         return request();
       });
-      if (!response.submission.job_status && response.submission.attempts.length
+      if (!response.submission.replayed && response.submission.attempts.length
         && response.submission.attempts.every(attempt => attempt.result)) {
         gradeStarted.current = { submissionId: response.submission.id, at: started };
       }

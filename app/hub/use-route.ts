@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { startRumNavigation } from "./rum";
+import { startRumNavigation } from "./rum.ts";
 import { findStaticTrack, isTrack, type TrackId } from "./model.ts";
 
 export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "tai-lieu";
@@ -85,12 +85,12 @@ export function useRoute() {
   }, [route]);
 
   useEffect(() => {
-    const sync = () => {
+    const sync = (event?: PopStateEvent) => {
       const next = parseRoute(window.location.search);
-      markNavigation(next);
+      if (event) markNavigation(next);
       setRoute(next);
     };
-    setRoute(parseRoute(window.location.search));
+    sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
   }, []);
