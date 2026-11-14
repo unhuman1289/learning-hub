@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { RuledPage } from "../../../components/notebook/paper";
+import { rumAfterPaint, rumNavigationStart } from "../rum";
 
 type Side = "left" | "right";
 type Corner = "top" | "bottom";
@@ -27,6 +28,8 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const root = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
   const paperId = useId();
+  const questionStarted = useRef<number | undefined>(undefined);
+  const measuredQuestion = useRef(false);
   const touch = useRef<{ x: number; y: number; corner: Corner } | null>(null);
   const pages = [[0], ...groups, [count + 1]];
   const target = selected === "summary" ? count + 1 : selected;
@@ -36,6 +39,15 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const first = current[0];
   const last = current.at(-1);
   const question = index > 0 && !end;
+
+  useEffect(() => {
+    const started = questionStarted.current ?? (initialItem > 0 && initialItem <= count ? rumNavigationStart("first_question") : undefined);
+    if (question && started !== undefined && !measuredQuestion.current) {
+      return rumAfterPaint("first_question", started, () => {
+        measuredQuestion.current = true;
+      });
+    }
+  }, [question, initialItem, count]);
 
   function jump(next: number, curl = 0, corner: Corner = "bottom") {
     if (next < 0 || next > count + 1 || next === target) return;
@@ -92,8 +104,9 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     });
   }
 
-  function turnFrom(offset: 1 | -1, corner: Corner = "bottom") {
+  function turnFrom(offset: 1 | -1, corner: Corner, started: number) {
     if (locked) return;
+    if (index === 0 && offset === 1 && pages[1]?.[0] <= count) questionStarted.current = started;
     const edge = edges.current.get((offset > 0 ? "right" : "left") + "-" + corner);
     const curl = edge?.querySelector<HTMLElement>("[data-curl]")?.getBoundingClientRect().width ?? 0;
     if (hint && pages[index + offset]) onHintSeen();
@@ -124,7 +137,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
           !(event.target instanceof Element) || event.target.closest(interactive)) return;
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
         event.preventDefault();
-        turnFrom(event.key === "ArrowRight" ? 1 : -1);
+        turnFrom(event.key === "ArrowRight" ? 1 : -1, "bottom", event.timeStamp);
       }
     }}
     onTouchStart={event => {
@@ -150,7 +163,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       const dx = event.changedTouches[0].clientX - start.x;
       const dy = event.changedTouches[0].clientY - start.y;
       const offset = dx < 0 ? 1 : -1;
-      if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5 && pages[index + offset]) turnFrom(offset, start.corner);
+      if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5 && pages[index + offset]) turnFrom(offset, start.corner, event.timeStamp);
       else pull(null);
     }}>
     <div id={paperId} ref={paper} className="lesson-flow-leaf" onAnimationEnd={event => {
@@ -170,21 +183,21 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
         <nav aria-label="Lật trang bài học">
           {index > 0 && <>
             <button type="button" ref={element => keepEdge("left-bottom", element)} data-turn-edge="left" data-side="left" data-corner="bottom"
-              className="lesson-flow-edge" disabled={locked} aria-label="Trang trước" onClick={() => turnFrom(-1)}>
+              className="lesson-flow-edge" disabled={locked} aria-label="Trang trước" onClick={event => turnFrom(-1, "bottom", event.timeStamp)}>
               <span data-curl aria-hidden="true" />
             </button>
             <span ref={element => keepEdge("left-top", element)} data-turn-corner="left" data-side="left" data-corner="top" aria-hidden="true"
-              className="lesson-flow-edge" data-disabled={locked || undefined} onClick={() => turnFrom(-1, "top")}>
+              className="lesson-flow-edge" data-disabled={locked || undefined} onClick={event => turnFrom(-1, "top", event.timeStamp)}>
               <span data-curl />
             </span>
           </>}
           {!end && <>
             <button type="button" ref={element => keepEdge("right-bottom", element)} data-turn-edge="right" data-side="right" data-corner="bottom"
-              className="lesson-flow-edge" disabled={locked} aria-label={nextLabel} onClick={() => turnFrom(1)}>
+              className="lesson-flow-edge" disabled={locked} aria-label={nextLabel} onClick={event => turnFrom(1, "bottom", event.timeStamp)}>
               <span data-curl aria-hidden="true" />
             </button>
             <span ref={element => keepEdge("right-top", element)} data-turn-corner="right" data-side="right" data-corner="top" aria-hidden="true"
-              className="lesson-flow-edge" data-disabled={locked || undefined} onClick={() => turnFrom(1, "top")}>
+              className="lesson-flow-edge" data-disabled={locked || undefined} onClick={event => turnFrom(1, "top", event.timeStamp)}>
               <span data-curl />
             </span>
           </>}

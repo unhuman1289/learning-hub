@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { startRumNavigation } from "./rum";
 import { findStaticTrack, isTrack, type TrackId } from "./model.ts";
 
 export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "tai-lieu";
@@ -84,13 +85,18 @@ export function useRoute() {
   }, [route]);
 
   useEffect(() => {
-    const sync = () => setRoute(parseRoute(window.location.search));
-    sync();
+    const sync = () => {
+      const next = parseRoute(window.location.search);
+      markNavigation(next);
+      setRoute(next);
+    };
+    setRoute(parseRoute(window.location.search));
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
   }, []);
 
   const go = useCallback((next: Route) => {
+    markNavigation(next);
     const href = routeHref(next);
     if (href !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.pushState({}, "", href);
     const update = () => {
@@ -110,4 +116,8 @@ export function useRoute() {
   }, []);
 
   return { route, go, ready: matched !== null };
+}
+
+function markNavigation(route: Route) {
+  startRumNavigation(route.view === "desk" ? "desk" : route.view === "lesson" ? "first_question" : undefined);
 }
