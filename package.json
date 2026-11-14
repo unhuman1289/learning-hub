@@ -32,7 +32,8 @@
     "runner:fake": "node --experimental-strip-types scripts/fake-runner.mjs --credentials .wrangler/demo-runner.json",
     "runner:local": "node --experimental-strip-types scripts/run-demo-qwen.mjs",
     "dev:fresh": "npm run dev:setup && npm run dev:seed && npm run build",
-    "qwen:replay": "node --experimental-strip-types scripts/qwen-replay.mjs"
+    "qwen:replay": "node --experimental-strip-types scripts/qwen-replay.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@better-auth/mcp": "1.7.7",
@@ -50,6 +51,7 @@
   "devDependencies": {
     "@cloudflare/vite-plugin": "1.37.1",
     "@cloudflare/workers-types": "4.20260515.1",
+    "@playwright/test": "1.65.1",
     "@tailwindcss/postcss": "4.2.1",
     "@types/node": "22.19.19",
     "@types/react": "19.2.14",
