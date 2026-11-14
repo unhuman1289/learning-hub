@@ -1,7 +1,7 @@
 # Kế hoạch: Learning Hub gọn lại, bàn học thư thái, luyện nghe — dev tách production, dùng tốt trên điện thoại ở Việt Nam
 
 - **Người thực hiện:** Codex (mã), Claude (mockup giao diện), chủ dự án (duyệt, thao tác trên Mac và Cloudflare).
-- **Ngày lập:** 13/11/2026, bản 3 (sau audit phiên Codex tối 13/11). **Tiến độ:** xem `docs/plan/HUB-NEXT-STATUS.md`. Tệp này là nơi duy nhất ghi bước nào xong, bước nào dở; plan chỉ ghi việc cần làm.
+- **Ngày lập:** 13/11/2026, bản 3 (sau audit phiên Codex tối 13/11). **Tiến độ:** xem `docs/plan/HUB-NEXT-STATUS.md`. Chi tiết tiến độ nằm trong `docs/plan/status/<bước>.md` trên nhánh của từng bước.
 - **Cách giao việc cho Codex:** mục 10. Đọc mục này trước khi bắt đầu một bước.
 - **Mã đã đọc:** `main` tại `38aa632` (đã có Adaptive Roadmap #139–#142 và Knowledge K1–K5).
 - **Đã kiểm ngày 13/11 trên bản `main` mới nhất:**
@@ -188,12 +188,12 @@
      - cây làm việc bẩn;
      - `HEAD` không đúng một tag `prod-YYYYMMDD-N`;
      - tag không nằm trên `origin/main`.
-   - **`staging <tag>`:** fetch tag → checkout → `npm ci` → test, typecheck, contracts, build → `migrations list` staging → áp nếu có `--apply-migrations` → deploy staging với `APP_VERSION=<tag>` → so `/api/health` version.
+   - **`staging <commit|tag>`:** xác minh commit có trên nhánh hoặc tag hiện tại của `origin` → checkout commit → `npm ci` → test, typecheck, lint, contracts, build → `migrations list` staging → nếu có `--apply-migrations`, áp migration, deploy và xác nhận `/api/health` trả đúng commit.
    - **`production <tag>`:** như staging, cộng thêm:
      - sao lưu D1 production qua `/api/admin/backup` và chờ xác nhận ghi R2;
      - in danh sách migration chờ và **dừng nếu chưa có** `--apply-migrations`;
      - deploy;
-     - kiểm `/api/health` đúng tag;
+     - kiểm `/api/health` đúng tag và commit;
      - khởi động lại runner: `launchctl kickstart -k gui/$UID/cc.unhuman.learning-hub-runner.production`;
      - đợi runner báo `runner_presence` mới với đúng tag;
      - ghi một dòng vào `~/Library/Logs/learning-hub-releases.log`.
@@ -227,7 +227,7 @@
 1. **Nhánh tính năng** từ `main`, dựng và thử trên **local**: test, typecheck, lint, build, e2e điện thoại (mục 4.6), chạy tay với runner fake hoặc Qwen.
 2. **PR:** CI đạt. Mô tả có ảnh chụp điện thoại khi đổi giao diện.
 3. **Merge** khi chủ dự án đồng ý.
-4. **Staging:** chỉ deploy từ một commit đã push: `release.mjs staging <commit|tag>` hoặc `deploy-staging.yml`. **Không deploy staging từ cây làm việc chưa commit.** `/api/health` của staging phải trả đúng mã commit ngắn hoặc tag (`APP_VERSION`), để luôn biết staging đang chạy bản nào. Chủ dự án hoặc Ếch thử trên điện thoại thật theo danh sách mục 4.7.
+4. **Staging:** chỉ deploy từ một commit đã push: `release.mjs staging <commit|tag>` hoặc `deploy-staging.yml`. **Không deploy staging từ cây làm việc chưa commit.** `/api/health` trả SHA đầy đủ trong `commit` ở cả staging và production. Trường `version` ghi SHA ngắn ở staging và tag ở production. Chủ dự án hoặc Ếch thử trên điện thoại thật theo danh sách mục 4.7.
 5. **Tag** `prod-YYYYMMDD-N` trên đúng commit đã thử ở staging.
 6. **Production:** `release.mjs production <tag>` sau khi chủ dự án đồng ý. Có migration thì đồng ý riêng cho migration.
 7. **Sau phát hành:** health, một lượt học thật trên điện thoại, kiểm job `succeeded` và id đã lưu.
@@ -764,15 +764,9 @@ Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: he
 1. **Mỗi bước (hoặc mỗi PR) một luồng Codex mới.** Không tiếp tục luồng cũ. Luồng mới chỉ đọc:
    - `AGENTS.md`;
    - mục của bước đó trong plan này;
-   - `docs/plan/HUB-NEXT-STATUS.md`.
-   Luồng sắp dài (khoảng 120 lệnh) thì dừng, cập nhật STATUS và để luồng mới làm tiếp.
-2. **STATUS là trí nhớ chung.** Cuối mỗi luồng, Codex cập nhật:
-   - bước nào xong, bước nào dở, đang bị chặn bởi gì;
-   - nhánh và PR;
-   - commit đang chạy trên staging và production;
-   - migration đã áp ở đâu;
-   - việc chờ chủ dự án.
-   Mỗi mục là một dòng ngắn, không kể lại quá trình.
+   - `docs/plan/HUB-NEXT-STATUS.md` và `docs/plan/status/<bước>.md` nếu có.
+   Luồng sắp dài (khoảng 120 lệnh) thì cập nhật tệp của bước rồi để luồng mới làm tiếp.
+2. **Mỗi bước ghi tiến độ trong `docs/plan/status/<bước>.md` trên nhánh của bước đó.** Ghi nhánh, PR, phần đã kiểm và việc còn lại. Chỉ cập nhật bảng tổng `docs/plan/HUB-NEXT-STATUS.md` trên `codex/hub-next-wip` khi gộp PR. Ghi commit đang chạy và migration đã áp nếu đã xác minh.
 3. **Làm trên nhánh, commit theo từng bước nhỏ, mở PR.**
    - Không sửa trực tiếp trên `main` ở thư mục dev chính.
    - Staging chỉ deploy từ commit đã push, và health hiện đúng commit đó.
@@ -800,6 +794,6 @@ Bước <tên> trong docs/plan/HUB-NEXT.md (bản trên nhánh docs/hub-next-pla
 Đọc AGENTS.md, mục <tên> của plan và docs/plan/HUB-NEXT-STATUS.md. Không đọc lại lịch sử khác.
 Làm trên nhánh codex/<tên-bước>, commit từng phần, mở PR.
 Dừng khi: <tiêu chí "Xong khi" của bước>, hoặc cần tôi quyết định, hoặc một lỗi đã thử 3 vòng.
-Cuối lượt: cập nhật STATUS, báo ngắn: đã xong gì, PR nào, cần tôi quyết gì.
+Cuối lượt: cập nhật docs/plan/status/<bước>.md, báo phần đã xong, PR và quyết định đang chờ.
 ```
 

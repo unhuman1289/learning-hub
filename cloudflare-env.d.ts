@@ -16,6 +16,7 @@ declare namespace Cloudflare {
     UPLOADS?: R2Bucket;
     APP_ORIGIN?: string;
     APP_VERSION?: string;
+    APP_COMMIT?: string;
     DEPLOYMENT_ID?: string;
     ENVIRONMENT?: string;
     STAGING_SPIKE_LOCKDOWN?: string;

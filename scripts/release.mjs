@@ -1,17 +1,22 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8' }).trim();
 
-export function checkRelease(environment = 'production') {
+function checkCheckout(environment) {
   const marker = environment === 'staging' ? '.staging-checkout' : '.release-checkout';
-  if (!existsSync(marker)) throw Error('Run this from the dedicated release checkout.');
-  if (git('status', '--porcelain')) throw Error('The release checkout has uncommitted changes.');
+  const otherMarker = environment === 'staging' ? '.release-checkout' : '.staging-checkout';
+  if (!existsSync(marker) || existsSync(otherMarker)) throw Error('Run this from the dedicated ' + environment + ' checkout.');
+  if (git('status', '--porcelain', '--untracked-files=all')) throw Error('The release checkout has uncommitted changes.');
+}
+
+export function checkRelease() {
+  checkCheckout('production');
   const tags = git('tag', '--points-at', 'HEAD').split('\n').filter(tag => /^prod-\d{8}-\d+$/.test(tag));
   if (tags.length !== 1) throw Error('HEAD must point to exactly one prod-YYYYMMDD-N tag.');
   git('merge-base', '--is-ancestor', 'HEAD', 'origin/main');
-  return tags[0];
+  return { commit: git('rev-parse', 'HEAD'), version: tags[0] };
 }
 
 function run(command, args, env = process.env) {
@@ -27,67 +32,82 @@ function wrangler(args) {
   run(process.execPath, ['--import', './scripts/wrangler-env.mjs', wranglerPath, ...args]);
 }
 
-function prepare(environment) {
-  const tag = checkRelease(environment);
+function prepare(environment, { commit, version }) {
   run('npm', ['ci']);
   for (const script of ['test', 'typecheck', 'lint', 'contracts:check']) {
     run('npm', ['run', script]);
   }
-  run('npm', ['run', 'build'], { ...process.env, CLOUDFLARE_ENV: environment });
-  wrangler(['d1', 'migrations', 'list', 'DB', '--env', environment, '--remote']);
-  console.log('Verified release candidate ' + tag + ' for ' + environment + '.');
-  return tag;
+  run('npm', ['run', 'build'], {
+    ...process.env,
+    CLOUDFLARE_ENV: environment,
+    LEARNING_HUB_BUILD_COMMIT: commit,
+    LEARNING_HUB_BUILD_VERSION: version,
+  });
+  wrangler(['d1', 'migrations', 'list', 'DB', '--config', 'wrangler.jsonc', '--env', environment, '--remote']);
+  console.log('Prepared ' + version + ' (' + commit + ') for ' + environment + '.');
 }
 
-function checkoutTag(tag) {
-  if (!/^prod-\d{8}-\d+$/.test(tag ?? '')) throw Error('Expected a prod-YYYYMMDD-N tag.');
-  if (!existsSync('.staging-checkout') || existsSync('.release-checkout') || git('status', '--porcelain')) {
-    throw Error('Use a separate staging checkout marked .staging-checkout with a clean working tree.');
+const originBranches = 'refs/learning-hub/origin/heads';
+const originTags = 'refs/learning-hub/origin/tags';
+
+function stagingCandidate(target = 'HEAD') {
+  checkCheckout('staging');
+  run('git', ['fetch', '--prune', '--no-tags', 'origin',
+    '+refs/heads/*:' + originBranches + '/*', '+refs/tags/*:' + originTags + '/*']);
+  const ref = /^[0-9a-f]{7,40}$/.test(target) || target === 'HEAD'
+    ? target : originTags + '/' + target;
+  const commit = git('rev-parse', '--verify', '--end-of-options', ref + '^{commit}');
+  if (!git('for-each-ref', '--contains', commit, '--format=%(refname)', originBranches, originTags)) {
+    throw Error('Commit ' + commit + ' is not reachable from a branch or tag on origin.');
   }
-  run('git', ['fetch', 'origin', 'main', 'refs/tags/' + tag + ':refs/tags/' + tag]);
-  git('merge-base', '--is-ancestor', 'refs/tags/' + tag, 'origin/main');
-  run('git', ['switch', '--detach', 'refs/tags/' + tag]);
+  return { commit, version: commit.slice(0, 12) };
 }
 
-async function staging(tag, applyMigrations) {
-  checkoutTag(tag);
-  if (prepare('staging') !== tag) throw Error('Unexpected release tag.');
+async function staging(target, applyMigrations) {
+  if (!target) throw Error('Expected a commit or tag.');
+  const candidate = stagingCandidate(target);
+  run('git', ['switch', '--detach', candidate.commit]);
+  checkCheckout('staging');
+  prepare('staging', candidate);
   const file = 'dist/server/wrangler.json';
   const config = JSON.parse(readFileSync(file, 'utf8'));
   if (config.name !== 'learning-hub-staging' || config.vars?.ENVIRONMENT !== 'staging' ||
       config.vars?.APP_ORIGIN !== stagingOrigin ||
+      config.vars?.APP_COMMIT !== candidate.commit || config.vars?.APP_VERSION !== candidate.version ||
       config.d1_databases?.find(binding => binding.binding === 'DB')?.database_name !== 'learning-hub-staging') {
-    throw Error('Build did not target the staging Worker and database.');
+    throw Error('Build did not match the staging Worker, database and commit.');
   }
-  config.vars.APP_VERSION = tag;
-  writeFileSync(file, JSON.stringify(config));
   if (!applyMigrations) {
-    console.log('Preparation complete. Use --apply-migrations to release this tag after migration review.');
+    console.log('Preparation complete. Use --apply-migrations to release this commit after migration review.');
     return;
   }
-  wrangler(['d1', 'migrations', 'apply', 'DB', '--env', 'staging', '--remote']);
+  checkCheckout('staging');
+  if (git('rev-parse', 'HEAD') !== candidate.commit) throw Error('The staging checkout moved during preparation.');
+  wrangler(['d1', 'migrations', 'apply', 'DB', '--config', 'wrangler.jsonc', '--env', 'staging', '--remote']);
   wrangler(['deploy', '--config', file]);
   const url = new URL('/api/health', stagingOrigin);
   for (let attempt = 0; attempt < 12; attempt++) {
     const response = await fetch(url, { signal: AbortSignal.timeout(5000) }).catch(() => null);
     const health = await response?.json().catch(() => null);
-    if (response?.ok && health?.environment === 'staging' && health?.version === tag && health?.d1 === 'connected') {
+    if (response?.ok && health?.environment === 'staging' &&
+        health?.commit === candidate.commit && health?.d1 === 'connected') {
       run(process.execPath, ['scripts/staging-smoke.mjs', stagingOrigin]);
-      console.log('Staging is serving ' + tag + '.');
+      console.log('Staging is serving ' + candidate.commit + '.');
       return;
     }
     await new Promise(resolve => setTimeout(resolve, 5000));
   }
-  throw Error('Staging health did not confirm ' + tag + '. Check the deployment before retrying.');
+  throw Error('Staging health did not confirm ' + candidate.commit + '. Check the deployment before retrying.');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     const [action, environment, ...options] = process.argv.slice(2);
     if (action === 'staging' && options.every(option => option === '--apply-migrations')) await staging(environment, options.includes('--apply-migrations'));
-    else if (action === 'check') console.log(checkRelease());
-    else if (action === 'prepare' && ['staging', 'production'].includes(environment)) prepare(environment);
-    else throw Error('Usage: node scripts/release.mjs check | prepare <staging|production> | staging <tag> [--apply-migrations]');
+    else if (action === 'check') console.log(checkRelease().version);
+    else if (action === 'prepare' && environment === 'production') prepare(environment, checkRelease());
+    else if (action === 'prepare' && environment === 'staging') prepare(environment, stagingCandidate());
+    else throw Error('Usage: node scripts/release.mjs check | prepare <staging|production> | staging <commit|tag> [--apply-migrations]');
   } catch (error) {
     console.error(error.message);
     process.exitCode = 1;

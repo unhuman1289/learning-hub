@@ -14,6 +14,13 @@ export default defineConfig({
     vinext(),
     cloudflare({
       configPath: "./wrangler.jsonc",
+      config(worker) {
+        const commit = process.env.LEARNING_HUB_BUILD_COMMIT;
+        const version = process.env.LEARNING_HUB_BUILD_VERSION;
+        if (commit && version && ["staging", "production"].includes(String(worker.vars?.ENVIRONMENT))) {
+          return { vars: { APP_COMMIT: commit, APP_VERSION: version } };
+        }
+      },
       viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
       inspectorPort: false,
     }),
