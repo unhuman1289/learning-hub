@@ -41,12 +41,12 @@ export function CodeInput({ item, value, onChange, disabled, focusLine }: {
 
   return <div>
     <p id={item.id + "-code-help"} className="font-hand text-base text-muted-paper">Tab thụt dòng. Bấm Esc rồi Tab để ra khỏi ô.</p>
-    <div className="relative min-w-0 overflow-hidden border border-rule bg-paper-2 font-mono text-sm leading-6 focus-within:ring-2 focus-within:ring-accent-paper/50">
+    <div className="relative min-w-0 overflow-hidden border border-rule bg-paper-2 font-mono text-base leading-6 focus-within:ring-2 focus-within:ring-accent-paper/50">
       <pre ref={ink} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre py-1 text-ink-paper">
         <CodeLines code={value} language={item.language} highlighted={focusLine?.line} />
       </pre>
-      <textarea ref={editor} aria-label="Code của bạn" aria-describedby={item.id + "-code-help"} value={value} rows={item.lines} wrap="off" spellCheck={false}
-        readOnly={disabled} maxLength={8000} className="relative block w-full resize-none bg-transparent py-1 pr-1 pl-10 font-mono text-sm leading-6 text-transparent caret-ink-paper outline-none selection:bg-accent-paper/25"
+      <textarea ref={editor} aria-label="Code của bạn" aria-describedby={item.id + "-code-help"} value={value} rows={item.lines} wrap="off" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+        readOnly={disabled} maxLength={8000} className="relative block w-full resize-none bg-transparent py-1 pr-1 pl-10 font-mono text-base leading-6 text-transparent caret-ink-paper outline-none selection:bg-accent-paper/25"
         onChange={event => onChange(event.target.value)}
         onScroll={event => {
           if (!ink.current) return;
