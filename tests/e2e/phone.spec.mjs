@@ -257,8 +257,9 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
       await expect(page.locator('.lesson-flow')).toBeVisible();
       const summary = visiblePage(page).getByRole('region', { name: 'Tổng kết bài' });
       await turnUntil(page, summary);
-      await page.getByRole('button', { name: 'Xong bài', exact: true }).tap();
-      const confirm = page.getByRole('dialog').getByRole('button', { name: 'Xong bài', exact: true });
+      const finish = summary.getByRole('button', { name: 'Xong bài', exact: true });
+      if (await finish.isVisible()) await finish.tap();
+      const confirm = page.getByRole('alertdialog').getByRole('button', { name: 'Xong bài', exact: true });
       const reopen = page.getByRole('button', { name: 'Mở lại bài', exact: true });
       await expect(confirm.or(reopen).first()).toBeVisible();
       if (await confirm.isVisible()) await confirm.tap();
@@ -267,8 +268,14 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
       await expect(reopen).toBeVisible();
       await summary.getByRole('button', { name: /đúng ngay|cần sửa lại|đúng sau khi sửa/ }).first().tap();
       const mark = visiblePage(page).getByText('Chi tiết lời phê', { exact: true }).first();
+      await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn', /.+/);
       await mark.tap();
       await expect(mark.locator('..')).toHaveAttribute('open', '');
+      const id = new URL(page.url()).searchParams.get('bai2');
+      const { lesson } = await (await context.request.get('/api/lessons/' + id)).json();
+      expect(lesson.completedAt).toBeTruthy();
+      const field = page.locator('input[id^="answer-"],textarea[id^="answer-"]').first();
+      await expect(field).not.toHaveValue('');
       if (dir) await page.screenshot({ path: join(dir, '07-feedback.png') });
 
     });
@@ -327,8 +334,11 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
       }, { timeout: Number(process.env.PHONE_REQUEST_TIMEOUT ?? requestLimit), intervals: [5000, 15000, 60000] }).toBe('active');
       await page.reload();
       await openSpine(page, title);
-      await page.getByRole('link', { name: 'Mở bài', exact: true }).tap();
-      await expect(page).toHaveURL(/bai2=les_/);
+      const { lessons } = await (await context.request.get('/api/subjects/' + notebook.id + '/lessons')).json();
+      const firstLesson = lessons.find(row => row.slot === 'primary');
+      expect(firstLesson?.id, 'saved first lesson').toBeTruthy();
+      await page.getByRole('link', { name: /^Mở bài/ }).tap();
+      await expect(page).toHaveURL(new RegExp(firstLesson.id));
     });
     if (credentialsFile) {
       const state = await context.storageState();
