@@ -6,7 +6,7 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-Khung staging của PHONE-CHECK đã kết thúc lúc 18:19 Europe/Berlin.
+staging: HUB-NEXT hoàn tất (gộp #154, #153, PHONE-CHECK bước 8–9), đến 23:30 Europe/Berlin
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
