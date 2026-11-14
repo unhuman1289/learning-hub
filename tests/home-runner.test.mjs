@@ -568,7 +568,7 @@ test('Qwen math schema allows several short answers and numeric calculations', a
   const context = {
     contract: 'plan-context/1', purpose: 'daily', contextHash: 'sha256:' + 'a'.repeat(64),
     subjects: [{ subjectId: subject, title: 'Toán 7', goal: '', instructions: '', progressSummary: '', framework: { key: 'vn-gdpt-2018-toan' },
-      limits: { itemKinds: ['short', 'choice'] }, slot: { openPrimaryLessonId: null },
+      limits: { itemKinds: ['short', 'choice', 'table'] }, slot: { openPrimaryLessonId: null },
       skills: [], errorPatterns: [], recentLessons: [] }],
   };
   const hub = { context: async () => context, fail: async () => undefined };
@@ -578,10 +578,33 @@ test('Qwen math schema allows several short answers and numeric calculations', a
   const lesson = schema.properties.subjects.items.properties.primaryLesson.anyOf[0];
   const short = lesson.properties.items.items.anyOf.find(item => item.properties.input.const === 'short');
   const keys = short.properties.key.oneOf;
-  assert(keys.some(key => key.properties.type.const === 'numeric'));
+  const numeric = keys.find(key => key.properties.type.const === 'numeric');
+  const table = lesson.properties.items.items.anyOf.find(item => item.properties.input.const === 'table');
+  const numericCell = table.properties.key.properties.cells.items.anyOf.find(key => key.properties.type.const === 'numeric');
+  assert.equal(numericCell.properties.value.pattern, numeric.properties.value.pattern);
+  const numericPattern = new RegExp(numeric.properties.value.pattern, 'u');
+  for (const value of ['-2', '0,75', '+0.75', '3/4', '0,001', '1234.567']) assert(numericPattern.test(value), value);
+  for (const value of ['1.000', '1/0', '1/00', '}, {', 'x = 3', '3 kg', '3 4']) assert(!numericPattern.test(value), value);
   const accepted = keys.find(key => key.properties.type.const === 'text').properties.accepted;
   assert(accepted.maxItems > 1);
   const pattern = new RegExp(accepted.items.pattern, 'u');
   assert(pattern.test(' Tỉ lệ thuận '));
   assert(!pattern.test('là tỉ lệ thuận'));
+});
+
+
+test('runner normalizes numeric keys and table cells without guessing ambiguous values', () => {
+  const lesson = structuredClone(fixture);
+  lesson.items[0].key = { type: 'numeric', value: '  x =  3 / 4  ', tolerance: 0, unit: null };
+  lesson.items[1].key = { type: 'table', cells: [
+    { type: 'numeric', value: 'x = 1.000', tolerance: 0, unit: null },
+    { type: 'numeric', value: '  -0,75  ', tolerance: 0, unit: null },
+    { type: 'text', accepted: ['giữ nguyên'], caseSensitive: false },
+  ] };
+  const [short, table] = normalizePlan({ subjects: [], explorations: [{ lesson }] }).explorations[0].lesson.items;
+  assert.equal(short.key.value, '3/4');
+  assert.equal(table.key.cells[0].value, '1.000');
+  assert.equal(table.key.cells[1].value, '-0,75');
+  assert.deepEqual(table.key.cells[2], lesson.items[1].key.cells[2]);
+  assert.equal(lesson.items[0].key.value, '  x =  3 / 4  ');
 });

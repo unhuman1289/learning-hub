@@ -57,6 +57,10 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
     for (const id of item.key.correct) if (!ids.has(id)) issue('key/correct', 'schema', `Correct choice "${id}" is not among the choices.`);
   }
   if (item.key?.type === 'numeric' && !parseNumericAnswer(item.key.value)) issue('key/value', 'schema', 'Numeric key value is not a number.');
+  if (item.key?.type === 'table') item.key.cells.forEach((cell, index) => {
+    if (cell.type === 'numeric' && !parseNumericAnswer(cell.value))
+      issue(`key/cells/${index}/value`, 'schema', 'Numeric key value is not a number.');
+  });
   if (item.key?.type === 'text' && item.key.accepted.length > 1 && item.key.accepted.some((answer) => words(answer) > 3)) {
     // Several accepted long answers means the answer is not unique: grade it with a rubric (LESSON-DESIGN §5.3).
     issue('key/accepted', 'schema', 'Text keys accept answers of at most 3 words, or a single exact sentence; use a rubric otherwise.');

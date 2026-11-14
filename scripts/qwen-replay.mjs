@@ -4,11 +4,29 @@ import { itemPolicy } from '../lib/subjects/item-kinds.ts';
 import { normalizeLesson } from '../integrations/home-runner/job.mjs';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
 
+import { normalizeNumericKeyValue, numericKeyValuePattern, parseNumericAnswer } from '../lib/lesson-v2/numeric.ts';
+
+const numericPattern = new RegExp(numericKeyValuePattern);
 const folder = new URL('../tests/fixtures/qwen/', import.meta.url);
 const fixtures = readdirSync(folder).filter(name => name.endsWith('.json')).sort();
 assert(fixtures.length, 'Thiếu fixture Qwen.');
 for (const name of fixtures) {
   const fixture = JSON.parse(readFileSync(new URL(name, folder), 'utf8'));
+  if (fixture.numericCaptures) {
+    const rawValues = fixture.numericCaptures.flatMap(capture => Object.values(capture.items));
+    assert.equal(rawValues.length, 20);
+    for (const raw of rawValues) {
+      assert(!numericPattern.test(raw), JSON.stringify(raw));
+      assert.equal(parseNumericAnswer(normalizeNumericKeyValue(raw)), null, JSON.stringify(raw));
+    }
+    for (const { raw, normalized, valid } of fixture.normalizationCases) {
+      assert.equal(normalizeNumericKeyValue(raw), normalized);
+      assert.equal(numericPattern.test(normalized), valid, normalized);
+      assert.equal(Boolean(parseNumericAnswer(normalized)), valid, normalized);
+    }
+    console.log(name, rawValues.length, 'giá trị bị từ chối;', fixture.normalizationCases.length, 'ca chuẩn hoá đã kiểm');
+    continue;
+  }
   const options = { aiSizes: true, adaptive: true, frameworkKey: fixture.frameworkKey, itemKinds: itemPolicy(fixture.frameworkKey).kinds };
   const before = validateLessonPackage(fixture.lesson, { ...options, aiSizes: false });
   const after = validateLessonPackage(normalizeLesson(fixture.lesson), options);

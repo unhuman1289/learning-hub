@@ -1,3 +1,12 @@
+// Model keys use a bare number or a fraction with a positive integer denominator.
+// Units use key.unit. The decimal alternatives exclude ambiguous grouped forms like 1.000.
+const keyMagnitude = String.raw`(?:[0-9]+(?:,[0-9]+)?|[0-9]{4,}\.[0-9]+|[0-9]{1,3}\.(?:[0-9]{1,2}|[0-9]{4,}))`;
+export const numericKeyValuePattern = `^[+-]?${keyMagnitude}(?:/0*[1-9][0-9]*)?$`;
+
+export function normalizeNumericKeyValue(raw: string): string {
+  return raw.trim().replace(/^x\s*=\s*/i, '').replace(/\s*\/\s*/g, '/').replace(/\s+/g, ' ').trim();
+}
+
 /**
  * Reads a numeric answer the way learners write it: "0,75", "0.75", "3/4", "-2"; mixed numbers ("1 1/2") and thousands separators ("1.000,5") are rejected as
  * ambiguous. A trailing unit (letters, currency, %, °) is allowed and returned separately. Returns null when the text is not a number.

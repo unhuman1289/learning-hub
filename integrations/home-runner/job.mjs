@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
 import { itemPolicy, isMathFramework } from '../../lib/subjects/item-kinds.ts';
+import { normalizeNumericKeyValue, numericKeyValuePattern } from '../../lib/lesson-v2/numeric.ts';
 import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
@@ -36,6 +37,13 @@ function notebookLessonSchema(subject) {
   const allowed = subject?.limits?.itemKinds ?? policy.kinds;
   const items = schema.properties.items;
   const [basic, ...structured] = items.items.anyOf;
+  const constrainNumericKey = branches => {
+    const numeric = branches.find(branch => branch.properties.type.const === 'numeric');
+    numeric.properties.value.pattern = numericKeyValuePattern;
+  };
+  constrainNumericKey(basic.properties.key.oneOf);
+  const table = structured.find(branch => branch.properties.input.const === 'table');
+  constrainNumericKey(table.properties.key.properties.cells.items.anyOf);
   // One blank per generated cloze keeps fragments and answer groups aligned.
   const cloze = structured.find(branch => branch.properties.input.const === 'cloze');
   Object.assign(cloze.properties.fragments, { minItems: 2, maxItems: 2 });
@@ -317,6 +325,8 @@ function compactOnce(context) {
   };
 }
 
+const normalizeNumericKey = key => key.type === 'numeric' ? { ...key, value: normalizeNumericKeyValue(key.value) } : key;
+
 export function normalizeLesson(lesson) {
   const review = lesson.kind === 'review';
   const allowed = review ? ['retrieval', 'independent'] : lesson.template === 'skill'
@@ -340,7 +350,13 @@ export function normalizeLesson(lesson) {
   return {
     ...lesson,
     stages,
-    items: lesson.items.map(item => item.key?.type === 'choice' && item.choices?.length && ['short', 'long', 'choice'].includes(item.input) ? { ...item, input: 'choice' } : item),
+    items: lesson.items.map(item => {
+      if (item.key?.type === 'numeric') return { ...item, key: normalizeNumericKey(item.key) };
+      if (item.key?.type === 'table') return { ...item, key: { ...item.key, cells: item.key.cells.map(normalizeNumericKey) } };
+      if (item.key?.type === 'choice' && item.choices?.length && ['short', 'long', 'choice'].includes(item.input))
+        return { ...item, input: 'choice' };
+      return item;
+    }),
   };
 }
 
