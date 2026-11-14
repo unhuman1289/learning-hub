@@ -86,6 +86,8 @@ export function validateLessonPackage(
       if ((item.input !== 'short' && item.input !== 'long') || item.key?.type !== 'text' ||
           !item.key.accepted.some(answer => words(answer) > 3)) return item;
       const { key: _key, ...open } = item;
+      void _key;
+
       return {
         ...open,
         rubric: item.rubric ?? [

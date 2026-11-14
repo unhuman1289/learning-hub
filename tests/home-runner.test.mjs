@@ -567,7 +567,7 @@ test('modern Rust opening schema requires a framework and allows keyed placement
 test('Qwen math schema allows several short answers and numeric calculations', async () => {
   const context = {
     contract: 'plan-context/1', purpose: 'daily', contextHash: 'sha256:' + 'a'.repeat(64),
-    subjects: [{ subjectId: subject, title: 'Toán 7', framework: { key: 'vn-gdpt-2018-toan' },
+    subjects: [{ subjectId: subject, title: 'Toán 7', goal: '', instructions: '', progressSummary: '', framework: { key: 'vn-gdpt-2018-toan' },
       limits: { itemKinds: ['short', 'choice'] }, slot: { openPrimaryLessonId: null },
       skills: [], errorPatterns: [], recentLessons: [] }],
   };
