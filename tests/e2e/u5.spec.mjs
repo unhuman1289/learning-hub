@@ -141,7 +141,12 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   for (let index = 0; index < lesson.items.length + 1; index++) {
     const summary = flow(page).getByRole('heading', { name: 'Tổng kết bài' });
     if (await summary.isVisible()) break;
+    // The turn starts after a lazy import, so wait for the sheet to be replaced
+    // instead of racing the next tap against a page that is about to unmount.
+    const sheet = flow(page).locator('.lesson-flow-page');
+    await sheet.evaluate(element => { element.dataset.e2eTurnedFrom = ''; });
     await flow(page).getByRole('button', { name: /^(Bắt đầu|Tiếp|Tổng kết)$/ }).tap();
+    await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
     await turnSettled(page);
   }
   await expect(flow(page).getByRole('heading', { name: 'Tổng kết bài' })).toBeVisible();
