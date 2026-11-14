@@ -82,7 +82,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
     viewingId === null && route.view === "lesson" && lessonClock?.id === route.id
       ? lessonClock.subjectId
       : route.view === "notebook" ? route.track : route.view === "book" && viewingId === null ? route.id : null,
-    routeReady && !deskStudy,
+    routeReady && !deskStudy && route.view !== "admin",
     deskStudy && viewingId === null ? shelf.today?.study : undefined,
     deskStudy && viewingId === null ? shelf.load : undefined,
   );
@@ -115,7 +115,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
           </nav>}
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             {!hub2Enabled && <SaveIndicator workspace={workspace} />}
-            <StudyMeter variant={deskStudy ? "ring" : "ruler"} clock={clock} labelFor={labelFor} />
+            {route.view !== "admin" && <StudyMeter variant={deskStudy ? "ring" : "ruler"} clock={clock} labelFor={labelFor} />}
             {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={shelf.learners.find(l=>l.relation==="self")?.id} /> : <Suspense fallback={null}><AuthControls name={name} email={userEmail} /></Suspense>}
           </div>
         </div>

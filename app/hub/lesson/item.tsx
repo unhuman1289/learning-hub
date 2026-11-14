@@ -2,16 +2,14 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
-import { HintNote, RevealedSolution } from "./hints";
+import { HintNote, RevealedSolution } from "../lesson-v2/hints";
 import { pencil, pencilLink, ResultStamp } from "../paper-bits";
-import { CheckStamp } from "../notebook/check-stamp";
-import { PaperDialog } from "../paper-dialog";
 import { SketchIcon } from "../sketch-icons";
 import { words } from "../words";
-import { uploadPhoto } from "./photo";
-import { germanCharacters, hasVietnameseTyping } from "./keyboard";
-import { StructuredInput } from "./inputs/structured";
-export function ItemCard({
+import { uploadPhoto } from "../lesson-v2/photo";
+import { germanCharacters, hasVietnameseTyping } from "../lesson-v2/keyboard";
+import { StructuredInput } from "../lesson-v2/inputs/structured";
+export function LessonItem({
   item,
   number,
   germanInput = false,
@@ -22,6 +20,8 @@ export function ItemCard({
   gradeLater,
   onSubmit,
   submitLabel,
+  awaitingFeedback,
+  retrySubmission,
   canSubmit,
   hasAnswer,
   value,
@@ -42,6 +42,8 @@ export function ItemCard({
   gradeLater?: boolean;
   onSubmit?: () => void;
   submitLabel?: string;
+  awaitingFeedback: boolean;
+  retrySubmission: boolean;
   canSubmit?: boolean;
   hasAnswer: boolean;
   value: DraftAnswers[string];
@@ -53,16 +55,37 @@ export function ItemCard({
   const [photoError, setPhotoError] = useState(""),
     [uploading, setUploading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
-  // A long question on a phone can push the result below the page; bring it into view when it changes.
+  const [checkNotice, setCheckNotice] = useState(false);
+  const [focusLine, setFocusLine] = useState<{ line: number; key: number }>();
   const answerField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
-  const resultRow = useRef<HTMLDivElement>(null);
-  const shownResult = useRef(feedbackResult);
+  const itemRoot = useRef<HTMLElement>(null);
+  const result = useRef<HTMLDivElement>(null);
+  const lastResult = useRef(feedbackResult);
   useEffect(() => {
-    if (shownResult.current === feedbackResult) return;
-    shownResult.current = feedbackResult;
-    resultRow.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    if (lastResult.current === feedbackResult) return;
+    lastResult.current = feedbackResult;
+    result.current?.scrollIntoView({ block: "nearest" });
   }, [feedbackResult]);
-  const [focusLine, setFocusLine] = useState<{line: number; key: number}>();
+
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const root = itemRoot.current;
+    if (!viewport || !root) return;
+    function position() {
+      if (!viewport || !root) return;
+      const inset = viewport.scale === 1 ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+      root.style.setProperty("--keyboard-inset", inset + "px");
+      root.toggleAttribute("data-keyboard-open", inset > 0);
+    }
+    position();
+    viewport.addEventListener("resize", position);
+    viewport.addEventListener("scroll", position);
+    return () => {
+      viewport.removeEventListener("resize", position);
+      viewport.removeEventListener("scroll", position);
+    };
+  }, []);
+
   function jumpToLine(line: number) {
     setShowFeedback(false);
     setFocusLine(previous => ({ line, key: (previous?.key ?? 0) + 1 }));
@@ -73,23 +96,23 @@ export function ItemCard({
     if (Array.isArray(x)) selected = x;
   } catch {}
   const fieldId = "answer-" + item.id;
-  const locked = readOnly || disabled || uploading;
-  const compact = item.attachment === "none" ? item.input : undefined;
+  const locked = readOnly || disabled || uploading || retrySubmission;
   return (
-    <article className="spread-question" data-compact={compact}>
+    <article ref={itemRoot} className="lesson-item grid gap-3">
       <div className="flex items-start justify-between gap-3">
-        <h3 id={"question-" + item.id} tabIndex={-1} className="min-w-0 whitespace-pre-wrap break-words text-lg font-semibold leading-[var(--paper-line-height)]">
-          <span className="font-hand text-xl text-accent">{number}.</span> {formatText(item.prompt)}
-        </h3>
+        <h2 data-question-number={number} id={"question-" + item.id} tabIndex={-1}
+          className="min-w-0 scroll-mt-24 whitespace-pre-wrap break-words font-print text-[1.65rem] leading-tight">
+          <span className="font-hand text-xl text-accent-paper">{number}.</span> {formatText(item.prompt)}
+        </h2>
         <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />
       </div>
-      {item.instructions && <p className="text-muted">{formatText(item.instructions)}</p>}
+      {item.instructions && <p className="text-muted-paper">{formatText(item.instructions)}</p>}
       {item.input === "choice" ? (
         <fieldset aria-labelledby={"question-" + item.id}>
           <legend className="sr-only">Chọn đáp án</legend>
           {item.choices?.map((choice) => (
             // Marked the way one does in a notebook: a pen tick in a circle, the chosen line underlined.
-            <label key={choice.id} className="flex min-h-11 cursor-pointer items-start gap-3">
+            <label key={choice.id} className="flex min-h-11 cursor-pointer items-start gap-3 border-b border-rule py-2">
               <input
                 type="checkbox"
                 className="peer sr-only"
@@ -108,12 +131,14 @@ export function ItemCard({
           ))}
         </fieldset>
       ) : item.input === "short" || item.input === "long" ? (
-        <div className="spread-answer">
+        <div className="min-w-0">
           <label htmlFor={fieldId} className="sr-only">Bài làm của bạn</label>
           {item.input === "short" ? (
             <input
               id={fieldId}
               ref={element => { answerField.current = element; }}
+              autoComplete="off"
+              lang={germanInput ? "de" : undefined}
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
@@ -122,12 +147,14 @@ export function ItemCard({
               onChange={(e) => onChange({ ...value, answer: e.target.value })}
               maxLength={8000}
               placeholder="Viết câu trả lời…"
-              className="block min-h-11 w-full border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted focus:border-b-2 focus:border-accent-paper"
+              className="block min-h-11 w-full border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink-paper placeholder:text-muted-paper focus:border-b-2 focus:border-accent-paper"
             />
           ) : (
             <textarea
               id={fieldId}
               ref={element => { answerField.current = element; }}
+              autoComplete="off"
+              lang={germanInput ? "de" : undefined}
               autoCorrect="off"
               autoCapitalize="off"
               spellCheck={false}
@@ -137,7 +164,7 @@ export function ItemCard({
               maxLength={8000}
               rows={5}
               placeholder="Viết bài làm ở đây…"
-              className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink placeholder:text-muted focus:border-b-2 focus:border-accent-paper max-h-[45dvh]"
+              className="block w-full resize-y [field-sizing:content] min-h-28 border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink-paper placeholder:text-muted-paper focus:border-b-2 focus:border-accent-paper max-h-[45dvh]"
             />
           )}
           {germanInput && !locked && <>
@@ -203,24 +230,28 @@ export function ItemCard({
         </div>
       )}
       {(item.input === "short" || item.input === "long") && value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
-      {!readOnly && <div className="spread-check"><CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
-        canSubmit={!!canSubmit} hasAnswer={hasAnswer}
-        onSubmit={onSubmit} /></div>}
-      <div ref={resultRow} className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
-        {(feedback || item.revealed.solution) && <button type="button" className="min-h-11 w-full text-left font-hand text-lg text-brick hover:underline"
-          aria-haspopup="dialog" onClick={() => setShowFeedback(true)}>
-          <span className="flex min-w-0 items-start gap-2">
-            {gradeLater && <SketchIcon name="hourglass" size={20} className="shrink-0" />}
-            {feedbackResult && <ResultStamp result={feedbackResult} className={feedbackSupported ? "shrink-0 opacity-60" : "shrink-0"} />}
-            <span className="line-clamp-2 min-w-0 leading-snug">{feedbackSupported && feedbackResult === "correct" ? "Đã xem lời giải, không tính điểm." : item.revealed.solutionSeen && item.revealed.solution ? `Đã xem lời giải · ${formatText(item.revealed.solution)}` : gradeLater ? "Chờ chấm" : feedbackPreview || "Xem lời phê"}</span>
-          </span>
-        </button>}
-      </div>
-      {showFeedback && <PaperDialog title={words.feedback.grade} labelId={`feedback-${item.id}`} onClose={() => setShowFeedback(false)}>
+      {(feedback || item.revealed.solution) && <div className="min-w-0 border-y border-rule py-2">
+        <div ref={result} role="status" className="scroll-mt-24 flex flex-wrap items-baseline gap-x-2 font-hand text-lg">
+          {gradeLater && <SketchIcon name="hourglass" size={20} className="shrink-0" />}
+          {feedbackResult && <ResultStamp result={feedbackResult} className={feedbackSupported ? "opacity-60" : undefined} />}
+          <span>{feedbackSupported && feedbackResult === "correct"
+            ? "Đã xem lời giải, không tính điểm."
+            : gradeLater ? words.status.gradeLater : feedbackPreview}</span>
+        </div>
         <RevealedSolution item={item} formatText={formatText} />
-        {gradeLater && <p className={pencil}>{words.status.gradeLater}</p>}
-        {feedback?.(item.input === 'code' ? jumpToLine : undefined)}
-      </PaperDialog>}
+        {feedback && <details open={showFeedback} onToggle={event => setShowFeedback(event.currentTarget.open)}>
+          <summary className={pencilLink + " min-h-11 content-center cursor-pointer"}>Chi tiết lời phê</summary>
+          {showFeedback && feedback(item.input === "code" ? jumpToLine : undefined)}
+        </details>}
+      </div>}
+      {!readOnly && <div className="lesson-check flex flex-wrap items-center gap-3 py-2">
+        <button type="button" disabled={disabled || uploading || awaitingFeedback} className="brick min-h-11 px-4 font-hand text-xl disabled:opacity-60"
+          onClick={() => {
+            if (canSubmit) { setCheckNotice(false); onSubmit?.(); }
+            else setCheckNotice(true);
+          }}>{submitLabel ?? words.action.check}</button>
+        {!!checkNotice && !canSubmit && !awaitingFeedback && <span role="status" className="text-sm text-muted-paper">{hasAnswer ? "Sửa câu trả lời để kiểm tra lại." : "Viết câu trả lời trước nhé."}</span>}
+      </div>}
     </article>
   );
 }

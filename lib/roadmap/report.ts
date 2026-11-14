@@ -9,11 +9,15 @@ export async function readRoadmapProgress(db:Db,learnerId:string,subjectId:strin
  const current=steps.find(step=>step.status==='open'||step.status==='practising');
  const done=steps.filter(step=>step.status==='passed'||step.status==='placed');
  const next=steps.filter(step=>step.status==='planned').slice(0,3);
- const recent=await db.prepare(`SELECT l.reason_refs,j.context_snapshot FROM learning_lessons l
+ const relevantIds = [...(current ? [current] : []), ...next].map(step => step.id);
+ const missing = relevantIds.length ? db.prepare(`SELECT DISTINCT step_id FROM knowledge_gaps
+   WHERE subject_id=? AND step_id IN (SELECT value FROM json_each(?)) AND status IN ('open','in_progress')`)
+   .bind(subjectId, JSON.stringify(relevantIds)).all<{step_id:string}>() : null;
+ const [recent, missingSources] = await Promise.all([db.prepare(`SELECT l.reason_refs,j.context_snapshot FROM learning_lessons l
   LEFT JOIN ai_jobs j ON j.id=l.origin_job_id AND j.learner_id=l.user_id AND j.subject_id=l.subject_id
   WHERE l.user_id=? AND l.subject_id=? AND l.package_version IN ('2','3')
   ORDER BY (l.completed_at IS NULL AND l.slot='primary') DESC,l.completed_at IS NULL DESC,l.assigned_date DESC,l.updated DESC LIMIT 1`)
-  .bind(learnerId,subjectId).first<{reason_refs:string;context_snapshot:string|null}>();
+  .bind(learnerId,subjectId).first<{reason_refs:string;context_snapshot:string|null}>(), missing]);
  const reason=(JSON.parse(recent?.reason_refs??'[]') as string[]).find(ref=>Object.hasOwn(reasons,ref)) as ReasonCode|undefined;
  const last=done.at(-1);
  const whyNext=last&&next[0]&&next[0].band>last.band
@@ -26,6 +30,7 @@ export async function readRoadmapProgress(db:Db,learnerId:string,subjectId:strin
   done:done.slice(-10).reverse().map(step=>({stepId:step.id,title:step.title,passedVia:step.passedVia,passedAt:step.passedAt})),
   next:next.map(step=>({stepId:step.id,title:step.title,band:step.band})),
   position:{index:current?steps.indexOf(current)+1:done.length,total:steps.length},
+  missingSourceStepIds: missingSources?.results?.map(row => row.step_id) ?? [],
   whyNext,sources:[...new Map(notes.filter(note=>note.url.startsWith('https://')).map(note=>[note.url,{title:note.title,publisher:note.publisher,url:note.url}])).values()],
  };
 }

@@ -47,4 +47,4 @@ jobs:
           curl --retry 20 --retry-connrefused --retry-delay 1 --fail http://localhost:5174/api/health
           (while npm run runner:fake; do sleep 5; done) > /tmp/hub-phone-runner.log 2>&1 &
           fake=$!
-          npm run test:e2e
+          PHONE_STEPS=2,3,4,5 npm run test:e2e

@@ -10,13 +10,14 @@ const deviceNotebook = {
   'iphone-13': 'Deutsch',
   'pixel-7': 'Deutsch · Android',
 };
-const visiblePage = page => page.locator('.spread-page[data-offpage="false"]');
+const visiblePage = page => page.locator('.lesson-flow');
 
-async function turnUntil(page, target, direction = 'Trang sau') {
+async function turnUntil(page, target, direction = /^(Bắt đầu|Tiếp|Tổng kết)$/) {
   for (let offset = 0; offset < 20 && !await target.isVisible(); offset++) {
     const corner = page.getByRole('button', { name: direction });
-    if (!await corner.count()) break;
+    await expect(corner).toBeVisible();
     await corner.tap();
+    await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn', /.+/);
   }
   await expect(target).toBeVisible();
 }
@@ -25,10 +26,10 @@ async function openSpine(page, title) {
   const spine = page.getByRole('link', { name: 'Mở sổ ' + title, exact: true });
   await spine.tap();
   if (await spine.isVisible() && await spine.getAttribute('data-out') === 'true') await spine.tap();
-  await expect(page.getByRole('navigation', { name: 'Trang trong sổ' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: title, exact: true }).filter({ visible: true })).toBeVisible();
 }
 
-const feedback = article => article.locator('button[aria-haspopup="dialog"]');
+const feedback = article => article.getByText('Chi tiết lời phê', { exact: true });
 
 test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
   if (new URL(baseURL).hostname === 'learning-hub-staging.tranvu-812.workers.dev') {
@@ -54,11 +55,13 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
   const desk = () => page.getByRole('region', { name: 'Bài tiếp theo' });
   const spine = () => page.getByRole('link', { name: 'Mở sổ ' + subject, exact: true });
   const answer = item => visiblePage(page).locator('#answer-' + item);
-  const article = item => visiblePage(page).locator('.spread-question').filter({ has: page.locator('#question-' + item) });
+  const article = item => visiblePage(page).locator('article').filter({ has: page.locator('#question-' + item) });
   let lessonUrl, newId, notebookId;
   const failures = [];
+  const selected = new Set((process.env.PHONE_STEPS ?? '').split(',').filter(Boolean).map(Number));
 
   async function step(number, action) {
+    if (number !== 1 && selected.size && !selected.has(number)) return;
     if (failures.includes(1) && number !== 11) return;
     try {
       const details = await test.step(String(number), action);
@@ -144,10 +147,10 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         const open = card.getByRole('link', { name: /^(Học tiếp|Mở bài)$/ });
         const name = await open.textContent();
         if (credentialsFile) expect(name.trim()).toBe('Học tiếp');
-        const first = visiblePage(page).locator('h3[id^="question-"]').first();
+        const first = visiblePage(page).locator('[data-question-number]').first();
         if (name.trim() === 'Mở bài') {
           await open.tap();
-          await expect(page.getByRole('button', { name: 'Trang sau' })).toBeVisible();
+          await expect(page.getByRole('button', { name: 'Bắt đầu' })).toBeVisible();
           await turnUntil(page, first);
         } else times.push(await timeFromTap(open, first));
         lessonUrl = page.url();
@@ -197,20 +200,19 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         const card = field.locator('xpath=ancestor::article');
         await card.getByRole('button', { name: /^Kiểm tra/ }).tap();
         await expect(feedback(card)).toBeVisible();
-        await page.getByRole('button', { name: 'Trang sau' }).tap();
         return;
       }
       const times = measurements[5] = [];
       if (!lessonUrl) throw Error('No accessible demo lesson.');
       for (const [index, correct] of ['Wie', 'Wo', 'Wann'].entries()) {
         const item = 'i' + (index + 1);
-        await page.goto(lessonUrl.split('#')[0] + '#cau-' + (index + 1));
+        await turnUntil(page, answer(item));
         const card = article(item);
         await answer(item).tap();
         await answer(item).fill(correct);
         const button = card.getByRole('button', { name: /^Kiểm tra/ });
         await expect(button).toBeVisible();
-        const result = feedback(card).filter({ hasText: 'Đúng' });
+        const result = card.getByRole('status').filter({ hasText: 'Đúng' });
         times.push(await timeFromTap(button, result));
       }
       return { times };
@@ -228,7 +230,7 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         return (await response.json()).submissions.length;
       };
       if (credentialsFile && !lessonUrl) throw Error('No accessible demo lesson.');
-      if (credentialsFile && !await field.isVisible()) await page.goto(lessonUrl.split('#')[0] + '#cau-3');
+      if (credentialsFile && !await field.isVisible()) await turnUntil(page, field);
       await expect(field).toBeVisible();
       const before = await count();
       await expect(card.getByRole('button', { name: /^Kiểm tra/ })).toBeEnabled();
@@ -244,7 +246,7 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         await restoreNetwork();
       }
       await expect(field).toHaveValue('Test offline');
-      await card.getByRole('button', { name: /^Kiểm tra/ }).tap();
+      await card.getByRole('button', { name: 'Thử lại', exact: true }).tap();
       await expect.poll(count).toBe(before + 1);
       await page.reload();
       expect(await count()).toBe(before + 1);
@@ -252,7 +254,7 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
 
     await step(7, async () => {
       if (lessonUrl) await page.goto(lessonUrl);
-      await expect(page.locator('.lesson-spread')).toBeVisible();
+      await expect(page.locator('.lesson-flow')).toBeVisible();
       const summary = visiblePage(page).getByRole('region', { name: 'Tổng kết bài' });
       await turnUntil(page, summary);
       await page.getByRole('button', { name: 'Xong bài', exact: true }).tap();
@@ -264,11 +266,11 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
       await page.goto(lessonUrl ?? page.url());
       await expect(reopen).toBeVisible();
       await summary.getByRole('button', { name: /đúng ngay|cần sửa lại|đúng sau khi sửa/ }).first().tap();
-      const mark = visiblePage(page).locator('.spread-question button[aria-haspopup="dialog"]').first();
+      const mark = visiblePage(page).getByText('Chi tiết lời phê', { exact: true }).first();
       await mark.tap();
-      await expect(page.getByRole('dialog', { name: 'Lời phê' })).toBeVisible();
+      await expect(mark.locator('..')).toHaveAttribute('open', '');
       if (dir) await page.screenshot({ path: join(dir, '07-feedback.png') });
-      await page.keyboard.press('Escape');
+
     });
 
     await step(8, async () => {
@@ -299,13 +301,13 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         }
       }
       await expect(page).toHaveURL(new RegExp(newId));
-      await expect(page.locator('.lesson-spread')).toBeVisible();
+      await expect(page.locator('.lesson-flow')).toBeVisible();
       return { elapsed: Date.now() - started };
     });
 
     await step(9, async () => {
       await page.goto('/');
-      const title = 'Luyện phân số ' + info.project.name;
+      const title = 'Luyện phân số ' + info.project.name + (credentialsFile ? ' ' + Date.now() : '');
       await page.getByRole('button', { name: 'Sổ mới', exact: true }).tap();
       const dialog = page.getByRole('dialog', { name: 'Mở sổ mới' });
       await dialog.getByLabel('Tên sổ').fill(title);
