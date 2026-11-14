@@ -6,7 +6,7 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-staging: HUB-NEXT hoàn tất (gộp #154, #153, PHONE-CHECK bước 8–9), đến 23:30 Europe/Berlin
+Khung staging hoàn tất HUB-NEXT (gộp #154, #153, PHONE-CHECK bước 8–9) đã kết thúc lúc 22:20 Europe/Berlin.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -14,7 +14,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `1dcbafe77a61006614cb6a71950c2a9b7f967558` | Deploy từ `codex/hub-next-wip` sau khi gộp #152, #150 và #151. Health đúng SHA, D1 kết nối, smoke test đạt. Xem [PHONE-CHECK](status/PHONE.md). |
+| Staging | `7b3a3e12b9a42c887d59cd0a3436dbe2d3b304af` | Deploy 14/11 lúc 22:01 Berlin từ `codex/hub-next-wip` sau khi gộp #154 và #153 (Worker version `4847882c`). Health đúng SHA, D1 kết nối, smoke test đạt. Xem [PHONE-CHECK](status/PHONE.md). |
 | Dev chính | `~/Code/Learning Hub` trên `codex/u2-lesson` | Nhánh tích hợp `codex/hub-next-wip` ở `work/learning-hub-hub-next`. Worktree U3 ở `work/learning-hub-u3`. |
 
 ## Các bước
@@ -32,6 +32,8 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | M mockup | **M1–M4 đã được chủ dự án duyệt ngày 14/11/2026** | [Bản mockup đã duyệt](../mockups/index.html) tại `35e8635` |
 | U1 bàn học | Đã gộp [#145](https://github.com/unhuman1289/learning-hub/pull/145) | [Kết quả U1](status/U1.md). Kiểm điện thoại |
 | U2–U4 | Đã gộp [#146](https://github.com/unhuman1289/learning-hub/pull/146), [#148](https://github.com/unhuman1289/learning-hub/pull/148), [#149](https://github.com/unhuman1289/learning-hub/pull/149) và deploy staging | [Bàn giao U](status/U.md). Chờ kiểm điện thoại, e2e và ngân sách mục 4.2. |
+| Q2 mở sổ | Đã gộp [#154](https://github.com/unhuman1289/learning-hub/pull/154), deploy staging | [Kết quả Q2](status/Q2.md). Bước 9 PHONE-CHECK đạt trên staging |
+| U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). Còn đo 4G tại Việt Nam |
 | L, G, T, K | Chưa gộp | |
 
 **Migration tiếp theo** · P3 đo tốc độ dùng `0030`, L âm thanh dùng `0031`.

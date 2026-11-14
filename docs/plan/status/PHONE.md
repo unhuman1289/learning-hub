@@ -70,3 +70,14 @@ Cần thử bàn phím ảo iPhone và khả năng che ô/nút, Telex thật, Za
 ## Bộ Playwright
 
 `npm run test:e2e` chạy local với server `npm run dev:profiles` và runner giả. Job `e2e` được thêm vào CI. Lượt local đầu đã qua đăng nhập, gáy sổ, nhập ký tự và kiểm tra câu trên cả hai trình duyệt; còn lỗi ở các bước tiếp. 408 unit test, typecheck, lint và build local đã chạy đạt. Bộ E2E đầy đủ còn đỏ.
+
+## Bước 8–9 trên `7b3a3e12b9a4` · 14/11/2026, 22:02–22:20 Europe/Berlin
+
+Runner staging chạy `--watch` với client giới hạn hồ sơ QA, code runner từ `codex/hub-next-wip`. Đã tắt runner sau lượt kiểm. Sáu job Qwen đều `succeeded`.
+
+| Bước | iPhone 13 · WebKit | Pixel 7 · Chromium |
+|---|---|---|
+| 8. Xin bài và mở bài đã lưu | Lượt đầu bị chặn: yêu cầu lúc 14:05 còn `deferred` nên **Bài mới** khoá. Sau khi runner xử lý, lượt hai gửi được yêu cầu và runner lưu `les_5ec2f16e45b7`. Sổ hiện liên kết tới bài. Test dừng ở thao tác chạm vì selector `a[href*=id]` khớp cả tên bài lẫn **Mở bài**. | Như iPhone, bài `les_4fede157db05` |
+| 9. Tạo sổ và mở bài đầu | **Đạt**. Thời gian cả lượt 2,7 phút. | **Đạt**. Thời gian cả lượt 4,7 phút. |
+
+Việc còn lại: sửa selector bước 8 trong `tests/e2e/phone.spec.mjs` thành liên kết **Mở bài** rồi kiểm lại thao tác mở bài trên staging. Ảnh và log ở `private-data/phone-check/2026-11-14/hubnext-7b3a3e1*`.
