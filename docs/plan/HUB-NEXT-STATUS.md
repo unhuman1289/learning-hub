@@ -10,7 +10,7 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `16650abc10c87279b2f42c63eedaf8f7280f3cf5` · Worker version `05c2dc9c-2675-432b-a62f-00ad86af7592` | Deploy 14/11. Health đúng SHA, D1 kết nối, smoke test đạt. Đã sao lưu D1 trước deploy, không có migration chờ áp (`0029` đã áp). |
+| Staging | `1881dfe88e04b07ec9e6d029191569e5f7acf7b8` · Worker version `9a772a96-482b-43d7-a226-bf89b464113e` | Deploy hiệu ứng lật trang 14/11. Health đúng SHA, D1 kết nối, smoke test đạt. Đã sao lưu D1 trước deploy, không có migration chờ áp (`0029` đã áp). |
 | Dev chính | `~/Code/Learning Hub` trên `codex/u2-lesson` | Nhánh tích hợp `codex/hub-next-wip` ở `/private/tmp/learning-hub-e2`. Worktree U3 ở `work/learning-hub-u3`. |
 
 ## Các bước
