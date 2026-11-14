@@ -9,7 +9,7 @@ import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
-import { submitLesson } from '../lib/evidence/submit.ts';
+import { readLessonSubmissions, submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
 import { canonical, contextHash } from '../lib/ai-jobs/context/common.ts';
 import { sendAlertDigest } from '../lib/alerts.ts';
@@ -419,7 +419,7 @@ test('open-answer assess is atomic, rubric grounded, and replay does not add gra
 });
 test('wrong evidence and missing open grades reject without any mutation', async () => {
   const { db, lesson } = await assigned();
-  await saveDraft(db, learner, lesson, { revision: 0, answers: { i3: { answer: 'Paul möchte einen Kuchen kaufen.' } } }, now);
+  await saveDraft(db, learner, lesson, { revision: 0, answers: { i3: { answer: 'Paul mo\u0308chte\n  einen Kuchen kaufen.' } } }, now);
   const sub = await submitLesson(
     db,
     learner,
@@ -459,7 +459,18 @@ test('wrong evidence and missing open grades reject without any mutation', async
   ];
   x = await applyResult(db, client, lease.jobId, lease.leaseToken, result, true, now);
   assert(x.errors.some((e) => e.code === 'schema'));
+  const error = result.grades[0].errors[0];
+  error.evidence = 'Möchte einen';
+  x = await applyResult(db, client, lease.jobId, lease.leaseToken, result, true, now);
+  assert.equal(x.status, 422);
+  assert.ok(x.errors.some((issue) => issue.path === '/grades/0/errors'));
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 0);
+
+  error.evidence = 'möchte einen';
+  x = await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now);
+  assert.equal(x.status, 200);
+  const savedErrors = JSON.parse(db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(x.outcome.gradeIds[0]).errors);
+  assert.deepEqual(savedErrors, [error]);
   db.sqlite.close();
 });
 test('automatic grades are locked even when an assess job exists', async () => {
@@ -709,7 +720,7 @@ test('a dispute takes the answer out of the rules at once and cannot be opened t
   db.sqlite.close();
 });
 
-test('AI recheck overturning an automatic grade supersedes it, flags the key and recomputes', async () => {
+async function automaticRecheck() {
   const { db, attempt } = await gradedWrong();
   const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(dispute.status, 'rechecking');
@@ -744,6 +755,11 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
     recheckDecision: { decision: 'overturned', explanation: 'Đáp án gốc thiếu lựa chọn a.' },
     usage: { model: 'none', inputTokens: 0, outputTokens: 0, ms: 0 },
   };
+  return { db, attempt, dispute, lease, job, context, result };
+}
+
+test('AI recheck overturning an automatic grade supersedes it, flags the key and recomputes', async () => {
+  const { db, attempt, lease, job, result } = await automaticRecheck();
   const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(applied.status, 200);
   const row = db.sqlite
@@ -761,6 +777,93 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   // One AI recheck per answer: the next dispute goes to a person.
   const again = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(again.status, 'needs_human');
+  db.sqlite.close();
+});
+
+
+test('three rejected recheck submissions send the dispute to a person and preserve the existing grade', async () => {
+  const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();
+  const currentGrade = () => db.sqlite.prepare('SELECT current_grade_id FROM attempts WHERE id=?').get(attempt.id).current_grade_id;
+  const disputedGrade = currentGrade();
+  const disputeStatus = () => db.sqlite.prepare('SELECT status FROM disputes WHERE id=?').get(dispute.id).status;
+  result.grades[0].errors = [{ skillId: context.attempts[0].skills[0], label: 'Lỗi thử', category: 'application', evidence: 'b' }];
+
+  const dry = await applyResult(db, client, job.id, lease.leaseToken, result, true, now);
+  assert.equal(dry.status, 422);
+  assert.ok(dry.errors.some((issue) => issue.path === '/grades/0/errors'));
+  assert.equal((await readJob(db, job.id)).validation_failures, 0);
+  for (const count of [1, 2, 3]) {
+    const rejected = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+    assert.equal(rejected.status, 422);
+    const saved = await readJob(db, job.id);
+    assert.equal(saved.validation_failures, count);
+    assert.equal(saved.status, count === 3 ? 'failed' : 'leased');
+    assert.equal(disputeStatus(), count === 3 ? 'needs_human' : 'rechecking');
+    assert.equal(currentGrade(), disputedGrade);
+  }
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 1);
+  db.sqlite.close();
+});
+
+test('evidence from a photo stays unverified in grading and recheck feedback', async () => {
+  const { db, lesson } = await assigned();
+  const photo = 'img_aaaaaaaaaaaaaaaaaaaa';
+  db.sqlite.prepare(`INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at)
+    VALUES(?,?,'test-photo','image/png',20,2,2,?,?,'2026-11-01T00:00:00Z')`)
+    .run(photo, learner, '0'.repeat(64), now.toISOString());
+  db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload,'$.attachment','optional') WHERE lesson_id=? AND item_id='i3'").run(lesson);
+  await saveDraft(db, learner, lesson, { revision: 0, answers: { i3: { answer: '', attachmentIds: [photo] } } }, now);
+  const sub = await submitLesson(db, learner, lesson, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'guided', itemIds: ['i3'],
+  }, now);
+  await queueSubmission(db, {}, learner, sub.id, now);
+  const leaseInput = { ...input, kinds: ['assess'], capabilities: [...input.capabilities, 'vision'] };
+  const [lease] = await leaseJobs(db, client, leaseInput, 'test', now);
+  const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
+  const [attempt] = context.attempts;
+  const error = { skillId: attempt.skills[0], label: 'Lỗi thử', category: 'application', evidence: 'Paul mögen' };
+  const grade = {
+    attemptId: attempt.attemptId,
+    result: 'incorrect',
+    score: 0,
+    rubricScores: attempt.rubric.map((r) => ({ criterion: r.criterion, points: 0, max: r.points })),
+    feedback: 'Xem lại cách chia động từ.',
+    correction: '',
+    errors: [error],
+    checkItem: null,
+  };
+  const result = {
+    contract: 'assess-result/1',
+    contextHash: context.contextHash,
+    summary: 'Chấm bài thử',
+    grades: [grade],
+    diagnosis: [],
+    masteryProposals: [],
+    errorPatternUpdates: [],
+    reviewProposals: [],
+    recheckDecision: null,
+    usage: { model: 'none', inputTokens: 0, outputTokens: 0, ms: 0 },
+  };
+  const checkFeedback = async (applied) => {
+    assert.equal(applied.status, 200);
+    const { errors } = db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(applied.outcome.gradeIds[0]);
+    assert.deepEqual(JSON.parse(errors), [{ ...error, unverified: true }]);
+    const [feedback] = await readLessonSubmissions(db, learner, lesson);
+    assert.match(feedback.attempts[0].feedback, /chưa đối chiếu được với bài viết tay/);
+    assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM error_patterns').get().n, 0);
+  };
+  await checkFeedback(await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now));
+
+  const dispute = await createDispute(db, {}, learner, learner, attempt.attemptId, disputeInput, now);
+  const [recheck] = await leaseJobs(db, client, leaseInput, 'test', now);
+  assert.equal(recheck.jobId, dispute.jobId);
+  const recheckResult = {
+    ...result,
+    contextHash: (await readJob(db, recheck.jobId)).context_hash,
+    grades: [{ ...grade, result: 'partial', score: 0.5, rubricScores: grade.rubricScores.map((r, i) => ({ ...r, points: i ? 0 : 1 })) }],
+    recheckDecision: { decision: 'overturned', explanation: 'Câu đáp ứng một tiêu chí.' },
+  };
+  await checkFeedback(await applyResult(db, client, recheck.jobId, recheck.leaseToken, recheckResult, false, now));
   db.sqlite.close();
 });
 

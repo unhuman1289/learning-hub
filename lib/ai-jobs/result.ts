@@ -64,12 +64,26 @@ export async function applyResult(
   if (issues.length) {
     // A dry run is how a runner checks its draft; only real submissions count toward the 3-strike limit.
     if (dryRun) return { status: 422, errors: issues };
-    await db
+    const recordFailure = db
       .prepare(
-        "UPDATE ai_jobs SET validation_failures=validation_failures+1,status=CASE WHEN validation_failures>=2 THEN 'failed' ELSE status END,error='Kết quả chưa qua kiểm tra',finished_at=CASE WHEN validation_failures>=2 THEN ? ELSE finished_at END WHERE id=? AND status='leased' AND lease_token_sha256=?",
+        "UPDATE ai_jobs SET validation_failures=validation_failures+1,status=CASE WHEN validation_failures>=2 THEN 'failed' ELSE status END,error='Kết quả chưa qua kiểm tra',finished_at=CASE WHEN validation_failures>=2 THEN ? ELSE finished_at END WHERE id=? AND status='leased' AND lease_token_sha256=? AND apply_token IS NULL",
       )
-      .bind(now.toISOString(), id, job.lease_token_sha256)
-      .run();
+      .bind(now.toISOString(), id, job.lease_token_sha256);
+    if (job.purpose === 'recheck') {
+      // A dispute owns the human-review state. Escalate atomically with the third rejection.
+      const escalate = db
+        .prepare(
+          `UPDATE disputes SET status='needs_human'
+           WHERE id=? AND learner_id=? AND status='rechecking' AND EXISTS(
+             SELECT 1 FROM ai_jobs WHERE id=? AND status='leased' AND lease_token_sha256=?
+               AND apply_token IS NULL AND validation_failures=2
+           )`,
+        )
+        .bind(job.ref_id, job.learner_id, id, job.lease_token_sha256);
+      await db.batch([escalate, recordFailure]);
+    } else {
+      await recordFailure.run();
+    }
     return { status: 422, errors: issues };
   }
   if (!prepared || !parsed.success) throw new Error('Missing prepared result.');

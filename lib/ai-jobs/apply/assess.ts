@@ -7,6 +7,7 @@ import type { Job } from '../context/common.ts';
 import {roadmapProgressWrite} from '../../roadmap/progress.ts';
 import { prepareJobStates } from '../../learner-model/job-state.ts';
 import type { ValidationIssue } from './plan.ts';
+import { checkGradeEvidence } from './evidence.ts';
 import { promptHash } from '../../lesson-v2/store.ts';
 export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessContext, result: AssessResult, token: string, now: Date) {
   const errors: ValidationIssue[] = [],
@@ -77,14 +78,15 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
       )
         issue(path, 'schema', 'Kết quả phải nhất quán với điểm rubric.');
     }
+    const evidence = checkGradeEvidence(g, current.answer, a.attachments.some((img) => !img.expired));
+    if (evidence.invalid)
+      issue(path + '/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản.');
     for (const e of g.errors) {
       if (
         !a.skills.includes(e.skillId) ||
         (e.patternId && !context.openErrorPatterns.some((p) => p.patternId === e.patternId && p.skillId === e.skillId))
       )
         issue(path + '/errors', 'unknown_reference', 'Lỗi không thuộc kỹ năng/ngữ cảnh.');
-      if (!e.evidence.trim() || (!current.answer.includes(e.evidence) && !a.attachments.some((img) => !img.expired)))
-        issue(path + '/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản. Ảnh chưa hỗ trợ trích văn bản đã xác minh.');
       if (containsContactDetails(e.label + e.evidence) || containsPossibleClinicalIdentifier(e.label + e.evidence, context.subject.sensitivity))
         issue(path + '/errors', 'privacy', 'Chẩn đoán lỗi có định danh.');
     }
@@ -103,10 +105,9 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
           g.result,
           g.score,
           JSON.stringify(g.rubricScores),
-          g.feedback,
+          evidence.feedback,
           g.correction,
-          // An error quoted from a photo cannot be checked against the text, so it stays in the feedback but never builds an error pattern.
-          JSON.stringify(g.errors.map((e) => (current.answer.includes(e.evidence) ? e : { ...e, unverified: true }))),
+          JSON.stringify(evidence.errors),
           now.toISOString(),
           job.id,
           token,
