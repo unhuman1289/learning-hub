@@ -17,7 +17,7 @@ export async function POST(req: Request, context: Context) {
     const body = (await req.json().catch(() => null)) as { hint?: unknown } | null;
     if (!isSeenHint(body?.hint)) return Response.json({ error: 'Gợi ý không hợp lệ.' }, { status: 400, headers });
     await markHintSeen(storage(), user.id, body.hint);
-    return Response.json({ ok: true }, { headers });
+    return new Response(null, { status: 204, headers });
   } catch (error) {
     return apiFailure(error, 'Chưa lưu được.', headers);
   }

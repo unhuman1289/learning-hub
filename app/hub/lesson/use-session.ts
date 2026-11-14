@@ -350,7 +350,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     setPageEdgeHint(false);
     void fetch("/api/learners/me/hints", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hint: "pageEdge" }),
-    }).catch(() => {});
+    }).then(response => response.body?.cancel(), () => {});
   }, []);
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
