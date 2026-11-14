@@ -1,4 +1,4 @@
-import { itemPolicy, type ItemKind } from '../subjects/item-kinds.ts';
+import { itemPolicy, isMathFramework, type ItemKind } from '../subjects/item-kinds.ts';
 import { lessonPackageV2 } from '../contracts/lesson-items.ts';
 import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
@@ -81,6 +81,20 @@ export function validateLessonPackage(
     };
   }
   const lesson = parsed.data;
+  if (options.aiSizes && lesson.contract === 'lesson-package/3' && isMathFramework(options.frameworkKey)) {
+    lesson.items = lesson.items.map(item => {
+      if ((item.input !== 'short' && item.input !== 'long') || item.key?.type !== 'text' ||
+          !item.key.accepted.some(answer => words(answer) > 3)) return item;
+      const { key: _key, ...open } = item;
+      return {
+        ...open,
+        rubric: item.rubric ?? [
+          { criterion: 'Đáp ứng yêu cầu của đề bài', points: 1, skill: item.skills[0] },
+          { criterion: 'Nội dung toán học đúng theo lời giải mẫu hoặc cách giải tương đương', points: 1, skill: item.skills[0] },
+        ],
+      };
+    });
+  }
   const items: LessonItemAny[] = lesson.items;
   const issues: LessonIssue[] = [];
   const issue = (path: string, code: string, message: string) => issues.push({ path, code, message });

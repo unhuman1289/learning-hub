@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
-import { itemPolicy } from '../../lib/subjects/item-kinds.ts';
+import { itemPolicy, isMathFramework } from '../../lib/subjects/item-kinds.ts';
 import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
@@ -52,6 +52,10 @@ function notebookLessonSchema(subject) {
       if (kind === 'short') {
         item.properties.key.oneOf = item.properties.key.oneOf.filter(key => key.properties.type.const !== 'choice');
         item.required.push('key');
+        if (isMathFramework(subject?.framework?.key)) {
+          const text = item.properties.key.oneOf.find(key => key.properties.type.const === 'text');
+          text.properties.accepted.items.pattern = String.raw`^\s*\S+(?:\s+\S+){0,2}\s*$`;
+        }
       } else {
         delete item.properties.key;
         item.required.push('rubric');

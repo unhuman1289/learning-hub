@@ -207,6 +207,7 @@ Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiế
 
 - **`key`** chỉ khi đáp án duy nhất: trắc nghiệm, đáp số, ≤3 từ, hoặc một câu sửa chỉ có một cách đúng.
 - **`rubric`** khi tiếng Đức có thể đảo trật tự hợp lệ.
+- Với bài Toán do Qwen soạn, câu tính dùng `numeric`. Mỗi đáp án `text` của câu trả lời tự do có tối đa ba từ. Nếu bản nháp vẫn chứa đáp án dài, Hub giữ đề và lời giải mẫu, chuyển câu sang chấm bằng rubric.
 - Đáp số theo quy ước Việt Nam (dấu phẩy thập phân); server nhận cả dấu chấm.
 - Rubric có 2–5 tiêu chí, mỗi tiêu chí gắn một kỹ năng (hoặc một khái niệm, với tiêu chí "kết nối"). Không chấm "tự nhiên như người bản xứ" vượt trình độ.
 

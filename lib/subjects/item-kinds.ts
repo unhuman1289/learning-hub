@@ -5,6 +5,8 @@ export type ItemKind = z.infer<typeof itemKind>;
 export const itemKindsInput = z.array(itemKind).min(1).max(itemKind.options.length)
   .refine(kinds => new Set(kinds).size === kinds.length);
 
+export const isMathFramework = (framework?: string) => framework === 'vn-gdpt-2018-toan';
+
 export function itemPolicy(framework?: string): { kinds: ItemKind[]; minimum: number; codeKnowledge: boolean } {
   if (framework && /-(cefr|hsk)$/.test(framework))
     return { kinds: ['choice', 'short', 'long', 'cloze'], minimum: 1, codeKnowledge: false };

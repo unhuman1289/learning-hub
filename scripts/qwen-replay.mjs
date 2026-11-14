@@ -10,10 +10,21 @@ assert(fixtures.length, 'Thiếu fixture Qwen.');
 for (const name of fixtures) {
   const fixture = JSON.parse(readFileSync(new URL(name, folder), 'utf8'));
   const options = { aiSizes: true, adaptive: true, frameworkKey: fixture.frameworkKey, itemKinds: itemPolicy(fixture.frameworkKey).kinds };
-  const before = validateLessonPackage(fixture.lesson, options);
+  const before = validateLessonPackage(fixture.lesson, { ...options, aiSizes: false });
   const after = validateLessonPackage(normalizeLesson(fixture.lesson), options);
   console.log(name, before.lesson ? 'hợp lệ' : 'bị từ chối', '→', after.lesson ? 'hợp lệ' : 'bị từ chối');
   for (const issue of after.issues.slice(0, 6)) console.log(' ', issue.path, issue.code, issue.message);
+  if (fixture.expectedRubricItem) {
+    const item = after.lesson?.items.find(item => item.id === fixture.expectedRubricItem);
+    const original = fixture.lesson.items.find(item => item.id === fixture.expectedRubricItem);
+    assert(before.issues.some(issue => issue.path.endsWith('/key/accepted')));
+    assert(item?.rubric?.length >= 2 && !item.key, `${name} cần chuyển sang rubric`);
+    assert.equal(item.solution, original.solution);
+    assert.equal(item.input, original.input);
+    assert.equal(item.prompt, original.prompt);
+    assert.equal(fixture.lesson.items.filter(item => item.key).length - 1, after.lesson.items.filter(item => item.key).length);
+    console.log('  rubric', item.id, 'giữ đề và lời giải mẫu');
+  }
   if (fixture.expectedIssues?.length) {
     for (const path of fixture.expectedIssues)
       assert(after.issues.some(issue => issue.path === path), `${name} cần báo lỗi tại ${path}`);

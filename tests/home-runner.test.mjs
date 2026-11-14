@@ -563,3 +563,25 @@ test('modern Rust opening schema requires a framework and allows keyed placement
   }
   assert.ok(questions[1].anyOf.some(branch => branch.properties.input.const === 'cloze'));
 });
+
+test('Qwen math schema allows several short answers and numeric calculations', async () => {
+  const context = {
+    contract: 'plan-context/1', purpose: 'daily', contextHash: 'sha256:' + 'a'.repeat(64),
+    subjects: [{ subjectId: subject, title: 'Toán 7', framework: { key: 'vn-gdpt-2018-toan' },
+      limits: { itemKinds: ['short', 'choice'] }, slot: { openPrimaryLessonId: null },
+      skills: [], errorPatterns: [], recentLessons: [] }],
+  };
+  const hub = { context: async () => context, fail: async () => undefined };
+  let schema;
+  const qwen = { name: 'qwen', run: async (input) => { schema = input.schema; throw Error('schema captured'); } };
+  await processJob(hub, { kind: 'plan', purpose: 'daily', jobId: 'job_qa' }, qwen);
+  const lesson = schema.properties.subjects.items.properties.primaryLesson.anyOf[0];
+  const short = lesson.properties.items.items.anyOf.find(item => item.properties.input.const === 'short');
+  const keys = short.properties.key.oneOf;
+  assert(keys.some(key => key.properties.type.const === 'numeric'));
+  const accepted = keys.find(key => key.properties.type.const === 'text').properties.accepted;
+  assert(accepted.maxItems > 1);
+  const pattern = new RegExp(accepted.items.pattern, 'u');
+  assert(pattern.test(' Tỉ lệ thuận '));
+  assert(!pattern.test('là tỉ lệ thuận'));
+});
