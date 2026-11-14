@@ -349,7 +349,7 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 - P (nền điện thoại) làm song song với C/V.
 - M làm song song với C, V, P.
 - **U bắt đầu ngay khi M được duyệt.** U không chờ C, V, P lên production. Phần U cần từ P (API `/api/today` gom, thuộc tính ô nhập) làm cùng U nếu P chưa xong.
-- L1–L3 (backend nghe) làm song song với U. L5 (giao diện nghe) theo mockup đã duyệt.
+- L, G, T, K: thứ tự và phần chạy song song ở [`LGTK.md`](LGTK.md) mục 1.
 - **Một bước bị chặn** (ví dụ chờ Qwen, chờ chủ dự án) thì ghi vào STATUS rồi chuyển sang bước khác không phụ thuộc. Không thử lại vô hạn.
 
 **Mỗi PR:**
@@ -565,140 +565,14 @@ Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (
 - đạt ngân sách mục 4.2;
 - Ếch hoàn thành `PHONE-CHECK.md` trên staging.
 
-### L · Luyện nghe
+### L, G, T, K
 
-**L1. Hợp đồng bài (`lib/contracts/lesson-package-v3.ts`):**
-- Thêm `audio` tuỳ chọn cho mọi dạng câu:
-  ```ts
-  audio: {
-    lang: 'de-DE' | 'zh-CN' | 'en-US' | 'vi-VN',
-    lines: { speaker: 'a' | 'b', text: string }[],   // 1–12 lượt, tổng ≤ 600 ký tự
-    rate: 0.8 | 0.9 | 1.0,                           // band 1 → 0.8, band 2–3 → 0.9, band ≥ 4 → 1.0
-    maxPlays: 1 | 2 | 3,                              // 3 khi luyện, 2 ở bài thử
-    transcript: 'after_answer' | 'never',
-  }
-  ```
-  Kèm `audioRef` do Hub điền.
-- **Dạng nghe:**
+Kế hoạch chi tiết nằm trong [`LGTK.md`](LGTK.md) (14/11/2026), thay cho nội dung cũ của bốn mục này. Theo quyết định của chủ dự án ngày 14/11, cả bốn bước chỉ lên staging.
 
-  | Bài nghe | Dạng câu | Chấm |
-  |---|---|---|
-  | Nghe và chọn | `choice` | tự động |
-  | Nghe và điền từ | `cloze` | tự động |
-  | Nghe và chép (chính tả) | `short` + khoá `dictation` | tự động theo từ |
-  | Nghe và sắp xếp | `order` | tự động |
-  | Nghe rồi trả lời hoặc tóm tắt | `long` | Qwen + rubric |
-
-- **Khoá `dictation`:** `{type:'dictation', text, ignore:['case','punctuation'], variants?: string[][]}`, chấm trong `lib/lesson-v2/answer.ts`:
-  - So từng từ sau chuẩn hoá. Điểm = 1 − WER. `correct` khi WER = 0, `partial` khi ≤ 0,25.
-  - Nhận xét đánh dấu từ thiếu, thừa hoặc sai trên lời thoại, sau khi trả lời.
-  - Tiếng Đức: `ss` thay `ß` chỉ khi có trong `variants`.
-  - Tiếng Trung: chữ Hán, pinyin dấu, hoặc pinyin số.
-- **`validate.ts`:**
-  - giới hạn theo band: band 1 ≤ 8 từ/câu và ≤ 15 giây ước tính; band 3 ≤ 15 từ/câu;
-  - `dictation` ≤ 2 câu;
-  - bài có câu nghe phải có ít nhất một câu nghe chấm tự động.
-
-**L2. Giọng đọc trên Mac, lưu ở R2:**
-- **`integrations/home-runner/tts.mjs`:**
-  - `say -v <giọng> -r <tốc độ> -o x.aiff "<câu>"` cho từng lượt;
-  - ghép với 0,4 giây nghỉ;
-  - `afconvert -f m4af -d aac -b 64000`.
-  - Đã thử ngày 13/11: 6 giây tiếng Đức ra 54 KB.
-- **`TTS_VOICES`** trong env runner, ví dụ `de-DE:a=Anna,b=Flo (German (Germany));zh-CN:a=Tingting,b=Eddy (Chinese (China mainland))`. Runner kiểm bằng `say -v '?'` và chỉ báo `tts` khi đủ giọng.
-- **Mã băm:** `audioHash = sha256(lang|voices|rate|lines)`.
-- **Tải lên trong cùng lease:**
-  - `PUT /api/automation/v2/jobs/{jobId}/audio/{audioHash}`, `audio/mp4`, ≤ 1 MB;
-  - Hub lưu R2 `UPLOADS` khoá `audio/<hash>.m4a` và ghi bảng `audio_assets` (migration `0031_audio.sql`): `hash PK, lang, rate, voices, duration_ms, bytes, r2_key, created_job_id, created_at`.
-- **Khi lưu bài:**
-  - câu có `audio` phải có tệp khớp;
-  - thiếu thì câu bị loại, bài bị từ chối nếu thiếu số câu tối thiểu;
-  - Hub chỉ giao câu nghe khi runner đang lease có `tts`.
-- **`GET /api/audio/<hash>`:**
-  - kiểm quyền qua `lesson_items` theo `learner_id`;
-  - có `Range` và `Cache-Control` theo mục 4.4.
-  - **Đo từ Việt Nam bằng `/api/rum`.** Nếu p75 bấm-đến-có-tiếng vượt 1 giây, chuyển sang URL R2 công khai qua tên miền riêng với khoá không đoán được (`audio/<hmac(secret,hash)>.m4a`) để edge ở Việt Nam cache. Đây là thay đổi riêng, cần chủ dự án đồng ý.
-- **Local:** runner local dùng cùng `say`. `runner:fake` dùng sẵn vài tệp m4a mẫu trong `tests/fixtures/audio/`.
-
-**L3. Bằng chứng:**
-- `lesson_items.stimulus TEXT NOT NULL DEFAULT 'text' CHECK(stimulus IN ('text','audio'))` và `skill_states.listening` (JSON) trong `0031`.
-- **Hỗ trợ:** nghe chậm hoặc vượt `maxPlays` → `hint1`; xem lời thoại trước khi trả lời → `hint2`.
-- Mở rộng `POST /api/lessons/[id]/items/[itemId]/reveal` với `level: 'slow' | 'transcript'`. Số lần phát lưu trong `learning_lessons.support`.
-- `listening.level`: `none` / `emerging` / `secure`. `secure` = làm độc lập đúng ở 2 ngày.
-- `lib/roadmap/progress.ts`: sổ ngôn ngữ chỉ qua bước khi kỹ năng có nghe vững, trừ bước đánh dấu `roadmap_steps.listening=0`.
-
-**L4. Hub quyết tỉ lệ, Qwen soạn:**
-- `decideNext` thêm `listening: {min,max}` cho sổ ngôn ngữ:
-  - intro 1–2; practice 2–3, lên 3–4 nếu nghe còn `none` sau 3 bài; review 1–2; challenge ≥ 2;
-  - sổ không phải ngôn ngữ: 0.
-- Context gửi `adaptive.listening`. `job.mjs` ràng buộc schema.
-- **Prompt `plan-request.md`**, mục "Câu nghe":
-  - lời thoại tự nhiên, đúng cấp;
-  - đề bằng tiếng Việt, không lặp lời thoại trong đề;
-  - câu chọn không đoán được nếu không nghe;
-  - không có tên thật.
-- **Chấm `long` nghe:** `context/assess.ts` gửi kèm lời thoại. `assess-local.md` thêm cách chấm hiểu ý chính.
-
-**L5. Giao diện nghe (theo M2):**
-- `app/hub/lesson-v2/audio.tsx`: nút phát lớn (≥ 56 px), đếm lượt còn lại, "Chậm hơn", "Xem lời thoại" sau khi trả lời.
-- Phím tắt trên máy tính: Space, R.
-- Tải trước câu kế tiếp. "Thay âm thanh bằng chữ" trong Cài đặt.
-
-**L6. Thử nghiệm:**
-- Local với Qwen và giọng thật.
-- Staging: chủ dự án trên iPhone (Đức), Ếch trên điện thoại ở Việt Nam, bật và tắt gạt im lặng, có và không có tai nghe Bluetooth, mở trong Zalo.
-- Production: Deutsch 1 tuần, rồi Tiếng Trung.
-- **Theo dõi:**
-  - đúng lần đầu nghe so với đọc;
-  - số lần "Chậm hơn" và lời thoại;
-  - thời gian tạo giọng (< 20 giây mỗi bài);
-  - p75 bấm-đến-có-tiếng từ Việt Nam.
-
-**Test:**
-- `tests/lesson-v3.test.mjs` (hợp đồng audio).
-- `tests/listening.test.mjs` (dictation Đức và Trung, WER).
-- `tests/home-runner.test.mjs` (TTS giả lập, tải đúng hash, thiếu giọng thì không báo `tts`).
-- `tests/uploads.test.mjs` (`/api/audio` quyền, `Range`).
-- `tests/learner-model-rules.test.mjs`, `tests/roadmap-progress.test.mjs`.
-- e2e: câu nghe trên `iphone-13` và `pixel-7`.
-
-### G · Chấm tin cậy hơn
-
-1. **Đáp án tương đương:**
-   - Prompt yêu cầu 2–6 biến thể `accepted`.
-   - `answer.ts` chuẩn hoá dấu, khoảng trắng, dấu câu cuối, và số dấu phẩy/chấm.
-   - `order` cho phép `sequences` (≤ 4).
-2. **Rubric có bằng chứng:** mỗi lỗi kèm `quote` (≤ 80 ký tự) nằm trong câu trả lời. Không khớp thì Hub từ chối.
-3. **Bộ câu chuẩn:** 32 câu eval (`docs/plan/LOCAL-GRADER.md`) cộng câu nghe. Chạy hằng tuần bằng `runner --calibrate`, dưới 90% thì vào Cần xem.
-4. **"Chấm sai?"** do Qwen chấm lại. Không đồng thuận thì chuyển người.
-
-**Chạy local:** `runner:local --calibrate` với bộ câu chuẩn, xem báo cáo trong Quản trị local.
-
-### T · Gia sư "Hỏi" trả lời ngay
-
-1. **Kênh:**
-   - Runner mở WebSocket **ra ngoài** tới Durable Object `TutorRelay`, đặt `locationHint: 'weur'` (gần Mac và D1). Kiểm hạn mức gói Free trước khi làm.
-   - Trình duyệt gửi `POST /api/tutor` và nhận trả lời từng đoạn qua SSE.
-   - Từ Việt Nam chỉ có một vòng sang châu Âu cho mỗi câu hỏi, chữ chảy liên tục sau đó.
-2. **Phạm vi:**
-   - Gia sư chỉ thấy câu hiện tại, nháp, kiến thức của bài và ghi chú Knowledge của bước.
-   - Gia sư gợi mở, không đưa đáp án. Mỗi lượt tính `hint1`.
-3. **Runner tắt:** "Gia sư đang nghỉ, câu hỏi sẽ được trả lời khi máy bật", lưu như `explore`.
-4. **Giới hạn:** 20 lượt mỗi bài, 2000 ký tự. Lọc dữ liệu cá nhân bằng `lib/privacy.ts`.
-5. **Điện thoại:**
-   - Gia sư là tấm trượt từ dưới lên, không che câu hỏi.
-   - Giữ kết nối SSE khi màn hình khoá ngắn. Mất kết nối thì hiện phần đã nhận và nút "Hỏi tiếp".
-6. **Local:**
-   - `wrangler dev` chạy được Durable Object.
-   - `runner:local` kết nối `ws://localhost:5173`.
-   - `runner:fake` trả lời mẫu.
-7. **Test:** `tests/tutor.test.mjs` (quyền, giới hạn, mức hỗ trợ, runner tắt). Đo chữ đầu tiên < 3 giây trên staging từ Việt Nam.
-
-### K · ChatGPT chỉ cập nhật tài liệu
-
-- Cổng K0 đã chạy và ghi kết quả trong `docs/ops/KNOWLEDGE-MAINTAINER.md`.
-- Lịch **chủ nhật 02:00 Europe/Berlin** với `knowledge-maintainer.md`. Kết nối chỉ có `hub:knowledge` (sau C).
-- Prompt thêm: với chủ đề ngôn ngữ, ưu tiên nguồn mẫu hội thoại và từ vựng theo cấp (Goethe, HSK chính thức).
+- **L · Luyện nghe:** câu hỏi kèm đoạn hội thoại do Mac đọc bằng giọng hệ thống, lưu R2. Gồm chấm chính tả theo từ, bằng chứng nghe riêng, Hub quyết số câu nghe. Migration `0031`.
+- **G · Chấm tin cậy hơn:** chuẩn hoá đáp án, bằng chứng trích nguyên văn, hiệu chuẩn hằng tuần bằng bộ câu chuẩn (`0032`), "Chấm sai?" chuyển người khi bất đồng.
+- **T · Gia sư "Hỏi":** Durable Object `TutorRelay`, runner trả lời từng đoạn qua WebSocket, trình duyệt nhận qua SSE. Chỉ gợi ý, 20 lượt mỗi bài (`0033`).
+- **K · ChatGPT chỉ cập nhật tài liệu:** lịch chủ nhật 02:00 Europe/Berlin với kết nối `hub:knowledge` trên staging.
 
 ## 6. Phát hành từng giai đoạn
 
@@ -711,8 +585,8 @@ Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (
 | 5 | P | e2e điện thoại | Ếch kiểm `PHONE-CHECK.md` | `0030`, deploy, đo p75 một tuần |
 | 6 | M | — | — | (chỉ duyệt) |
 | 7 | U | `dev:phone` iPhone thật | Ếch và chủ dự án kiểm | Deploy |
-| 8 | L | Qwen + giọng thật | Gạt im lặng, Bluetooth, Zalo | `0031`, deploy; Deutsch trước |
-| 9 | G, T | Như trên | Như trên | Theo thứ tự |
+| 8 | L | Qwen + giọng thật | `0030`, `0031`; gạt im lặng, Bluetooth, Zalo | Chưa làm: giữ staging (quyết định 14/11) |
+| 9 | G, T, K | Như trên | `0032`, `0033`; lịch Knowledge staging | Chưa làm: giữ staging (quyết định 14/11) |
 
 Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: health đúng tag, một lượt học thật trên điện thoại, job `succeeded` và id đã lưu.
 
@@ -745,7 +619,7 @@ Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: he
 1. **E3:** đã xong ngày 13/11. `~/Code/learning-hub-prod` ở tag `prod-20261113-1` (`0625f56`, đúng bản production lúc đó), runner launchd chạy từ đó.
 2. Thư mục dev chính `~/Code/Learning Hub` đang ở nhánh `codex/phase-1-automation-cutover` có thay đổi chưa commit từ tháng 10: giữ nguyên, hay xem lại rồi dọn.
 3. **V2:** đồng ý xoá 4 bài v1 và các bảng v1 sau khi nhận tệp lưu trữ.
-4. **L2:** chọn giọng đọc cho mỗi ngôn ngữ (nghe thử trên Mac).
+4. **L, G, T, K:** các quyết định nằm trong [`LGTK.md`](LGTK.md) mục 8, gồm chọn giọng đọc cho mỗi ngôn ngữ.
 5. **M:** duyệt mockup M1–M4 bằng câu "Duyệt M1–M4" hoặc danh sách cần sửa (mục M).
 6. Thứ tự sau Nghe: chạy code có test (Rust, Python) hay toán từng bước (Toán 7).
 
