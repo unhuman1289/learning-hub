@@ -80,4 +80,4 @@ Runner staging chạy `--watch` với client giới hạn hồ sơ QA, code runn
 | 8. Xin bài và mở bài đã lưu | Lượt đầu bị chặn: yêu cầu lúc 14:05 còn `deferred` nên **Bài mới** khoá. Sau khi runner xử lý, lượt hai gửi được yêu cầu và runner lưu `les_5ec2f16e45b7`. Sổ hiện liên kết tới bài. Test dừng ở thao tác chạm vì selector `a[href*=id]` khớp cả tên bài lẫn **Mở bài**. | Như iPhone, bài `les_4fede157db05` |
 | 9. Tạo sổ và mở bài đầu | **Đạt**. Thời gian cả lượt 2,7 phút. | **Đạt**. Thời gian cả lượt 4,7 phút. |
 
-Việc còn lại: sửa selector bước 8 trong `tests/e2e/phone.spec.mjs` thành liên kết **Mở bài** rồi kiểm lại thao tác mở bài trên staging. Ảnh và log ở `private-data/phone-check/2026-11-14/hubnext-7b3a3e1*`.
+Selector bước 8 đã sửa ở [#155](https://github.com/unhuman1289/learning-hub/pull/155) (chỉ đổi test, không cần deploy lại). Chạy lại bước 8 lúc 22:25 Berlin trên cùng staging: **đạt** cả hai máy. iPhone 13 mất 145,8 s, Pixel 7 mất 204,5 s từ lúc xin bài đến khi mở đúng bài đã lưu. Hai job Qwen `succeeded`, runner đã tắt. Chủ dự án quyết bỏ qua thử trên thiết bị thật ở lượt này. Ảnh và log ở `private-data/phone-check/2026-11-14/hubnext-7b3a3e1*`.
