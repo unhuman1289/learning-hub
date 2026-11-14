@@ -32,14 +32,14 @@ export function fakeResult(context, fixture) {
       usage,
     };
   if (context.contract !== 'plan-context/1') throw Error('Unknown context contract.');
-  const lesson = { knowledge: [], ...structuredClone(fixture), contract: 'lesson-package/3' };
+  const lessonFixture = { knowledge: [], ...fixture, contract: 'lesson-package/3' };
   const requests = context.purpose === 'request' ? context.explorations : [];
   return {
     contract: 'plan-result/1',
     contextHash: context.contextHash,
     summary: 'Kiểm thử giao bài qua API v2.',
     subjects: context.subjects.map((s) => {
-      const lesson = { knowledge: [], ...structuredClone(fixture), contract: 'lesson-package/3' },
+      const lesson = structuredClone(lessonFixture),
         assign = context.purpose !== 'request' && s.slot.eligibleForPrimary;
       lesson.title = 'QA · ' + fixture.title;
       lesson.items = lesson.items.map((i) => ({ ...i, prompt: i.prompt + ' [bài thử ' + context.jobId + ']' }));
@@ -78,10 +78,10 @@ export function fakeResult(context, fixture) {
       action: 'assign',
       subjectId: request.subjectId,
       lesson: {
-        ...lesson,
-        kind: context.adaptive?.mode === 'practice' ? 'remediation' : lesson.kind,
-        estMinutes: context.adaptive?.minutes ?? lesson.estMinutes,
-        items: lesson.items.map(item => ({ ...item, prompt: item.prompt + ' [bài thử ' + context.jobId + ']' })),
+        ...structuredClone(lessonFixture),
+        kind: context.adaptive?.mode === 'practice' ? 'remediation' : lessonFixture.kind,
+        estMinutes: context.adaptive?.minutes ?? lessonFixture.estMinutes,
+        items: lessonFixture.items.map(item => ({ ...item, prompt: item.prompt + ' [bài thử ' + context.jobId + ']' })),
       },
       reason: 'Bài mẫu để thử luồng xin bài.',
     })),
@@ -115,7 +115,7 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
     const leased = await call('/jobs/lease', 'POST', {
         kinds: ['assess', 'plan'],
         max: 1,
-        ...(baseUrl === 'http://localhost:5174' ? { capabilities: ['lesson-v3', 'adaptive-plan', 'local-grading'] } : {}),
+        ...(url.hostname === 'localhost' ? { capabilities: ['lesson-v3', 'adaptive-plan', 'local-grading'] } : {}),
         runner: { name: 'h5-fake-runner', version: '1', model: 'none' },
       }),
       job = leased.jobs[0];
@@ -142,9 +142,10 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2),
     arg = (k) => args[args.indexOf(k) + 1];
-  if (!args.includes('--credentials') || !args.includes('--origin'))
+  if (!args.includes('--credentials'))
     throw Error('Usage: --origin <localhost|staging> --credentials <private JSON> [--fixture <authored lesson>]');
   const credentials = JSON.parse(readFileSync(arg('--credentials'), 'utf8')),
     fixture = JSON.parse(readFileSync(args.includes('--fixture') ? arg('--fixture') : 'fixtures/lessons/deutsch-modalverb.json', 'utf8'));
-  console.log(JSON.stringify(await runFake({ baseUrl: arg('--origin'), credentials, fixture }), null, 2));
+  const baseUrl = args.includes('--origin') ? arg('--origin') : `http://localhost:${process.env.LEARNING_HUB_DEMO_PORT ?? '5174'}`;
+  console.log(JSON.stringify(await runFake({ baseUrl, credentials, fixture }), null, 2));
 }

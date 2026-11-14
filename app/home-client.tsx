@@ -2,7 +2,6 @@
 
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { SketchIcon } from "./hub/sketch-icons";
-import AuthControls from "../components/auth-controls";
 import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
 import { cx } from "../components/notebook/paper";
@@ -10,7 +9,6 @@ import { tasks } from "./content";
 import { Desk } from "./hub/desk";
 import { DocumentForm, type FormRequest } from "./hub/document-form";
 import type { Drafts } from "./hub/lesson-page";
-import { NotebookView } from "./hub/notebook-view";
 
 import { StudyMeter } from "./hub/study-meter";
 import { useStudyClock } from "./hub/use-study-clock";
@@ -22,21 +20,23 @@ import { bookForLegacy } from "./hub/legacy-route";
 import { useWorkspace, type WorkspaceApi } from "./hub/use-workspace";
 import { useShelf } from "./hub/use-shelf";
 import { NewNotebookDialog } from "./hub/new-notebook";
-import {LessonReader} from "./hub/lesson-v2/reader";
-import { SubjectView } from "./hub/subject-view";
 import { isTrack, trackInfo } from "./hub/model";
 
+const AuthControls = lazy(() => import("../components/auth-controls"));
+const NotebookView = lazy(() => import("./hub/notebook-view").then(module => ({ default: module.NotebookView })));
+const LessonReader = lazy(() => import("./hub/lesson-v2/reader").then(module => ({ default: module.LessonReader })));
+const SubjectView = lazy(() => import("./hub/subject-view").then(module => ({ default: module.SubjectView })));
 const AdminView = lazy(() => import("./hub/pages").then(module => ({ default: module.AdminView })));
 
 export default function Home({ userId, userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userId: string; userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
   const { route: requested, go, ready: routeReady } = useRoute();
   const workspace = useWorkspace(!hub2Enabled);
-  const daily = useDaily();
+  const daily = useDaily(null, !hub2Enabled || requested.view === "admin" || requested.view === "notebook");
   // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
   const [viewingId, setViewingId] = useState<string | null>(null);
-  const viewedDaily = useDaily(viewingId, viewingId !== null);
-  const shelf = useShelf(viewingId);
+  const viewedDaily = useDaily(viewingId, !hub2Enabled && viewingId !== null);
+  const shelf = useShelf(viewingId, hub2Enabled && requested.view === "desk", routeReady);
   // An old notebook address shows the same notebook's book; the address bar follows without adding history.
   const route = (hub2Enabled ? bookForLegacy(requested, shelf.subjects) : null) ?? requested;
   useEffect(() => {
@@ -77,7 +77,15 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
   // Time with a notebook open counts as study time; nothing has to be logged by hand.
   const [lessonClock,setLessonClock]=useState<{id:string;subjectId:string}|null>(null);
   const onLessonLoaded=useCallback((id:string,subjectId:string)=>setLessonClock({id,subjectId}),[]);
-  const clock = useStudyClock(viewingId===null&&route.view==='lesson'&&lessonClock?.id===route.id?lessonClock.subjectId:(route.view === "notebook" ? route.track : route.view === "book" && viewingId === null ? route.id : null));
+  const deskStudy = hub2Enabled && route.view === "desk";
+  const clock = useStudyClock(
+    viewingId === null && route.view === "lesson" && lessonClock?.id === route.id
+      ? lessonClock.subjectId
+      : route.view === "notebook" ? route.track : route.view === "book" && viewingId === null ? route.id : null,
+    routeReady && !deskStudy,
+    deskStudy && viewingId === null ? shelf.today?.study : undefined,
+    deskStudy && viewingId === null ? shelf.load : undefined,
+  );
   const labelFor = (key: string) => (isTrack(key) ? trackInfo(key).title : shelf.subjects?.find((item) => item.id === key)?.title ?? "Sổ khác");
 
   const name = userName.trim() || userEmail.split("@")[0];
@@ -107,8 +115,8 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
           </nav>}
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             {!hub2Enabled && <SaveIndicator workspace={workspace} />}
-            <StudyMeter clock={clock} labelFor={labelFor} />
-            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={shelf.learners.find(l=>l.relation==="self")?.id} /> : <AuthControls name={name} email={userEmail} />}
+            <StudyMeter variant={deskStudy ? "ring" : "ruler"} clock={clock} labelFor={labelFor} />
+            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={shelf.learners.find(l=>l.relation==="self")?.id} /> : <Suspense fallback={null}><AuthControls name={name} email={userEmail} /></Suspense>}
           </div>
         </div>
         </div>
@@ -128,9 +136,11 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
             hub2={hub2Enabled}
           />
         )}
-        {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded} onCompleted={daily.load}/>}
-        {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canEditNotebook} canDelete={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
-        {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
+        <Suspense fallback={<p role="status">Đang mở sổ…</p>}>
+          {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded}/>}
+          {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canEditNotebook} canDelete={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
+          {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
+        </Suspense>
         {route.view === "admin" && (isAdmin ? <Suspense fallback={<p role="status">Đang mở Quản trị…</p>}><AdminView daily={daily} workspace={workspace} hub2={hub2Enabled} profileMode={profileMode} /></Suspense> : <p className="mx-auto max-w-4xl text-muted">Trang này chỉ dành cho quản trị viên.</p>)}
       </main>
 

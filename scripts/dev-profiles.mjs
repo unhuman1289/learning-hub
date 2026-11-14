@@ -12,14 +12,17 @@ const client = {
   purposes: ['initial', 'request', 'submission', 'recheck'],
   triggers: ['on_demand', 'deferred'],
 };
+const port = process.env.LEARNING_HUB_DEMO_PORT ?? '5174';
+const state = process.env.LEARNING_HUB_DEMO_STATE ?? '.wrangler/state-demo';
 const args = [
   'node_modules/wrangler/bin/wrangler.js', 'dev',
   '--config', 'dist/server/wrangler.json',
-  '--local', '--persist-to', '.wrangler/state-demo',
-  '--ip', '127.0.0.1', '--port', process.env.HUB_DEMO_PORT ?? '5174', '--inspector-port', '0',
+  '--local', '--persist-to', state,
+  '--ip', '127.0.0.1', '--port', port, '--inspector-port', '0',
   '--var', 'HOUSEHOLD_GATE:passphrase',
   '--var', 'HOUSEHOLD_LEGACY_PROFILE_IDS:demo-admin,demo-adult,demo-ech',
   '--var', 'PROFILE_COOKIE_SECRET:' + config.cookieSecret,
+  '--var', 'GRADER_CLIENT_ID:' + client.id,
   '--var', 'AUTOMATION_CLIENTS:' + JSON.stringify([client]),
 ];
 const server = spawn(process.execPath, args, { stdio: 'inherit' });

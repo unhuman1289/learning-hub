@@ -1,5 +1,6 @@
 import type { EvidenceDb } from './evidence/submit.ts';
 import { berlinHour, greetingFor, readGreetingFacts } from "./greeting.ts";
+import { readDaySql, toStudyDay } from './study-sql.ts';
 import { berlinDay } from './daily-policy.ts';
 export type TodayItem = {
   id: string;
@@ -23,15 +24,15 @@ export function sortToday(rows: (TodayItem & { weight?: number })[], minutes: nu
 /** `hour` is the learner's own clock hour (greeting words only); without it the greeting follows Berlin. */
 export async function todayFor(db: EvidenceDb, learner: string, now = new Date(), viewer = learner, hour: number | null = null) {
   const day = berlinDay(now);
-  const [setting, study, { results = [] }, { results: due = [] }, facts] = await Promise.all([
+  const [setting, { results: studyRows = [] }, { results = [] }, { results: due = [] }, facts] = await Promise.all([
     db
       .prepare('SELECT st.daily_target_minutes, st.role, coalesce(st.display_name,u.name) name FROM "user" u LEFT JOIN learner_settings st ON st.user_id=u.id WHERE u.id=?')
       .bind(learner)
       .first<{ daily_target_minutes: number | null; name: string; role: string | null }>(),
     db
-    .prepare('SELECT coalesce(sum(seconds),0)/60.0 AS minutes FROM study_time WHERE user_id=? AND day=?')
+    .prepare(readDaySql)
     .bind(learner, day)
-    .first<{ minutes: number }>(),
+    .all<{ track: string; seconds: number }>(),
     db
     .prepare(
       `SELECT l.id,l.subject_id,json_extract(l.payload,'$.title') AS title,l.assigned_date,l.slot,l.est_minutes,s.title AS subject_title,s.weight,s.system_kind,
@@ -96,8 +97,9 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
         assignedDay: null,
         weight: r.weight,
       });
-  const minutes = study?.minutes ?? 0;
-  const targetMinutes = setting?.daily_target_minutes ?? 45;
+  const study = toStudyDay(day, studyRows, setting?.daily_target_minutes);
+  const minutes = Object.values(study.seconds).reduce<number>((sum, seconds) => sum + (seconds ?? 0), 0) / 60;
+  const { targetMinutes } = study;
   const name = setting?.name ?? "bạn";
   const greeting = facts
     ? greetingFor({ ...facts, minutesToday: minutes, targetMinutes },
@@ -108,6 +110,7 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
     day,
     minutes,
     targetMinutes,
+    study,
     items: sortToday(rows, minutes, targetMinutes),
   };
 }

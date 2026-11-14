@@ -14,8 +14,9 @@ Trong Terminal khác, ở cùng thư mục và dùng cùng phiên bản Node, ch
 Khi bài sẵn sàng, bấm **Mở bài**. Runner giả hiện được cấu hình cho hồ sơ Ếch thử và bài mẫu Deutsch.
 
 Bản xem thử chỉ nghe trên loopback. Dữ liệu mẫu nằm tại `.wrangler/state-demo`.
+Để thử từ dữ liệu mẫu mới, đặt cùng một giá trị `LEARNING_HUB_DEMO_STATE` dưới thư mục `.wrangler/` khi chạy `dev:fresh` và `dev:profiles`.
 Cấu hình tự sinh nằm tại `.wrangler/demo-runner.json` và được Git bỏ qua.
-Dùng `Ctrl+C` để dừng server. Nếu cổng 5174 đang bận, dừng server demo đang chạy rồi mở lại.
+Dùng `Ctrl+C` để dừng server. Nếu cổng 5174 đang bận, đặt `LEARNING_HUB_DEMO_PORT=5175` khi chạy cả `dev:profiles` và `runner:fake`.
 
 Nếu LM Studio đã mở server ở cổng 1234, chạy `npm run runner:local` để Qwen nhận một lượt.
 Thêm `-- --watch` để runner tiếp tục chờ lượt mới.

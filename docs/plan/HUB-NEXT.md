@@ -488,7 +488,7 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
 - **P1:** font tự lưu, manifest và icon, `theme-color`, thuộc tính ô nhập, `keyboard.ts` (nhắc Telex), thanh ký tự đặc biệt, `visualViewport` cho nút dính, dải Zalo/Messenger.
 - **P2:** `localStorage` cho câu trả lời chờ, thông báo mạng, thời hạn và thử lại (`app/hub/api.ts`).
 - **P3:**
-  - `/api/rum` cùng bảng `perf_daily` (migration `0029_perf.sql`, kèm backup contract);
+  - `/api/rum` cùng bảng `perf_daily` (migration `0030_perf.sql`, kèm backup contract);
   - bảng p75 trong Quản trị;
   - một API gom cho bàn học: `/api/today` trả đủ bài tiếp theo, vòng phút và giá sổ, để bỏ các lời gọi riêng.
 - **P4:** Playwright e2e mục 4.7 và job CI `e2e`.
@@ -609,7 +609,7 @@ Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (
 - **Mã băm:** `audioHash = sha256(lang|voices|rate|lines)`.
 - **Tải lên trong cùng lease:**
   - `PUT /api/automation/v2/jobs/{jobId}/audio/{audioHash}`, `audio/mp4`, ≤ 1 MB;
-  - Hub lưu R2 `UPLOADS` khoá `audio/<hash>.m4a` và ghi bảng `audio_assets` (migration `0030_audio.sql`): `hash PK, lang, rate, voices, duration_ms, bytes, r2_key, created_job_id, created_at`.
+  - Hub lưu R2 `UPLOADS` khoá `audio/<hash>.m4a` và ghi bảng `audio_assets` (migration `0031_audio.sql`): `hash PK, lang, rate, voices, duration_ms, bytes, r2_key, created_job_id, created_at`.
 - **Khi lưu bài:**
   - câu có `audio` phải có tệp khớp;
   - thiếu thì câu bị loại, bài bị từ chối nếu thiếu số câu tối thiểu;
@@ -621,7 +621,7 @@ Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (
 - **Local:** runner local dùng cùng `say`. `runner:fake` dùng sẵn vài tệp m4a mẫu trong `tests/fixtures/audio/`.
 
 **L3. Bằng chứng:**
-- `lesson_items.stimulus TEXT NOT NULL DEFAULT 'text' CHECK(stimulus IN ('text','audio'))` và `skill_states.listening` (JSON) trong `0030`.
+- `lesson_items.stimulus TEXT NOT NULL DEFAULT 'text' CHECK(stimulus IN ('text','audio'))` và `skill_states.listening` (JSON) trong `0031`.
 - **Hỗ trợ:** nghe chậm hoặc vượt `maxPlays` → `hint1`; xem lời thoại trước khi trả lời → `hint2`.
 - Mở rộng `POST /api/lessons/[id]/items/[itemId]/reveal` với `level: 'slow' | 'transcript'`. Số lần phát lưu trong `learning_lessons.support`.
 - `listening.level`: `none` / `emerging` / `secure`. `secure` = làm độc lập đúng ở 2 ngày.
@@ -708,10 +708,10 @@ Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (
 | 2 | S | Diễn tập khôi phục | — | Sao lưu, xuất lưu trữ v1 |
 | 3 | C | MCP Inspector, runner local | Deploy, kiểm kết nối Knowledge | `0026`, deploy, gỡ kết nối cũ |
 | 4 | V | Migration trên bản sao; **cổng Q** (Qwen soạn đúng) | `0027`, `0028`, thử bài cũ | Như staging, sau khi đồng ý xoá v1 |
-| 5 | P | e2e điện thoại | Ếch kiểm `PHONE-CHECK.md` | `0029`, deploy, đo p75 một tuần |
+| 5 | P | e2e điện thoại | Ếch kiểm `PHONE-CHECK.md` | `0030`, deploy, đo p75 một tuần |
 | 6 | M | — | — | (chỉ duyệt) |
 | 7 | U | `dev:phone` iPhone thật | Ếch và chủ dự án kiểm | Deploy |
-| 8 | L | Qwen + giọng thật | Gạt im lặng, Bluetooth, Zalo | `0030`, deploy; Deutsch trước |
+| 8 | L | Qwen + giọng thật | Gạt im lặng, Bluetooth, Zalo | `0031`, deploy; Deutsch trước |
 | 9 | G, T | Như trên | Như trên | Theo thứ tự |
 
 Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: health đúng tag, một lượt học thật trên điện thoại, job `succeeded` và id đã lưu.

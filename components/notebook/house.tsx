@@ -3,16 +3,25 @@ import { cx } from "./paper";
 
 /** Oak desk top: boards with a front edge. Paper and notebooks lie on it. */
 /** `lamp` (0–1) is how much the desk lamp shows: a warm pool of light on the boards after dusk. */
-export function OakDesk({ children, className, lamp = 0 }: { children: ReactNode; className?: string; lamp?: number }) {
+export function OakDesk({ children, className, lamp = 0, apron = false }: { children: ReactNode; className?: string; lamp?: number; apron?: boolean }) {
   return (
-    <div className={cx("rounded-[6px] shadow-furniture", className)}>
-      <div className="bg-oak-planks relative rounded-t-[6px] p-2.5 sm:p-5">
+    <div className={cx("rounded-[6px]", !apron && "shadow-furniture", className)}>
+      <div className={cx("bg-oak-planks relative rounded-t-[6px]", apron
+        ? "grid min-h-[155px] content-center border-b-[7px] border-oak-dark px-3 py-4 shadow-furniture sm:px-6 lg:min-h-[210px] lg:px-7"
+        : "p-2.5 sm:p-5")}>
         {lamp > 0 && <div aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-t-[6px] bg-[radial-gradient(ellipse_at_50%_45%,rgb(255_213_138/0.55),transparent_70%)] transition-opacity duration-1000" style={{ opacity: lamp }} />}
         <div className="relative">{children}</div>
       </div>
-      {/* Front edge of the desk top. */}
-      <div className="bg-oak h-2.5 border-y border-oak-dark/70 brightness-90" />
-      <div className="bg-oak-v h-2 rounded-b-[6px]" />
+      {apron ? (
+        <div aria-hidden="true" className="bg-oak-v relative mx-2 grid h-11 place-items-center border-y-[6px] border-oak-dark shadow-furniture sm:mx-4">
+          <span className="h-1.5 w-11 rounded-full bg-oak-dark shadow-[0_1px_0_rgb(222_190_150/0.55)]" />
+        </div>
+      ) : (
+        <>
+          <div className="bg-oak h-2.5 border-y border-oak-dark/70 brightness-90" />
+          <div className="bg-oak-v h-2 rounded-b-[6px]" />
+        </>
+      )}
     </div>
   );
 }
@@ -32,29 +41,19 @@ export type BookcaseDoor = { label: string; onOpen: () => void };
  * White-painted Landhaus bookcase with oak trim: oak crown, oak shelves, an oak counter top and
  * white bead-board doors below. The doors that have something behind them carry a brass plate and open a dialog.
  */
-export function Bookcase({ title, children, className, counterDecoration, doors = [] }: {
-  title: ReactNode; children: ReactNode; className?: string; counterDecoration?: ReactNode; doors?: BookcaseDoor[];
+export function Bookcase({ title, children, className, doors = [] }: {
+  title: ReactNode; children: ReactNode; className?: string; doors?: BookcaseDoor[];
 }) {
   return (
-    <section aria-label="Tủ sách" className={cx("shadow-furniture", className)}>
-      {/* Crown moulding */}
-      <div className="bg-oak relative z-[1] -mx-2 h-4 rounded-t-[4px] border-b-4 border-oak-dark/60 shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]" />
-      <div className="bg-cabinet px-2.5 pb-3 pt-3 sm:px-3.5">
-        <div className="mb-3 flex items-baseline justify-between gap-3 px-1 text-cabinet-ink">{title}</div>
-        <div className="grid gap-y-4 rounded-[2px] bg-cabinet-back px-1 pt-4 shadow-[inset_0_6px_14px_rgb(60_40_20/0.22),inset_0_0_0_1px_rgb(60_40_20/0.18)]">
-          {children}
-        </div>
-      </div>
-      {/* Oak counter top over the lower cupboard */}
-      <div className="bg-oak relative z-[1] -mx-1.5 h-3.5 rounded-[2px] border-b-2 border-oak-dark shadow-[0_3px_4px_-2px_rgb(0_0_0/0.35)]">
-        {counterDecoration && <div className="pointer-events-none absolute bottom-1 right-4">{counterDecoration}</div>}
+    <section aria-label="Kệ sách" className={cx("min-w-0 rounded-sm border-[7px] border-cabinet border-y-[10px] bg-cabinet-back shadow-furniture lg:border-[9px] lg:border-y-[12px]", className)}>
+      <div className="pt-3 shadow-[inset_0_4px_12px_rgb(60_40_20/0.22)]">
+        <div className="px-3 text-cabinet-ink">{title}</div>
+        {children}
       </div>
       {/* Lower cupboard with bead-board doors */}
       <div className="bg-cabinet grid grid-cols-2 gap-2 px-2.5 pb-2.5 pt-2.5 [perspective:700px] sm:px-3.5">
         {[0, 1].map((index) => <CupboardDoor key={index} side={index === 0 ? "left" : "right"} door={doors[index]} />)}
       </div>
-      {/* Plinth */}
-      <div className="bg-oak h-3 rounded-b-[3px] border-t border-oak-dark/70" />
     </section>
   );
 }
