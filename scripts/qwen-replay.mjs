@@ -9,6 +9,7 @@ import { normalizeNumericKeyValue, numericKeyValuePattern, parseNumericAnswer } 
 import { memoryDb } from '../tests/d1-adapter.mjs';
 import { createSubject } from '../lib/subjects/service.ts';
 import { parseSubjectInput } from '../lib/subjects/policy.ts';
+import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { enqueue } from '../lib/ai-jobs/queue.ts';
 import { leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
@@ -49,12 +50,54 @@ async function replayOpening(raw) {
   }
 }
 
+async function replayRequest(raw, expectedSteps) {
+  const db = memoryDb();
+  try {
+    const now = new Date('2026-11-14T15:00:00Z');
+    const learner = 'phone-demo';
+    db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'Demo','phone@example.test',1,1,1,'learner','active')").run(learner);
+    const client = { id: 'replay', scopes: ['jobs:plan'], learnerIds: [learner], purposes: ['request'], triggers: ['on_demand'] };
+    const notebook = await createSubject(db, learner, learner, parseSubjectInput({ title: 'Deutsch', goal: 'Deutsch A1, W-Fragen' }), now);
+    db.sqlite.prepare("UPDATE subjects SET status='active' WHERE id=?").run(notebook.id);
+    db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at)
+      VALUES('sk_replay',?,?,'w-fragen','W-Fragen','',1,'[]','active','ai',?,?)`).run(notebook.id, learner, now.toISOString(), now.toISOString());
+    const requested = await createRequest(db, {}, learner, learner, parseRequest({ subjectId: notebook.id, mode: 'learn', clientRequestId: crypto.randomUUID() }), now);
+    const [lease] = await leaseJobs(db, client, {
+      kinds: ['plan'], max: 1, capabilities: ['lesson-v3', 'adaptive-plan', 'roadmap-v2'],
+      runner: { name: 'replay', version: '1', model: 'none' },
+    }, 'local', now);
+    const persisted = await readJob(db, lease.jobId);
+    const context = JSON.parse(persisted.context_snapshot);
+    assert.equal(context.adaptive.roadmapTask, 'replan');
+    const payload = normalizePlan({
+      ...raw, contextHash: persisted.context_hash, usage: { model: 'fixture', inputTokens: 0, outputTokens: 0, ms: 0 },
+      subjects: raw.subjects.map(subject => ({
+        ...subject, subjectId: notebook.id, expectedRevision: context.subjects[0].revision,
+      })),
+      explorations: raw.explorations.map(exploration => ({ ...exploration, requestId: requested.id, subjectId: notebook.id })),
+    });
+    const saved = await applyResult(db, client, lease.jobId, lease.leaseToken, payload, false, now);
+    assert.equal(saved.status, 200, JSON.stringify(saved));
+    const [lessonId] = saved.outcome.extraLessonIds;
+    assert(lessonId);
+    assert.equal(db.sqlite.prepare('SELECT result_lesson_id FROM learner_requests WHERE id=?').get(requested.id).result_lesson_id, lessonId);
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n, expectedSteps);
+    console.log('đã lưu bài Xin bài; số bước mới:', expectedSteps);
+  } finally {
+    db.sqlite.close();
+  }
+}
+
 const numericPattern = new RegExp(numericKeyValuePattern);
 const folder = new URL('../tests/fixtures/qwen/', import.meta.url);
 const fixtures = readdirSync(folder).filter(name => name.endsWith('.json')).sort();
 assert(fixtures.length, 'Thiếu fixture Qwen.');
 for (const name of fixtures) {
   const fixture = JSON.parse(readFileSync(new URL(name, folder), 'utf8'));
+  if (fixture.requestCapture) {
+    await replayRequest(fixture.requestCapture, fixture.expectedSteps);
+    continue;
+  }
   if (fixture.openingCapture) {
     const result = await replayOpening(fixture.openingCapture);
     console.log(name, result.status, "đã lưu bài chẩn đoán và 5 bước");

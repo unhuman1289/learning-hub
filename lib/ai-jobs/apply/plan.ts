@@ -12,7 +12,7 @@ import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
-export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date) {
+export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false) {
   const errors: ValidationIssue[] = [],
     statements: ReturnType<EvidenceDb['prepare']>[] = [],
     applyGuards: ReturnType<EvidenceDb['prepare']>[] = [],
@@ -87,7 +87,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     if(initial&&(!s.openingSteps||!setup?.framework||s.primaryLesson?.kind!=='diagnostic'))
       issue(path,'schema','Sổ mới cần chuẩn học, 5–10 bước và một bài xếp chỗ.');
     if(modern&&s.roadmap)issue(path+'/roadmap','schema','Dùng thao tác trên từng bước.');
-    if(modern&&!initial&&task==='replan'&&!s.openingSteps)issue(path+'/openingSteps','schema','Cần lập lại 5–10 bước.');
+    if(modern&&!initial&&task==='replan'&&!deferReplan&&!s.openingSteps)issue(path+'/openingSteps','schema','Cần lập lại 5–10 bước.');
     if(modern&&!initial&&task!=='replan'&&s.openingSteps)issue(path+'/openingSteps','schema','Chỉ lập bước đầu khi Hub yêu cầu.');
     if(modern&&task==='extend'&&(s.roadmapChanges?.filter(change=>change.op==='append').length??0)<3)
       issue(path+'/roadmapChanges','schema','Cần thêm ít nhất ba bước.');
@@ -275,7 +275,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         if(task==='replan')statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
       }catch(error){issue(path+'/roadmapChanges','roadmap',String((error as Error).message).slice(0,300));}
     }
-    if(initial||task==='replan'){
+    if(initial||task==='replan'&&!deferReplan){
       const selected=setup?.framework?frameworkFor(setup.framework,c.title,c.goal,c.curriculum):inferFramework(c.title,c.goal,c.curriculum);
       statements.push(db.prepare(`UPDATE subjects SET framework=coalesce(framework,?),topic_key=coalesce(topic_key,?) WHERE id=? AND learner_id=? AND ${gate}`)
         .bind(JSON.stringify(selected),selected.topicKey,s.subjectId,job.learner_id,...gateValues));
