@@ -9,7 +9,7 @@ export const isMathFramework = (framework?: string) => framework === 'vn-gdpt-20
 
 export function itemPolicy(framework?: string): { kinds: ItemKind[]; minimum: number; codeKnowledge: boolean } {
   if (framework && /-(cefr|hsk)$/.test(framework))
-    return { kinds: ['choice', 'short', 'long', 'cloze'], minimum: 1, codeKnowledge: false };
+    return { kinds: ['choice', 'short', 'long', 'cloze', 'order'], minimum: 1, codeKnowledge: false };
   if (framework === 'rust-core' || framework === 'python-core')
     return { kinds: ['choice', 'short', 'cloze', 'order', 'code'], minimum: 2, codeKnowledge: true };
   if (framework && /^vn-gdpt-2018-(toan|khtn|sinh|ly|hoa)$/.test(framework))

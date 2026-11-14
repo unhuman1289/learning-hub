@@ -403,6 +403,55 @@
                       "caseSensitive"
                     ],
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "const": "dictation"
+                      },
+                      "text": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 600
+                      },
+                      "pinyin": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 2400,
+                        "pattern": "^(?:[a-zü:]+[0-5])(?:\\s+[a-zü:]+[0-5])*$"
+                      },
+                      "ignore": {
+                        "maxItems": 2,
+                        "type": "array",
+                        "items": {
+                          "type": "string",
+                          "enum": [
+                            "case",
+                            "punctuation"
+                          ]
+                        }
+                      },
+                      "variants": {
+                        "type": "array",
+                        "items": {
+                          "minItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 600
+                          }
+                        }
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "text",
+                      "ignore"
+                    ],
+                    "additionalProperties": false
                   }
                 ]
               },
@@ -464,6 +513,78 @@
                   "optional",
                   "required"
                 ]
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
               }
             },
             "required": [
@@ -547,6 +668,78 @@
                   "optional",
                   "required"
                 ]
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
               },
               "input": {
                 "type": "string",
@@ -692,6 +885,78 @@
                   "optional",
                   "required"
                 ]
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
               },
               "input": {
                 "type": "string",
@@ -866,6 +1131,78 @@
                   "required"
                 ]
               },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
+              },
               "input": {
                 "type": "string",
                 "const": "order"
@@ -1015,6 +1352,78 @@
                   "optional",
                   "required"
                 ]
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
               },
               "input": {
                 "type": "string",
@@ -1192,6 +1601,78 @@
                   "optional",
                   "required"
                 ]
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
               },
               "input": {
                 "type": "string",
@@ -1390,6 +1871,78 @@
                   "optional",
                   "required"
                 ]
+              },
+              "audio": {
+                "type": "object",
+                "properties": {
+                  "lang": {
+                    "type": "string",
+                    "enum": [
+                      "de-DE",
+                      "zh-CN",
+                      "en-US",
+                      "vi-VN"
+                    ]
+                  },
+                  "lines": {
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "speaker": {
+                          "type": "string",
+                          "enum": [
+                            "a",
+                            "b"
+                          ]
+                        },
+                        "text": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 600
+                        }
+                      },
+                      "required": [
+                        "speaker",
+                        "text"
+                      ],
+                      "additionalProperties": false
+                    }
+                  },
+                  "rate": {
+                    "type": "number",
+                    "enum": [
+                      0.8,
+                      0.9,
+                      1
+                    ]
+                  },
+                  "maxPlays": {
+                    "type": "number",
+                    "enum": [
+                      1,
+                      2,
+                      3
+                    ]
+                  },
+                  "transcript": {
+                    "type": "string",
+                    "enum": [
+                      "after_answer",
+                      "never"
+                    ]
+                  }
+                },
+                "required": [
+                  "lang",
+                  "lines",
+                  "rate",
+                  "maxPlays",
+                  "transcript"
+                ],
+                "additionalProperties": false
               },
               "input": {
                 "type": "string",
