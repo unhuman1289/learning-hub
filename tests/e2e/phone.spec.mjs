@@ -304,7 +304,8 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         if (await open.isVisible()) await open.tap();
         else {
           await page.reload();
-          await page.locator('a[href*="' + newId + '"]').tap();
+          // The notebook links the saved lesson from its title and from Mở bài.
+          await page.getByRole('link', { name: 'Mở bài', exact: true }).and(page.locator('a[href*="' + newId + '"]')).tap();
         }
       }
       await expect(page).toHaveURL(new RegExp(newId));
