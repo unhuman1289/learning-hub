@@ -3,7 +3,7 @@ import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./ui";
 import { apiJson } from "./api";
-type ApiBody = { error?: string; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown; alerts: { code: string; message: string }[] };
+type ApiBody = { error?: string; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown };
 type PlanNotebook = { id: string; title: string; aiEnabled: boolean; status: string };
 type Job = {
   id: string;
@@ -17,7 +17,7 @@ type Job = {
   cost_usd: number | null;
   error: string | null;
 };
-export function AiJobsPanel() {
+export function AiJobsPanel({ active = true }: { active?: boolean }) {
   const [jobs, setJobs] = useState<Job[]>([]),
     [error, setError] = useState(""),
     [notice,setNotice]=useState(""),
@@ -93,7 +93,7 @@ export function AiJobsPanel() {
       .catch((cause: Error) => { if (alive) setError(cause.message); });
     return () => { alive = false; };
   }, [learner]);
-  useLiveRefresh(async()=>{await refresh();const selected=detail as {id?:string}|null;if(selected?.id)await inspect(selected.id);},!busy);
+  useLiveRefresh(async()=>{await refresh();const selected=detail as {id?:string}|null;if(selected?.id)await inspect(selected.id);},active && !busy);
   async function action(id: string) {
     setBusy(true);
     setError("");
@@ -124,14 +124,13 @@ export function AiJobsPanel() {
   }
   return (
     <section aria-label="Lượt soạn và chấm" className="grid gap-4">
-      <h2 className="font-print text-2xl">Lượt soạn và chấm</h2>
       <p className="text-sm text-muted">
         Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. Máy ở nhà tự nhận lượt soạn và chấm.
       </p>
       <div className="flex flex-wrap gap-3">
         <label>
           Người học
-          <select value={learner} onChange={(e) => { setLearner(e.target.value); setPlanSubjectId(""); setPlanShelf(null); }} className="ml-2 max-w-full rounded border border-line bg-paper p-2">
+          <select value={learner} onChange={(e) => { setLearner(e.target.value); setPlanSubjectId(""); setPlanShelf(null); }} className="ml-2 min-h-11 max-w-full rounded border border-line bg-paper p-2">
             <option value="">Tất cả</option>
             {learners.map((l) => (
               <option key={l.id} value={l.id}>
@@ -142,7 +141,7 @@ export function AiJobsPanel() {
         </label>
         <label>
           Trạng thái
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="ml-2 rounded border border-line bg-paper p-2">
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="ml-2 min-h-11 rounded border border-line bg-paper p-2">
             <option value="">Tất cả</option>
             {["queued", "leased", "succeeded", "failed", "expired", "cancelled"].map((x) => (
               <option key={x}>{x}</option>
@@ -151,7 +150,7 @@ export function AiJobsPanel() {
         </label>
         <label>
           Loại
-          <select value={kind} onChange={(e) => setKind(e.target.value)} className="ml-2 rounded border border-line bg-paper p-2">
+          <select value={kind} onChange={(e) => setKind(e.target.value)} className="ml-2 min-h-11 rounded border border-line bg-paper p-2">
             <option value="">Tất cả</option>
             <option value="plan">Soạn</option>
             <option value="assess">Chấm</option>
@@ -161,7 +160,7 @@ export function AiJobsPanel() {
       <div className="flex flex-wrap items-center gap-2">
         {notebooks.length > 1 && <label>
           Sổ cần soạn
-          <select value={planSubjectId} onChange={e => setPlanSubjectId(e.target.value)} className="ml-2 max-w-full rounded border border-line bg-paper p-2">
+          <select value={planSubjectId} onChange={e => setPlanSubjectId(e.target.value)} className="ml-2 min-h-11 max-w-full rounded border border-line bg-paper p-2">
             <option value="">Chọn sổ</option>
             {notebooks.map(notebook => <option key={notebook.id} value={notebook.id}>{notebook.title}</option>)}
           </select>
@@ -214,20 +213,4 @@ export function AiJobsPanel() {
       )}
     </section>
   );
-}
-export function AdminAlertBanner() {
-  const [alerts, setAlerts] = useState<{ code: string; message: string }[]>([]);
-  useEffect(() => {
-    fetch("/api/admin/alerts", { cache: "no-store" })
-      .then(async (r) => (r.ok ? ((await r.json()) as ApiBody) : null))
-      .then((x) => setAlerts(x?.alerts ?? []))
-      .catch(() => {});
-  }, []);
-  return alerts.length ? (
-    <aside role="alert" className="mb-4 rounded border border-accent bg-paper p-3 text-accent">
-      {alerts.map((a) => (
-        <p key={a.code}>{a.message}</p>
-      ))}
-    </aside>
-  ) : null;
 }

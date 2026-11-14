@@ -838,3 +838,17 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   .notebook-settings[open] { animation: notebook-settings-in 220ms ease-out; }
   @keyframes notebook-settings-in { from { translate: 0 3rem; opacity: .6; } }
 }
+
+.admin-notebook-page {
+  min-height: 15rem;
+  overflow-wrap: anywhere;
+}
+.admin-section-button {
+  color: var(--color-ink-paper);
+  background-color: var(--color-paper);
+}
+.admin-section-button[aria-pressed="true"] {
+  color: var(--color-accent-paper);
+  background-color: var(--color-postit-yellow);
+  box-shadow: inset 0 -2px currentColor;
+}
