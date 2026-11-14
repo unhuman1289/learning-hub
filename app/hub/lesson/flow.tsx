@@ -2,9 +2,11 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { RuledPage } from "../../../components/notebook/paper";
-import { buttonClass } from "../ui";
 
-export function LessonFlow({ initialItem, groups, count, subject, materials, page, status, locked }: {
+/** A swipe this far (px) turns the page; shorter pulls spring back. */
+const SWIPE = 64;
+
+export function LessonFlow({ initialItem, groups, count, subject, materials, page, status, locked, hint = false, onHintSeen = () => {} }: {
   initialItem: number;
   groups: number[][];
   count: number;
@@ -13,6 +15,9 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   page: (index: number, jump: (index: number) => void) => ReactNode;
   status: string;
   locked: boolean;
+  /** Show "Chạm mép giấy để lật" until the learner first turns a page. */
+  hint?: boolean;
+  onHintSeen?: () => void;
 }) {
   const [selected, setSelected] = useState<number | "summary">(initialItem === count + 1 ? "summary" : initialItem);
   const [direction, setDirection] = useState<"next" | "previous">();
@@ -29,7 +34,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const last = current.at(-1);
   const question = index > 0 && !end;
 
-  function jump(next: number) {
+  function jump(next: number, curl = 0) {
     if (next < 0 || next > count + 1 || next === target) return;
     const direction = next > target ? "next" : "previous";
     const update = () => {
@@ -39,16 +44,16 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     if (current.includes(next)) update();
     else {
       void import("./turn-leaf").then(({ turnLeaf }) => {
-        if (document.getElementById(paperId)) turnLeaf(paperId, direction, update);
+        if (document.getElementById(paperId)) turnLeaf(paperId, direction, update, curl);
       }, () => {
         if (document.getElementById(paperId)) update();
       });
     }
   }
 
-  function turn(offset: number) {
+  function turn(offset: number, curl = 0) {
     const next = pages[index + offset]?.[0];
-    if (next !== undefined) jump(next);
+    if (next !== undefined) jump(next, curl);
   }
 
   useEffect(() => {
@@ -61,14 +66,44 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     else if (section && section.getBoundingClientRect().top < 85) section.scrollIntoView({ block: "start" });
   }, [direction, first, target]);
 
+  const edges = useRef<{ left: HTMLButtonElement | null; right: HTMLButtonElement | null }>({ left: null, right: null });
+  const frame = useRef(0);
+
+  /** Lift the corner of one edge as far as the finger has pulled it (0 = at rest, 1 = turn threshold). */
+  function pull(side: "left" | "right" | null, amount = 0) {
+    cancelAnimationFrame(frame.current);
+    frame.current = requestAnimationFrame(() => {
+      for (const key of ["left", "right"] as const) {
+        const edge = edges.current[key];
+        if (!edge) continue;
+        if (key === side && amount > 0) {
+          edge.dataset.pulled = "";
+          edge.style.setProperty("--pull", Math.min(amount, 1.25).toFixed(3));
+        } else if ("pulled" in edge.dataset) {
+          delete edge.dataset.pulled;
+          edge.style.removeProperty("--pull");
+        }
+      }
+    });
+  }
+
+  function turnFrom(offset: 1 | -1) {
+    const edge = edges.current[offset > 0 ? "right" : "left"];
+    const curl = edge ? edge.querySelector<HTMLElement>("[data-curl]")?.getBoundingClientRect().width ?? 0 : 0;
+    if (hint && pages[index + offset]) onHintSeen();
+    turn(offset, curl);
+  }
+
   function clearTouch() {
     const start = touch.current;
     touch.current = null;
-    if (paper.current) delete paper.current.dataset.raisedEdge;
     return start;
   }
 
-  const interactive = "input, textarea, select, button, a, summary, [contenteditable], [role=dialog]";
+  const nextNumbers = pages[index + 1];
+  const nextLabel = index === 0 ? "Bắt đầu bài" : index === pages.length - 2 ? "Sang Tổng kết" :
+    nextNumbers ? `Trang sau: Câu ${nextNumbers.length > 1 ? `${nextNumbers[0]}–${nextNumbers.at(-1)}` : nextNumbers[0]}` : "";
+  const interactive = "input, textarea, select, button:not([data-turn-edge]), a, summary, [contenteditable], [role=dialog]";
   return <div ref={root} className="lesson-flow scroll-mt-24" tabIndex={-1}
     aria-label="Các trang bài học"
     onKeyDown={event => {
@@ -76,38 +111,39 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
           !(event.target instanceof Element) || event.target.closest(interactive)) return;
       if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
         event.preventDefault();
-        turn(event.key === "ArrowRight" ? 1 : -1);
+        turnFrom(event.key === "ArrowRight" ? 1 : -1);
       }
     }}
     onTouchStart={event => {
       clearTouch();
+      pull(null);
       if (locked || event.touches.length !== 1 || !(event.target instanceof Element) ||
           event.target.closest(interactive + ", pre, table, [data-lesson-notes]")) return;
       const { clientX: x, clientY: y } = event.touches[0];
       touch.current = { x, y };
-      const leaf = paper.current;
-      if (!leaf) return;
-      const { left, right } = leaf.getBoundingClientRect();
-      if (x >= left && x - left < 36) leaf.dataset.raisedEdge = "left";
-      if (x <= right && right - x < 36) leaf.dataset.raisedEdge = "right";
     }}
     onTouchMove={event => {
       const start = touch.current;
-      if (!start || event.touches.length !== 1) { clearTouch(); return; }
+      if (!start || event.touches.length !== 1) { clearTouch(); pull(null); return; }
       const { clientX, clientY } = event.touches[0];
-      if (Math.abs(clientY - start.y) > 12 && Math.abs(clientY - start.y) > Math.abs(clientX - start.x)) clearTouch();
+      const dx = clientX - start.x, dy = clientY - start.y;
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { clearTouch(); pull(null); return; }
+      pull(dx < 0 ? "right" : "left", Math.abs(dx) / SWIPE);
     }}
-    onTouchCancel={clearTouch}
+    onTouchCancel={() => { clearTouch(); pull(null); }}
     onTouchEnd={event => {
       const start = clearTouch();
-      if (locked || !start || event.touches.length || event.changedTouches.length !== 1) return;
+      if (locked || !start || event.touches.length || event.changedTouches.length !== 1) { pull(null); return; }
       const dx = event.changedTouches[0].clientX - start.x;
       const dy = event.changedTouches[0].clientY - start.y;
-      if (Math.abs(dx) >= 64 && Math.abs(dx) > Math.abs(dy) * 1.5) turn(dx < 0 ? 1 : -1);
+      const offset = dx < 0 ? 1 : -1;
+      if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5 && pages[index + offset]) turnFrom(offset);
+      else pull(null);
     }}>
     <div id={paperId} ref={paper} className="lesson-flow-leaf" onAnimationEnd={event => {
       if (event.animationName === "lesson-leaf-arrive" && paper.current) delete paper.current.dataset.fallbackTurn;
     }}>
+      <span className="lesson-flow-curl" aria-hidden="true" />
       <RuledPage key={first} as="section" className="lesson-flow-page">
         {question && <>
           <p className="mb-3 font-hand text-lg text-muted-paper">{subject} · {first === last ? `Câu ${first}/${count}` : `Câu ${first}–${last}/${count}`}</p>
@@ -116,14 +152,17 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
         <div className="lesson-flow-questions">
           {current.map(number => <div key={number} className="min-w-0">{page(number, jump)}</div>)}
         </div>
-        <nav aria-label="Lật trang bài học" className="mt-5 flex flex-wrap items-center justify-between gap-2 border-t border-rule pt-2">
-          <button type="button" data-turn-edge="left" disabled={locked || index === 0} onClick={() => turn(-1)}
-            className={buttonClass("ghost", index === 0 ? "invisible" : "")}>Quay lại</button>
-          {!end && <button type="button" data-turn-edge="right" disabled={locked} onClick={() => turn(1)}
-            className={buttonClass(question ? "secondary" : "primary")}>
-            {index === 0 ? "Bắt đầu" : index === pages.length - 2 ? "Tổng kết" : "Tiếp"}
+        {hint && !end && <p className="lesson-flow-hint font-hand">Chạm mép giấy để lật</p>}
+        {status && <p role="status" className="mt-5 border-t border-rule pt-2 text-sm text-muted-paper">{status}</p>}
+        <nav aria-label="Lật trang bài học">
+          {index > 0 && <button type="button" ref={edge => { edges.current.left = edge; }} data-turn-edge="left"
+            className="lesson-flow-edge" disabled={locked} aria-label="Trang trước" onClick={() => turnFrom(-1)}>
+            <span data-curl aria-hidden="true" />
           </button>}
-          {status && <span role="status" className="w-full text-sm text-muted-paper">{status}</span>}
+          {!end && <button type="button" ref={edge => { edges.current.right = edge; }} data-turn-edge="right"
+            className="lesson-flow-edge" disabled={locked} aria-label={nextLabel} onClick={() => turnFrom(1)}>
+            <span data-curl aria-hidden="true" />
+          </button>}
         </nav>
       </RuledPage>
     </div>

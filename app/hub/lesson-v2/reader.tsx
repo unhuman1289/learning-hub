@@ -72,7 +72,7 @@ export function LessonReader({
     </p>}
     {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
     <LessonFlow initialItem={initialItem} groups={lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
-      locked={busy || !!pending} status={state} page={(index, jump) => {
+      locked={busy || !!pending} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump) => {
         if (index === 0) return <>
           <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
           <p className="mt-3">{lesson.objective}</p>
