@@ -1083,7 +1083,8 @@ test('v3 planning requires runner support and does not write a new lesson after 
 });
 
 test('a capable runner saves a scoped stable opening roadmap and placement lesson', async () => {
-  const db = seed();
+  const { db, lesson: openLesson } = await assigned();
+  db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(openLesson);
   const notebook = await createSubject(db, learner, learner, parseSubjectInput({
     title: 'Deutsch mới', goal: 'Đặt lịch làm việc, trình độ A2',
   }), now);
@@ -1092,6 +1093,7 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
   assert.equal(lease.jobId, job.id);
   const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
   assert.equal(context.roadmapProtocol, 2);
+  assert.equal(context.policy.openMinutesNow, context.policy.maxOpenMinutes);
   assert.equal(context.subjects[0].framework.key, 'de-cefr');
   const lesson = {...structuredClone(fixture), kind:'diagnostic'};
   const body = plan(context, lesson);
@@ -1118,6 +1120,16 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
   assert.deepEqual(JSON.parse(steps[1].requires),[steps[0].id]);
   const placed=db.sqlite.prepare('SELECT id,step_role,updated FROM learning_lessons WHERE subject_id=?').get(notebook.id);
   assert.equal(placed.step_role,'placement');
+  const ordinaryRequest = await createRequest(db, {}, learner, learner, parseRequest({
+    kind: 'extra_practice', subjectId: subject, urgency: 'now',
+  }), now);
+  assert.equal(ordinaryRequest.deferred, true, 'ordinary requests still wait at the cap');
+  db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=85 WHERE id=?').run(openLesson);
+  const nextRequest = await createRequest(db, {}, learner, learner, parseRequest({
+    kind: 'extra_practice', subjectId: subject, urgency: 'now',
+  }), new Date(now.getTime() + 1));
+  assert.equal(nextRequest.deferred, false, 'open placement minutes do not block ordinary requests');
+  db.sqlite.prepare("UPDATE ai_jobs SET status='cancelled' WHERE purpose='request' AND learner_id=?").run(learner);
   assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(subject).n,0);
   db.sqlite.prepare("INSERT INTO submissions(id,learner_id,lesson_id,client_submission_id,request_hash,status,created_at) VALUES('placement',?,?, 'placement','hash','graded',?)")
     .run(learner,placed.id,now.toISOString());

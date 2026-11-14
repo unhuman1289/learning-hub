@@ -331,7 +331,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           .first();
         if (old) issue(itemPath, 'duplicate_item', 'Câu đã dùng trong 90 ngày. Đổi tình huống hoặc dạng bài, giữ kỹ năng cần luyện.');
       }
-      newMinutes += l.estMinutes;
+      const openingDiagnostic = job.purpose === 'initial' && current.status === 'setup' &&
+        field === 'primaryLesson' && l.kind === 'diagnostic';
+      if (!openingDiagnostic) newMinutes += l.estMinutes;
       const id = newLessonId();
       lessonIds.push(id);
       savedIds.push(id);
