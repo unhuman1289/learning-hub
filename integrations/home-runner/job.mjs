@@ -223,6 +223,10 @@ function generationSchema(kind, context, schema) {
   if(modern){
     delete item.properties.roadmap;
     item.properties.notebookSetup.required.push('framework');
+    const framework = onlySubject?.framework?.key;
+    if (framework && !['milestones', 'custom'].includes(framework)) {
+      item.properties.notebookSetup.properties.framework.properties.key = { const: framework };
+    }
   }
   item.properties.notebookSetup.required.push('goal');
   item.properties.action = { const: 'assign' };
@@ -251,6 +255,9 @@ function generationSchema(kind, context, schema) {
     };
     if(modern){
       const opening=item.properties.openingSteps.items;
+      // The Hub links the steps in order when requires is empty. Model-generated
+      // refs are redundant and duplicate refs can invalidate the whole roadmap.
+      delete opening.properties.ref;
       item.properties.openingSteps={type:'array',minItems:5,maxItems:5,items:false,
         prefixItems:skillRefs.slice(0,5).map(skill=>({
           ...opening,properties:{...opening.properties,
