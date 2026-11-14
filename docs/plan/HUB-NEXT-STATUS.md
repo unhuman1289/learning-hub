@@ -6,6 +6,10 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
+staging: PHONE-CHECK, đến 18:19 Europe/Berlin
+
+Chỉ deploy staging từ `codex/hub-next-wip`. Trong thời gian ghi trên, luồng khác hỏi chủ dự án trước khi deploy.
+
 | | Đang chạy | Ghi chú |
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
