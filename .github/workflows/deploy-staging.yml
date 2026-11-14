@@ -23,7 +23,10 @@ jobs:
       - name: Release and verify the staging commit
         run: |
           deadline=$(sed -nE 's/^staging: .+, đến ([0-9]{2}:[0-9]{2}) Europe\/Berlin$/\1/p' docs/plan/HUB-NEXT-STATUS.md)
-          test -n "$deadline" && [[ "$(TZ=Europe/Berlin date +%H:%M)" < "$deadline" ]]
+          if [[ -z "$deadline" || "$(TZ=Europe/Berlin date +%H:%M)" > "$deadline" || "$(TZ=Europe/Berlin date +%H:%M)" == "$deadline" ]]; then
+            echo "Record an active staging reservation in HUB-NEXT-STATUS.md before deploying."
+            exit 1
+          fi
           touch .staging-checkout
           npm run deploy:staging -- "$GITHUB_SHA" --apply-migrations
         env:
