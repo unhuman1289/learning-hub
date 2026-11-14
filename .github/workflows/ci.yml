@@ -25,3 +25,26 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run build
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - run: npm run dev:fresh
+      - name: Run the phone checks with the local demo runner
+        run: |
+          npm run dev:profiles > /tmp/hub-phone-server.log 2>&1 &
+          server=$!
+          trap 'kill "$server" ${fake:+"$fake"} 2>/dev/null || true' EXIT
+          curl --retry 20 --retry-connrefused --retry-delay 1 --fail http://localhost:5174/api/health
+          (while npm run runner:fake; do sleep 5; done) > /tmp/hub-phone-runner.log 2>&1 &
+          fake=$!
+          PHONE_STEPS=2,3,4,5 npm run test:e2e
