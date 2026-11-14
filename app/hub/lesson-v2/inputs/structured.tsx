@@ -28,7 +28,7 @@ function ClozeInput(props: InputProps<"cloze">) {
   return <fieldset className="leading-10">
     <legend className="sr-only">Điền vào chỗ trống</legend>
     {item.fragments.map((fragment, index) => <span key={index}>{fragment}{index < values.length &&
-      <input autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={"Ô trống " + (index + 1)} className={field + " mx-1 w-28"} value={values[index]} disabled={disabled}
+      <input autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={"Ô trống " + (index + 1)} className={field + " mx-1 w-28"} value={values[index]} disabled={disabled}
         maxLength={180} onChange={event => fill(props, values, index, event.target.value)} />}</span>)}
   </fieldset>;
 }
@@ -113,7 +113,7 @@ function LabelInput(props: InputProps<"label">) {
     <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-3">
       {values.map((value, index) => <label key={index} className="flex min-w-0 items-center gap-1 text-sm">
         <span className="shrink-0 font-hand text-lg text-accent">{index + 1}.</span>
-        <input autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={"Điểm " + (index + 1)} className={field + " w-full"} value={value} disabled={disabled} maxLength={180}
+        <input autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={"Điểm " + (index + 1)} className={field + " w-full"} value={value} disabled={disabled} maxLength={180}
           onChange={event => fill(props, values, index, event.target.value)} />
       </label>)}
     </div>
@@ -132,7 +132,7 @@ function TableInput(props: InputProps<"table">) {
         {item.headers.map((header, col) => {
           const index = row * item.headers.length + col;
           return <td key={col} className="border-b border-l border-rule">
-            <input autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={label + " · " + header} className={field + " w-full min-w-20 border-b-0"} value={values[index]} disabled={disabled}
+            <input autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={label + " · " + header} className={field + " w-full min-w-20 border-b-0"} value={values[index]} disabled={disabled}
               maxLength={180} onChange={event => fill(props, values, index, event.target.value)} />
           </td>;
         })}

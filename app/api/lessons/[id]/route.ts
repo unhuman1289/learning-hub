@@ -1,7 +1,7 @@
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { apiFailure } from '../../../../lib/api-error';
-import {readSubmission} from '../../../../lib/evidence/submit';
+import {readLessonSubmissions, readSubmission} from '../../../../lib/evidence/submit';
 import { readLessonV2 } from '../../../../lib/lesson-v2/store';
 import { lessonTarget, privateHeaders } from '../../../../lib/lesson-v2/route-helpers';
 
@@ -17,6 +17,13 @@ export async function GET(req: Request, context: Context) {
     const db = storage();
     const learnerId = await lessonTarget(db, user, req, id, 'read_work');
     if (learnerId instanceof Response) return learnerId;
+    if (new URL(req.url).searchParams.get('view') === 'reader') {
+      const [lesson, submissions] = await Promise.all([
+        readLessonV2(db, learnerId, id),
+        readLessonSubmissions(db, learnerId, id),
+      ]);
+      return Response.json({ lesson, submissions }, { headers: privateHeaders });
+    }
     const lesson=await readLessonV2(db,learnerId,id);
     const latest=await db.prepare('SELECT id FROM submissions WHERE lesson_id=? AND learner_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').bind(id,learnerId).first<{id:string}>();
     return Response.json({lesson:{...lesson,lastSubmission:latest?await readSubmission(db,learnerId,latest.id):null}},{headers:privateHeaders});
