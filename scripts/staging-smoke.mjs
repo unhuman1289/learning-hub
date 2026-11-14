@@ -58,13 +58,22 @@ for (const path of stylesheetPaths) {
 }
 if (!stylesheetLoaded) throw new Error('Login stylesheet is missing, has the wrong content type, or does not contain account styles.');
 
-const accountFormScript = [...loginHtml.matchAll(/(?:src|href)=["']([^"']*account-form-[^"']+\.js(?:\?[^"']*)?)["']/g)]
-  .map((match) => match[1])[0];
-if (!accountFormScript) throw new Error('Login page did not include the interactive account form script.');
-const accountFormResponse = await request(accountFormScript);
-if (accountFormResponse.status !== 200 || !accountFormResponse.headers.get('content-type')?.includes('javascript')) {
-  throw new Error(`Account form script is missing or has the wrong content type (${accountFormResponse.status}).`);
+// Vinext emits content-hashed client chunks. Check that the login page
+// references a served JavaScript chunk containing the sign-in handler.
+const scriptPaths = new Set([...loginHtml.matchAll(/(?:src|href)=["']([^"']+\.js(?:\?[^"']*)?)["']/g)]
+  .map((match) => new URL(match[1], url))
+  .filter((script) => script.origin === url.origin)
+  .map((script) => script.href));
+let accountFormScriptLoaded = false;
+for (const path of scriptPaths) {
+  const response = await request(path);
+  if (response.ok && response.headers.get('content-type')?.includes('javascript') &&
+      (await response.text()).includes('sign-in/email')) {
+    accountFormScriptLoaded = true;
+    break;
+  }
 }
+if (!accountFormScriptLoaded) throw new Error('Login page did not serve its interactive account form script.');
 
 const forged = {
   'oai-authenticated-user-id': 'forged-user',
@@ -102,6 +111,6 @@ for (const [label, path, options] of protectedChecks) {
 console.log(JSON.stringify({
   mode: 'open', url: url.origin, health: health.status, d1: healthBody.d1,
   pages, stylesheetLoaded, anonymousHome: home.status, legacyLearningRun: [oldRunGet.status, oldRunPost.status],
-  accountFormScriptLoaded: true,
+  accountFormScriptLoaded,
   forgedIdentityApiStatus: protectedStatus,
 }));

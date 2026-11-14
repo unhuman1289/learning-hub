@@ -8,6 +8,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   deploy:
+    if: github.ref == 'refs/heads/codex/hub-next-wip'
     runs-on: ubuntu-latest
     environment: staging
     timeout-minutes: 25
@@ -21,6 +22,8 @@ jobs:
           cache: npm
       - name: Release and verify the staging commit
         run: |
+          deadline=$(sed -nE 's/^staging: .+, đến ([0-9]{2}:[0-9]{2}) Europe\/Berlin$/\1/p' docs/plan/HUB-NEXT-STATUS.md)
+          test -n "$deadline" && [[ "$(TZ=Europe/Berlin date +%H:%M)" < "$deadline" ]]
           touch .staging-checkout
           npm run deploy:staging -- "$GITHUB_SHA" --apply-migrations
         env:
