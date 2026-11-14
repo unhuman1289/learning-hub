@@ -181,6 +181,7 @@ export async function prepareExplorations(
     const stepId=stepRole||lesson.kind==='new'?context.adaptive?.step?.id??null:null;
     const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
     if(context.roadmapProtocol===2)checkRoadmapLesson(resolved,context.adaptive,undefined,false,known?.limits.maxDifficulty??3,msg=>issue(path+'/lesson','roadmap',msg));
+    // The older request flow accepts setup notebooks; the adaptive request API requires active.
     if(known)guards.push(
       db.prepare(`INSERT INTO ai_apply_guards(token,valid) SELECT ?,
         EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND revision=? AND status IN ('active','setup'))

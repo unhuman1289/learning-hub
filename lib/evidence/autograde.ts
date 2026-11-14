@@ -1,7 +1,8 @@
 import {isChemicalFormula,plainChemicalText} from '../chemistry.ts';
 import type { StructuredAnswerKey } from '../contracts/lesson-package-v3.ts';
 import type { AnswerKey } from '../contracts/lesson-items.ts';
-import { parseNumericAnswer } from '../lesson-v2/numeric.ts';
+import { ApiError } from '../api-error.ts';
+import { parseNumericAnswer, readNumericAnswer } from '../lesson-v2/numeric.ts';
 export type AutoGrade = { result: 'correct' | 'incorrect'; score: number; feedback: string };
 const normalizeText = (value: string) =>
   value
@@ -26,8 +27,9 @@ export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
       new Set(selected).size === selected.length &&
       JSON.stringify([...selected].sort()) === JSON.stringify([...key.correct].sort());
   } else if (key.type === 'numeric') {
-    const actual = parseNumericAnswer(answer),
-      expected = parseNumericAnswer(key.value);
+    const actual = readNumericAnswer(answer);
+    if (actual && 'clarification' in actual) throw new ApiError(422, actual.clarification);
+    const expected = parseNumericAnswer(key.value);
     const unit = key.unit ?? expected?.unit ?? '';
     correct =
       !!actual &&
