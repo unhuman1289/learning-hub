@@ -6,8 +6,9 @@ import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-job
 import { refreshSkills } from '../lib/learner-model/nightly.ts';
 import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
-import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
+import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
+import { processJob } from '../integrations/home-runner/job.mjs';
 import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
 import { readLessonSubmissions, submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
@@ -800,6 +801,36 @@ test('three rejected recheck submissions send the dispute to a person and preser
     assert.equal(saved.status, count === 3 ? 'failed' : 'leased');
     assert.equal(disputeStatus(), count === 3 ? 'needs_human' : 'rechecking');
     assert.equal(currentGrade(), disputedGrade);
+  }
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 1);
+  db.sqlite.close();
+});
+
+test('the offline runner escalates a recheck after the third lease fails validation', async () => {
+  const { db, dispute, job, context, result, lease } = await automaticRecheck();
+  result.grades[0].errors = [{ skillId: context.attempts[0].skills[0], label: 'Lỗi thử', category: 'application', evidence: 'b' }];
+  const hub = {
+    context: async () => context,
+    result: async (current, draft, dryRun) => {
+      assert.equal(dryRun, true);
+      const checked = await applyResult(db, client, current.jobId, current.leaseToken, draft, dryRun, now);
+      assert.equal(checked.status, 422);
+      assert.equal(checked.errors[0].path, '/grades/0/errors');
+      return { status: checked.status, body: checked };
+    },
+    fail: async (current, _reason, retryable) => {
+      const leased = await leasedJob(db, client, current.jobId, current.leaseToken, now);
+      return failLeasedJob(db, leased, retryable, now);
+    },
+  };
+  const engine = { name: 'fixture', run: async () => ({ json: result, usage: result.usage }) };
+  let current = lease;
+  for (const count of [1, 2, 3]) {
+    if (count > 1) [current] = await leaseJobs(db, client, { ...input, kinds: ['assess'] }, 'test', now);
+    await processJob(hub, { ...current, kind: 'assess', purpose: 'recheck' }, engine);
+    assert.equal((await readJob(db, job.id)).status, count === 3 ? 'failed' : 'queued');
+    assert.equal(db.sqlite.prepare('SELECT status FROM disputes WHERE id=?').get(dispute.id).status,
+      count === 3 ? 'needs_human' : 'rechecking');
   }
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 1);
   db.sqlite.close();

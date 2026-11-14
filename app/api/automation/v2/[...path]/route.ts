@@ -6,7 +6,7 @@ import { z } from 'zod/v4';
 import { storage } from '../../../../../db/storage';
 import { authorizeAutomation } from '../../../../../lib/auth/automation';
 import { apiFailure, ApiError } from '../../../../../lib/api-error';
-import { leaseJobs, leasedJob, readJob, heartbeat, permits } from '../../../../../lib/ai-jobs/lease';
+import { leaseJobs, leasedJob, readJob, heartbeat, permits, failLeasedJob } from '../../../../../lib/ai-jobs/lease';
 import { applyResult } from '../../../../../lib/ai-jobs/result';
 import { planContext, planResult, assessContext, assessResult } from '../../../../../lib/contracts/ai-common';
 import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-items';
@@ -156,17 +156,9 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         .strict()
         .safeParse(body);
       if (!input.success) throw new ApiError(400, 'Fail request không hợp lệ.');
-      const status = input.data.retryable && job.lease_count < 3 ? 'queued' : 'failed';
-      // Keep runner text out of the learner UI and logs: it may contain answers or credentials.
-      const changed = await db
-        .prepare(
-          "UPDATE ai_jobs SET status=?,error='Runner báo thất bại',updated_at=?,finished_at=CASE WHEN ?='failed' THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL WHERE id=? AND status='leased' AND lease_token_sha256=?",
-        )
-        .bind(status, new Date().toISOString(), status, new Date().toISOString(), id, job.lease_token_sha256)
-        .run();
-      if (!changed.meta.changes) throw new ApiError(409, 'Lease vừa thay đổi.');
-      if (status === 'failed') await sendAlertDigest(db, env).catch(() => {});
-      return Response.json({ status }, { headers });
+      const result = await failLeasedJob(db, job, input.data.retryable);
+      if (result.status === 'failed') await sendAlertDigest(db, env).catch(() => {});
+      return Response.json(result, { headers });
     }
     if (action === 'attachments' && path[3] && req.method === 'GET') {
       if (!client.scopes.includes('attachments:read')) throw new ApiError(403, 'Client không có quyền đọc ảnh.');

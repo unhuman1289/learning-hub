@@ -7,7 +7,7 @@ import type { EvidenceDb } from '../evidence/submit.ts';
 import { ApiError } from '../api-error.ts';
 import { sha256Hex, type AutomationClient } from '../auth/automation.ts';
 import { canonical } from './context/common.ts';
-import { leasedJob, readJob } from './lease.ts';
+import { leasedJob, readJob, recheckEscalation } from './lease.ts';
 import { preparePlan } from './apply/plan.ts';
 import { prepareAssess } from './apply/assess.ts';
 import { prepareRecheck } from './apply/recheck.ts';
@@ -70,17 +70,7 @@ export async function applyResult(
       )
       .bind(now.toISOString(), id, job.lease_token_sha256);
     if (job.purpose === 'recheck') {
-      // A dispute owns the human-review state. Escalate atomically with the third rejection.
-      const escalate = db
-        .prepare(
-          `UPDATE disputes SET status='needs_human'
-           WHERE id=? AND learner_id=? AND status='rechecking' AND EXISTS(
-             SELECT 1 FROM ai_jobs WHERE id=? AND status='leased' AND lease_token_sha256=?
-               AND apply_token IS NULL AND validation_failures=2
-           )`,
-        )
-        .bind(job.ref_id, job.learner_id, id, job.lease_token_sha256);
-      await db.batch([escalate, recordFailure]);
+      await db.batch([recheckEscalation(db, job, 2), recordFailure]);
     } else {
       await recordFailure.run();
     }
