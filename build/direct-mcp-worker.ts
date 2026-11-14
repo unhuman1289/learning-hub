@@ -11,10 +11,13 @@ function html(title:string,body:string,script=''){
  return new Response(`<!doctype html><html lang="vi"><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${title}</title><style>body{font:17px/1.6 system-ui;background:#f2eff0;color:#343136;margin:0}main{max-width:560px;margin:8vh auto;padding:28px;background:#fff;border:1px solid #d9cdd2}label,input{display:block}input{box-sizing:border-box;width:100%;padding:12px;margin:4px 0 18px;border:1px solid #9b8991}button{padding:12px 20px;border:1px solid #82566a;background:#ecd9e2;color:#343136;cursor:pointer;margin:12px 8px 0 0}button:focus-visible,input:focus-visible{outline:3px solid #82566a;outline-offset:3px}button:disabled{opacity:.5}#error{color:#9a314f}p,code{overflow-wrap:anywhere}@media(max-width:600px){main{margin:20px 12px;padding:20px}}</style><main>${body}</main>${script?'<script>'+script+'</script>':''}</html>`,{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'"}});
 }
 const queryValue=(query:string)=>JSON.stringify(query).replaceAll('<','\\u003c');
-export default {async fetch(request:Request,env:HubAuthBindings,oauthLoginOnly=false){
+export default {async fetch(request:Request,env:HubAuthBindings & {APP_COMMIT?:string},oauthLoginOnly=false){
  try{
   if(env.MCP_ENABLED!=='true'||env.HUB2_ENABLED!=='true')return Response.json({error:'Not found'},{status:404});
   const url=new URL(request.url),path=url.pathname;
+  if(request.method==='GET'&&path==='/api/health'&&env.ENVIRONMENT==='staging'){
+   return Response.json({environment:env.ENVIRONMENT,commit:env.APP_COMMIT??null},{headers:{'Cache-Control':'no-store'}});
+  }
   if(path==='/mcp')return await mcpRequest(request,env);
   if(request.method==='GET'&&path.startsWith('/.well-known/')){
    const kind=path==='/'+'.well-known/oauth-authorization-server/api/auth'?'oauth':path==='/'+'.well-known/openid-configuration/api/auth'?'openid':['/.well-known/oauth-protected-resource','/.well-known/oauth-protected-resource/mcp'].includes(path)?'resource':null;
