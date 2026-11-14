@@ -733,49 +733,30 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
 
 .spread-block[data-block="today-work"] { height: 100%; }
 
-/* One exercise per turn, with notes on the facing page at desktop widths. */
+/* Short exercises share a ruled page; longer work has room to scroll. */
 .lesson-flow {
+  width: min(100%, 53rem);
+  margin-inline: auto;
   touch-action: pan-y pinch-zoom;
   color: var(--color-ink-paper);
-  line-height: 1.75rem;
-}
-.lesson-flow-spread {
-  display: grid;
-  gap: 2px;
-}
-.lesson-flow-page,
-.lesson-flow-companion {
-  box-shadow: var(--shadow-page);
-  overflow-wrap: anywhere;
+  line-height: var(--paper-line-height);
 }
 .lesson-flow-page {
   min-height: 25rem;
   border-bottom-right-radius: 17px;
+  box-shadow: var(--shadow-page);
+  overflow-wrap: anywhere;
 }
-.lesson-flow-companion {
-  display: none;
+.lesson-flow-questions > div + div {
+  margin-top: var(--paper-line-height);
+  padding-top: var(--paper-line-height);
+  border-top: 1px solid var(--color-rule);
 }
-.lesson-item {
-  row-gap: .75rem;
-}
-.lesson-check {
+.lesson-item[data-keyboard-open]:focus-within .lesson-check {
+  position: sticky;
+  z-index: 10;
+  background-color: var(--color-paper);
   bottom: max(env(safe-area-inset-bottom), var(--keyboard-inset, 0px));
-}
-@media (min-width: 1024px) {
-  .lesson-flow-spread[data-companion="true"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .lesson-flow-page {
-    min-height: 31.5rem;
-  }
-  .lesson-flow-spread[data-companion="true"] .lesson-flow-page {
-    border-radius: 0 0 0 17px;
-  }
-  .lesson-flow-companion {
-    display: block;
-    border-bottom-right-radius: 17px;
-    box-shadow: var(--shadow-page), inset 7px 0 12px -9px #49301c80;
-  }
 }
 @media (prefers-reduced-motion: no-preference) {
   .lesson-flow-content[data-direction] {

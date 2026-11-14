@@ -5,6 +5,7 @@ import { formatChemicalText, isChemistryNotebook } from "../../../lib/chemistry"
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
 import { waitingForFeedback, useLessonSession, type Lesson } from "../lesson/use-session";
 import { LessonFlow } from "../lesson/flow";
+import { lessonGroups } from "../lesson/groups";
 import { LessonItem } from "../lesson/item";
 import { LessonSummary } from "../lesson/summary";
 import { Book } from "../notebook/book";
@@ -46,19 +47,23 @@ export function LessonReader({
     ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
   const summaryIndex = lesson.items.length + 1;
   const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !answered.has(item.id));
-  let initialPage = 0;
-  if (lesson.completedAt) initialPage = summaryIndex;
-  else if (pending) initialPage = lesson.items.findIndex(item => item.id === pending) + 1;
-  else if (correctionIndex >= 0) initialPage = correctionIndex + 1;
+  let initialItem = 0;
+  if (lesson.completedAt) initialItem = summaryIndex;
+  else if (pending) initialItem = lesson.items.findIndex(item => item.id === pending) + 1;
+  else if (correctionIndex >= 0) initialItem = correctionIndex + 1;
   else if (answered.size || lesson.items.some(item => item.revealed.solutionSeen || hasAnswer(item))) {
     const draftIndex = lesson.items.findIndex(item =>
       hasAnswer(item) && (!answered.has(item.id) || feedbackForItems(history, [item.id])[0]?.attempts[0]?.answer !== answers[item.id]?.answer));
-    initialPage = draftIndex >= 0 ? draftIndex + 1 : firstUnanswered >= 0 ? firstUnanswered + 1 : summaryIndex;
+    initialItem = draftIndex >= 0 ? draftIndex + 1 : firstUnanswered >= 0 ? firstUnanswered + 1 : summaryIndex;
   }
   const reflection = !learner && lesson.completedAt
     ? history.find(entry => entry.attempts.length > 0 && entry.attempts.every(attempt => attempt.result))
     : undefined;
-  const notes = <LessonNotes lesson={lesson} formatText={formatText} />;
+  const hasMaterials = lesson.sheet || lesson.sections.length || lesson.diagram || lesson.knowledge?.length || lesson.sources.length;
+  const materials = !!hasMaterials && <details className="mb-5" data-lesson-notes>
+    <summary className="min-h-11 cursor-pointer content-center font-hand text-xl text-accent-paper">Tài liệu bài học</summary>
+    <LessonNotes lesson={lesson} formatText={formatText} />
+  </details>;
 
   return <Book id={lesson.subjectId} title={subject} page="lesson" go={go} focusedLesson>
     {readonly && <p className="mb-1 font-hand text-lg text-oak-ink">Bạn đang xem bài của người học.</p>}
@@ -66,16 +71,13 @@ export function LessonReader({
       {feedbackError} <button onClick={() => void session.refreshFeedback()} className={pencilLink}>{words.action.retry}</button>
     </p>}
     {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
-    <LessonFlow initialPage={initialPage} count={lesson.items.length} subject={subject} notes={notes} reference={lesson.objective}
+    <LessonFlow initialItem={initialItem} groups={lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
       locked={busy || !!pending} status={state} page={(index, jump) => {
         if (index === 0) return <>
           <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
           <p className="mt-3">{lesson.objective}</p>
           <p className={pencil}>{lesson.estMinutes ? `${lesson.estMinutes} phút · ` : ""}{lesson.why}</p>
-          <details className="mt-3">
-            <summary className="min-h-11 cursor-pointer content-center font-hand text-xl text-accent-paper">Ghi nhớ và nguồn</summary>
-            {notes}
-          </details>
+          {lesson.template === "reading" ? <LessonNotes lesson={lesson} formatText={formatText} /> : materials}
         </>;
         if (index === summaryIndex) return <>
           <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
@@ -104,7 +106,7 @@ export function LessonReader({
         const value = answers[item.id] ?? { answer: item.input === "code" ? item.starter : "" };
         const changed = !latest || latest.answer !== value.answer || !!value.attachmentIds?.length;
         const canSubmit = pending === item.id || (!pending && !awaiting && hasAnswer(item) && (changed || !latest?.result));
-        return <LessonItem key={item.id} item={item} value={value} formatText={formatText}
+        return <LessonItem key={item.id} item={item} number={index} value={value} formatText={formatText}
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}

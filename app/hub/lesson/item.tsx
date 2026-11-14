@@ -11,6 +11,7 @@ import { germanCharacters, hasVietnameseTyping } from "../lesson-v2/keyboard";
 import { StructuredInput } from "../lesson-v2/inputs/structured";
 export function LessonItem({
   item,
+  number,
   germanInput = false,
   feedback,
   feedbackPreview,
@@ -32,6 +33,7 @@ export function LessonItem({
 }: {
   formatText?:(text:string)=>string;
   item: ItemView;
+  number: number;
   germanInput?: boolean;
   feedback?: (onCodeLine?: (line: number) => void) => ReactNode;
   feedbackPreview?: string;
@@ -73,6 +75,7 @@ export function LessonItem({
       if (!viewport || !root) return;
       const inset = viewport.scale === 1 ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
       root.style.setProperty("--keyboard-inset", inset + "px");
+      root.toggleAttribute("data-keyboard-open", inset > 0);
     }
     position();
     viewport.addEventListener("resize", position);
@@ -97,7 +100,10 @@ export function LessonItem({
   return (
     <article ref={itemRoot} className="lesson-item grid gap-3">
       <div className="flex items-start justify-between gap-3">
-        <h1 data-lesson-heading id={"question-" + item.id} tabIndex={-1} className="min-w-0 whitespace-pre-wrap break-words font-print text-3xl leading-tight sm:text-4xl">{formatText(item.prompt)}</h1>
+        <h2 data-question-number={number} id={"question-" + item.id} tabIndex={-1}
+          className="min-w-0 scroll-mt-24 whitespace-pre-wrap break-words font-print text-[1.65rem] leading-tight">
+          <span className="font-hand text-xl text-accent-paper">{number}.</span> {formatText(item.prompt)}
+        </h2>
         <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />
       </div>
       {item.instructions && <p className="text-muted-paper">{formatText(item.instructions)}</p>}
@@ -238,7 +244,7 @@ export function LessonItem({
           {showFeedback && feedback(item.input === "code" ? jumpToLine : undefined)}
         </details>}
       </div>}
-      {!readOnly && <div className="lesson-check sticky z-10 flex flex-wrap items-center gap-3 bg-paper py-2">
+      {!readOnly && <div className="lesson-check flex flex-wrap items-center gap-3 py-2">
         <button type="button" disabled={disabled || uploading || awaitingFeedback} className="brick min-h-11 px-4 font-hand text-xl disabled:opacity-60"
           onClick={() => {
             if (canSubmit) { setCheckNotice(false); onSubmit?.(); }
