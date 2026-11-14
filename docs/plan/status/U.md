@@ -31,3 +31,5 @@ Nhánh `codex/u5-speed` tách từ `4ea2cc0` sau khi #152 gộp. Đo với build
 Bàn học dùng `/api/today` và `/api/ambient`. Reader nhận bài, nháp, lượt nộp và lời phê trong một GET. Sổ nhận đường học, tiến độ, Hôm nay, yêu cầu làm bài và trang lịch sử đầu tiên trong một GET, đồng thời tải đồng hồ học. Quản trị dùng chung lần đọc tên người học giữa các mục.
 
 Playwright U5 chạy với hồ sơ demo và runner giả. Chromium giả lập 300 ms, 1,6 Mbps xuống và 0,75 Mbps lên. WebKit thêm 300 ms trễ mỗi yêu cầu. Kiểm trình duyệt thật và p75 trên 4G ở Việt Nam thuộc luồng PHONE-CHECK. Mốc phát âm thanh chờ bước L. U5 chưa deploy staging.
+
+Hai dự án e2e đều đạt local. Bàn học lần đầu 2,47–2,53 s, có cache 1,28–1,67 s. Từ bấm bài tới câu đầu 0,79–0,87 s. Cả hai ca kiểm tra đáp án đều dưới 1,2 s. Luồng kiểm xác nhận gửi lại sau mất kết nối không tạo lượt nộp trùng, đọc được lịch sử, mở đúng bài tiếp theo và mở được bài đầu do runner giả lưu cho sổ mới. Smoke test đăng nhập dùng kiểm tra nội dung script thay cho tên chunk, đã có trên nhánh đích.

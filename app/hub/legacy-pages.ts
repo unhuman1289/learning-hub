@@ -33,4 +33,3 @@ export function staticSources(lesson: StaticLesson, detail: LessonDetail | null)
     publishedAt: null,
   }] : [];
 }
-
