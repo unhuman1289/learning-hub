@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { parseRoute, routeHref } from "../app/hub/use-route.ts";
-import { lessons } from "../app/content.ts";
+import { lessons } from "../app/legacy-content.ts";
 
 const id = "sub_1234567890abcdefabcd";
 test("old notebook link opens Today and named pages round trip", () => {
@@ -35,4 +35,8 @@ test("an old notebook address opens the book of the same track, except documents
   assert.equal(bookForLegacy({ view: "notebook", track: "AI", tab: "bai" }, subjects), null);
   assert.equal(bookForLegacy(old("bai"), null), null);
   assert.equal(bookForLegacy({ view: "desk" }, subjects), null);
+});
+
+test("every prepared lesson resolves through the compact legacy index", () => {
+  for (const lesson of lessons) assert.equal(parseRoute("?lesson=" + lesson.id).track, lesson.track);
 });

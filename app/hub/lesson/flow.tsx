@@ -1,24 +1,8 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
-import { flushSync } from "react-dom";
 import { RuledPage } from "../../../components/notebook/paper";
 import { buttonClass } from "../ui";
-
-function turnLeaf(id: string, direction: "next" | "previous", update: () => void) {
-  const html = document.documentElement;
-  if (html.dataset.lessonTurn) return;
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { update(); return; }
-  if (!document.startViewTransition) {
-    document.getElementById(id)?.setAttribute("data-fallback-turn", direction);
-    update();
-    return;
-  }
-  html.dataset.lessonTurn = direction;
-  void document.startViewTransition(() => flushSync(update)).finished.catch(() => {}).finally(() => {
-    delete html.dataset.lessonTurn;
-  });
-}
 
 export function LessonFlow({ initialItem, groups, count, subject, materials, page, status, locked }: {
   initialItem: number;
@@ -53,7 +37,13 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       setSelected(next === count + 1 ? "summary" : next);
     };
     if (current.includes(next)) update();
-    else turnLeaf(paperId, direction, update);
+    else {
+      void import("./turn-leaf").then(({ turnLeaf }) => {
+        if (document.getElementById(paperId)) turnLeaf(paperId, direction, update);
+      }, () => {
+        if (document.getElementById(paperId)) update();
+      });
+    }
   }
 
   function turn(offset: number) {

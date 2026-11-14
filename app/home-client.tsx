@@ -5,12 +5,12 @@ import { SketchIcon } from "./hub/sketch-icons";
 import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
 import { cx } from "../components/notebook/paper";
-import { tasks } from "./content";
 import { Desk } from "./hub/desk";
-import { DocumentForm, type FormRequest } from "./hub/document-form";
+import type { FormRequest } from "./hub/document-form";
 import type { Drafts } from "./hub/lesson-page";
 
 import { StudyMeter } from "./hub/study-meter";
+import type { StudyDay } from "../lib/study-sql";
 import { useStudyClock } from "./hub/use-study-clock";
 import { RouteLink, buttonClass } from "./hub/ui";
 import { useDaily } from "./hub/use-daily";
@@ -19,9 +19,10 @@ import { bookForLegacy } from "./hub/legacy-route";
 
 import { useWorkspace, type WorkspaceApi } from "./hub/use-workspace";
 import { useShelf } from "./hub/use-shelf";
-import { NewNotebookDialog } from "./hub/new-notebook";
 import { isTrack, trackInfo } from "./hub/model";
 
+const DocumentForm = lazy(() => import("./hub/document-form").then(module => ({ default: module.DocumentForm })));
+const NewNotebookDialog = lazy(() => import("./hub/new-notebook").then(module => ({ default: module.NewNotebookDialog })));
 const AuthControls = lazy(() => import("../components/auth-controls"));
 const NotebookView = lazy(() => import("./hub/notebook-view").then(module => ({ default: module.NotebookView })));
 const LessonReader = lazy(() => import("./hub/lesson-v2/reader").then(module => ({ default: module.LessonReader })));
@@ -36,7 +37,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
   // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
   const [viewingId, setViewingId] = useState<string | null>(null);
   const viewedDaily = useDaily(viewingId, !hub2Enabled && viewingId !== null);
-  const shelf = useShelf(viewingId, hub2Enabled && requested.view === "desk", routeReady);
+  const shelf = useShelf(viewingId, hub2Enabled && requested.view === "desk", routeReady && (!hub2Enabled || requested.view === "desk" || requested.view === "notebook"));
   // An old notebook address shows the same notebook's book; the address bar follows without adding history.
   const route = (hub2Enabled ? bookForLegacy(requested, shelf.subjects) : null) ?? requested;
   useEffect(() => {
@@ -75,16 +76,17 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
 
   useWebMcp(workspace, !hub2Enabled);
   // Time with a notebook open counts as study time; nothing has to be logged by hand.
-  const [lessonClock,setLessonClock]=useState<{id:string;subjectId:string}|null>(null);
-  const onLessonLoaded=useCallback((id:string,subjectId:string)=>setLessonClock({id,subjectId}),[]);
+  const [lessonClock,setLessonClock]=useState<{id:string;subjectId:string;study:StudyDay}|null>(null);
+  const onLessonLoaded=useCallback((id:string,subjectId:string,study:StudyDay)=>setLessonClock({id,subjectId,study}),[]);
   const deskStudy = hub2Enabled && route.view === "desk";
   const clock = useStudyClock(
     viewingId === null && route.view === "lesson" && lessonClock?.id === route.id
       ? lessonClock.subjectId
       : route.view === "notebook" ? route.track : route.view === "book" && viewingId === null ? route.id : null,
-    routeReady && !deskStudy && route.view !== "admin",
+    routeReady && !deskStudy && route.view !== "admin" && route.view !== "lesson",
     deskStudy && viewingId === null ? shelf.today?.study : undefined,
     deskStudy && viewingId === null ? shelf.load : undefined,
+    route.view === "lesson" && lessonClock?.id === route.id ? lessonClock.study : undefined,
   );
   const labelFor = (key: string) => (isTrack(key) ? trackInfo(key).title : shelf.subjects?.find((item) => item.id === key)?.title ?? "Sổ khác");
 
@@ -116,7 +118,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             {!hub2Enabled && <SaveIndicator workspace={workspace} />}
             {route.view !== "admin" && <StudyMeter variant={deskStudy ? "ring" : "ruler"} clock={clock} labelFor={labelFor} />}
-            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={shelf.learners.find(l=>l.relation==="self")?.id} /> : <Suspense fallback={null}><AuthControls name={name} email={userEmail} /></Suspense>}
+            {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={userId} /> : <Suspense fallback={null}><AuthControls name={name} email={userEmail} /></Suspense>}
           </div>
         </div>
         </div>
@@ -137,7 +139,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
           />
         )}
         <Suspense fallback={<p role="status">Đang mở sổ…</p>}>
-          {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId} child={shelf.learners.some(l => l.relation === "self" && l.role === "child")} drafts={drafts} go={go} onLoaded={onLessonLoaded}/>}
+          {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId}  drafts={drafts} go={go} onLoaded={onLessonLoaded}/>}
           {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canEditNotebook} canDelete={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
           {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
         </Suspense>
@@ -155,8 +157,8 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
         ))}
       </nav>}
 
-      {form && <DocumentForm request={form} workspace={workspace} onClose={closeForm} />}
-      {newNotebook && (
+      {form && <Suspense fallback={null}><DocumentForm request={form} workspace={workspace} onClose={closeForm} /></Suspense>}
+      {newNotebook && <Suspense fallback={<p role="status">Đang mở…</p>}>
         <NewNotebookDialog
           shelf={shelf}
           forName={viewingId ? shelf.learners.find((item) => item.id === viewingId)?.name ?? null : null}
@@ -167,7 +169,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
             go(hub2Enabled || !subject.legacyTrack ? { view: "book", id: subject.id } : { view: "notebook", track: subject.legacyTrack, tab: "bai" });
           }}
         />
-      )}
+      </Suspense>}
     </div>
   );
 }
@@ -215,6 +217,7 @@ function useWebMcp(workspace: WorkspaceApi, enabled: boolean) {
         annotations: { readOnlyHint: false, untrustedContentHint: false },
         execute: async (input: unknown) => {
           const ids = (input as { ids?: unknown })?.ids;
+          const { tasks } = await import("./content");
           if (!Array.isArray(ids) || !ids.length || ids.length > 8 || !ids.every((id) => typeof id === "string" && tasks.some((task) => task.id === id))) throw Error("Invalid task IDs");
           if (!loaded) throw Error("Workspace not loaded");
           await commit((current) => ({ ...current, done: [...new Set([...current.done, ...ids])] }), false);

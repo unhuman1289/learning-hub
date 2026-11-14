@@ -1,14 +1,15 @@
 "use client";
 
+import { notebookPages, type Page } from "./legacy-pages";
 import { Book } from "./notebook/book";
 import type {ShelfApi} from "./use-shelf";
 import { SketchIcon } from "./sketch-icons";
 import { MarginDate, RuledPage, StickyNote, cx } from "../../components/notebook/paper";
-import { projects } from "../content";
+import { projects } from "../legacy-content";
 import { googleDocs } from "../google-docs";
 import { type FormRequest } from "./document-form";
 import { LessonPage, type Drafts } from "./lesson-page";
-import { coverTitle, notebookPages, shortDate, trackInfo, type Page, type TrackId } from "./model";
+import { coverTitle, shortDate, trackInfo, type TrackId } from "./model";
 import { buttonClass, PageLabel, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { NotebookTab, Route } from "./use-route";

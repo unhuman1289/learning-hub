@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { feedbackForItems } from "../../../lib/feedback-history";
+import type { StudyDay } from "../../../lib/study-sql";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { Drafts } from "../lesson-page";
 import { useLiveRefresh } from "../use-live-refresh";
-import { useRunnerStatus } from "../runner-status";
+import { useRunnerStatus, type RunnerStatus } from "../runner-status";
 import type { SubmissionView } from "../lesson-v2/feedback";
 import { readOfflineDraft, writeOfflineDraft } from "../lesson-v2/offline-draft";
 
@@ -49,7 +50,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   ownerId: string;
   learner: string | null;
   drafts: Drafts;
-  onLoaded?: (id: string, subject: string) => void;
+  onLoaded?: (id: string, subject: string, study: StudyDay) => void;
   onCompleted?: () => Promise<void>;
 }) {
   const [lesson, setLesson] = useState<Lesson | null>(null);
@@ -71,6 +72,8 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     readonly = learner !== null,
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
+  const [child, setChild] = useState(false);
+  const [initialRunner, setInitialRunner] = useState<RunnerStatus | null>(null);
   const submissionKey = cacheKey + ":submission";
   const cache = useRef(drafts);
   useEffect(() => {
@@ -81,9 +84,11 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     ready.current = false;
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
-    json<{ lesson: Lesson; submissions: SubmissionView[] }>(url + "?" + query)
-      .then(({ lesson: result, submissions }) => {
+    json<{ lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay }>(url + "?" + query)
+      .then(({ lesson: result, submissions, child, runner, study }) => {
         if (generation.current !== version) return;
+        setChild(child);
+        setInitialRunner(runner);
         const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
         if (storedSubmission) {
           try {
@@ -123,7 +128,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         setAnswers(next);
         setHistory(submissions);
         setLesson(result);
-        onLoaded?.(result.id, result.subjectId);
+        onLoaded?.(result.id, result.subjectId, study);
         setState(JSON.stringify(next) === saved.current ? "" : "Chưa lưu");
       })
       .catch((e) => {
@@ -335,13 +340,13 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setBusy(false);
     }
   }
-  const runner = useRunnerStatus(waitingForGrade);
+  const runner = useRunnerStatus(waitingForGrade, initialRunner);
   const [justCompleted, setJustCompleted] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, answers, history, readonly, busy, pending, error, feedbackError, state,
+    lesson, child, answers, history, readonly, busy, pending, error, feedbackError, state,
     waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };

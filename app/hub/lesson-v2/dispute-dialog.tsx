@@ -2,9 +2,11 @@
 import { SketchIcon } from "../sketch-icons";
 
 import { pencil, pencilLink } from "../paper-bits";
-import { useState } from "react";
-import { PaperDialog, fieldClass, labelClass } from "../paper-dialog";
+import { lazy, Suspense, useState } from "react";
+import { fieldClass, labelClass } from "../paper-fields";
 import { buttonClass } from "../ui";
+
+const PaperDialog = lazy(() => import("../paper-dialog").then(module => ({ default: module.PaperDialog })));
 
 export type DisputeState = { id: string; status: string; note: string | null } | null;
 
@@ -99,7 +101,7 @@ export function DisputeControl({ attemptId, dispute, readOnly, onChanged, child 
         </button>
       )}
       {error && !open && <p role="alert">{error}</p>}
-      {open && (
+      {open && <Suspense fallback={<p role="status">Đang mở…</p>}>
         <PaperDialog title="Chấm sai?" labelId={"dispute-" + attemptId} onClose={() => setOpen(false)}>
           <form
             className="space-y-3 pb-4"
@@ -131,7 +133,7 @@ export function DisputeControl({ attemptId, dispute, readOnly, onChanged, child 
             </button>
           </form>
         </PaperDialog>
-      )}
+      </Suspense>}
     </div>
   );
 }

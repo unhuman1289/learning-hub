@@ -6,7 +6,7 @@ import { pencil } from "./paper-bits";
 export type RunnerStatus = { online: boolean; lastSeenAt: string | null };
 
 /** Asks every minute, only while something waits for the grading Mac. */
-export function useRunnerStatus(waiting: boolean) {
+export function useRunnerStatus(waiting: boolean, initial?: RunnerStatus | null) {
   const [status, setStatus] = useState<RunnerStatus | null>(null);
   useEffect(() => {
     if (!waiting) return;
@@ -18,14 +18,14 @@ export function useRunnerStatus(waiting: boolean) {
           if (live && value) setStatus(value);
         })
         .catch(() => {});
-    load();
+    if (!initial) load();
     const timer = setInterval(load, 60000);
     return () => {
       live = false;
       clearInterval(timer);
     };
-  }, [waiting]);
-  return waiting ? status : null;
+  }, [initial, waiting]);
+  return waiting ? status ?? initial : null;
 }
 
 /** Said plainly when work waits because the family Mac is off; nothing is claimed about when it returns. */

@@ -6,7 +6,7 @@ import type { NotebookLessonRow } from "../../../lib/lesson-v2/notebook-list";
 import type { ShelfSubject } from "../use-shelf";
 import type { Route } from "../use-route";
 import { RouteLink } from "../ui";
-import { useBook } from "./use-book";
+import type { useBook } from "./use-book";
 import { useEffect, useState } from "react";
 import { shortDay, pencilLink } from "../paper-bits";
 import { apiJson } from "../api";
@@ -81,10 +81,10 @@ function HistoryPanel({ subjectId, learner, downloads = true }: { subjectId: str
   );
 }
 
-export function NotebookHistory({ subjectId, learner, child, go }: {
-  subjectId: string; learner: string | null; child: boolean; go: (route: Route) => void;
+export function NotebookHistory({ data, subjectId, learner, child, go }: {
+  data: ReturnType<typeof useBook>; subjectId: string; learner: string | null; child: boolean; go: (route: Route) => void;
 }) {
-  const { book, rows, error, refresh, hasMore, loadingOlder, loadMore } = useBook(subjectId, learner, true, true);
+  const { book, rows, error, refresh, hasMore, loadingOlder, loadMore } = data;
   return <div className="pb-2">
     {error && <p role="alert">Chưa tải được lịch sử. <button className={pencilLink} onClick={() => void refresh()}>Thử lại</button></p>}
     {!book && !error && <p role="status">Đang đọc lịch sử…</p>}

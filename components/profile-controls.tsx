@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { SketchIcon } from "../app/hub/sketch-icons";
 import { PaperDialog } from "../app/hub/paper-dialog";
-import { ProfileSettings } from "../app/hub/profile-settings";
+import { LazyProfileSettings } from "../app/hub/profile-settings-loader";
 
 type Profile = { id: string; displayName: string; avatar: string; role: "adult" | "child" };
 
@@ -334,7 +334,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
         </div>
       )}
       {settings && settingsLearner && <PaperDialog title="Hồ sơ" labelId={editorId + "-settings"} onClose={closeSettings}>
-        <div className="text-ink"><ProfileSettings learner={settingsLearner} title="Cài đặt cá nhân" /></div>
+        <div className="text-ink"><LazyProfileSettings learner={settingsLearner} title="Cài đặt cá nhân" /></div>
       </PaperDialog>}
       <span className="hidden max-w-40 truncate text-sm opacity-80 md:inline">
         {name}
