@@ -786,7 +786,7 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   width: 26px;
   height: 26px;
   background: linear-gradient(var(--curl-side), var(--curl-under) 28%, color-mix(in srgb, var(--curl-under) 82%, #5c4326) 50%,
-    #d3c3a4 50%, #fffaf1 61%, #ecdfc7 70%, rgb(84 56 31 / .28) 70.5%, transparent 77%);
+    #d3c3a4 50%, #fffaf1 61%, #ecdfc7 70%, rgb(84 56 31 / var(--curl-shade, .28)) 70.5%, transparent 78%);
   transform: scale(calc(1 + var(--pull) * 1.8));
   transform-origin: var(--curl-origin);
   transition: transform 420ms cubic-bezier(.34, 1.56, .64, 1);
@@ -794,16 +794,16 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
 .lesson-flow-edge[data-turn-edge="left"] [data-curl] { left: 0; border-bottom-left-radius: 17px; --curl-side: to top right; --curl-origin: 0 100%; }
 .lesson-flow-edge[data-turn-edge="right"] [data-curl] { right: 0; border-bottom-right-radius: 17px; --curl-side: to top left; --curl-origin: 100% 100%; }
 .lesson-flow-edge[data-pulled] [data-curl], .lesson-flow-edge[data-pulled]::before { transition: none; }
+.lesson-flow-edge:enabled:is(:focus-visible, :active, [data-pulled]) [data-curl] { --curl-shade: .42; }
 .lesson-flow-edge:enabled:is(:focus-visible, :active) [data-curl] { transform: scale(calc(1.4 + var(--pull) * 1.4)); transition-duration: 200ms; transition-timing-function: ease-out; }
 .lesson-flow-edge:enabled:is(:focus-visible, :active)::before { transform: scaleX(1.7); }
 @media (hover: hover) {
-  .lesson-flow-edge:enabled:hover [data-curl] { transform: scale(1.4); transition-duration: 200ms; transition-timing-function: ease-out; }
+  .lesson-flow-edge:enabled:hover [data-curl] { --curl-shade: .42; transform: scale(1.4); transition-duration: 200ms; transition-timing-function: ease-out; }
   .lesson-flow-edge:enabled:hover::before { transform: scaleX(1.7); }
 }
 .lesson-flow-edge:disabled [data-curl] { opacity: .55; }
 .lesson-flow-hint {
   margin-top: var(--paper-line-height);
-  margin-right: -1.5rem;
   text-align: right;
   font-size: 1.15rem;
   color: var(--color-accent-paper);
