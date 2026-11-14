@@ -38,6 +38,7 @@ const stagesFor = {
 } as const;
 
 const words = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
+const chineseWords = new Intl.Segmenter('zh-CN', { granularity: 'word' });
 
 export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: number): LessonIssue[] {
   const issues: LessonIssue[] = [];
@@ -55,6 +56,26 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
     if (item.input !== 'choice') issue('key', 'schema', 'A choice key needs input "choice".');
     const ids = new Set(item.choices?.map((choice) => choice.id));
     for (const id of item.key.correct) if (!ids.has(id)) issue('key/correct', 'schema', `Correct choice "${id}" is not among the choices.`);
+  }
+  if (item.key?.type === 'dictation' && item.input !== 'short')
+    issue('input', 'schema', 'Câu chính tả dùng dạng trả lời ngắn.');
+  if (item.audio) {
+    const { lang, lines, rate } = item.audio;
+    const band = item.difficulty;
+    const expectedRate = band === 1 ? 0.8 : band <= 3 ? 0.9 : 1;
+    if (rate !== expectedRate) issue('audio/rate', 'difficulty_limit', `Tốc độ đọc ở band ${band} là ${expectedRate}.`);
+    if (band <= 3) {
+      const limit = band === 1 ? 8 : 15;
+      const turnLengths = lines.map(line => lang === 'zh-CN'
+        ? [...chineseWords.segment(line.text)].filter(word => word.isWordLike).length
+        : words(line.text));
+      turnLengths.forEach((length, index) => {
+        if (length > limit) issue(`audio/lines/${index}/text`, 'size_limit', `Mỗi lượt có tối đa ${limit} từ.`);
+      });
+      const totalWords = turnLengths.reduce((total, length) => total + length, 0);
+      if (band === 1 && totalWords > 15 * 2.5 * expectedRate)
+        issue('audio/lines', 'size_limit', 'Lời thoại band 1 dài tối đa khoảng 15 giây.');
+    }
   }
   if (item.key?.type === 'numeric' && !parseNumericAnswer(item.key.value)) issue('key/value', 'schema', 'Numeric key value is not a number.');
   if (item.key?.type === 'table') item.key.cells.forEach((cell, index) => {
@@ -176,6 +197,12 @@ export function validateLessonPackage(
       issues.push({path:`/items/${index}/difficulty`,code:'difficulty_limit',message:'Câu quá dễ cho bước này.'});
   });
 
+  const listeningItems = items.filter(item => item.audio);
+  if (listeningItems.length && !listeningItems.some(item => item.key))
+    issue('/items', 'schema', 'Bài có câu nghe cần ít nhất một câu nghe chấm tự động.');
+  if (items.filter(item => item.key?.type === 'dictation').length > 2)
+    issue('/items', 'size_limit', 'Mỗi bài có tối đa hai câu chính tả.');
+
   const learnerText = [
     lesson.title,
     lesson.objective,
@@ -197,6 +224,8 @@ export function validateLessonPackage(
       : []),
     ...items.flatMap((item) => [
       item.prompt,
+      ...(item.audio?.lines.map(line => line.text) ?? []),
+      ...(item.key?.type === 'dictation' ? [item.key.text, item.key.pinyin ?? '', ...(item.key.variants?.flat() ?? [])] : []),
       item.instructions ?? '',
       item.explanation ?? '',
       item.solution,

@@ -1,6 +1,6 @@
 import {cutoffFor} from '../daily-policy.ts';
 import { ApiError } from '../api-error.ts';
-import type { LessonItemAny, LessonPackage } from '../contracts/lesson-package-v3.ts';
+import type { AudioSpec, LessonItemAny, LessonPackage } from '../contracts/lesson-package-v3.ts';
 import type { Db } from '../subjects/service.ts';
 
 export type LessonSlot = 'primary' | 'review' | 'extra';
@@ -60,14 +60,17 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
 }
 
 /** What a learner may see of an item before revealing hints or the solution, or before it is graded. */
-type PublicItem<T> = T extends LessonItemAny ? Omit<T, 'key' | 'hints' | 'solution' | 'explanation'> : never;
+type AudioMetadata = { hash?: string; durationMs?: number };
+type PublicAudio = Omit<AudioSpec, 'lines'> & AudioMetadata;
+type PublicItem<T> = T extends LessonItemAny ? Omit<T, 'key' | 'hints' | 'solution' | 'explanation' | 'audio'> : never;
 export type ItemView = PublicItem<LessonItemAny> & {
+  audio?: PublicAudio;
   stage: string; hintCount: number; revealed: { hints: string[]; solution?: string; explanation?: string; solutionSeen: boolean }; flag: string | null;
 };
 export type Support = Record<string, 'hint1' | 'hint2' | 'solution'>;
 
-export function itemView(item: LessonItemAny, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
-  const { key: _key, hints, solution, explanation, ...visible } = item;
+export function itemView(item: LessonItemAny & { audio?: AudioSpec & AudioMetadata }, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
+  const { key: _key, hints, solution, explanation, audio, ...visible } = item;
   void _key;
   const level = graded ? 'solution' : support;
   const shownHints = level === 'solution' ? hints : level === 'hint2' ? hints.slice(0, 2) : level === 'hint1' ? hints.slice(0, 1) : [];
@@ -75,6 +78,10 @@ export function itemView(item: LessonItemAny, stage: string, support: Support[st
   if (!graded && visible.choices) visible.choices = visible.choices.map(({ errorLabel: _label, ...choice }) => (void _label, choice));
   return {
     ...visible, stage, hintCount: hints.length, flag,
+    ...(audio ? { audio: {
+      hash: audio.hash, lang: audio.lang, rate: audio.rate, maxPlays: audio.maxPlays,
+      durationMs: audio.durationMs, transcript: audio.transcript,
+    } } : {}),
     revealed: { hints: shownHints, solutionSeen: support === "solution", ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },
   };
 }
