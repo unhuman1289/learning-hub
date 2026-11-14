@@ -73,6 +73,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
   const [child, setChild] = useState(false);
+  const [pageEdgeHint, setPageEdgeHint] = useState(false);
   const [initialRunner, setInitialRunner] = useState<RunnerStatus | null>(null);
   const submissionKey = cacheKey + ":submission";
   const cache = useRef(drafts);
@@ -84,10 +85,11 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     ready.current = false;
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
-    json<{ lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay }>(url + "?" + query)
-      .then(({ lesson: result, submissions, child, runner, study }) => {
+    json<{ lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; pageEdgeHint?: boolean }>(url + "?" + query)
+      .then(({ lesson: result, submissions, child, runner, study, pageEdgeHint }) => {
         if (generation.current !== version) return;
         setChild(child);
+        setPageEdgeHint(!readonly && !!pageEdgeHint);
         setInitialRunner(runner);
         const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
         if (storedSubmission) {
@@ -343,10 +345,17 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const runner = useRunnerStatus(waitingForGrade, initialRunner);
   const [justCompleted, setJustCompleted] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
+  /** The learner turned a page: hide the hint now and remember it in the profile. */
+  const pageEdgeHintSeen = useCallback(() => {
+    setPageEdgeHint(false);
+    void fetch("/api/learners/me/hints", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hint: "pageEdge" }),
+    }).catch(() => {});
+  }, []);
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, child, answers, history, readonly, busy, pending, error, feedbackError, state,
+    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, error, feedbackError, state,
     waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };

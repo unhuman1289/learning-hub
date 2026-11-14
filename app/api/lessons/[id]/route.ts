@@ -7,6 +7,7 @@ import { storage } from '../../../../db/storage';
 import { apiFailure } from '../../../../lib/api-error';
 import {readLessonSubmissions, readSubmission} from '../../../../lib/evidence/submit';
 import { readLessonV2 } from '../../../../lib/lesson-v2/store';
+import { readSettings, showsHint } from '../../../../lib/learners/settings';
 import { lessonTarget, privateHeaders } from '../../../../lib/lesson-v2/route-helpers';
 
 export const dynamic = 'force-dynamic';
@@ -22,15 +23,18 @@ export async function GET(req: Request, context: Context) {
     const learnerId = await lessonTarget(db, user, req, id, 'read_work');
     if (learnerId instanceof Response) return learnerId;
     if (new URL(req.url).searchParams.get('view') === 'reader') {
-      const [lesson, submissions, facts, study] = await Promise.all([
+      const own = user.id === learnerId;
+      const [lesson, submissions, facts, study, settings] = await Promise.all([
         readLessonV2(db, learnerId, id),
         readLessonSubmissions(db, learnerId, id),
         user.learnerRole && user.id === learnerId ? { learnerRole: user.learnerRole } : learnerFacts(db, user, learnerId),
         readStudyDay(db, user.id),
+        own ? readSettings(db, learnerId) : null,
       ]);
       const runner = submissions.some(entry => entry.attempts.some(attempt => ("status" in attempt && attempt.status === "pending") || attempt.dispute?.status === "rechecking"))
         ? await runnerStatus(db, env.GRADER_CLIENT_ID ?? "home-runner") : null;
-      return Response.json({ lesson, submissions, child: facts.learnerRole === "child", runner, study }, { headers: privateHeaders });
+      return Response.json({ lesson, submissions, child: facts.learnerRole === "child", runner, study,
+        pageEdgeHint: !!settings && showsHint(settings, 'pageEdge') }, { headers: privateHeaders });
     }
     const lesson=await readLessonV2(db,learnerId,id);
     const latest=await db.prepare('SELECT id FROM submissions WHERE lesson_id=? AND learner_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').bind(id,learnerId).first<{id:string}>();
