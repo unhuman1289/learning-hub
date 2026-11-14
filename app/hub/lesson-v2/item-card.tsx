@@ -74,6 +74,8 @@ export function ItemCard({
   } catch {}
   const fieldId = "answer-" + item.id;
   const locked = readOnly || disabled || uploading;
+  // A pending submission locks editing, but its own check button can replay the saved request.
+  const checkLocked = readOnly || uploading || (disabled && !canSubmit);
   const compact = item.attachment === "none" ? item.input : undefined;
   return (
     <article className="spread-question" data-compact={compact}>
@@ -205,7 +207,7 @@ export function ItemCard({
         </div>
       )}
       {(item.input === "short" || item.input === "long") && value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
-      {!readOnly && <div className="spread-check"><CheckStamp label={submitLabel ?? words.action.check} disabled={locked}
+      {!readOnly && <div className="spread-check"><CheckStamp label={submitLabel ?? words.action.check} disabled={checkLocked}
         canSubmit={!!canSubmit} hasAnswer={hasAnswer}
         onSubmit={onSubmit} /></div>}
       <div ref={resultRow} className="grid min-h-[calc(2*var(--paper-line-height))] content-center">
