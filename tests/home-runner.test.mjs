@@ -552,6 +552,7 @@ test('modern Rust opening schema requires a framework and allows keyed placement
   const subjectSchema=schema.properties.subjects.items;
   assert.ok(subjectSchema.required.includes('openingSteps'));
   assert.ok(subjectSchema.properties.notebookSetup.required.includes('framework'));
+  assert.equal(subjectSchema.properties.notebookSetup.properties.framework.properties.key.const, 'rust-core');
   const questions=subjectSchema.properties.primaryLesson.properties.items.prefixItems;
   assert.equal(questions.length,5);
   for(const [index,question] of questions.entries()){
@@ -560,6 +561,7 @@ test('modern Rust opening schema requires a framework and allows keyed placement
     const step = subjectSchema.properties.openingSteps.prefixItems[index].properties;
     assert.equal(step.skills.items.const,skill);
     assert.equal(step.requires.maxItems,0);
+    assert.equal(step.ref, undefined);
   }
   assert.ok(questions[1].anyOf.some(branch => branch.properties.input.const === 'cloze'));
 });

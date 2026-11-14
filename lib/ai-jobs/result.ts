@@ -43,8 +43,11 @@ export async function applyResult(
   let skippedRoadmap = false;
   if(parsed.success&&job.kind==='plan'&&job.purpose==='request'&&prepared&&'outcomes' in prepared){
     const context=JSON.parse(job.context_snapshot!) as PlanContext;
-    if(context.roadmapProtocol===2&&context.adaptive?.roadmapTask==='none'&&prepared.errors.some(issue=>
-      /^\/subjects\/\d+\/(roadmapChanges|openingSteps|skillChanges)(\/|$)/.test(issue.path))){
+    const optionalEdits=context.adaptive?.roadmapTask==='none';
+    const rejectedReplan=context.adaptive?.roadmapTask==='replan'&&prepared.errors.length>0&&prepared.errors.every(issue=>
+      issue.code==='roadmap'&&/^\/subjects\/\d+\/roadmapChanges$/.test(issue.path));
+    if(context.roadmapProtocol===2&&(rejectedReplan||optionalEdits&&prepared.errors.some(issue=>
+      /^\/subjects\/\d+\/(roadmapChanges|openingSteps|skillChanges)(\/|$)/.test(issue.path)))){
       const result=parsed.data as typeof planResult._output;
       const subjects=result.subjects.map(subject=>{
         const copy={...subject,skillChanges:[]};
@@ -52,7 +55,8 @@ export async function applyResult(
         delete copy.openingSteps;
         return copy;
       });
-      prepared=await preparePlan(db,job,context,{...result,subjects},token,now);
+      // A rejected replan stays pending. The lesson still has to pass its original context and target checks.
+      prepared=await preparePlan(db,job,context,{...result,subjects},token,now,rejectedReplan);
       skippedRoadmap=true;
     }
   }

@@ -143,7 +143,10 @@ function generationSchema(kind, context, schema) {
         skills.items={oneOf:skills.items.oneOf.filter(branch=>branch.properties.op.const==='add')};
       }
       if (task !== 'replan') delete subjects.items.properties.openingSteps;
-      if (task === 'replan') subjects.items.required.push('openingSteps');
+      if (task === 'replan') {
+        subjects.items.required.push('openingSteps');
+        delete subjects.items.properties.openingSteps.items.properties.ref;
+      }
       if (task === 'extend') {
         subjects.items.required.push('roadmapChanges');
         const changes = subjects.items.properties.roadmapChanges;
@@ -223,6 +226,10 @@ function generationSchema(kind, context, schema) {
   if(modern){
     delete item.properties.roadmap;
     item.properties.notebookSetup.required.push('framework');
+    const framework = onlySubject?.framework?.key;
+    if (framework && !['milestones', 'custom'].includes(framework)) {
+      item.properties.notebookSetup.properties.framework.properties.key = { const: framework };
+    }
   }
   item.properties.notebookSetup.required.push('goal');
   item.properties.action = { const: 'assign' };
@@ -251,6 +258,9 @@ function generationSchema(kind, context, schema) {
     };
     if(modern){
       const opening=item.properties.openingSteps.items;
+      // The Hub links the steps in order when requires is empty. Model-generated
+      // refs are redundant and duplicate refs can invalidate the whole roadmap.
+      delete opening.properties.ref;
       item.properties.openingSteps={type:'array',minItems:5,maxItems:5,items:false,
         prefixItems:skillRefs.slice(0,5).map(skill=>({
           ...opening,properties:{...opening.properties,
@@ -462,7 +472,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
           result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
         } else {
         const out = await qwen.run({
-          system: systemPrompt(lease.kind, lease.purpose) + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
+          system: systemPrompt(lease.kind, lease.purpose) + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
           user: userPrompt(promptContext, repair),
           schema,
