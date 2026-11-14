@@ -1,11 +1,36 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { RuledPage } from "../../../components/notebook/paper";
+import { SketchIcon } from "../sketch-icons";
 import { fieldClass, labelClass } from "../paper-dialog";
 import { paperAction, PaperSummary } from "../paper-bits";
 import type { ShelfApi, ShelfSubject } from "../use-shelf";
 import { frameworks } from "../../../lib/roadmap/frameworks";
 import { PaperConfirm } from "../paper-confirm";
+
+export function NotebookSettings({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  const headingId = useId();
+  useEffect(() => {
+    const panel = dialog.current;
+    panel?.showModal();
+    return () => { panel?.close(); };
+  }, []);
+  return <dialog ref={dialog} aria-labelledby={headingId} className="notebook-settings"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onClick={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <RuledPage>
+      <button type="button" autoFocus onClick={onClose} aria-label="Đóng cài đặt"
+        className="absolute right-3 top-3 grid size-11 place-items-center rounded-sm text-accent-paper hover:bg-paper-2">
+        <SketchIcon name="close" size={20} />
+      </button>
+      <h2 id={headingId} className="pr-9 font-print text-3xl">Cài đặt sổ</h2>
+      <p className="font-hand text-lg text-muted-paper">{title}</p>
+      {children}
+    </RuledPage>
+  </dialog>;
+}
 
 export function SubjectFacts({ subject }: { subject: ShelfSubject }) {
   const rows: [string, string][] = [["Mục tiêu", subject.goal], ["Trình độ", subject.level], ["Chương trình", subject.curriculum]];
@@ -74,7 +99,7 @@ export function SubjectForm({ subject, shelf, hub2 = false }: { subject: ShelfSu
       </label>}
       {hub2 && (
         <label className={labelClass}>Lời dặn
-          <span className="text-sm font-normal text-muted">Điều bạn muốn cô soạn và sửa bài lưu ý.</span>
+          <span className="block text-sm font-normal text-muted">Điều bạn muốn cô soạn và sửa bài lưu ý.</span>
           <textarea value={draft.instructions ?? subject.instructions} maxLength={4000} rows={6} onChange={(event) => edit({ instructions: event.target.value })} className={fieldClass} />
         </label>
       )}
