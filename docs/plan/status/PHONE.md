@@ -4,7 +4,31 @@ Nhánh `codex/phone-check` ([PR #151](https://github.com/unhuman1289/learning-hu
 
 Thử khoảng 13:52–14:15 Europe/Berlin. Health xác nhận staging ban đầu chạy `74167349b583`, rồi chạy bản sửa đăng nhập `7bc074ca5cef` và bản sửa tự điền `57ec13f13a33`. Health cuối xác nhận `fd11477847b2` với D1 kết nối. Dùng một tài khoản học viên thử, hai sổ Deutsch độc lập giữa hai lượt để giữ trạng thái của từng thiết bị, và sổ Toán 7. Bản chạy này dùng luồng đăng nhập email của staging. Ảnh 390 px và dữ liệu chạy nằm trong `private-data/phone-check/2026-11-14/`.
 
-## Kết quả giả lập trên staging
+## Thử lại sau khi nâng Vinext
+
+Đo trên staging bằng cùng hồ sơ và cùng kịch bản, gồm 24 request nối tiếp rồi 3 nhóm 12 request đồng thời.
+
+| Staging | HTTP 500 | HTTP 200 |
+|---|---:|---:|
+| Vinext 1.0.0-beta.5 · `f075c9642c5c` | 0/60 | 60/60 |
+| Vinext 1.4.5 · `412b6cbad1b6` | 0/60 | 60/60 |
+
+Lượt chẩn đoán trước đó gặp 21/24 lỗi trên `16650abc10c8`. Hai lần đo đối chứng ngay sau deploy đều đạt. Chưa định lượng được mức giảm của lỗi chập chờn. [Bản sửa upstream](https://github.com/cloudflare/vinext/pull/4567).
+
+| Bước | iPhone 13 · WebKit | Pixel 7 · Chromium |
+|---|---|---|
+| 2. Mở từ gáy sổ | Đạt, không cuộn ngang | Đạt, không cuộn ngang |
+| 3. Học tiếp → câu đầu, < 5 s | Đạt · **1,348 s** (1,365 / 1,348 / 1,346) | Đạt · **0,793 s** (0,791 / 0,793 / 0,795) |
+| 7. Tổng kết và mở lại | Đạt, kiểm hoàn thành trên server và xem lại đáp án/lời phê | Đạt, kiểm hoàn thành trên server và xem lại đáp án/lời phê |
+| 8. Xin bài và mở bài đã lưu | Đạt ở lượt đối chiếu qua sổ. Lượt mở lại sau đó gặp timeout. | Đạt sau khi job hoàn tất ngoài thời hạn 270 s của lượt chờ ban đầu. |
+| 9. Tạo sổ và mở bài đầu | Tạo sổ và thấy trên kệ. Sổ vẫn chờ bài đầu khi kết thúc lượt thử. | Tạo sổ và thấy trên kệ. Sổ mới nhất vẫn chờ bài đầu. Một sổ thử Android trước đó đã có bài, xác nhận qua API job. |
+
+Ảnh và kết quả giả lập ở `private-data/phone-check/2026-11-14/integrated-237/` và `integrated-89/`. Bước 8 đối chiếu ID bài qua outcome của API job v2. Runner staging dùng một client giới hạn hồ sơ QA và chỉ chạy watch trong lúc thử bước 8–9. Hub từ chối một số kết quả Qwen với `roadmap` hoặc `over_budget`. Đã dừng runner khi hết lượt kiểm. Dừng thử lại bước 9 ở giới hạn lượt sửa kết quả Qwen.
+
+Tail production chỉ đọc khoảng 7 phút, ghi nhận 33 request, trong đó không có `/api/today`. Không thấy lỗi Promise theo dấu hiệu từ staging ở những route quan sát được. Chưa đủ dữ liệu để đề xuất deploy production vì lỗi này.
+[#152](https://github.com/unhuman1289/learning-hub/pull/152), [#150](https://github.com/unhuman1289/learning-hub/pull/150) và [#151](https://github.com/unhuman1289/learning-hub/pull/151) đã gộp theo thứ tự này. Workflow deploy sau khi gộp chạy từ `codex/hub-next-wip`, qua smoke test và health xác nhận `1dcbafe77a61`. CI Playwright của #151 chạy các bước 1–5 trên local và đã đạt.
+
+## Kết quả giả lập trên staging trước khi nâng
 
 Chromium dùng CDP với độ trễ 300 ms, tải xuống 1,6 Mbps và tải lên 0,75 Mbps. WebKit thêm 300 ms mỗi request bằng `page.route`, với tốc độ truyền dữ liệu của máy chạy thử. Bước 5 dùng ba câu có đáp án, đo bằng `performance` từ lúc bấm đến khi kết quả hiện. Giá trị trong ngoặc là ba lần đo. Hai ngưỡng trong bảng theo yêu cầu PHONE-CHECK.
 

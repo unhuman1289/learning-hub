@@ -6,16 +6,16 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-staging: PHONE-CHECK, đến 18:19 Europe/Berlin
+Khung staging của PHONE-CHECK đã kết thúc lúc 18:19 Europe/Berlin.
 
-Chỉ deploy staging từ `codex/hub-next-wip`. Trong thời gian ghi trên, luồng khác hỏi chủ dự án trước khi deploy.
+Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `1881dfe88e04b07ec9e6d029191569e5f7acf7b8` · Worker version `9a772a96-482b-43d7-a226-bf89b464113e` | Deploy hiệu ứng lật trang 14/11. Health đúng SHA, D1 kết nối, smoke test đạt. Đã sao lưu D1 trước deploy, không có migration chờ áp (`0029` đã áp). |
-| Dev chính | `~/Code/Learning Hub` trên `codex/u2-lesson` | Nhánh tích hợp `codex/hub-next-wip` ở `/private/tmp/learning-hub-e2`. Worktree U3 ở `work/learning-hub-u3`. |
+| Staging | `1dcbafe77a61006614cb6a71950c2a9b7f967558` | Deploy từ `codex/hub-next-wip` sau khi gộp #152, #150 và #151. Health đúng SHA, D1 kết nối, smoke test đạt. Xem [PHONE-CHECK](status/PHONE.md). |
+| Dev chính | `~/Code/Learning Hub` trên `codex/u2-lesson` | Nhánh tích hợp `codex/hub-next-wip` ở `work/learning-hub-hub-next`. Worktree U3 ở `work/learning-hub-u3`. |
 
 ## Các bước
 
