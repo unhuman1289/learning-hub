@@ -28,12 +28,13 @@ Cập nhật cuối mỗi luồng làm việc (plan mục 10). Mỗi dòng ngắ
 | M mockup | **M1–M4 đã duyệt** · [docs/mockups/index.html](../mockups/index.html) tại `35e863517e11a3f050ba7894129707309ca0881d` | Hoàn tất cổng M |
 | U1 bàn học | Đã duyệt ảnh · [draft PR #145](https://github.com/unhuman1289/learning-hub/pull/145) | Còn kiểm thiết bị thật và ngân sách tải |
 | U2 bài học | Đã duyệt ảnh · [STATUS U2](status/U2.md) | Còn kiểm thiết bị thật |
-| U3 sổ | [STATUS U3](status/U3.md) · [draft PR #148](https://github.com/unhuman1289/learning-hub/pull/148) | Chờ duyệt ảnh |
-| U4, L, G, T, K | Chưa bắt đầu | Chờ duyệt U3 |
+| U3 sổ | [STATUS U3](status/U3.md) · [draft PR #148](https://github.com/unhuman1289/learning-hub/pull/148) | Đã duyệt ảnh; còn kiểm thiết bị thật |
+| U4 quản trị | [STATUS U4](status/U4.md) | Chờ duyệt ảnh; p75 chờ P3 |
+| L, G, T, K | Chưa bắt đầu | |
 
 ## Chờ chủ dự án
 
-1. Duyệt ảnh U3.
+1. Duyệt ảnh U4.
 2. Review [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144) khi các bước sẵn sàng.
 
 Kiểm tra local đạt 402 test, typecheck, lint, contracts:check và build. Chưa kiểm điện thoại thật hoặc e2e. Lượt này không chạy Qwen, deploy hay áp migration.
