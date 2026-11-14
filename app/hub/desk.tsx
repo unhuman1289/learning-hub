@@ -18,7 +18,7 @@ import type { DailyApi } from "./use-daily";
 import type { Route } from "./use-route";
 
 const DeskProgress = lazy(() => import("./desk-progress").then(module => ({ default: module.DeskProgress })));
-const LearnedLessons = lazy(() => import("./learned-lessons").then(module => ({ default: module.LearnedLessons })));
+const LearnedLessons = lazy(() => import("./notebook/history").then(module => ({ default: module.LearnedLessons })));
 const ContactBook = lazy(() => import("./guardian/contact-book").then(module => ({ default: module.ContactBook })));
 
 // Each notebook's note keeps its colour; the track name is always written on it as well.

@@ -768,3 +768,73 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
     from { opacity: .55; translate: var(--turn-offset) 0; }
   }
 }
+
+.notebook-u3 {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.notebook-u3-today {
+  grid-row: 1;
+  box-shadow: var(--shadow-page);
+}
+.notebook-u3-path {
+  box-shadow: var(--shadow-page);
+  border-bottom-right-radius: 17px;
+}
+#notebook-today { scroll-margin-top: 6rem; }
+.notebook-step {
+  position: relative;
+  padding: 0 0 1rem 1rem;
+}
+.notebook-step::before {
+  position: absolute;
+  inset: .6rem auto auto -.3rem;
+  width: .55rem;
+  height: .55rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: var(--color-paper);
+  content: "";
+}
+.notebook-step[aria-current="step"]::before { background: currentColor; }
+
+.notebook-settings {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 38rem;
+  max-height: 92dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: .75rem .75rem 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-page);
+}
+.notebook-settings::backdrop { background: rgb(27 22 18 / .58); }
+@media (min-width: 640px) {
+  .notebook-settings {
+    inset: 0;
+    margin: auto;
+    width: calc(100% - 3rem);
+    border-radius: .5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .notebook-u3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .notebook-u3-today {
+    grid-area: 1 / 2;
+    border-bottom-right-radius: 17px;
+    box-shadow: var(--shadow-page), inset 7px 0 12px -9px #49301c80;
+  }
+  .notebook-u3-path {
+    grid-area: 1 / 1;
+    border-radius: 0 0 0 17px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .notebook-settings[open] { animation: notebook-settings-in 220ms ease-out; }
+  @keyframes notebook-settings-in { from { translate: 0 3rem; opacity: .6; } }
+}
