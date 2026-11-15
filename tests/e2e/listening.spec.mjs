@@ -1,5 +1,4 @@
 import { readFile } from 'node:fs/promises';
-import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import { routeMetrics } from './route-metrics.mjs';
 
@@ -15,28 +14,6 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await page.getByRole('button', { name: /Người học thử/ }).tap();
   const desk = page.getByRole('region', { name: 'Bài tiếp theo' });
   const lesson = desk.getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
-  if (process.env.CI) {
-    const requests = new Map();
-    const watchDesk = request => {
-      const url = new URL(request.url());
-      if (url.origin === new URL(page.url()).origin && url.pathname.endsWith('.js')) requests.set(url.href, request.resourceType());
-    };
-    // Recreate 32854b1's first reload, including its earlier profile warm-up.
-    await expect(desk).toBeVisible();
-    page.on('request', watchDesk);
-    await page.reload();
-    await expect(page.getByRole('link', { name: /Mở bài|Học tiếp/ }).first()).toBeVisible();
-    const early = new Set(requests.keys());
-    await page.waitForLoadState('networkidle');
-    page.off('request', watchDesk);
-    const legacy = await Promise.all([...requests].map(async ([url, type]) => {
-      const response = await context.request.get(url);
-      const node = await fetch(url);
-      return [new URL(url).pathname.split('/').at(-1), type, early.has(url),
-        gzipSync(await response.body()).length, gzipSync(Buffer.from(await node.arrayBuffer())).length];
-    }));
-    console.log(JSON.stringify({ project: info.project.name, legacy, legacyTotal: legacy.reduce((sum, values) => sum + values[3], 0) }));
-  }
   await expect(lesson).toBeVisible();
 
   const deskSnapshot = routeMetrics(page);
