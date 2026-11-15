@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { feedbackForItems } from "../../../lib/feedback-history";
 import { formatChemicalText, isChemistryNotebook } from "../../../lib/chemistry";
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
@@ -7,6 +8,8 @@ import { waitingForFeedback, useLessonSession, type Lesson } from "../lesson/use
 import { LessonFlow } from "../lesson/flow";
 import { lessonGroups } from "../lesson/groups";
 import { LessonItem } from "../lesson/item";
+import { ListeningBrowserNotice, useListeningSettings } from "../lesson/listening";
+import type { ListeningAudio } from "../lesson/listen-api";
 import { LessonSummary } from "../lesson/summary";
 import { Book } from "../notebook/book";
 import { PaperConfirm } from "../paper-confirm";
@@ -35,6 +38,9 @@ export function LessonReader({
 }) {
   const session = useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCompleted });
   const { lesson, child, answers, history, readonly, busy, pending, error, feedbackError, state } = session;
+  const hasListening = lesson?.items.some(item => !!item.audio) ?? false;
+  const settings = useListeningSettings(ownerId, hasListening && !readonly);
+  const [listeningPlays, setListeningPlays] = useState<Record<string, number>>({});
   if (!lesson) return <p role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">{error || "Đang mở bài…"}</p>;
 
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;
@@ -71,6 +77,7 @@ export function LessonReader({
       {feedbackError} <button onClick={() => void session.refreshFeedback()} className={pencilLink}>{words.action.retry}</button>
     </p>}
     {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
+    {hasListening && <ListeningBrowserNotice />}
     <LessonFlow initialItem={initialItem} groups={lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
       locked={busy || !!pending} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump) => {
         if (index === 0) return <>
@@ -106,7 +113,16 @@ export function LessonReader({
         const value = answers[item.id] ?? { answer: item.input === "code" ? item.starter : "" };
         const changed = !latest || latest.answer !== value.answer || !!value.attachmentIds?.length;
         const canSubmit = pending === item.id || (!pending && !awaiting && hasAnswer(item) && (changed || !latest?.result));
-        return <LessonItem key={item.id} item={item} number={index} value={value} formatText={formatText}
+        const nextAudio: ListeningAudio | undefined = lesson.items[index]?.audio;
+        const listening = item.audio && settings.ready ? {
+          ...settings,
+          item: { lessonId: id, itemId: item.id, readOnly: readonly },
+          answered: !!latest,
+          plays: listeningPlays[item.id] ?? 0,
+          onPlayed: () => setListeningPlays(previous => ({ ...previous, [item.id]: (previous[item.id] ?? 0) + 1 })),
+          nextSrc: nextAudio?.src?.[settings.voice],
+        } : undefined;
+        return <LessonItem key={item.id} listening={listening} item={item} number={index} value={value} formatText={formatText}
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
