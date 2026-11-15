@@ -34,7 +34,7 @@ Chủ dự án quyết ngày 14/11/2026: L, G, T, K chỉ lên staging.
 | 8 | **G1**: chuẩn hoá đáp án | L1 (cùng `autograde.ts`) | L2–L5 | `autograde.ts` |
 | 9 | **G2**: bằng chứng trích dẫn | — | L2–L5 | `apply/assess.ts` |
 | 10 | **G3**: hiệu chuẩn hằng tuần, `0032` | L4 (cho câu nghe), chủ dự án duyệt đáp án chuẩn | T0–T2 | automation route, `runner.mjs` |
-| 11 | **G4**: "Chấm sai?" chuyển người | quyết định 8.5 | T0–T2 | `disputes/service.ts` |
+| 11 | **G4**: "Chấm sai?" tính theo lần chấm lại | — | T0–T2 | `disputes/service.ts` |
 | 12 | **T0**: cổng kỹ thuật (Durable Object, WebSocket) | — | L1–L5 | `build/worker.ts`, `wrangler.jsonc` |
 | 13 | **T1–T4**: gia sư | T0 đạt, L2 xong (`runner.mjs`) | G3–G4 | automation route, `runner.mjs` |
 | 14 | **T5**: thử trên staging | T4, P3 | — | — |
@@ -312,7 +312,7 @@ Không đo được "bấm nghe đến có tiếng" và "chữ đầu tiên củ
 - Nút phát lớn (≥ 56 px). Hiện "Còn N lượt nghe".
 - Chọn giọng ngay trên bài: nút nhỏ "Giọng: Nữ | Nam" cạnh nút phát. Lựa chọn áp cho cả bài và được nhớ trong `preferences` của hồ sơ. Đổi giọng không tính thêm lượt nghe và không phải là hỗ trợ.
 - Người học chưa chọn thì dùng giọng nữ.
-- Nút "Chậm hơn" phát lại với `playbackRate = 0.8` và giữ cao độ. Không cần thêm tệp. M2 chưa có nút này (mục 8.2).
+- Nút "Chậm hơn" phát lại với `playbackRate = 0.8` và giữ cao độ. Không cần thêm tệp. M2 chưa có nút này; chủ dự án đồng ý thêm ngày 15/11, không làm lại mockup.
 - "Xem lời thoại": sau khi trả lời thì miễn phí; trước khi trả lời thì hỏi xác nhận vì tính `hint2`.
 - Hết lượt nghe: nút đổi thành "Nghe thêm (tính là gợi ý)".
 - Dùng `<audio preload="none">`. Khi câu hiện ra, tải trước âm thanh của câu đó và câu kế tiếp.
@@ -348,7 +348,7 @@ Không đo được "bấm nghe đến có tiếng" và "chữ đầu tiên củ
    - Ếch thử trên điện thoại ở Việt Nam;
    - kiểm loa, gạt im lặng, tai nghe Bluetooth, mở trong Zalo; "Chậm hơn" và lời thoại.
 
-   Bỏ qua bước này thì ghi "chưa thử máy thật" trong `status/L.md` (mục 8.3).
+   Chủ dự án quyết ngày 15/11: bắt buộc thử máy thật. L chưa xong trên staging cho đến khi bước này đạt hoặc ghi rõ lỗi.
 4. **Theo dõi một tuần trên staging:**
    - p75 bấm nghe đến có tiếng từ Việt Nam (`audio_play` trong `/api/rum`), mục tiêu < 1 giây;
    - thời gian tạo giọng mỗi bài;
@@ -444,9 +444,10 @@ Phần lớn đã có: lỗi có `evidence` ≤ 80 ký tự, và Hub từ chối
 - người học tự chuyển lên người lớn được.
 
 **Còn làm:**
-- Theo quyết định 8.5, khi lần chấm lại khác lần đầu:
-  - (a) áp kết quả mới và đưa vào Cần xem để người lớn xem lại (khuyên dùng);
-  - hoặc (b) giữ kết quả cũ và chờ người lớn.
+- Chủ dự án quyết ngày 15/11: khi lần chấm lại khác lần đầu, **kết quả lần chấm lại là kết quả chính thức**.
+  - Hub áp kết quả lần 2 cho bài làm và bằng chứng, rồi báo người học bằng lời thật ("Đã chấm lại: …").
+  - Trường hợp đó vẫn hiện trong Cần xem để người lớn đọc, nhưng không cần duyệt mới có hiệu lực.
+  - Người học hoặc người giám hộ vẫn chuyển lên người lớn được như hiện nay; khi người lớn quyết thì kết quả của người lớn thay lần 2.
 - Mục Cần xem hiện cạnh nhau: câu trả lời, lần chấm đầu, lần chấm lại, `evidence` của mỗi lần.
 - `lib/quality.ts` thêm tỉ lệ bị lật khi chấm lại theo tuần.
 - Người giám hộ thấy cả hai lần chấm (`read_work`), như quy định nhận xét AI phải hiện cho người giám hộ.
@@ -573,7 +574,7 @@ Một nhánh thử, kết quả ghi trong `docs/plan/status/T.md`:
 ### T5. Thử trên staging
 
 1. **Deploy:** ghi khung giờ, sao lưu D1, deploy với `0033`. Lớp Durable Object mới được tạo khi deploy. Kiểm health và smoke test.
-2. **Cấp quyền:** chủ dự án cấp lại thông tin runner staging có scope `tutor:answer` (mục 8.7).
+2. **Cấp quyền:** chủ dự án đã đồng ý scope `tutor:answer` (15/11). Cấp lại thông tin runner staging có scope này trước khi thử.
 3. **Thử:** bật runner staging có `tutor`. Hồ sơ QA hỏi 3 lượt trong một bài. Kiểm:
    - mức `hint1` được ghi;
    - có dòng `tutor_turns`;
@@ -619,7 +620,7 @@ Nếu tác vụ ChatGPT không chạy được, dùng phương án dự phòng t
 
 ## 8. Chủ dự án cần quyết
 
-**Đã quyết ngày 14/11/2026:**
+**Đã quyết ngày 14–15/11/2026:**
 
 | # | Câu hỏi | Quyết định |
 |---|---|---|
@@ -628,16 +629,16 @@ Nếu tác vụ ChatGPT không chạy được, dùng phương án dự phòng t
 | 6 | Gia sư cho trẻ em | Bật cho mọi hồ sơ, có giới hạn và người giám hộ đọc được (T) |
 | 8 | Kết nối và lịch ChatGPT cho staging | Đồng ý; chủ dự án tự cấu hình (K2) |
 | 10 | Lật trang | Bỏ nút, dùng mép sổ cong; giữ vuốt; hiệu ứng như giấy cong (U6) |
+| 2 | Nút "Chậm hơn" ngoài mockup M2 | Thêm, không làm lại mockup (15/11; L5) |
+| 3 | Thử nghe trên máy thật | Bắt buộc ở L6: gạt im lặng, Bluetooth, Zalo (15/11) |
+| 5 | Chấm lại khác lần đầu | Tính theo lần chấm lại; vẫn hiện trong Cần xem (15/11; G4) |
+| 7 | Scope `tutor:answer` và Durable Object | Đồng ý (15/11). Chủ dự án cho biết tài khoản đã dùng gói trả phí; T0 ước tính vẫn nằm trong hạn mức Free. Kiểm gói Workers trong dashboard trước T5 (T) |
 | — | Phạm vi | Chỉ staging (mục 0) |
 
 **Còn chờ:**
 
 | # | Khi | Câu hỏi | Khuyên |
 |---|---|---|---|
-| 2 | L5 | Thêm "Chậm hơn" dù M2 chưa có, không làm mockup lại | Đồng ý, xem trên staging |
-| 3 | L6 | Thử máy thật bước 10 hay bỏ qua | Thử: âm thanh với gạt im lặng và Zalo không giả lập được |
-| 5 | G4 | Khi chấm lại khác lần đầu | (a) áp kết quả mới và đưa vào Cần xem |
-| 7 | T5 | Scope `tutor:answer`, Durable Object trên gói Free, cấp lại thông tin runner staging | Đồng ý nếu T0 đạt |
 | 9 | Sau đợt này | Đưa E–U rồi L, G, T, K lên production | Quyết riêng, không thuộc kế hoạch này |
 
 ## 9. Rủi ro
@@ -645,8 +646,8 @@ Nếu tác vụ ChatGPT không chạy được, dùng phương án dự phòng t
 1. **Đụng tệp chung** (automation route, `runner.mjs`, `autograde.ts`): gộp lần lượt theo bảng mục 1.
 2. **Lộ lời thoại hoặc đáp án:** test `itemView` (L1) và bộ chặn câu chứa đáp án (T4).
 3. **LM Studio vừa chạy job vừa trả lời gia sư:** gia sư được ưu tiên nhận việc nhưng không ngắt job đang chạy. Đo chữ đầu tiên ở T5. Nếu thường quá 3 giây, đề xuất model nhỏ hơn cho gia sư.
-4. **Hạn mức Durable Object gói Free, hoặc WebSocket qua Access:** T0 kiểm trước, có phương án long-poll.
-5. **Âm thanh trên WebKit headless:** e2e kiểm giao diện và 206. Phát thật cần máy thật (8.3).
+4. **Hạn mức Durable Object hoặc WebSocket qua Access:** T0 đã ước tính trong hạn mức Free; WebSocket 101 qua Access kiểm ở T2, có phương án long-poll.
+5. **Âm thanh trên WebKit headless:** e2e kiểm giao diện và 206. Phát thật kiểm trên máy thật ở L6.
 6. **Chuẩn hoá quá tay làm nhận đáp án sai:** G1 có danh sách cấm (`ä`/`a`, `ß`/`ss`, dấu tiếng Việt) và test các trường hợp không được nhận.
 7. **Cổng nghe làm kẹt lộ trình cũ:** bước đã có giữ `roadmap_steps.listening = 0`.
 8. **Runner staging tranh tài nguyên với production:** chỉ bật khi thử. Runner nhận SIGTERM phải thoát sạch (sửa trong L2).
