@@ -4,10 +4,10 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { PaperConfirm } from "../paper-confirm";
 import { pencilLink } from "../paper-bits";
-import { recordPlay, revealTranscript, type ListeningAudio, type ListeningItem, type Voice } from "./listen-api";
+import { revealTranscript, type ListeningAudio, type ListeningItem, type Voice } from "./listen-api";
 
 type PlayState = "idle" | "starting" | "playing" | "paused" | "retry";
-type PlayAttempt = { slow: boolean; extra: boolean; retry: boolean };
+type PlayAttempt = { slow: boolean; retry: boolean };
 const transport = "stone inline-flex min-h-14 min-w-14 items-center justify-center gap-2 px-3 text-sm font-medium";
 const link = pencilLink + " min-h-11 text-sm";
 
@@ -19,7 +19,8 @@ export type ListeningControls = {
   voiceError: string;
   onVoice: (voice: Voice) => void;
   plays: number;
-  onPlayed: () => void;
+  onPlayed: (slow: boolean) => Promise<void>;
+  playSaving: boolean;
   nextSrc?: string;
   answered: boolean;
 };
@@ -40,7 +41,7 @@ export function LessonAudio({ audio, ...controls }: { audio: ListeningAudio } & 
   </>;
 }
 
-function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, plays, onPlayed, nextSrc }:
+function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, plays, onPlayed, playSaving, nextSrc }:
   { audio: ListeningAudio; src: string } & ListeningControls) {
   const media = useRef<HTMLAudioElement>(null);
   const panel = useRef<HTMLDivElement>(null);
@@ -88,11 +89,11 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
 
   function start(slow = false, restart = false) {
     const player = media.current;
-    if (!player || state === "starting") return;
+    if (!player || state === "starting" || playSaving) return;
     const retry = state === "retry" && !!attempt.current;
     if (retry && player.error) player.load();
     if (state !== "paused" || restart || slow) {
-      attempt.current = { slow: slow || (retry && !!attempt.current?.slow), extra: remaining === 0, retry };
+      attempt.current = { slow: slow || (retry && !!attempt.current?.slow), retry };
       player.currentTime = 0;
       setElapsed(0);
     }
@@ -137,8 +138,8 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     attempt.current = null;
     setState("idle");
     if (!current || current.retry) return;
-    onPlayed();
-    void recordPlay(item, current.slow || current.extra).catch(() => setRecordError(true));
+    setRecordError(false);
+    void onPlayed(current.slow).catch(() => setRecordError(true));
   }
 
   const active = state === "playing" || state === "starting";
@@ -156,7 +157,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
       onError={() => { if (attempt.current) failed(); }}
     />
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <button type="button" className={transport} onClick={toggle}>
+      <button type="button" className={transport} onClick={toggle} disabled={playSaving}>
         {active ? <Pause size={18} aria-hidden /> : state === "retry" ? <RotateCcw size={18} aria-hidden /> :
           <Play size={18} aria-hidden />}
         {playLabel}
@@ -170,14 +171,14 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     </div>
     <div className="flex flex-wrap items-center gap-x-3">
       <p role="status" className="text-sm text-muted-paper">
-        {state === "starting" ? "Đang mở âm thanh…" : state === "playing" ? "Đang phát" :
+        {playSaving ? "Đang ghi lượt nghe…" : state === "starting" ? "Đang mở âm thanh…" : state === "playing" ? "Đang phát" :
           state === "retry" ? "Âm thanh bị gián đoạn." :
           remaining === 0 ? "Đã hết lượt nghe" : `Còn ${remaining} lượt nghe`}
       </p>
       {state === "playing" && <span aria-hidden="true" className="text-sm tabular-nums text-muted-paper">
         {clock(elapsed)}{duration > 0 && ` / ${clock(duration)}`}
       </span>}
-      <button type="button" disabled={state === "starting" || state === "retry"}
+      <button type="button" disabled={playSaving || state === "starting" || state === "retry"}
         className={link + " disabled:opacity-60"} onClick={() => start(true, true)}>Chậm hơn</button>
     </div>
     {(voiceError || recordError) && <p role="status" className="text-sm text-muted-paper">

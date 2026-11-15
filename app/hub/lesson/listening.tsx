@@ -34,12 +34,8 @@ export function useListeningSettings(owner: string, enabled: boolean) {
     setVoiceSaving(true);
     setVoiceError("");
     try {
-      const { settings } = await apiJson<{ settings: { preferences: Preferences } }>(url);
-      const saved = await apiJson<{ settings: { preferences: Preferences } }>(url, {
-        method: "PATCH",
-        json: { preferences: { ...settings.preferences, listeningVoice: next } },
-      });
-      setPreferences(saved.settings.preferences);
+      await apiJson<{ voice: Voice }>('/api/learners/me/voice', { method: 'POST', json: { voice: next } });
+      setPreferences(current => ({ ...current, listeningVoice: next }));
     } catch {
       setVoiceError("Đã đổi giọng cho bài này. Chưa lưu được vào hồ sơ.");
     } finally {
