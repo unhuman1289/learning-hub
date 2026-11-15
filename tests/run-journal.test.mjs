@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {memoryDb} from './d1-adapter.mjs';
 import {startRun,commitRun,readRunJournal,failRun} from '../lib/run-journal.ts';
 import {runSchema} from '../lib/run-schema.ts';
@@ -65,8 +66,11 @@ test('all assignment and journal writes rollback together on database failure',a
 test('backup restores every table and Unicode/quotes into empty migrated SQLite; rejects missing relationships',async()=>{
  const db=memoryDb({ through: "0025" });seed(db);const id=await startRun(db,'manual',now);await commitRun(db,input(id),learner,now);
  db.sqlite.prepare('INSERT INTO learning_workspace VALUES(?,?,2,?)').run('__shared_family_workspace__',JSON.stringify({notes:["Ghi chú ' tiếng Việt"]}),now.toISOString());
+ // Keep the v1 journal tables for this fixture while exercising the current backup contract.
+ const perfSchema=readFileSync(new URL('../drizzle/0030_perf.sql',import.meta.url),'utf8');
+ db.sqlite.exec(perfSchema);
  const backup=await createBackup(db,'user-private',now);assert.equal(backup.format,4);
- const copy=memoryDb({ through: "0025" });copy.sqlite.exec(buildRestoreSql(backup));
+ const copy=memoryDb({ through: "0025" });copy.sqlite.exec(perfSchema);copy.sqlite.exec(buildRestoreSql(backup));
  for(const [table,expected]of Object.entries(backup.tables))assert.deepEqual(copy.sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),expected,table);
  assert.throws(()=>copy.sqlite.exec(buildRestoreSql(backup)),/UNIQUE/);
  assert.throws(()=>buildRestoreSql({...backup,tables:{...backup.tables,learning_lessons:[]}}),/missing lessons/);

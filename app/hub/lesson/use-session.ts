@@ -7,6 +7,7 @@ import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { Drafts } from "../lesson-page";
 import { useLiveRefresh } from "../use-live-refresh";
+import { rumAfterPaint } from "../rum";
 import { useRunnerStatus, type RunnerStatus } from "../runner-status";
 import type { SubmissionView } from "../lesson-v2/feedback";
 import { readOfflineDraft, writeOfflineDraft } from "../lesson-v2/offline-draft";
@@ -151,6 +152,14 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setLesson(current=>current?{...current,items:value.lesson.items,stages:value.lesson.stages}:current);
     }catch(e){if(generation.current===version)setFeedbackError((e as Error).message);}
   },[url,suffix]);
+  const gradeStarted = useRef<{ submissionId: string; at: number } | null>(null);
+  useEffect(() => {
+    const timing = gradeStarted.current;
+    if (!timing || !history.some(entry => entry.id === timing.submissionId)) return;
+    gradeStarted.current = null;
+    return rumAfterPaint("grade", timing.at);
+  }, [history]);
+
   const waitingForGrade = lesson?.items.some(item => waitingForFeedback(feedbackForItems(history, [item.id])[0])) ?? false;
   useLiveRefresh(async () => {
     const active = lesson?.items.flatMap(item => {
@@ -261,6 +270,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   }
   async function submit(itemId: string) {
     if (!lesson || busy || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+    const started = performance.now();
     setBusy(true);
     setError("");
     try {
@@ -279,7 +289,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         setPending(itemId);
       }
       const input = pendingSubmission.current;
-      const request = () => json<{ submission: SubmissionView; draftRevision: number }>(url + "/submissions", {
+      const request = () => json<{ submission: SubmissionView & { replayed: boolean }; draftRevision: number }>(url + "/submissions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
@@ -289,6 +299,10 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         // Uncertain response: the same immutable submission key lets the server return the saved attempt.
         return request();
       });
+      if (!response.submission.replayed && response.submission.attempts.length
+        && response.submission.attempts.every(attempt => attempt.result)) {
+        gradeStarted.current = { submissionId: response.submission.id, at: started };
+      }
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
       if (input.answers) {
         revision.current = response.draftRevision;

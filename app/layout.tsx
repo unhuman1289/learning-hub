@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
-export const metadata:Metadata={title:'Learning Hub',description:'Học có hướng. Nghiên cứu có dấu vết. Một không gian cho cả nhà.',manifest:'/manifest.webmanifest',icons:{icon:'/favicon.svg'}};
+export const metadata:Metadata={title:'Learning Hub',description:'Học có hướng. Nghiên cứu có dấu vết. Một không gian cho cả nhà.',referrer:'strict-origin',manifest:'/manifest.webmanifest',icons:{icon:'/favicon.svg'}};
 export const viewport: Viewport = {
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#f1ede6' },

@@ -6,6 +6,7 @@ import { LazyProfileSettings } from "./profile-settings-loader";
 import { PaperDialog } from "./paper-dialog";
 import { PostIt } from "../../components/notebook/post-it";
 import { TodayBoard } from "./today-board";
+import { rumAfterPaint, rumNavigationStart } from "./rum";
 import { words } from "./words";
 import { Bookcase, OakDesk } from "../../components/notebook/house";
 import { SpineShelves, type SpineBook } from "../../components/notebook/spine-shelf";
@@ -79,6 +80,10 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
     } catch { /* Animation is optional. */ }
   }, [today]);
   const data = shelf.today;
+  const ownDeskReady = hub2 && !readOnly && !!data;
+  useEffect(() => {
+    if (ownDeskReady) return rumAfterPaint("desk", rumNavigationStart("desk"));
+  }, [ownDeskReady]);
   const animate = postItsDay === today;
   // The desk only holds lessons that still need attention.
   const visibleTracks=hub2?trackIds.filter(track=>shelf.subjects?.some(s=>s.legacyTrack===track)):trackIds;
