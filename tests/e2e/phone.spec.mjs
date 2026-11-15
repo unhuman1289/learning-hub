@@ -16,7 +16,11 @@ async function turnUntil(page, target, direction = /^(Bắt đầu bài|Trang sa
   for (let offset = 0; offset < 20 && !await target.isVisible(); offset++) {
     const corner = page.getByRole('button', { name: direction });
     await expect(corner).toBeVisible();
+    // The turn loads lazily, so wait for the sheet to be replaced, not only for the turn flag;
+    // otherwise the next tap lands on the new page and turns one page too far.
+    await visiblePage(page).locator('.lesson-flow-page').evaluate(sheet => { sheet.dataset.e2eTurnedFrom = ''; });
     await corner.tap();
+    await expect(visiblePage(page).locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
     await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn', /.+/);
   }
   await expect(target).toBeVisible();
@@ -235,6 +239,7 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
       const before = await count();
       await expect(card.getByRole('button', { name: /^Kiểm tra/ })).toBeEnabled();
       await context.setOffline(true);
+      await restoreNetwork({ offline: true });
       try {
         await field.tap();
         await field.fill('Test offline');
