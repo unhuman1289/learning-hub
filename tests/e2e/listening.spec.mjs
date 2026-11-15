@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
+import { routeMetrics } from './route-metrics.mjs';
 
 const lessonUrl = '/api/lessons/les_00000000000000000007';
 const itemUrl = lessonUrl + '/items/i1';
@@ -10,29 +11,43 @@ const audio = { lang: 'de-DE', rate: 1, maxPlays: 2, durationMs: 4939, transcrip
 const fixture = await readFile(new URL('./fixtures/listening-demo.m4a', import.meta.url));
 
 test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, context, browserName }, info) => {
-  const scriptUrls = new Set();
-  const watchDesk = request => {
-    const url = new URL(request.url());
-    if (url.origin === new URL(page.url()).origin && url.pathname.endsWith('.js')) scriptUrls.add(url.href);
-  };
   await page.goto('/');
   await page.getByRole('button', { name: /Người học thử/ }).tap();
-  await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
-  page.on('request', watchDesk);
-  await page.reload();
-  const lesson = page.getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
+  const desk = page.getByRole('region', { name: 'Bài tiếp theo' });
+  const lesson = desk.getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
   await expect(lesson).toBeVisible();
-  await page.waitForLoadState('networkidle');
-  page.off('request', watchDesk);
-  const sizes = await Promise.all([...scriptUrls].map(async url => {
-    const response = await context.request.get(url);
-    expect(response.ok()).toBe(true);
-    return gzipSync(await response.body()).length;
-  }));
-  const bytes = sizes.reduce((sum, size) => sum + size, 0);
-  expect(bytes).toBeGreaterThan(0);
-  expect(bytes).toBeLessThanOrEqual(180_000);
-  console.log(`${info.project.name}: desk JS gzip ${bytes} B`);
+
+  const deskSnapshot = routeMetrics(page);
+  await page.goto('/');
+  await expect(lesson).toBeVisible();
+  // Use the same cutoff as U5: stop collecting when the desk's next lesson is visible.
+  const { gzip, chunks } = await deskSnapshot();
+  console.log(JSON.stringify({ project: info.project.name, desk: { gzip, chunks } }));
+  expect(gzip).toBeGreaterThan(0);
+  expect(gzip).toBeLessThanOrEqual(180_000);
+
+  if (process.env.CI) {
+    const requests = new Map();
+    const origin = new URL(page.url()).origin;
+    const logRequest = request => {
+      const url = new URL(request.url());
+      if (url.origin === origin && url.pathname.endsWith('.js')) requests.set(url.href, request.resourceType());
+    };
+    page.on('request', logRequest);
+    await page.reload();
+    await expect(lesson).toBeVisible();
+    const early = new Set(requests.keys());
+    await page.waitForLoadState('networkidle');
+    page.off('request', logRequest);
+    const legacy = await Promise.all([...requests].map(async ([url, type]) => {
+      const response = await context.request.get(url);
+      const bytes = (await response.body());
+      const node = await fetch(url).then(result => result.arrayBuffer());
+      return [new URL(url).pathname.split('/').at(-1), type, early.has(url), gzipSync(bytes).length,
+        gzipSync(Buffer.from(node)).length, bytes.length];
+    }));
+    console.log(JSON.stringify({ project: info.project.name, legacy }));
+  }
 
   let missingSource = false;
   let submitted = false;
