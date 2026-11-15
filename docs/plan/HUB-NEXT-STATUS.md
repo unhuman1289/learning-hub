@@ -6,7 +6,7 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-staging: U6 lật trang cùng khung và góc trên (#161), đến 03:15 Europe/Berlin
+Khung staging U6 (gộp #161) đã kết thúc lúc 02:22 Europe/Berlin.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -14,7 +14,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `cb0a6ad2728b4708f09511de02e9d74583282ba9` | Deploy 15/11 lúc 01:34 Berlin từ `codex/hub-next-wip` sau khi gộp #160 (U6). Không có migration mới. Health đúng SHA, D1 kết nối, smoke test đạt. Xem [PHONE-CHECK](status/PHONE.md). |
+| Staging | `a3d3af380995a9f3d7ba82d7b054ec3403ab122b` | Deploy 15/11 lúc 02:20 Berlin từ `codex/hub-next-wip` sau khi gộp #161 (U6), gồm cả #156 (K1) và #157 (G2). Hub và MCP staging cùng SHA. Không có migration mới. Health đúng SHA, D1 kết nối, smoke test đạt. Xem [PHONE-CHECK](status/PHONE.md). |
 | Dev chính | `~/Code/Learning Hub` trên `codex/u2-lesson` | Nhánh tích hợp `codex/hub-next-wip` ở `work/learning-hub-hub-next`. Worktree U3 ở `work/learning-hub-u3`. |
 
 ## Các bước
@@ -35,7 +35,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | Q2 mở sổ | Đã gộp [#154](https://github.com/unhuman1289/learning-hub/pull/154), deploy staging | [Kết quả Q2](status/Q2.md). Bước 9 PHONE-CHECK đạt trên staging |
 | U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). PHONE-CHECK bước 8–9 đạt trên staging. Chủ dự án bỏ qua thử thiết bị thật |
 | U6 lật trang | Trong [LGTK.md](LGTK.md) mục 3a | Bỏ nút lật, dùng mép sổ cong; hiệu ứng như giấy cong. Làm trước, song song với P3-rum |
-| U6 mép sổ | Đã gộp [#160](https://github.com/unhuman1289/learning-hub/pull/160), deploy staging | Chờ chủ dự án thử cảm giác lật trên iPhone |
+| U6 mép sổ | Đã gộp [#160](https://github.com/unhuman1289/learning-hub/pull/160), [#161](https://github.com/unhuman1289/learning-hub/pull/161) (hai tờ cùng khung, góc trên), deploy staging | Chờ chủ dự án thử cảm giác lật trên iPhone |
 | L, G, T, K | Plan chi tiết [LGTK.md](LGTK.md) ngày 14/11; chỉ lên staging | Bắt đầu bằng U6, P3-rum, K1 và L1 song song. Đã quyết giọng, đáp án chuẩn, gia sư cho trẻ em, lịch ChatGPT; còn chờ ở LGTK mục 8 |
 
 **Migration tiếp theo** · P3 đo tốc độ dùng `0030`, L âm thanh dùng `0031`, G hiệu chuẩn dùng `0032`, T gia sư dùng `0033`. Cả bốn chỉ áp trên staging.
