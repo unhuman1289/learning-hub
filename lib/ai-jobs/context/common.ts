@@ -1,9 +1,9 @@
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { sha256Hex } from '../../auth/automation.ts';
-import { redactContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
+import { safeText } from '../../automation/privacy.ts';
 import { readSubjectSkills } from '../../learner-model/recompute.ts';
 import { canAdvance } from '../../daily-policy.ts';
-import type { SubjectSensitivity } from '../../subjects/sql.ts';
+export { safeText } from '../../automation/privacy.ts';
 export type Job = {
   adaptive?: number;
   id: string;
@@ -43,10 +43,6 @@ export function canonical(value: unknown): string {
 }
 export async function contextHash(value: unknown) {
   return 'sha256:' + (await sha256Hex(canonical(value)));
-}
-export function safeText(value: unknown, sensitivity: SubjectSensitivity = 'normal') {
-  const s = String(value ?? '');
-  return containsPossibleClinicalIdentifier(s, sensitivity) ? '[Nội dung có định danh được giữ riêng]' : redactContactDetails(s);
 }
 export async function learnerContext(db: EvidenceDb, id: string, environment: string) {
   const settings = await db

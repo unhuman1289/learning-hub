@@ -61,6 +61,11 @@ export function redactContactDetails(text: string) {
   return result;
 }
 
+export function safeText(value: unknown, sensitivity: SubjectSensitivity = 'normal') {
+  const text = String(value ?? '');
+  return containsPossibleClinicalIdentifier(text, sensitivity) ? '[Nội dung có định danh được giữ riêng]' : redactContactDetails(text);
+}
+
 export function containsContactDetails(text: string) {
   return new RegExp(EMAIL.source, 'i').test(text) || phoneMatches(text).length > 0;
 }
