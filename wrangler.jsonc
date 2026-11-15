@@ -15,6 +15,8 @@
     "APP_ENV": "local",
     "AI_JOBS_DAILY_CAP": "300"
   },
+  "durable_objects": { "bindings": [{ "name": "TUTOR_RELAY", "class_name": "TutorRelay" }] },
+  "migrations": [{ "tag": "t0", "new_sqlite_classes": ["TutorRelay"] }],
   "d1_databases": [
     {
       "binding": "DB",
@@ -50,6 +52,8 @@
         "AI_JOBS_DAILY_CAP": "300",
         "AI_COST_ALERT_USD": "3"
       },
+      "durable_objects": { "bindings": [{ "name": "TUTOR_RELAY", "class_name": "TutorRelay" }] },
+      "migrations": [{ "tag": "t0", "new_sqlite_classes": ["TutorRelay"] }],
       "d1_databases": [
         {
           "binding": "DB",

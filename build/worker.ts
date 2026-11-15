@@ -1,3 +1,4 @@
+import { DurableObject } from "cloudflare:workers";
 import { checkNightlyCoverage } from '../lib/roadmap/coverage';
 import { berlinDay } from '../lib/daily-policy';
 import handler from "vinext/server/fetch-handler";
@@ -46,10 +47,58 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
   }
 }
 
+// Local-only T0 spike. The runner socket may hibernate between turns.
+export class TutorRelay extends DurableObject {
+  private readonly instance = crypto.randomUUID();
+  private readonly turns = new Map<string, ReadableStreamDefaultController<Uint8Array>>();
+
+  async fetch(request: Request): Promise<Response> {
+    if (new URL(request.url).pathname === "/connect" && request.headers.get("Upgrade") === "websocket") {
+      const { 0: client, 1: server } = new WebSocketPair();
+      this.ctx.acceptWebSocket(server, ["runner"]);
+      this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
+      return new Response(null, { status: 101, webSocket: client });
+    }
+    const [runner] = this.ctx.getWebSockets("runner");
+    if (!runner) return new Response("Runner unavailable", { status: 503 });
+
+    const sqlite = this.ctx.storage.sql.exec<{ ready: number }>("SELECT 1 AS ready").one().ready;
+    const turnId = crypto.randomUUID();
+    const stream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        this.turns.set(turnId, controller);
+        runner.send(JSON.stringify({ type: "ask", turnId }));
+      },
+      cancel: () => { this.turns.delete(turnId); },
+    });
+    return new Response(stream, {
+      headers: { "Content-Type": "text/event-stream", "Cache-Control": "no-store", "X-T0-SQLite": String(sqlite), "X-T0-Instance": this.instance },
+    });
+  }
+
+  webSocketMessage(_runner: WebSocket, message: string | ArrayBuffer) {
+    if (typeof message !== "string") return;
+    const { type, turnId, text } = JSON.parse(message);
+    const controller = this.turns.get(turnId);
+    if (!controller) return;
+    if (type === "delta") {
+      controller.enqueue(new TextEncoder().encode(`data: ${text}\n\n`));
+    }
+    if (type === "done") {
+      controller.close();
+      this.turns.delete(turnId);
+    }
+  }
+}
+
 export default {
-  async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
+  async fetch(request: Request, env: Cloudflare.Env & { TUTOR_RELAY?: DurableObjectNamespace }, ctx: ExecutionContext) {
     const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env);
     if (guarded) return guarded;
+    if (env.ENVIRONMENT === "local" && new URL(request.url).pathname === "/api/t0-spike/connect"
+        && request.headers.get("Upgrade") === "websocket" && env.TUTOR_RELAY) {
+      return env.TUTOR_RELAY.getByName("t0").fetch("https://t0.internal/connect", request);
+    }
     const direct = isDirectMcpRoute(request) || (householdMode(env) && isMcpAccountSignIn(request));
     // MCP/OAuth keeps its own token and account checks, independent of the household profile.
     if (direct) return directMcp.fetch(request, env as Parameters<typeof directMcp.fetch>[1], !!householdMode(env));
