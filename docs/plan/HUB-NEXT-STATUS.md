@@ -2,11 +2,11 @@
 
 Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi tiết tiến độ và kết quả kiểm tra nằm trong `docs/plan/status/<bước>.md` trên nhánh của bước đó.
 
-**Cập nhật ngày 14/11/2026.** Nhánh `codex/hub-next-wip`, [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144).
+**Cập nhật ngày 15/11/2026.** Nhánh `codex/hub-next-wip`, [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144).
 
 ## Môi trường
 
-staging: deploy L1 (#158) và P3 (#159) với migration `0030`, đến 03:30 Europe/Berlin
+Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -14,7 +14,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `a3d3af380995a9f3d7ba82d7b054ec3403ab122b` | Deploy 15/11 lúc 02:20 Berlin từ `codex/hub-next-wip` sau khi gộp #161 (U6), gồm cả #156 (K1) và #157 (G2). Hub và MCP staging cùng SHA. Không có migration mới. Health đúng SHA, D1 kết nối, smoke test đạt. Xem [PHONE-CHECK](status/PHONE.md). |
+| Staging | `1e85ffdf921fda9799cd0e266eb1c9abf3e68f7c` | Deploy 15/11 lúc 02:50 Berlin từ `codex/hub-next-wip` sau khi gộp #158 (L1) và #159 (P3). Đã sao lưu D1 staging trước, rồi áp `0030_perf.sql`; không còn migration chờ. Hub và MCP cùng SHA, health đúng SHA, D1 kết nối, smoke test đạt. PHONE-CHECK bước 3–7 đang lỗi từ U6, chờ sửa. Xem [PHONE-CHECK](status/PHONE.md). |
 | Dev chính | `~/Code/Learning Hub` trên `codex/u2-lesson` | Nhánh tích hợp `codex/hub-next-wip` ở `work/learning-hub-hub-next`. Worktree U3 ở `work/learning-hub-u3`. |
 
 ## Các bước
