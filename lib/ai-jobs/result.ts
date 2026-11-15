@@ -7,7 +7,7 @@ import type { EvidenceDb } from '../evidence/submit.ts';
 import { ApiError } from '../api-error.ts';
 import { sha256Hex, type AutomationClient } from '../auth/automation.ts';
 import { canonical } from './context/common.ts';
-import { leasedJob, readJob } from './lease.ts';
+import { leasedJob, readJob, recheckEscalation } from './lease.ts';
 import { preparePlan } from './apply/plan.ts';
 import { prepareAssess } from './apply/assess.ts';
 import { prepareRecheck } from './apply/recheck.ts';
@@ -64,12 +64,16 @@ export async function applyResult(
   if (issues.length) {
     // A dry run is how a runner checks its draft; only real submissions count toward the 3-strike limit.
     if (dryRun) return { status: 422, errors: issues };
-    await db
+    const recordFailure = db
       .prepare(
-        "UPDATE ai_jobs SET validation_failures=validation_failures+1,status=CASE WHEN validation_failures>=2 THEN 'failed' ELSE status END,error='Kết quả chưa qua kiểm tra',finished_at=CASE WHEN validation_failures>=2 THEN ? ELSE finished_at END WHERE id=? AND status='leased' AND lease_token_sha256=?",
+        "UPDATE ai_jobs SET validation_failures=validation_failures+1,status=CASE WHEN validation_failures>=2 THEN 'failed' ELSE status END,error='Kết quả chưa qua kiểm tra',finished_at=CASE WHEN validation_failures>=2 THEN ? ELSE finished_at END WHERE id=? AND status='leased' AND lease_token_sha256=? AND apply_token IS NULL",
       )
-      .bind(now.toISOString(), id, job.lease_token_sha256)
-      .run();
+      .bind(now.toISOString(), id, job.lease_token_sha256);
+    if (job.purpose === 'recheck') {
+      await db.batch([recheckEscalation(db, job, 2), recordFailure]);
+    } else {
+      await recordFailure.run();
+    }
     return { status: 422, errors: issues };
   }
   if (!prepared || !parsed.success) throw new Error('Missing prepared result.');

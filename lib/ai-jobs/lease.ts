@@ -155,3 +155,32 @@ export async function heartbeat(db: EvidenceDb, client: AutomationClient, id: st
     .run();
   return { leaseExpiresAt: expires };
 }
+
+/** A dispute owns the human-review state. Batch this before the terminal job update. */
+export function recheckEscalation(db: EvidenceDb, job: Job, minimumValidationFailures: number) {
+  return db
+    .prepare(
+      `UPDATE disputes SET status='needs_human'
+       WHERE id=? AND learner_id=? AND status='rechecking' AND EXISTS(
+         SELECT 1 FROM ai_jobs WHERE id=? AND status='leased' AND lease_token_sha256=?
+           AND apply_token IS NULL AND validation_failures>=?
+       )`,
+    )
+    .bind(job.ref_id, job.learner_id, job.id, job.lease_token_sha256, minimumValidationFailures);
+}
+
+export async function failLeasedJob(db: EvidenceDb, job: Job, retryable: boolean, now = new Date()) {
+  const status = retryable && job.lease_count < 3 ? 'queued' : 'failed';
+  const stamp = now.toISOString();
+  // Runner text may contain answers or credentials.
+  const update = db
+    .prepare(
+      "UPDATE ai_jobs SET status=?,error='Runner báo thất bại',updated_at=?,finished_at=?,lease_token_sha256=NULL,lease_expires_at=NULL WHERE id=? AND status='leased' AND lease_token_sha256=? AND apply_token IS NULL",
+    )
+    .bind(status, stamp, status === 'failed' ? stamp : null, job.id, job.lease_token_sha256);
+  const changed = status === 'failed' && job.purpose === 'recheck'
+    ? (await db.batch([recheckEscalation(db, job, 0), update]) as { meta: { changes?: number } }[])[1]
+    : await update.run();
+  if (!changed.meta.changes) throw new ApiError(409, 'Lease vừa thay đổi.');
+  return { status };
+}
