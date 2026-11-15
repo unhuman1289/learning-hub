@@ -26,6 +26,7 @@ function run(command, args, env = process.env) {
 }
 
 const stagingOrigin = 'https://learning-hub-staging.tranvu-812.workers.dev';
+const stagingMcpOrigin = 'https://learning-hub-mcp-staging.tranvu-812.workers.dev';
 const wranglerPath = 'node_modules/wrangler/bin/wrangler.js';
 
 function wrangler(args) {
@@ -85,19 +86,25 @@ async function staging(target, applyMigrations) {
   if (git('rev-parse', 'HEAD') !== candidate.commit) throw Error('The staging checkout moved during preparation.');
   wrangler(['d1', 'migrations', 'apply', 'DB', '--config', 'wrangler.jsonc', '--env', 'staging', '--remote']);
   wrangler(['deploy', '--config', file]);
-  const url = new URL('/api/health', stagingOrigin);
+  run('npm', ['run', 'deploy:mcp:staging', '--', '--var', 'APP_COMMIT:' + candidate.commit]);
+  await Promise.all([
+    verifyStagingHealth('Hub staging', stagingOrigin, candidate.commit, { d1: 'connected' }),
+    verifyStagingHealth('MCP staging', stagingMcpOrigin, candidate.commit),
+  ]);
+  run(process.execPath, ['scripts/staging-smoke.mjs', stagingOrigin]);
+  console.log('Hub and MCP staging are serving ' + candidate.commit + '.');
+}
+
+async function verifyStagingHealth(worker, origin, commit, extra = {}) {
+  const url = new URL('/api/health', origin);
+  const expected = { environment: 'staging', commit, ...extra };
   for (let attempt = 0; attempt < 12; attempt++) {
-    const response = await fetch(url, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+    const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(5000) }).catch(() => null);
     const health = await response?.json().catch(() => null);
-    if (response?.ok && health?.environment === 'staging' &&
-        health?.commit === candidate.commit && health?.d1 === 'connected') {
-      run(process.execPath, ['scripts/staging-smoke.mjs', stagingOrigin]);
-      console.log('Staging is serving ' + candidate.commit + '.');
-      return;
-    }
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    if (response?.ok && Object.entries(expected).every(([key, value]) => health?.[key] === value)) return;
+    if (attempt < 11) await new Promise(resolve => setTimeout(resolve, 5000));
   }
-  throw Error('Staging health did not confirm ' + candidate.commit + '. Check the deployment before retrying.');
+  throw Error(worker + ' health did not confirm ' + commit + '. Check the deployment before retrying.');
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

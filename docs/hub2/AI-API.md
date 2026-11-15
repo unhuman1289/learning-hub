@@ -500,11 +500,13 @@ Hub không phụ thuộc runner nào. Ba runner dự kiến:
 
 | Runner | Làm gì | Trạng thái |
 | --- | --- | --- |
-| **R1. Runner đêm**: tác vụ định kỳ ChatGPT gọi thẳng API (§9.1) | 03:10 Berlin: lease plan `daily` từng job một, sau đó assess `deferred` | Cần thử ở H7.1 |
+| **R1. Runner đêm**: tác vụ định kỳ ChatGPT gọi thẳng API (§9.1) | 03:10 Berlin: lease plan `daily` từng job một, sau đó assess `deferred` | Đã được thay bằng runner Qwen |
 | **R2. Worker chấm bài** `learning-hub-assessor` (§9.2) | Nhận việc từ Queue: chấm (`submission`, `recheck`) và soạn theo yêu cầu (`request`, `initial`) | Làm ở H7.3; giới hạn Cloudflare cần thử ở H7.2 |
 | **R3. Runner giả** `scripts/fake-runner.mjs` | Sinh kết quả hợp lệ, có thể dự đoán từ context; dùng cho test, staging, demo | Làm ở H5.7 |
 
 ### 9.1 R1: tác vụ định kỳ ChatGPT
+
+> **Đã được thay bằng runner Qwen trên Mac của nhà** (`integrations/home-runner/`). Lịch 03:10 và các chi tiết R1 dưới đây mô tả phương án cũ.
 
 - **Lịch:** hằng ngày lúc 03:10 Europe/Berlin. Hướng dẫn của tác vụ lấy từ `integrations/runner-prompts/plan.md` (lưu trong repo):
 
