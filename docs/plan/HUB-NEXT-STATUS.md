@@ -6,7 +6,7 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-Khung staging U6 (gộp #161) đã kết thúc lúc 02:22 Europe/Berlin.
+staging: deploy L1 (#158) và P3 (#159) với migration `0030`, đến 03:30 Europe/Berlin
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
