@@ -3,6 +3,9 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { RuledPage } from "../../../components/notebook/paper";
 
+type Side = "left" | "right";
+type Corner = "top" | "bottom";
+
 /** A swipe this far (px) turns the page; shorter pulls spring back. */
 const SWIPE = 64;
 
@@ -24,7 +27,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const root = useRef<HTMLDivElement>(null);
   const paper = useRef<HTMLDivElement>(null);
   const paperId = useId();
-  const touch = useRef<{ x: number; y: number } | null>(null);
+  const touch = useRef<{ x: number; y: number; corner: Corner } | null>(null);
   const pages = [[0], ...groups, [count + 1]];
   const target = selected === "summary" ? count + 1 : selected;
   const index = Math.max(0, pages.findIndex(numbers => numbers.includes(target)));
@@ -34,7 +37,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const last = current.at(-1);
   const question = index > 0 && !end;
 
-  function jump(next: number, curl = 0) {
+  function jump(next: number, curl = 0, corner: Corner = "bottom") {
     if (next < 0 || next > count + 1 || next === target) return;
     const direction = next > target ? "next" : "previous";
     const update = () => {
@@ -44,16 +47,16 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     if (current.includes(next)) update();
     else {
       void import("./turn-leaf").then(({ turnLeaf }) => {
-        if (document.getElementById(paperId)) turnLeaf(paperId, direction, update, curl);
+        if (document.getElementById(paperId)) turnLeaf(paperId, direction, update, curl, corner);
       }, () => {
         if (document.getElementById(paperId)) update();
       });
     }
   }
 
-  function turn(offset: number, curl = 0) {
+  function turn(offset: number, curl = 0, corner: Corner = "bottom") {
     const next = pages[index + offset]?.[0];
-    if (next !== undefined) jump(next, curl);
+    if (next !== undefined) jump(next, curl, corner);
   }
 
   useEffect(() => {
@@ -66,17 +69,19 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     else if (section && section.getBoundingClientRect().top < 85) section.scrollIntoView({ block: "start" });
   }, [direction, first, target]);
 
-  const edges = useRef<{ left: HTMLButtonElement | null; right: HTMLButtonElement | null }>({ left: null, right: null });
+  const edges = useRef(new Map<string, HTMLElement>());
+  function keepEdge(key: string, element: HTMLElement | null) {
+    if (element) edges.current.set(key, element);
+    else edges.current.delete(key);
+  }
   const frame = useRef(0);
 
-  /** Lift the corner of one edge as far as the finger has pulled it (0 = at rest, 1 = turn threshold). */
-  function pull(side: "left" | "right" | null, amount = 0) {
+  /** Lift one corner as far as the finger has pulled it (0 = at rest, 1 = turn threshold). */
+  function pull(side: Side | null, amount = 0, corner: Corner = "bottom") {
     cancelAnimationFrame(frame.current);
     frame.current = requestAnimationFrame(() => {
-      for (const key of ["left", "right"] as const) {
-        const edge = edges.current[key];
-        if (!edge) continue;
-        if (key === side && amount > 0) {
+      for (const [key, edge] of edges.current) {
+        if (key === side + "-" + corner && amount > 0) {
           edge.dataset.pulled = "";
           edge.style.setProperty("--pull", Math.min(amount, 1.25).toFixed(3));
         } else if ("pulled" in edge.dataset) {
@@ -87,11 +92,19 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     });
   }
 
-  function turnFrom(offset: 1 | -1) {
-    const edge = edges.current[offset > 0 ? "right" : "left"];
-    const curl = edge ? edge.querySelector<HTMLElement>("[data-curl]")?.getBoundingClientRect().width ?? 0 : 0;
+  function turnFrom(offset: 1 | -1, corner: Corner = "bottom") {
+    if (locked) return;
+    const edge = edges.current.get((offset > 0 ? "right" : "left") + "-" + corner);
+    const curl = edge?.querySelector<HTMLElement>("[data-curl]")?.getBoundingClientRect().width ?? 0;
     if (hint && pages[index + offset]) onHintSeen();
-    turn(offset, curl);
+    turn(offset, curl, corner);
+  }
+
+  /** A swipe lifts the top corner when it starts in the upper half of a sheet whose top is on screen. */
+  function cornerAt(y: number): Corner {
+    const sheet = paper.current?.getBoundingClientRect();
+    if (!sheet || sheet.top < 0) return "bottom";
+    return y < (sheet.top + Math.min(sheet.bottom, innerHeight)) / 2 ? "top" : "bottom";
   }
 
   function clearTouch() {
@@ -120,7 +133,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       if (locked || event.touches.length !== 1 || !(event.target instanceof Element) ||
           event.target.closest(interactive + ", pre, table, [data-lesson-notes]")) return;
       const { clientX: x, clientY: y } = event.touches[0];
-      touch.current = { x, y };
+      touch.current = { x, y, corner: cornerAt(y) };
     }}
     onTouchMove={event => {
       const start = touch.current;
@@ -128,7 +141,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       const { clientX, clientY } = event.touches[0];
       const dx = clientX - start.x, dy = clientY - start.y;
       if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) { clearTouch(); pull(null); return; }
-      pull(dx < 0 ? "right" : "left", Math.abs(dx) / SWIPE);
+      pull(dx < 0 ? "right" : "left", Math.abs(dx) / SWIPE, start.corner);
     }}
     onTouchCancel={() => { clearTouch(); pull(null); }}
     onTouchEnd={event => {
@@ -137,7 +150,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       const dx = event.changedTouches[0].clientX - start.x;
       const dy = event.changedTouches[0].clientY - start.y;
       const offset = dx < 0 ? 1 : -1;
-      if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5 && pages[index + offset]) turnFrom(offset);
+      if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5 && pages[index + offset]) turnFrom(offset, start.corner);
       else pull(null);
     }}>
     <div id={paperId} ref={paper} className="lesson-flow-leaf" onAnimationEnd={event => {
@@ -155,14 +168,26 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
         {hint && !end && <p className="lesson-flow-hint font-hand">Chạm mép giấy để lật</p>}
         {status && <p role="status" className="mt-5 border-t border-rule pt-2 text-sm text-muted-paper">{status}</p>}
         <nav aria-label="Lật trang bài học">
-          {index > 0 && <button type="button" ref={edge => { edges.current.left = edge; }} data-turn-edge="left"
-            className="lesson-flow-edge" disabled={locked} aria-label="Trang trước" onClick={() => turnFrom(-1)}>
-            <span data-curl aria-hidden="true" />
-          </button>}
-          {!end && <button type="button" ref={edge => { edges.current.right = edge; }} data-turn-edge="right"
-            className="lesson-flow-edge" disabled={locked} aria-label={nextLabel} onClick={() => turnFrom(1)}>
-            <span data-curl aria-hidden="true" />
-          </button>}
+          {index > 0 && <>
+            <button type="button" ref={element => keepEdge("left-bottom", element)} data-turn-edge="left" data-side="left" data-corner="bottom"
+              className="lesson-flow-edge" disabled={locked} aria-label="Trang trước" onClick={() => turnFrom(-1)}>
+              <span data-curl aria-hidden="true" />
+            </button>
+            <span ref={element => keepEdge("left-top", element)} data-turn-corner="left" data-side="left" data-corner="top" aria-hidden="true"
+              className="lesson-flow-edge" data-disabled={locked || undefined} onClick={() => turnFrom(-1, "top")}>
+              <span data-curl />
+            </span>
+          </>}
+          {!end && <>
+            <button type="button" ref={element => keepEdge("right-bottom", element)} data-turn-edge="right" data-side="right" data-corner="bottom"
+              className="lesson-flow-edge" disabled={locked} aria-label={nextLabel} onClick={() => turnFrom(1)}>
+              <span data-curl aria-hidden="true" />
+            </button>
+            <span ref={element => keepEdge("right-top", element)} data-turn-corner="right" data-side="right" data-corner="top" aria-hidden="true"
+              className="lesson-flow-edge" data-disabled={locked || undefined} onClick={() => turnFrom(1, "top")}>
+              <span data-curl />
+            </span>
+          </>}
         </nav>
       </RuledPage>
     </div>

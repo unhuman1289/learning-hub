@@ -742,47 +742,51 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   line-height: var(--paper-line-height);
 }
 .lesson-flow-page {
-  min-height: 25rem;
+  /* At least the screen below the notebook bar, so neighbouring pages look like one sheet size. */
+  min-height: max(25rem, calc(100svh - 11rem));
   border-radius: 0 0 17px 17px;
   box-shadow: var(--shadow-page);
   overflow-wrap: anywhere;
 }
-/* Page edges turn the page. At rest the lower corner curls up a little; hover, focus or a
-   swipe lifts it further, and a turn starts from that curl (U6). */
+/* Page edges turn the page. At rest the bottom and top corners curl up a little; hover,
+   focus or a swipe lifts them further, and a turn starts from that curl (U6). The bottom
+   edge is the button; the top corner is an extra pointer target for the same turn. */
 .lesson-flow-page { padding-right: 2.75rem; }
 @media (min-width: 40rem) { .lesson-flow-page { padding-right: 3.25rem; } }
 .lesson-flow-edge {
   --pull: 0;
   position: absolute;
-  top: 50%;
-  bottom: 0;
   width: 2.75rem;
-  border-radius: 0 0 17px 17px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
-.lesson-flow-edge[data-turn-edge="left"] { left: 0; border-radius: 0 0 0 17px; }
-.lesson-flow-edge[data-turn-edge="right"] { right: 0; border-radius: 0 0 17px 0; }
-.lesson-flow-edge:disabled { cursor: default; }
+.lesson-flow-edge[data-corner="bottom"] { top: 50%; bottom: 0; }
+.lesson-flow-edge[data-corner="top"] { top: 0; height: min(25%, 7rem); }
+.lesson-flow-edge[data-side="left"] { left: 0; }
+.lesson-flow-edge[data-side="right"] { right: 0; }
+.lesson-flow-edge[data-side="left"][data-corner="bottom"] { border-radius: 0 0 0 17px; }
+.lesson-flow-edge[data-side="right"][data-corner="bottom"] { border-radius: 0 0 17px 0; }
+.lesson-flow-edge:is(:disabled, [data-disabled]) { cursor: default; }
 .lesson-flow-edge:focus-visible { outline: 2px solid var(--color-accent-paper); outline-offset: -3px; }
-/* The edge lifts more toward the bottom corner. */
+/* The edge lifts more toward its corner. */
 .lesson-flow-edge::before {
   position: absolute;
   inset-block: 0;
   width: 8px;
   background: linear-gradient(var(--edge-side), rgb(84 56 31 / .16), transparent);
-  mask-image: linear-gradient(transparent, #000 85%);
+  mask-image: linear-gradient(var(--edge-fade), transparent, #000 85%);
   transform-origin: var(--edge-origin) center;
   transition: transform 220ms cubic-bezier(.2, .75, .28, 1);
   content: "";
 }
-.lesson-flow-edge[data-turn-edge="left"]::before { left: 0; --edge-side: to right; --edge-origin: left; }
-.lesson-flow-edge[data-turn-edge="right"]::before { right: 0; --edge-side: to left; --edge-origin: right; }
+.lesson-flow-edge[data-corner="bottom"]::before { --edge-fade: to bottom; }
+.lesson-flow-edge[data-corner="top"]::before { --edge-fade: to top; }
+.lesson-flow-edge[data-side="left"]::before { left: 0; --edge-side: to right; --edge-origin: left; }
+.lesson-flow-edge[data-side="right"]::before { right: 0; --edge-side: to left; --edge-origin: right; }
 /* The corner: the page beneath, the curled back of the sheet, and its thin shadow. */
 .lesson-flow-edge [data-curl] {
   --curl-under: color-mix(in srgb, var(--color-paper) 82%, #a8906a);
   position: absolute;
-  bottom: 0;
   width: 26px;
   height: 26px;
   background: linear-gradient(var(--curl-side), var(--curl-under) 28%, color-mix(in srgb, var(--curl-under) 82%, #5c4326) 50%,
@@ -791,17 +795,19 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   transform-origin: var(--curl-origin);
   transition: transform 420ms cubic-bezier(.34, 1.56, .64, 1);
 }
-.lesson-flow-edge[data-turn-edge="left"] [data-curl] { left: 0; border-bottom-left-radius: 17px; --curl-side: to top right; --curl-origin: 0 100%; }
-.lesson-flow-edge[data-turn-edge="right"] [data-curl] { right: 0; border-bottom-right-radius: 17px; --curl-side: to top left; --curl-origin: 100% 100%; }
+.lesson-flow-edge[data-side="left"][data-corner="bottom"] [data-curl] { left: 0; bottom: 0; border-bottom-left-radius: 17px; --curl-side: to top right; --curl-origin: 0 100%; }
+.lesson-flow-edge[data-side="right"][data-corner="bottom"] [data-curl] { right: 0; bottom: 0; border-bottom-right-radius: 17px; --curl-side: to top left; --curl-origin: 100% 100%; }
+.lesson-flow-edge[data-side="left"][data-corner="top"] [data-curl] { left: 0; top: 0; --curl-side: to bottom right; --curl-origin: 0 0; }
+.lesson-flow-edge[data-side="right"][data-corner="top"] [data-curl] { right: 0; top: 0; --curl-side: to bottom left; --curl-origin: 100% 0; }
 .lesson-flow-edge[data-pulled] [data-curl], .lesson-flow-edge[data-pulled]::before { transition: none; }
-.lesson-flow-edge:enabled:is(:focus-visible, :active, [data-pulled]) [data-curl] { --curl-shade: .42; }
-.lesson-flow-edge:enabled:is(:focus-visible, :active) [data-curl] { transform: scale(calc(1.4 + var(--pull) * 1.4)); transition-duration: 200ms; transition-timing-function: ease-out; }
-.lesson-flow-edge:enabled:is(:focus-visible, :active)::before { transform: scaleX(1.7); }
+.lesson-flow-edge:not(:disabled, [data-disabled]):is(:focus-visible, :active, [data-pulled]) [data-curl] { --curl-shade: .42; }
+.lesson-flow-edge:not(:disabled, [data-disabled]):is(:focus-visible, :active) [data-curl] { transform: scale(calc(1.4 + var(--pull) * 1.4)); transition-duration: 200ms; transition-timing-function: ease-out; }
+.lesson-flow-edge:not(:disabled, [data-disabled]):is(:focus-visible, :active)::before { transform: scaleX(1.7); }
 @media (hover: hover) {
-  .lesson-flow-edge:enabled:hover [data-curl] { --curl-shade: .42; transform: scale(1.4); transition-duration: 200ms; transition-timing-function: ease-out; }
-  .lesson-flow-edge:enabled:hover::before { transform: scaleX(1.7); }
+  .lesson-flow-edge:not(:disabled, [data-disabled]):hover [data-curl] { --curl-shade: .42; transform: scale(1.4); transition-duration: 200ms; transition-timing-function: ease-out; }
+  .lesson-flow-edge:not(:disabled, [data-disabled]):hover::before { transform: scaleX(1.7); }
 }
-.lesson-flow-edge:disabled [data-curl] { opacity: .55; }
+.lesson-flow-edge:is(:disabled, [data-disabled]) [data-curl] { opacity: .55; }
 .lesson-flow-hint {
   margin-top: var(--paper-line-height);
   text-align: right;
@@ -831,16 +837,18 @@ html[data-lesson-turn] .lesson-flow-edge [data-curl] { opacity: 0; transition: n
 html[data-lesson-turn-in] .lesson-flow-leaf { view-transition-name: lesson-leaf-in; }
 html[data-lesson-turn-in] .lesson-flow-curl { view-transition-name: none; }
 @media (prefers-reduced-motion: no-preference) {
-  html[data-lesson-turn] { --lesson-turn: 650ms linear both; --curl-w: 48px; }
+  html[data-lesson-turn] { --lesson-turn: 650ms linear both; --curl-w: 48px; --fold-sign: 1; }
+  /* From a top corner the fold line leans the other way. */
+  html[data-lesson-fold="top"] { --fold-sign: -1; }
   html[data-lesson-turn]::view-transition-old(root),
   html[data-lesson-turn]::view-transition-old(book) { display: none; }
   html[data-lesson-turn]::view-transition-new(root),
   html[data-lesson-turn]::view-transition-new(book),
   html[data-lesson-turn]::view-transition-new(lesson-leaf-in) { animation: none; mix-blend-mode: normal; }
-  html[data-lesson-turn]::view-transition-group(lesson-leaf-in) { z-index: 1; animation: none; }
+  html[data-lesson-turn]::view-transition-group(lesson-leaf-in) { z-index: 1; animation: none; clip-path: var(--in-clip, none); }
   html[data-lesson-turn]::view-transition-group(site-header) { z-index: 4; }
-  html[data-lesson-turn]::view-transition-group(lesson-leaf) { z-index: 2; overflow: clip; animation: none; }
-  html[data-lesson-turn]::view-transition-group(lesson-curl) { z-index: 3; overflow: clip; animation: lesson-curl-fade var(--lesson-turn); }
+  html[data-lesson-turn]::view-transition-group(lesson-leaf) { z-index: 2; overflow: clip; animation: none; clip-path: var(--out-clip, none); }
+  html[data-lesson-turn]::view-transition-group(lesson-curl) { z-index: 3; overflow: clip; clip-path: var(--out-clip, none); animation: lesson-curl-fade var(--lesson-turn); }
   html[data-lesson-turn]::view-transition-image-pair(lesson-leaf),
   html[data-lesson-turn]::view-transition-image-pair(lesson-curl),
   html[data-lesson-turn]::view-transition-old(lesson-leaf) {
@@ -868,58 +876,58 @@ html[data-lesson-turn-in] .lesson-flow-curl { view-transition-name: none; }
   }
   /* Keyframes sample an ease-out curve; linear steps keep each wrapper the exact inverse of its sheet. */
   @keyframes lesson-curl-mask-next {
-    0% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(45deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
-    10% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(34deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
-    20% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(24deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
-    35% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(13deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
-    50% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(6deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
-    70% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(1.5deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
-    100% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(0deg) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    0% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * 45deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * 34deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * 24deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * 13deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * 6deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * 1.5deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
   }
   @keyframes lesson-curl-sheet-next {
-    0% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(-45deg) translate(calc((var(--leaf-w) - var(--turn-from)) * -1), calc(var(--curl-y) * -1)); }
-    10% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(-34deg) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.729), calc(var(--curl-y) * -1)); }
-    20% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(-24deg) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.512), calc(var(--curl-y) * -1)); }
-    35% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(-13deg) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.275), calc(var(--curl-y) * -1)); }
-    50% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(-6deg) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.125), calc(var(--curl-y) * -1)); }
-    70% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(-1.5deg) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.027), calc(var(--curl-y) * -1)); }
-    100% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(0deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0), calc(var(--curl-y) * -1)); }
+    0% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -45deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -1), calc(var(--curl-y) * -1)); }
+    10% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -34deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.729), calc(var(--curl-y) * -1)); }
+    20% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -24deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.512), calc(var(--curl-y) * -1)); }
+    35% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -13deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.275), calc(var(--curl-y) * -1)); }
+    50% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -6deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.125), calc(var(--curl-y) * -1)); }
+    70% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -1.5deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.027), calc(var(--curl-y) * -1)); }
+    100% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 0deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0), calc(var(--curl-y) * -1)); }
   }
   @keyframes lesson-curl-roll-next {
-    0% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(45deg) scaleX(0.35) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
-    10% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(34deg) scaleX(0.8) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
-    20% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(24deg) scaleX(1) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
-    35% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(13deg) scaleX(1) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
-    50% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(6deg) scaleX(0.9) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
-    70% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(1.5deg) scaleX(0.7) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
-    100% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(0deg) scaleX(0.5) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    0% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * 45deg)) scaleX(0.35) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * 34deg)) scaleX(0.8) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * 24deg)) scaleX(1) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * 13deg)) scaleX(1) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * 6deg)) scaleX(0.9) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * 1.5deg)) scaleX(0.7) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) scaleX(0.5) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
   }
   @keyframes lesson-curl-mask-previous {
-    0% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(-45deg) translate(0px, calc(var(--turn-l) * -.5)); }
-    10% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(-34deg) translate(0px, calc(var(--turn-l) * -.5)); }
-    20% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(-24deg) translate(0px, calc(var(--turn-l) * -.5)); }
-    35% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(-13deg) translate(0px, calc(var(--turn-l) * -.5)); }
-    50% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(-6deg) translate(0px, calc(var(--turn-l) * -.5)); }
-    70% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(-1.5deg) translate(0px, calc(var(--turn-l) * -.5)); }
-    100% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(0deg) translate(0px, calc(var(--turn-l) * -.5)); }
+    0% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * -45deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * -34deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * -24deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * -13deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * -6deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * -1.5deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) translate(0px, calc(var(--turn-l) * -.5)); }
   }
   @keyframes lesson-curl-sheet-previous {
-    0% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(45deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 1 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
-    10% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(34deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
-    20% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(24deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
-    35% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(13deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
-    50% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(6deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
-    70% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(1.5deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
-    100% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(0deg) translate(calc((var(--leaf-w) - var(--turn-from)) * 0 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    0% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 45deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 1 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    10% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 34deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    20% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 24deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    35% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 13deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    50% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 6deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    70% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 1.5deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    100% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 0deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
   }
   @keyframes lesson-curl-roll-previous {
-    0% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(-45deg) scaleX(0.35) translate(0px, calc(var(--turn-l) * -.5)); }
-    10% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(-34deg) scaleX(0.8) translate(0px, calc(var(--turn-l) * -.5)); }
-    20% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(-24deg) scaleX(1) translate(0px, calc(var(--turn-l) * -.5)); }
-    35% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(-13deg) scaleX(1) translate(0px, calc(var(--turn-l) * -.5)); }
-    50% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(-6deg) scaleX(0.9) translate(0px, calc(var(--turn-l) * -.5)); }
-    70% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(-1.5deg) scaleX(0.7) translate(0px, calc(var(--turn-l) * -.5)); }
-    100% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(0deg) scaleX(0.5) translate(0px, calc(var(--turn-l) * -.5)); }
+    0% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * -45deg)) scaleX(0.35) translate(0px, calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * -34deg)) scaleX(0.8) translate(0px, calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * -24deg)) scaleX(1) translate(0px, calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * -13deg)) scaleX(1) translate(0px, calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * -6deg)) scaleX(0.9) translate(0px, calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * -1.5deg)) scaleX(0.7) translate(0px, calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) scaleX(0.5) translate(0px, calc(var(--turn-l) * -.5)); }
   }
   @keyframes lesson-curl-fade { 70% { opacity: 1; } to { opacity: 0; } }
   .lesson-flow-leaf[data-fallback-turn] .lesson-flow-page { animation: lesson-leaf-arrive 380ms cubic-bezier(.16, 1, .3, 1); }
