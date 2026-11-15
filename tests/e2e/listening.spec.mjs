@@ -143,7 +143,8 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   if (simulated) await media.evaluate(node => {
     node.play = async () => { node.dispatchEvent(new Event('playing')); };
   });
-  await retry.tap();
+  await retry.focus();
+  await page.keyboard.press('r');
   await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
   if (simulated) await media.dispatchEvent('ended');
   await expect(article.getByText('Còn 1 lượt nghe')).toBeVisible();

@@ -116,8 +116,8 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
   const shortcut = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
         event.shiftKey || !(event.target instanceof Element) ||
-        event.target.closest("input, textarea, select, button, a, summary, [contenteditable], [role=alertdialog]")) return;
-    if (event.code === "Space") {
+        event.target.closest("input, textarea, select, [contenteditable], [role=alertdialog]")) return;
+    if (event.code === "Space" && !event.target.closest("button, a, summary")) {
       event.preventDefault();
       toggle();
     } else if (event.key.toLowerCase() === "r") {
