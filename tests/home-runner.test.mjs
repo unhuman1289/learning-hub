@@ -669,28 +669,46 @@ test('TTS probes complete voice pairs and renders and uploads both ordered varia
   assert.equal(new Set(uploaded).size, 2);
 });
 
-test('runner exits cleanly on SIGTERM while idle instead of waiting for its next poll', { timeout: 10000 }, async t => {
-  const preload = `globalThis.fetch = async url => {
-    if (String(url).endsWith('/models')) return Response.json({ data: [{ id: 'test' }] });
-    console.log('lease polled');
-    return Response.json({ jobs: [] });
-  };`;
-  const child = spawn(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(preload),
-    'integrations/home-runner/runner.mjs', '--config', '/dev/null'], {
-    env: { PATH: process.env.PATH, HUB_BASE_URL: 'http://localhost', HUB_BEARER: 'lhk_test_' + 'x'.repeat(40),
-      QWEN_BASE_URL: 'http://localhost/v1', QWEN_MODEL: 'test' },
+for (const active of [false, true]) {
+  test('runner exits cleanly on SIGTERM ' + (active ? 'after draining a leased job' : 'while idle'),
+    { timeout: 10000 }, async t => {
+    const preload = `globalThis.fetch = async url => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/models')) return Response.json({ data: [{ id: 'test' }] });
+      if (path.endsWith('/jobs/lease')) {
+        console.log('lease polled');
+        return Response.json({ jobs: ${JSON.stringify(active
+          ? [{ jobId: 'job_aaaaaaaaaaaaaaaaaaaa', kind: 'assess', leaseToken: 'active-lease' }] : [])} });
+      }
+      if (path.endsWith('/context')) {
+        console.log('job started');
+        await new Promise(resolve => setTimeout(resolve, 250));
+        return Response.json({ attempts: [{ attachments: [{ expired: false }] }] });
+      }
+      if (path.endsWith('/fail')) {
+        console.log('job drained');
+        return Response.json({ status: 'queued' });
+      }
+      throw Error('Unexpected request');
+    };`;
+    const child = spawn(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(preload),
+      'integrations/home-runner/runner.mjs', '--config', '/dev/null'], {
+      env: { PATH: process.env.PATH, HUB_BASE_URL: 'http://localhost', HUB_BEARER: 'lhk_test_' + 'x'.repeat(40),
+        QWEN_BASE_URL: 'http://localhost/v1', QWEN_MODEL: 'test' },
+    });
+    t.after(() => child.kill('SIGKILL'));
+    const exited = once(child, 'exit');
+    let stdout = '';
+    await Promise.race([
+      new Promise(resolve => child.stdout.on('data', chunk => {
+        stdout += chunk;
+        if (stdout.includes(active ? 'job started' : 'lease polled')) resolve();
+      })),
+      exited.then(() => { throw Error('Runner exited before polling.'); }),
+    ]);
+    child.kill('SIGTERM');
+    assert.deepEqual(await exited, [0, null]);
+    assert.equal(stdout.match(/lease polled/g)?.length, 1);
+    assert.match(stdout, active ? /job drained[\s\S]*"event":"stop"/ : /"event":"stop"/);
   });
-  t.after(() => child.kill('SIGKILL'));
-  const exited = once(child, 'exit');
-  let stdout = '';
-  await Promise.race([
-    new Promise(resolve => child.stdout.on('data', chunk => {
-      stdout += chunk;
-      if (stdout.includes('lease polled')) resolve();
-    })),
-    exited.then(() => { throw Error('Runner exited before polling.'); }),
-  ]);
-  child.kill('SIGTERM');
-  assert.deepEqual(await exited, [0, null]);
-  assert.match(stdout, /"event":"stop"/);
-});
+}
