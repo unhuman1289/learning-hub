@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import { runFake } from '../../scripts/fake-runner.mjs';
 import { shapeNetwork, timeFromTap } from './network.mjs';
+import { routeMetrics } from './route-metrics.mjs';
 
 const desk = page => page.getByRole('region', { name: 'Bài tiếp theo' });
 const flow = page => page.locator('.lesson-flow');
@@ -19,27 +19,6 @@ function checkTime(info, metric, ms, localLimit) {
 const turnSettled = page => expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn');
 const openLesson = page => desk(page).getByRole('listitem').filter({ hasText: 'Deutsch' })
   .getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
-
-function routeMetrics(page) {
-  const origin = new URL(page.url()).origin;
-  const api = [], files = new Set();
-  const collect = request => {
-    const url = new URL(request.url());
-    if (url.origin !== origin || request.method() !== 'GET') return;
-    if (url.pathname.startsWith('/api/')) api.push(url.pathname);
-    if (url.pathname.endsWith('.js')) files.add(url.href);
-  };
-  page.on('request', collect);
-  return async () => {
-    page.off('request', collect);
-    const sizes = await Promise.all([...files].map(async url => {
-      const response = await fetch(url);
-      expect(response.ok).toBe(true);
-      return gzipSync(Buffer.from(await response.arrayBuffer())).length;
-    }));
-    return { api, gzip: sizes.reduce((sum, bytes) => sum + bytes, 0), chunks: [...files].map((url, i) => [new URL(url).pathname.split("/").at(-1), sizes[i]]) };
-  };
-}
 
 async function noOverflow(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
