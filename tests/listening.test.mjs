@@ -45,6 +45,23 @@ test('Chinese dictation compares Han characters or normalized pinyin syllables',
     assert.equal(gradeDictation(daughter, answer).result, 'correct', answer);
 });
 
+test('joined pinyin uses the longest valid syllables and preserves tones', () => {
+  const cases = [
+    ['你好', 'ni3 hao3', ['nǐhǎo', 'ni3hao3', 'nǐhǎo'.normalize('NFD')]],
+    ['谢谢', 'xie4 xie5', ['xièxie', 'xie4xie5', 'xie4xie0']],
+    ['中国', 'zhong1 guo2', ['Zhōngguó', 'zhong1guo2']],
+    ['女儿', 'nü3 er2', ['nǚér', 'nu:3er2']],
+    ['先', 'xian1', ['xiān']],
+  ];
+  for (const [text, pinyin, answers] of cases) {
+    for (const answer of answers)
+      assert.equal(gradeDictation({ ...chinese, text, pinyin }, answer).result, 'correct', answer);
+  }
+  assert.deepEqual(gradeDictation(chinese, 'nǐhào').wrong, [{ expected: 'hao3', actual: 'hao4' }]);
+  assert.equal(gradeDictation({ ...chinese, text: '中国', pinyin: 'zhong1 guo2', ignore: [] }, 'Zhōngguó').result, 'incorrect');
+  assert.equal(gradeDictation({ ...chinese, text: '西安', pinyin: 'xi1 an1' }, 'xī’ān').result, 'correct');
+});
+
 const original = JSON.parse(readFileSync(new URL('../fixtures/contracts/lesson-v2/deutsch-modalverb.json', import.meta.url)));
 const audio = { lang: 'de-DE', rate: 0.8, maxPlays: 3, transcript: 'after_answer',
   lines: [{ speaker: 'a', text: 'Wir gehen nach Hause.' }] };

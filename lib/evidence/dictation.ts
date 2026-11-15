@@ -1,25 +1,9 @@
 import type { AudioSpec } from '../contracts/lesson-package-v3.ts';
 import type { AnswerKey } from '../contracts/lesson-items.ts';
 import { normalizeText } from './normalize-text.ts';
+import { pinyinSyllables } from './pinyin.ts';
 
 type DictationKey = Extract<AnswerKey, { type: 'dictation' }>;
-const toneMarks: Record<string, string> = { '\u0304': '1', '\u0301': '2', '\u030c': '3', '\u0300': '4' };
-
-function pinyinSyllables(value: string) {
-  return value.split(/\s+|(?<=[0-5])(?=\p{L})/u).filter(Boolean).map(syllable => {
-    let markedTone = '';
-    const letters = syllable.normalize('NFD').replace(/[\u0304\u0301\u030c\u0300]/g, mark => {
-      markedTone = toneMarks[mark];
-      return '';
-    }).normalize('NFC').replace(/v/g, 'ü').replace(/V/g, 'Ü');
-    const numberedTone = letters.match(/[0-5]$/)?.[0];
-    if (numberedTone) {
-      const tone = numberedTone === '0' ? '5' : numberedTone;
-      return markedTone && markedTone !== tone ? syllable : letters.slice(0, -1) + tone;
-    }
-    return letters + (markedTone || '5');
-  });
-}
 
 export function gradeDictation(key: DictationKey, answer: string, lang?: AudioSpec['lang']) {
   const chinese = lang === 'zh-CN' || (lang === undefined && !!key.pinyin);
