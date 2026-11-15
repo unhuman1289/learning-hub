@@ -15,6 +15,7 @@ function seed(db){
   db.sqlite.prepare('INSERT INTO learning_slots VALUES(?,?,?,0)').run(learner,track,'old-'+track);
  }
 }
+const listeningSchema=readFileSync(new URL('../drizzle/0031_listening.sql',import.meta.url),'utf8');
 const now=new Date('2026-10-08T01:00:01Z');
 const input=runId=>runSchema.parse({runId,runDate:'2026-10-08',summary:'Kiểm tra',lessons:[{track:'Deutsch',expectedId:'old-Deutsch',content},{track:'Cardio',expectedId:'old-Cardio',content}]});
 test('separate attempts append runs; guarded writer records every track and keeps old answers',async()=>{
@@ -68,9 +69,9 @@ test('backup restores every table and Unicode/quotes into empty migrated SQLite;
  db.sqlite.prepare('INSERT INTO learning_workspace VALUES(?,?,2,?)').run('__shared_family_workspace__',JSON.stringify({notes:["Ghi chú ' tiếng Việt"]}),now.toISOString());
  // Keep the v1 journal tables for this fixture while exercising the current backup contract.
  const perfSchema=readFileSync(new URL('../drizzle/0030_perf.sql',import.meta.url),'utf8');
- db.sqlite.exec(perfSchema);
+ db.sqlite.exec(perfSchema+listeningSchema);
  const backup=await createBackup(db,'user-private',now);assert.equal(backup.format,4);
- const copy=memoryDb({ through: "0025" });copy.sqlite.exec(perfSchema);copy.sqlite.exec(buildRestoreSql(backup));
+ const copy=memoryDb({ through: "0025" });copy.sqlite.exec(perfSchema+listeningSchema);copy.sqlite.exec(buildRestoreSql(backup));
  for(const [table,expected]of Object.entries(backup.tables))assert.deepEqual(copy.sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),expected,table);
  assert.throws(()=>copy.sqlite.exec(buildRestoreSql(backup)),/UNIQUE/);
  assert.throws(()=>buildRestoreSql({...backup,tables:{...backup.tables,learning_lessons:[]}}),/missing lessons/);
@@ -84,7 +85,7 @@ test('legacy snapshot restoration requires and applies an explicit learner owner
   learning_runs:[],
  }};
  assert.throws(()=>buildRestoreSql(snapshot),/Missing column in learning_lessons/);
- const copy=memoryDb({ through: "0025" });copy.sqlite.exec(buildRestoreSql(snapshot,{legacyOwnerId:'admin-vu'}));
+ const copy=memoryDb({ through: "0025" });copy.sqlite.exec(listeningSchema);copy.sqlite.exec(buildRestoreSql(snapshot,{legacyOwnerId:'admin-vu'}));
  assert.equal(copy.sqlite.prepare('SELECT user_id FROM learning_lessons WHERE id=?').get('legacy-de').user_id,'admin-vu');
  assert.equal(copy.sqlite.prepare('SELECT user_id FROM learning_slots WHERE track=?').get('Deutsch').user_id,'admin-vu');
  copy.sqlite.close();

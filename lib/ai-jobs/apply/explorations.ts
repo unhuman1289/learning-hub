@@ -1,3 +1,4 @@
+import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
@@ -30,6 +31,7 @@ export async function prepareExplorations(
   token: string,
   now: Date,
   issue: Issue,
+  audioBucket?: Pick<R2Bucket, 'head'>,
 ) {
   const statements: Statement[] = [],
     guards: Statement[] = [],
@@ -78,7 +80,8 @@ export async function prepareExplorations(
     }
     const explore = !subjectId,
       targetId = subjectId ?? (await exploreSubjectId(job.learner_id));
-    const checked = validateLessonPackage(e.lesson, {
+    const audio = await resolveLessonAudio(db, e.lesson, context.tts, audioBucket);
+    const checked = validateLessonPackage(audio.lesson, {
       maxDifficulty: context.adaptive?.difficulty?.max ?? known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
       minDifficulty:context.adaptive?.difficulty?.min,
       sensitivity: known?.sensitivity ?? 'normal',
@@ -223,8 +226,8 @@ export async function prepareExplorations(
       statements.push(
         db
           .prepare(
-            `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at)
-             SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND ${gate}`,
+            `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at,stimulus,audio_hash_f,audio_hash_m)
+             SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND ${gate}`,
           )
           .bind(
             id,
@@ -238,8 +241,9 @@ export async function prepareExplorations(
             item.difficulty,
             item.key ? 1 : 0,
             hashes[i],
-            JSON.stringify(item),
+            JSON.stringify('audio' in item && item.audio ? { ...item, audio: { ...item.audio, ...audio.assets.get(item.id) } } : item),
             stamp,
+            ...audioColumns(audio.assets.get(item.id)),
             id,
             ...args,
           ),

@@ -77,11 +77,11 @@ function lesson(items) {
 }
 
 test('lesson views expose only allowlisted audio metadata, even after grading or revealing support', () => {
-  const stored = { ...item, audio: { ...audio, hash: 'hub-hash', durationMs: 2400, storageKey: 'private' } };
+  const stored = { ...item, audio: { ...audio, hashF: 'female-hash', hashM: 'male-hash', durationMs: 2400, storageKey: 'private' } };
   const { lines, ...metadata } = audio;
   for (const [support, graded] of [[undefined, false], ['solution', false], [undefined, true]]) {
     const view = itemView(stored, 'independent', support, graded);
-    assert.deepEqual(view.audio, { ...metadata, hash: 'hub-hash', durationMs: 2400 });
+    assert.deepEqual(view.audio, { ...metadata, src: { f: '/api/audio/female-hash', m: '/api/audio/male-hash' }, durationMs: 2400 });
     assert.ok(!JSON.stringify(view.audio).includes(lines[0].text));
     assert.ok(!('key' in view));
   }

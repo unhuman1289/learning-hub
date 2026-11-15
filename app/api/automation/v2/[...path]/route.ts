@@ -1,3 +1,4 @@
+import { uploadAudio } from '../../../../../lib/audio/upload';
 import { callKnowledgeTool,routeKnowledge } from '../../../../../lib/knowledge/tools';
 import {readBoundedText} from '../../../../../lib/mcp/body';
 import { sendAlertDigest } from '../../../../../lib/alerts';
@@ -10,7 +11,7 @@ import { leaseJobs, leasedJob, readJob, heartbeat, permits, failLeasedJob } from
 import { applyResult } from '../../../../../lib/ai-jobs/result';
 import { planContext, planResult, assessContext, assessResult } from '../../../../../lib/contracts/ai-common';
 import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-items';
-import { lessonPackageV3 } from '../../../../../lib/contracts/lesson-package-v3';
+import { lessonPackageV3, ttsVoices } from '../../../../../lib/contracts/lesson-package-v3';
 import { historyMarkdown, readHistory } from '../../../../../lib/history';
 import { learnerStatus } from '../../../../../lib/status';
 import { householdMode } from '../../../../../lib/household';
@@ -35,9 +36,10 @@ const leaseBody = z
     max: z.number().int().min(1).max(5),
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
     capabilities: z
-      .array(z.enum(['vision', 'adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2']))
-      .max(5)
+      .array(z.enum(['vision', 'adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', 'tts']))
+      .max(8)
       .optional(),
+    ttsVoices: ttsVoices.optional(),
   })
   .strict();
 // Building JSON Schema costs real CPU; do it once per isolate.
@@ -142,6 +144,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         new URL(req.url).searchParams.get('dryRun') === '1',
         new Date(),
         env.AI_PRICE_TABLE,
+        env.UPLOADS,
       );
       // Email only when the third failed check ends the job; the 06:00 digest covers the rest.
       if (result.status === 422 && (await readJob(db, id))?.status === 'failed') await sendAlertDigest(db, env).catch(() => {});
@@ -149,6 +152,11 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     }
     if (action === 'heartbeat' && req.method === 'POST') return Response.json(await heartbeat(db, client, id, token), { headers });
     const job = await leasedJob(db, client, id, token);
+    if (action === 'audio' && path.length === 4 && req.method === 'PUT') {
+      if (!env.UPLOADS) throw new ApiError(503, 'Kho âm thanh chưa được cấu hình.');
+      return Response.json(await uploadAudio(db, env.UPLOADS, req, job, path[3],
+        () => leasedJob(db, client, id, token)), { headers });
+    }
     if (action === 'context' && req.method === 'GET') return Response.json(JSON.parse(job.context_snapshot!), { headers });
     if (action === 'fail' && req.method === 'POST') {
       const input = z
@@ -180,4 +188,5 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
   }
 }
 export const GET = route,
-  POST = route;
+  POST = route,
+  PUT = route;

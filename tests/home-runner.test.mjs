@@ -1,3 +1,8 @@
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { writeFile, readFile } from 'node:fs/promises';
+import { probeTts, synthesize, uploadPlanAudio } from '../integrations/home-runner/tts.mjs';
+import { audioVariant } from '../lib/audio/hash.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -610,3 +615,100 @@ test('runner normalizes numeric keys and table cells without guessing ambiguous 
   assert.deepEqual(table.key.cells[2], lesson.items[1].key.cells[2]);
   assert.equal(lesson.items[0].key.value, '  x =  3 / 4  ');
 });
+
+test('TTS probes complete voice pairs and renders and uploads both ordered variants', async () => {
+  const config = 'de-DE:f=Anna,m=Reed;zh-CN:f=Tingting,m=Eddy';
+  const probe = names => probeTts(config, { run: async (program, args) => {
+    assert.equal(program, 'say');
+    assert.deepEqual(args, ['-v', '?']);
+    return { stdout: names };
+  } });
+  const voices = await probe('Anna   de_DE # Hallo\nReed   de_DE # Hallo\nTingting   zh_CN # 你好');
+  const pair = { f: 'Anna', m: 'Reed' };
+  assert.deepEqual(voices, { 'de-DE': pair });
+  assert.ok(leaseRequest({}, { ttsVoices: voices }).capabilities.includes('tts'));
+  assert.ok(!leaseRequest({}, { ttsVoices: await probe('Anna   de_DE # Hallo') }).capabilities.includes('tts'));
+  const audio = { lang: 'de-DE', rate: 0.8, lines: [{ speaker: 'a', text: 'Hallo.' }, { speaker: 'b', text: 'Guten Tag.' }] };
+  const spoken = [], uploaded = [];
+  const rendered = Buffer.from('fake-m4a');
+  const run = async (program, args) => {
+    if (program === 'say') {
+      spoken.push([args[1], (await readFile(args.at(-1), 'utf8'))]);
+      assert.equal(args[3], '140');
+      const fakeAiff = Buffer.alloc(30);
+      fakeAiff.write('FORM');
+      fakeAiff.write('AIFFSSND', 8);
+      fakeAiff.writeUInt32BE(10, 16);
+      fakeAiff.fill(1, 28);
+      await writeFile(args[args.indexOf('-o') + 1], fakeAiff);
+    } else {
+      assert.equal(program, 'afconvert');
+      assert.deepEqual(args.slice(0, 6), ['-f', 'm4af', '-d', 'aac', '-b', '64000']);
+      const aiff = await readFile(args.at(-2));
+      assert.deepEqual(aiff.subarray(54), Buffer.concat([Buffer.alloc(2, 1), Buffer.alloc(17640), Buffer.alloc(2, 1)]));
+      await writeFile(args.at(-1), rendered);
+    }
+  };
+  const lease = { jobId: 'job_aaaaaaaaaaaaaaaaaaaa', leaseToken: 'lease-test' };
+  const hub = createHub({ baseUrl: 'http://localhost', bearer: 'lhk_test_' + 'x'.repeat(40), fetcher: async (url, options) => {
+    const hash = url.split('/').at(-1);
+    assert.equal(options.method, 'PUT');
+    assert.equal(options.headers['Content-Type'], 'audio/mp4');
+    assert.equal(options.headers['X-Lease-Token'], lease.leaseToken);
+    const spec = JSON.parse(Buffer.from(options.headers['X-Audio-Spec'], 'base64'));
+    assert.deepEqual(spec.audio, audio);
+    assert.equal(hash, (await audioVariant(audio, pair, spec.variant)).hash);
+    assert.deepEqual(options.body, rendered);
+    uploaded.push(hash);
+    return Response.json({ hash });
+  } });
+  await uploadPlanAudio(hub, lease, { tts: { voices } }, {
+    subjects: [{ primaryLesson: { items: [{ audio }] } }], explorations: [],
+  }, (spec, names) => synthesize(spec, names, { run }));
+  assert.deepEqual(spoken, [['Anna', 'Hallo.'], ['Reed', 'Guten Tag.'], ['Reed', 'Hallo.'], ['Anna', 'Guten Tag.']]);
+  assert.equal(new Set(uploaded).size, 2);
+});
+
+for (const active of [false, true]) {
+  test('runner exits cleanly on SIGTERM ' + (active ? 'after draining a leased job' : 'while idle'),
+    { timeout: 10000 }, async t => {
+    const preload = `globalThis.fetch = async url => {
+      const path = new URL(url).pathname;
+      if (path.endsWith('/models')) return Response.json({ data: [{ id: 'test' }] });
+      if (path.endsWith('/jobs/lease')) {
+        console.log('lease polled');
+        return Response.json({ jobs: ${JSON.stringify(active
+          ? [{ jobId: 'job_aaaaaaaaaaaaaaaaaaaa', kind: 'assess', leaseToken: 'active-lease' }] : [])} });
+      }
+      if (path.endsWith('/context')) {
+        console.log('job started');
+        await new Promise(resolve => setTimeout(resolve, 250));
+        return Response.json({ attempts: [{ attachments: [{ expired: false }] }] });
+      }
+      if (path.endsWith('/fail')) {
+        console.log('job drained');
+        return Response.json({ status: 'queued' });
+      }
+      throw Error('Unexpected request');
+    };`;
+    const child = spawn(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(preload),
+      'integrations/home-runner/runner.mjs', '--config', '/dev/null'], {
+      env: { PATH: process.env.PATH, HUB_BASE_URL: 'http://localhost', HUB_BEARER: 'lhk_test_' + 'x'.repeat(40),
+        QWEN_BASE_URL: 'http://localhost/v1', QWEN_MODEL: 'test' },
+    });
+    t.after(() => child.kill('SIGKILL'));
+    const exited = once(child, 'exit');
+    let stdout = '';
+    await Promise.race([
+      new Promise(resolve => child.stdout.on('data', chunk => {
+        stdout += chunk;
+        if (stdout.includes(active ? 'job started' : 'lease polled')) resolve();
+      })),
+      exited.then(() => { throw Error('Runner exited before polling.'); }),
+    ]);
+    child.kill('SIGTERM');
+    assert.deepEqual(await exited, [0, null]);
+    assert.equal(stdout.match(/lease polled/g)?.length, 1);
+    assert.match(stdout, active ? /job drained[\s\S]*"event":"stop"/ : /"event":"stop"/);
+  });
+}

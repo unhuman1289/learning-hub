@@ -1,3 +1,5 @@
+import type { TtsVoices } from '../contracts/lesson-package-v3.ts';
+import type { PlanContext } from '../contracts/ai-common.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { berlinDay } from '../daily-policy.ts';
 import { ApiError } from '../api-error.ts';
@@ -51,7 +53,7 @@ export async function maintainJobs(db: EvidenceDb, now = new Date()) {
 export async function leaseJobs(
   db: EvidenceDb,
   client: AutomationClient,
-  input: { kinds: string[]; subjectIds?: string[]; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string }; capabilities?: string[] },
+  input: { kinds: string[]; subjectIds?: string[]; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string }; capabilities?: string[]; ttsVoices?: TtsVoices },
   environment: string,
   now = new Date(),
 ) {
@@ -62,6 +64,9 @@ export async function leaseJobs(
   const triggers = (client.triggers ?? []).filter((x) => !input.triggers || input.triggers.includes(x));
   if (!kinds.length || !purposes.length || !triggers.length) throw new ApiError(403, 'Client không được lease loại công việc này.');
   await recordPresence(db, client.id, input.runner, input.capabilities ?? [], now);
+  const languages = Object.keys(input.ttsVoices ?? {}) as NonNullable<PlanContext['tts']>['languages'];
+  const tts = input.capabilities?.includes('tts') && input.ttsVoices && languages.length
+    ? { languages, voices: input.ttsVoices } : undefined;
   const vision = input.capabilities?.includes('vision') && client.scopes.includes('attachments:read') ? 1 : 0;
   const packageFilter = input.capabilities?.includes('lesson-v3') ? '' : `
     AND kind<>'plan'
@@ -103,7 +108,7 @@ export async function leaseJobs(
       .first<Job>();
     if (!job) break;
     try {
-      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment, input.capabilities?.includes('roadmap-v2') ?? false) : await buildAssessContext(db, job, environment, now);
+      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment, input.capabilities?.includes('roadmap-v2') ?? false, tts) : await buildAssessContext(db, job, environment, now);
       const changed = await db
         .prepare("UPDATE ai_jobs SET context_snapshot=?,context_hash=? WHERE id=? AND status='leased' AND lease_token_sha256=?")
         .bind(JSON.stringify(context), context.contextHash, job.id, hash)
