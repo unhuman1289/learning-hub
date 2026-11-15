@@ -186,8 +186,23 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(page.getByRole('heading', { name: title, exact: true }).filter({ visible: true })).toBeVisible();
   const credentials = JSON.parse(await readFile('.wrangler/demo-runner.json', 'utf8'));
   const fixture = JSON.parse(await readFile('fixtures/lessons/deutsch-modalverb.json', 'utf8'));
+  fixture.items[0].audio = { lang: 'de-DE', rate: 0.8, maxPlays: 3, transcript: 'never',
+    lines: [{ speaker: 'a', text: 'Guten Morgen.' }] };
   const results = await runFake({ baseUrl: origin.replace('127.0.0.1', 'localhost'), credentials, fixture });
-  expect(results.some(result => result.outcome?.subjects?.some(subject => subject.lessonIds.length))).toBe(true);
+  const [savedLesson] = results.flatMap(result => result.outcome?.subjects?.flatMap(subject => subject.lessonIds) ?? []);
+  expect(savedLesson).toBeTruthy();
+  const response = await page.request.get('/api/lessons/' + savedLesson);
+  expect(response.ok()).toBe(true);
+  const listening = (await response.json()).lesson.items[0].audio;
+  expect(listening).not.toHaveProperty('lines');
+  expect(listening.durationMs).toBeGreaterThan(0);
+  expect(listening.src.f).not.toBe(listening.src.m);
+  for (const src of Object.values(listening.src)) {
+    const clip = await page.request.get(src, { headers: { Range: 'bytes=0-15' } });
+    expect(clip.status()).toBe(206);
+    expect(clip.headers()['content-range']).toMatch(/^bytes 0-15\/\d+$/);
+    expect((await clip.body()).toString('ascii', 4, 8)).toBe('ftyp');
+  }
   await page.reload();
   await expect(page.getByRole('link', { name: /Mở bài|Làm tiếp/ }).first()).toBeVisible();
 

@@ -3,9 +3,11 @@
 // Start: node --experimental-strip-types integrations/home-runner/runner.mjs [--once] [--config <file>]
 import { spawn } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { setTimeout as delayFor } from 'node:timers/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { probeTts } from './tts.mjs';
 import { createHub } from './hub.mjs';
 import { qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
@@ -56,22 +58,26 @@ export function pollDelay(now = new Date(), { dayMs = 15000, nightMs = 300000 } 
   return m >= 360 && m < 1410 ? dayMs : nightMs;
 }
 
-export function leaseRequest(qwen, { daily = false } = {}) {
+export function leaseRequest(qwen, { daily = false, ttsVoices = {} } = {}) {
+  const tts = Object.keys(ttsVoices).length > 0;
   return {
     kinds: ['assess', 'plan'],
     purposes: ['submission', 'recheck', 'request', 'initial', ...(daily ? ['daily'] : [])],
     triggers: ['on_demand', 'deferred', ...(daily ? ['scheduled'] : [])],
     max: 1,
-    capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(qwen.vision ? ['vision'] : [])],
+    capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(qwen.vision ? ['vision'] : []), ...(tts ? ['tts'] : [])],
+    ...(tts ? { ttsVoices } : {}),
     runner: { name: 'home-runner', version: VERSION, model: 'qwen' },
   };
 }
 
 const log = (entry) => console.log(JSON.stringify({ t: new Date().toISOString(), ...entry }));
 
-export async function runOnce(hub, qwen, { daily = false } = {}) {
+export async function runOnce(hub, qwen, { daily = false, ttsVoices, signal } = {}) {
+  if (signal?.aborted) return { idle: true };
   if (!await qwen.available()) return { idle: true, reason: 'no_engine' };
-  const [lease] = await hub.lease(leaseRequest(qwen, { daily }));
+  if (signal?.aborted) return { idle: true };
+  const [lease] = await hub.lease(leaseRequest(qwen, { daily, ttsVoices }));
   if (!lease) return { idle: true };
   const awake = process.platform === 'darwin' ? spawn('caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore' }) : null;
   try {
@@ -100,8 +106,8 @@ async function main() {
   const args = process.argv.slice(2);
   const config = loadConfig(args.includes('--config') ? args[args.indexOf('--config') + 1] : undefined);
   const { hub, qwen, daily } = buildFromConfig(config);
-  let stop = false,
-    backoff = 0,
+  const stop = new AbortController();
+  let backoff = 0,
     mirroredDay = null;
   const mirror = {
     dir: config.DRIVE_MIRROR_DIR,
@@ -110,9 +116,10 @@ async function main() {
       .map((x) => x.trim())
       .filter(Boolean),
   };
-  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => (stop = true));
-  log({ event: 'start', version: VERSION, hub: new URL(config.HUB_BASE_URL).origin });
-  while (!stop) {
+  for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => stop.abort());
+  const ttsVoices = await probeTts(config.RUNNER_TTS_VOICES);
+  log({ event: 'start', version: VERSION, hub: new URL(config.HUB_BASE_URL).origin, ttsLanguages: Object.keys(ttsVoices) });
+  while (!stop.signal.aborted) {
     let delay;
     try {
       const day = mirror.dir ? mirrorDue(mirroredDay) : null;
@@ -120,7 +127,7 @@ async function main() {
         await mirrorHistory(hub, mirror, log);
         mirroredDay = day;
       }
-      const outcome = await runOnce(hub, qwen, { daily });
+      const outcome = await runOnce(hub, qwen, { daily, ttsVoices, signal: stop.signal });
       if (!outcome.idle) log({ event: 'job', ...outcome });
       backoff = 0;
       delay = outcome.idle ? pollDelay() : 1000;
@@ -130,7 +137,11 @@ async function main() {
       log({ event: 'error', message: error instanceof Error ? error.message : String(error), retryInMs: delay });
     }
     if (args.includes('--once')) break;
-    await new Promise((r) => setTimeout(r, delay));
+    try {
+      await delayFor(delay, undefined, { signal: stop.signal });
+    } catch (error) {
+      if (error.name !== 'AbortError') throw error;
+    }
   }
   log({ event: 'stop' });
 }

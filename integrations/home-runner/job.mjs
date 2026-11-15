@@ -5,6 +5,7 @@ import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
 import { itemPolicy, isMathFramework } from '../../lib/subjects/item-kinds.ts';
 import { normalizeNumericKeyValue, numericKeyValuePattern } from '../../lib/lesson-v2/numeric.ts';
 import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
+import { uploadPlanAudio } from './tts.mjs';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
 
@@ -458,6 +459,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
     let draft;
+    const uploadedAudio = new Set();
     for (let round = 0; round < 2; round++) {
       let result;
       // Only some items were rejected: resend just those, not the whole lesson.
@@ -505,6 +507,8 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         log({ jobId: lease.jobId, engine: qwen.name, event: 'local_duplicates', errors: duplicates.slice(0, 10).map(e => e.path) });
         continue;
       }
+      if (lease.kind === 'plan' && context.tts)
+        await uploadPlanAudio(hub, lease, context, validResult, undefined, uploadedAudio);
       let dry = await hub.result(lease, validResult, true);
       const rejectedOptionalRoadmap = dry.status === 422 &&
         context.purpose === 'request' && context.adaptive?.roadmapTask === 'none' &&

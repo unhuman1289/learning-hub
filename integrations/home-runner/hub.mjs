@@ -20,11 +20,12 @@ export function createHub({ baseUrl, bearer, accessClientId, accessClientSecret,
     Authorization: 'Bearer ' + bearer,
     ...(accessClientId ? { 'CF-Access-Client-Id': accessClientId, 'CF-Access-Client-Secret': accessClientSecret } : {}),
   };
-  async function call(path, { method = 'GET', body, lease, raw = false } = {}) {
+  async function call(path, { method = 'GET', body, lease, raw = false, audioSpec } = {}) {
     const response = await fetcher(url.origin + '/api/automation/v2' + path, {
       method,
-      headers: { ...headers, ...(lease ? { 'X-Lease-Token': lease } : {}) },
-      body: body === undefined ? undefined : JSON.stringify(body),
+      headers: { ...headers, ...(lease ? { 'X-Lease-Token': lease } : {}),
+        ...(audioSpec ? { 'Content-Type': 'audio/mp4', 'X-Audio-Spec': audioSpec } : {}) },
+      body: audioSpec || body === undefined ? body : JSON.stringify(body),
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (raw && response.ok) return response;
@@ -47,6 +48,14 @@ export function createHub({ baseUrl, bearer, accessClientId, accessClientSecret,
       if (!/^[A-Za-z0-9_-]{1,80}$/.test(attachmentId)) throw Error('Unexpected attachment id.');
       const response = await call(job(lease.jobId) + '/attachments/' + attachmentId, { lease: lease.leaseToken, raw: true });
       return { mime: response.headers.get('Content-Type'), bytes: Buffer.from(await response.arrayBuffer()) };
+    },
+    async putBinary(lease, hash, bytes, audioSpec) {
+      if (!/^[a-f0-9]{64}$/.test(hash)) throw Error('Invalid audio hash.');
+      const response = await call(job(lease.jobId) + '/audio/' + hash, {
+        method: 'PUT', body: bytes, lease: lease.leaseToken, audioSpec,
+      });
+      if (response.status !== 200 || response.body?.hash !== hash) throw new HubError(response.status, response.body);
+      return response.body;
     },
     async heartbeat(lease) {
       return (await call(job(lease.jobId) + '/heartbeat', { method: 'POST', body: {}, lease: lease.leaseToken })).body;
