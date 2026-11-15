@@ -89,7 +89,7 @@ export function itemView(item: LessonItemAny & { audio?: AudioSpec & Partial<Les
 
 type LessonRow = {
   id: string; subject_id: string; subject_title:string; payload: string; assigned_date: string; completed_at: string | null; updated: string; template: string;
-  kind: string; slot: string; reason: string; est_minutes: number | null; draft: string; draft_revision: number; support: string; snoozed_until: string | null;
+  kind: string; slot: string; reason: string; est_minutes: number | null; draft: string; draft_revision: number; support: string; listen_log?: string; snoozed_until: string | null;
 };
 type ItemRow = { item_id: string; stage: string; payload: string; flag: string | null };
 
@@ -112,5 +112,6 @@ export async function readLessonV2(db: Db, learnerId: string, lessonId: string, 
     items: items.map((item) => itemView(JSON.parse(item.payload) as LessonItemAny, item.stage, support[item.item_id], gradedItemIds.has(item.item_id), item.flag)),
     draft: JSON.parse(row.draft) as Record<string, { answer: string; attachmentIds?: string[] }>,
     draftRevision: row.draft_revision,
+    listen_log: JSON.parse(row.listen_log ?? "{}") as Record<string, number>,
   };
 }

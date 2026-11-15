@@ -116,7 +116,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   const [lesson, rate, { results: all = [] }, { results: latest = [] }] = await Promise.all([
     db
     .prepare(
-      `SELECT l.subject_id,l.draft,l.draft_revision,l.support,l.kind,l.completed_at,s.sensitivity FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version IN ('2','3')`,
+      `SELECT l.subject_id,l.draft,l.draft_revision,l.support,l.listen_log,l.kind,l.completed_at,s.sensitivity,
+        (SELECT json_type(preferences,'$.replaceAudioWithText') FROM learner_settings WHERE user_id=l.user_id) AS text_preference FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version IN ('2','3')`,
     )
     .bind(lessonId, learnerId)
     .first<{
@@ -124,6 +125,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       draft: string;
       draft_revision: number;
       support: string;
+      listen_log: string;
+      text_preference: string | null;
       kind: string;
       completed_at: string | null;
       sensitivity: 'normal' | 'clinical' | 'child_dev';
@@ -155,6 +158,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     throw new ApiError(400, 'Nháp có câu không thuộc bài này.');
   const draft = input.answers ?? JSON.parse(lesson.draft) as DraftAnswers,
     support = JSON.parse(lesson.support) as Record<string, RevealLevel>;
+  const plays = JSON.parse(lesson.listen_log) as Record<string, number>;
   const id = makeId('subm_'),
     stamp = now.toISOString();
   const gate = 'EXISTS(SELECT 1 FROM submissions WHERE id=?)';
@@ -162,7 +166,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     db
       .prepare(
         `INSERT OR IGNORE INTO submissions(id,learner_id,lesson_id,stage,client_submission_id,request_hash,status,created_at)
- SELECT ?,?,?,?,?,?,'grading',? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=? AND user_id=? AND draft_revision=? AND support=? AND completed_at IS NULL)
+ SELECT ?,?,?,?,?,?,'grading',? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=? AND user_id=? AND draft_revision=? AND support=? AND listen_log=? AND completed_at IS NULL
+   AND (SELECT json_type(preferences,'$.replaceAudioWithText') FROM learner_settings WHERE user_id=?) IS ?)
  AND (SELECT COUNT(*) FROM submissions WHERE learner_id=? AND created_at>?)<30`,
       )
       .bind(
@@ -177,6 +182,9 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         learnerId,
         input.draftRevision,
         lesson.support,
+        lesson.listen_log,
+        learnerId,
+        lesson.text_preference,
         learnerId,
         since,
       ),
@@ -207,6 +215,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     // Only a correction actually shown (or a manually revealed solution) counts as solution support.
     const shownCorrection = previous?.correction && previous.result !== 'correct' && !hiddenCorrection(previous, support).correctionHidden;
     const itemSupport = shownCorrection ? 'solution' : (support[row.item_id] ?? 'none');
+    const stimulus = item.audio && lesson.text_preference !== 'true' && plays[row.item_id] > 0 ? 'audio' : 'text';
     const attemptId = makeId('att_'),
       gradeId = makeId('gr_'),
       number = (previous?.attempt_no ?? 0) + 1;
@@ -219,8 +228,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     statements.push(
       db
         .prepare(
-          `INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,retry_of,answer,attachment_ids,support,context,status,current_grade_id,day,created_at)
- SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${gate}`,
+          `INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,retry_of,answer,attachment_ids,support,context,status,current_grade_id,day,created_at,stimulus)
+ SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${gate}`,
         )
         .bind(
           attemptId,
@@ -241,6 +250,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
           grade ? gradeId : null,
           berlinDay(now),
           stamp,
+          stimulus,
           id,
         ),
     );
