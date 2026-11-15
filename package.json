@@ -34,7 +34,8 @@
     "dev:fresh": "npm run dev:setup && npm run dev:seed && npm run build",
     "qwen:replay": "node --experimental-strip-types scripts/qwen-replay.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:u5": "playwright test --config playwright.u5.config.mjs"
+    "test:e2e:u5": "playwright test --config playwright.u5.config.mjs",
+    "test:e2e:listening": "playwright test --config playwright.listening.config.mjs"
   },
   "dependencies": {
     "@better-auth/mcp": "1.7.7",
