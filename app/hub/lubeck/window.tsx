@@ -105,6 +105,7 @@ export function LubeckWindow({ clock, onDarkness, className, weather, waitingFor
     const node = svg.current;
     let active = true;
     const paint = async () => {
+      if (!active) return;
       const { mountScene } = await import("./scene");
       if (!active) return;
       draw.current ??= mountScene(node);
@@ -120,16 +121,25 @@ export function LubeckWindow({ clock, onDarkness, className, weather, waitingFor
     };
     const drawScene = () => { void paint().catch(() => {}); };
     let idle: number | undefined;
+    let observer: IntersectionObserver | undefined;
     // Start the delay after the desk has its lesson data, then let higher priority work finish.
     const timer = draw.current ? undefined : window.setTimeout(() => {
       if (typeof window.requestIdleCallback === "function") {
         idle = window.requestIdleCallback(drawScene, { timeout: 1000 });
-      } else drawScene();
+      } else {
+        observer = new IntersectionObserver(entries => {
+          if (!entries.some(entry => entry.isIntersecting)) return;
+          observer?.disconnect();
+          drawScene();
+        }, { rootMargin: "200px" });
+        observer.observe(node);
+      }
     }, 3000);
     if (draw.current) drawScene();
     return () => {
       active = false;
       window.clearTimeout(timer);
+      observer?.disconnect();
       if (idle !== undefined) window.cancelIdleCallback(idle);
     };
   }, [clock, ambient, onDarkness, weather, previewing, waitingForDesk]);
