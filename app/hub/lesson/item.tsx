@@ -8,9 +8,11 @@ import { SketchIcon } from "../sketch-icons";
 import { words } from "../words";
 import { uploadPhoto } from "../lesson-v2/photo";
 import { germanCharacters, hasVietnameseTyping } from "../lesson-v2/keyboard";
+import { LessonAudio, type ListeningControls } from "./audio";
 import { StructuredInput } from "../lesson-v2/inputs/structured";
 export function LessonItem({
   item,
+  listening,
   number,
   germanInput = false,
   feedback,
@@ -33,6 +35,7 @@ export function LessonItem({
 }: {
   formatText?:(text:string)=>string;
   item: ItemView;
+  listening?: ListeningControls;
   number: number;
   germanInput?: boolean;
   feedback?: (onCodeLine?: (line: number) => void) => ReactNode;
@@ -107,6 +110,8 @@ export function LessonItem({
         <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />
       </div>
       {item.instructions && <p className="text-muted-paper">{formatText(item.instructions)}</p>}
+      {item.audio && (listening ? <LessonAudio audio={item.audio} {...listening} /> :
+        <p role="status" className="text-sm text-muted-paper">Đang mở phần nghe…</p>)}
       {item.input === "choice" ? (
         <fieldset aria-labelledby={"question-" + item.id}>
           <legend className="sr-only">Chọn đáp án</legend>

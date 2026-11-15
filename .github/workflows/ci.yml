@@ -41,3 +41,5 @@ jobs:
       - run: npm run build
       - name: Test the built Worker
         run: npm run test:e2e:u5
+      - name: Test listening on both phones
+        run: npm run test:e2e:listening
