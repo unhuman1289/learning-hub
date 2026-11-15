@@ -4,12 +4,12 @@ import {berlinDay} from '../daily-policy.ts';
 import {addDays} from './rules.ts';
 import { ApiError } from '../api-error.ts';
 import { sha256Hex } from '../auth/automation.ts';
-import { clampMastery, computeSkillState, evidenceFingerprint, type Evidence, type ErrorCategory, type Mastery } from './rules.ts';
+import { clampMastery, computeListening, computeSkillState, evidenceFingerprint, type Evidence, type ErrorCategory, type Mastery } from './rules.ts';
 
 export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: string) {
   const { results = [] } = await db
     .prepare(
-      `SELECT a.id,a.submission_id,a.created_at,a.activity,a.support,a.attempt_no,a.status,a.context,i.stage,i.flag,
+      `SELECT a.id,a.submission_id,a.created_at,a.activity,a.support,a.attempt_no,a.status,a.context,a.stimulus,i.stage,i.flag,
  g.result,g.errors,coalesce((SELECT d.errors FROM attempt_diagnoses d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1),'[]') AS diagnoses FROM attempts a JOIN grades g ON g.id=a.current_grade_id
  JOIN lesson_items i ON i.lesson_id=a.lesson_id AND i.item_id=a.item_id
  WHERE a.learner_id=? AND EXISTS(SELECT 1 FROM json_each(a.skill_ids) WHERE value=?) ORDER BY a.created_at,a.id`,
@@ -24,6 +24,7 @@ export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: 
     result: r.result as Evidence['result'],
     support: r.support as Evidence['support'],
     attemptNo: r.attempt_no as number,
+    stimulus: r.stimulus as Evidence['stimulus'],
     status: r.status as Evidence['status'],
     context: r.context as Evidence['context'],
     stage: r.stage as string,
@@ -48,7 +49,7 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
     const row = await db
       .prepare(
         `SELECT sk.subject_id,st.skill_id AS state_skill,st.revision,st.evidence_hash,st.mastery,st.mastery_source,st.mastery_reason,st.review_source,
-           st.next_review_day,st.review_kind,st.mastery_ceiling,st.dim_retention,st.recent_exposure,st.stuck_on
+           st.next_review_day,st.review_kind,st.mastery_ceiling,st.dim_retention,st.recent_exposure,st.stuck_on,st.listening
          FROM skills sk LEFT JOIN skill_states st ON st.skill_id=sk.id WHERE sk.id=? AND sk.learner_id=?`,
       )
       .bind(skillId, learnerId)
@@ -67,12 +68,14 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
         dim_retention: number;
         recent_exposure: string;
         stuck_on: string | null;
+        listening: string | null;
       }>();
     if (!row) throw new ApiError(404, 'Không tìm thấy kỹ năng.');
     const skill = { subject_id: row.subject_id },
       old = row.state_skill ? row : null;
     const rows = await skillEvidence(db, learnerId, skillId),
-      state = computeSkillState(rows, now),
+      state = { ...computeSkillState(rows, now), listening: computeListening(rows, now) },
+      listening = JSON.stringify(state.listening),
       hash = await sha256Hex(evidenceFingerprint(rows));
     // With no new evidence, AI decisions stand: mastery while within the rules ceiling, the review
     // date it proposed, and the error patterns it resolved. New evidence recomputes everything.
@@ -82,6 +85,7 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
     // The nightly refresh only matters when time moved a value (overdue review, 14-day exposure); skip no-op writes.
     if (
       unchanged &&
+      listening === old.listening &&
       (preserve ? old.mastery : state.mastery) === old.mastery &&
       state.masteryCeiling === old.mastery_ceiling &&
       state.dimensions.retention === old.dim_retention &&
@@ -120,6 +124,7 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
       'review_step_day',
       'maintained',
       'review_source',
+      'listening',
       'evidence_hash',
       'recompute_token',
       'updated_at',
@@ -149,6 +154,7 @@ export async function recomputeSkill(db: EvidenceDb, learnerId: string, skillId:
       state.review.stepDay,
       state.review.maintained ? 1 : 0,
       keepReview ? 'ai' : 'rules',
+      listening,
       hash,
       token,
       stamp,

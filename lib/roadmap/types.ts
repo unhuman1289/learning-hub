@@ -5,5 +5,5 @@ export type RoadmapStep = {
   id: string; learnerId: string; subjectId: string; ord: number; title: string; objective: string;
   situation: string; skills: string[]; requires: string[]; band: number; levelLabel: string | null;
   mode: StepKind; status: StepStatus; passedVia: 'mastery' | 'challenge' | 'placement' | 'learner' | null;
-  passedAt: string | null; revision: number;
+  passedAt: string | null; revision: number; listening: number;
 };

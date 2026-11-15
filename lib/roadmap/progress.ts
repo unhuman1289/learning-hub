@@ -12,25 +12,28 @@ const independent=(row:RoadmapEvidence)=>row.correct&&row.attemptNo===1&&row.sup
 const covers=(rows:RoadmapEvidence[],skills:string[])=>skills.every(skill=>rows.some(row=>row.skills.includes(skill)));
 const isDone=(step:RoadmapStep)=>step.status==='passed'||step.status==='placed';
 
-export function passesChallenge(step:RoadmapStep, rows:RoadmapEvidence[]){
+const listeningReady = (step: RoadmapStep, secure: ReadonlySet<string>) =>
+ !step.listening || step.skills.every(skill => secure.has(skill));
+
+export function passesChallenge(step:RoadmapStep, rows:RoadmapEvidence[], secure: ReadonlySet<string> = new Set()){
  const correct=rows.filter(independent);
- return rows.length>=5&&rows.length<=6&&correct.length*5>=rows.length*4&&covers(correct,step.skills);
+ return listeningReady(step,secure)&&rows.length>=5&&rows.length<=6&&correct.length*5>=rows.length*4&&covers(correct,step.skills);
 }
 
-export function placeSteps(steps:RoadmapStep[],rows:RoadmapEvidence[]){
+export function placeSteps(steps:RoadmapStep[],rows:RoadmapEvidence[],secure: ReadonlySet<string> = new Set()){
  const placed:string[]=[];
  for(const step of steps.filter(s=>s.status==='planned').slice(0,8)){
   const questions=rows.filter(row=>row.skills.length>0&&row.skills.every(skill=>step.skills.includes(skill)));
-  if(!questions.length||!covers(questions,step.skills)||!questions.every(independent))break;
+  if(!listeningReady(step,secure)||!questions.length||!covers(questions,step.skills)||!questions.every(independent))break;
   rows=rows.filter(row=>!questions.includes(row));
   placed.push(step.id);
  }
  return placed;
 }
 
-export function stepStatus(step:RoadmapStep,mastered:Set<string>,evidence:RoadmapEvidence[],introComplete:boolean){
+export function stepStatus(step:RoadmapStep,mastered:Set<string>,evidence:RoadmapEvidence[],introComplete:boolean,secure: ReadonlySet<string> = new Set()){
  if(step.status==='open'&&introComplete)return 'practising';
- if(step.status==='practising'&&step.skills.every(skill=>mastered.has(skill))&&
+ if(step.status==='practising'&&listeningReady(step,secure)&&step.skills.every(skill=>mastered.has(skill))&&
     evidence.some(row=>independent(row)&&row.stage==='independent'&&transferActivities.has(row.activity)&&row.skills.some(skill=>step.skills.includes(skill))))return 'passed';
  return step.status;
 }
@@ -109,7 +112,12 @@ export function roadmapProgressWrite(db:EvidenceDb,learnerId:string,lessonId:str
     SELECT id,user_id,subject_id,step_role,roadmap_step_id,completed_at,origin_job_id
     FROM learning_lessons WHERE id=? AND user_id=? AND subject_id IS NOT NULL AND ${gate}
   ), steps AS (
-    SELECT r.* FROM roadmap_steps r JOIN lesson l ON l.user_id=r.learner_id AND l.subject_id=r.subject_id
+    SELECT r.*, (r.listening=0 OR NOT EXISTS (
+      SELECT 1 FROM json_each(r.skill_ids) sk WHERE NOT EXISTS (
+        SELECT 1 FROM skill_states st WHERE st.skill_id=sk.value AND st.learner_id=r.learner_id
+          AND st.subject_id=r.subject_id AND json_extract(st.listening,'$.level')='secure'
+      )
+    )) AS listening_ready FROM roadmap_steps r JOIN lesson l ON l.user_id=r.learner_id AND l.subject_id=r.subject_id
     WHERE r.status IN ('planned','open','practising')
   ), evidence AS (
     SELECT i.item_id,i.skill_ids,i.stage,i.activity,a.status,
@@ -118,7 +126,7 @@ export function roadmapProgressWrite(db:EvidenceDb,learnerId:string,lessonId:str
     LEFT JOIN attempts a ON a.lesson_id=i.lesson_id AND a.item_id=i.item_id AND a.learner_id=i.learner_id AND a.attempt_no=1
     LEFT JOIN grades g ON g.id=a.current_grade_id AND g.attempt_id=a.id
   ), candidates AS (
-    SELECT id,skill_ids,row_number() OVER (ORDER BY ord,id) AS position
+    SELECT id,skill_ids,listening_ready,row_number() OVER (ORDER BY ord,id) AS position
     FROM steps WHERE status='planned' AND (SELECT step_role FROM lesson)='placement'
       AND origin_job_id IS (SELECT origin_job_id FROM lesson)
     ORDER BY ord,id LIMIT 8
@@ -127,7 +135,7 @@ export function roadmapProgressWrite(db:EvidenceDb,learnerId:string,lessonId:str
       SELECT 1 FROM json_each(e.skill_ids) sk WHERE sk.value NOT IN (SELECT value FROM json_each(c.skill_ids))
     ) ORDER BY c.position LIMIT 1) AS step_id FROM evidence e WHERE json_array_length(e.skill_ids)>0
   ), placement_failure AS (
-    SELECT min(c.position) AS position FROM candidates c WHERE EXISTS (
+    SELECT min(c.position) AS position FROM candidates c WHERE NOT c.listening_ready OR EXISTS (
       SELECT 1 FROM json_each(c.skill_ids) sk WHERE NOT EXISTS (
         SELECT 1 FROM placement_evidence e WHERE e.step_id=c.id AND sk.value IN (SELECT value FROM json_each(e.skill_ids))
       )
@@ -141,14 +149,14 @@ export function roadmapProgressWrite(db:EvidenceDb,learnerId:string,lessonId:str
           THEN 'placement'
         WHEN s.status='open' AND l.step_role='intro' AND l.roadmap_step_id=s.id AND l.completed_at IS NOT NULL
           THEN 'intro'
-        WHEN s.status='practising' AND l.step_role='challenge' AND l.roadmap_step_id=s.id
+        WHEN s.status='practising' AND s.listening_ready AND l.step_role='challenge' AND l.roadmap_step_id=s.id
           AND NOT EXISTS (SELECT 1 FROM evidence WHERE status IN ('pending','disputed'))
           AND (SELECT count(*) FROM evidence) BETWEEN 5 AND 6
           AND (SELECT sum(correct) FROM evidence)*5>=(SELECT count(*) FROM evidence)*4
           AND NOT EXISTS (SELECT 1 FROM json_each(s.skill_ids) sk WHERE NOT EXISTS (
             SELECT 1 FROM evidence e WHERE e.correct AND sk.value IN (SELECT value FROM json_each(e.skill_ids))
           )) THEN 'challenge'
-        WHEN s.status='practising'
+        WHEN s.status='practising' AND s.listening_ready
           AND NOT EXISTS (SELECT 1 FROM json_each(s.skill_ids) sk WHERE NOT EXISTS (
             SELECT 1 FROM skill_states st WHERE st.skill_id=sk.value AND st.learner_id=s.learner_id
               AND st.subject_id=s.subject_id AND st.mastery='demonstrated'
