@@ -1,17 +1,24 @@
 import {isChemicalFormula,plainChemicalText} from '../chemistry.ts';
-import type { StructuredAnswerKey } from '../contracts/lesson-package-v3.ts';
+import type { AudioSpec, StructuredAnswerKey } from '../contracts/lesson-package-v3.ts';
 import type { AnswerKey } from '../contracts/lesson-items.ts';
 import { ApiError } from '../api-error.ts';
 import { parseNumericAnswer, readNumericAnswer } from '../lesson-v2/numeric.ts';
-export type AutoGrade = { result: 'correct' | 'incorrect'; score: number; feedback: string };
-const normalizeText = (value: string) =>
-  value
-    .normalize('NFC')
-    .trim()
-    .replace(/\s+/g, ' ')
-    .replace(/[.!?。]+$/u, '')
-    .trim();
-export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
+import { gradeDictation } from './dictation.ts';
+import { normalizeText } from './normalize-text.ts';
+
+export type AutoGrade = { result: 'correct' | 'partial' | 'incorrect'; score: number; feedback: string };
+export function autoGrade(key: AnswerKey, answer: string, lang?: AudioSpec['lang']): AutoGrade {
+  if (key.type === 'dictation') {
+    const grade = gradeDictation(key, answer, lang);
+    const feedback = [
+      grade.result === 'correct' ? 'Đúng.' : 'Nghe lại và kiểm tra những chỗ sau.',
+      grade.missing.length ? `Thiếu: ${grade.missing.join(', ')}.` : '',
+      grade.extra.length ? `Thừa: ${grade.extra.join(', ')}.` : '',
+      grade.wrong.length ? `Sai: ${grade.wrong.map(word => `${word.actual} → ${word.expected}`).join(', ')}.` : '',
+    ].filter(Boolean).join(' ');
+    // Stored grades require a score between zero and one even when WER exceeds one.
+    return { result: grade.result, score: Math.max(0, grade.score), feedback: feedback.slice(0, 1500) };
+  }
   let correct = false;
   if (key.type === 'choice') {
     let selected: unknown;
@@ -38,13 +45,9 @@ export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
       (!actual.unit || actual.unit.normalize('NFC') === unit.normalize('NFC'));
   } else {
     const chemistry=key.caseSensitive&&key.accepted.some(c=>isChemicalFormula(plainChemicalText(c)));
-    const normalize=(text:string)=>normalizeText(chemistry?plainChemicalText(text):text);
+    const normalize = (text: string) => normalizeText(chemistry ? plainChemicalText(text) : text, { ignoreCase: !key.caseSensitive });
     const value = normalize(answer);
-    correct = key.accepted.some((candidate) =>
-      key.caseSensitive
-        ? normalize(candidate) === value
-        : normalize(candidate).toLocaleLowerCase('de-DE') === value.toLocaleLowerCase('de-DE'),
-    );
+    correct = key.accepted.some(candidate => normalize(candidate) === value);
   }
   return {
     result: correct ? 'correct' : 'incorrect',
@@ -54,7 +57,7 @@ export function autoGrade(key: AnswerKey, answer: string): AutoGrade {
 }
 
 /** Structured responses use an array in prompt order, or a map from left to right IDs for matching. */
-export function autoGradeStructured(key: StructuredAnswerKey, answer: string): Omit<AutoGrade, "result"> & { result: AutoGrade["result"] | "partial" } {
+export function autoGradeStructured(key: StructuredAnswerKey, answer: string): AutoGrade {
   let value: unknown;
   try { value = JSON.parse(answer); } catch { value = null; }
   let total: number;

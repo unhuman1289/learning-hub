@@ -138,3 +138,43 @@ test('lesson validation uses notebook item kinds and keeps language code blocks 
   const math = { adaptive: true, frameworkKey: 'vn-gdpt-2018-toan', itemKinds: ['short', 'table'] };
   assert.deepEqual(validateLessonPackage(singleKind, math).issues.map(issue => issue.path), ['/items', '/items/0/input']);
 });
+
+const audio = {
+  lang: 'de-DE', lines: [{ speaker: 'a', text: 'Wir gehen heute nach Hause.' }],
+  rate: 0.8, maxPlays: 3, transcript: 'after_answer',
+};
+
+test('v3 accepts the same audio spec on every input and rejects runner audio references', () => {
+  const basic = original.items.find(item => item.input === 'choice');
+  const inputs = [
+    basic,
+    { input: 'short', key: text('Ja') },
+    { input: 'long', rubric: [{ criterion: 'Đúng', points: 1 }, { criterion: 'Rõ', points: 1 }] },
+    ...fixtures.map(([item]) => item),
+    { input: 'code', language: 'rust', starter: '', lines: 6,
+      rubric: [{ criterion: 'Đúng', points: 1 }, { criterion: 'Rõ', points: 1 }] },
+  ];
+  for (const item of inputs) assert.deepEqual(lessonPackageV3.parse(lesson({ ...item, audio })).items[0].audio, audio);
+  for (const invalid of [
+    { lines: [] },
+    { lines: Array(13).fill(audio.lines[0]) },
+    { lines: [{ speaker: 'a', text: 'a'.repeat(301) }, { speaker: 'b', text: 'b'.repeat(300) }] },
+    { lines: [{ speaker: 'c', text: 'Hallo' }] },
+    { lang: 'de' }, { rate: 0.85 }, { maxPlays: 4 }, { transcript: 'always' },
+    { audioRef: { hash: 'runner-hash' } },
+  ]) assert.equal(lessonPackageV3.safeParse(lesson({ ...basic, audio: { ...audio, ...invalid } })).success, false);
+  assert.equal(lessonPackageV3.safeParse(lesson({ ...basic, audio, audioRef: {} })).success, false);
+});
+
+test('dictation is a short answer and Chinese audio requires numbered pinyin', () => {
+  const key = { type: 'dictation', text: '你好', ignore: ['punctuation'], pinyin: 'ni3 hao3' };
+  const chinese = { ...audio, lang: 'zh-CN', lines: [{ speaker: 'a', text: '你好' }] };
+  assert.deepEqual(lessonPackageV3.parse(lesson({ input: 'short', audio: chinese, key })).items[0].key, key);
+  for (const pinyin of [undefined, 'nǐ hǎo', 'ni hao']) {
+    assert.equal(lessonPackageV3.safeParse(lesson({ input: 'short', audio: chinese, key: { ...key, pinyin } })).success, false);
+  }
+  assert.equal(lessonPackageV3.safeParse(lesson({ input: 'long', audio: chinese, key })).success, false);
+  assert.ok(lessonPackageV3.safeParse(lesson({
+    input: 'short', audio, key: { type: 'dictation', text: 'daß', ignore: [], variants: [['dass', 'daß']] },
+  })).success);
+});

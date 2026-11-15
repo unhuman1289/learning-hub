@@ -61,6 +61,8 @@ Prepared content and rubrics render locally; interactions update answers and sta
 
 A lesson has a stable ID, track, assignment date, content version, saved response, completion timestamp and revision/update timestamp. Feedback is linked to the exact answer/version evaluated. Editing Docs should not silently rewrite a lesson already being studied.
 
+Listening items keep the dialogue on the server. The lesson view exposes playback metadata and the transcript policy. Dictation feedback is returned after submission and identifies missing, extra and mismatched words or syllables.
+
 ## Content tracks
 
 | Track | Prerequisites and progression | Practical outputs |

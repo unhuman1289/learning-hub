@@ -212,7 +212,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       number = (previous?.attempt_no ?? 0) + 1;
     const key = item.key;
     const grade = key && answer.trim()
-      ? key.type === 'choice' || key.type === 'numeric' || key.type === 'text' ? autoGrade(key, answer) : autoGradeStructured(key, answer)
+      ? key.type === 'choice' || key.type === 'numeric' || key.type === 'text' || key.type === 'dictation'
+        ? autoGrade(key, answer, item.audio?.lang) : autoGradeStructured(key, answer)
       : null;
     if (!grade) pending = true;
     statements.push(

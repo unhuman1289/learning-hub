@@ -19,7 +19,14 @@ export const numericKey = z.object({
   type: z.literal('numeric'), value: z.string().trim().min(1).max(40), tolerance: z.number().min(0).max(1e6), unit: z.string().max(20).nullable(),
 }).strict();
 export const textKey = z.object({ type: z.literal('text'), accepted: z.array(text(200)).min(1).max(10), caseSensitive: z.boolean() }).strict();
-export const answerKey = z.discriminatedUnion('type', [choiceKey, numericKey, textKey]);
+export const dictationKey = z.object({
+  type: z.literal('dictation'),
+  text: text(600),
+  pinyin: text(2400).regex(/^(?:[a-zü:]+[0-5])(?:\s+[a-zü:]+[0-5])*$/iu).optional(),
+  ignore: z.array(z.enum(['case', 'punctuation'])).max(2),
+  variants: z.array(z.array(text(600)).min(2)).optional(),
+}).strict();
+export const answerKey = z.discriminatedUnion('type', [choiceKey, numericKey, textKey, dictationKey]);
 
 export const rubricCriterion = z.object({
   criterion: text(200), points: z.number().int().min(1).max(5), description: z.string().max(300).optional(), skill: skillRef.optional(),
