@@ -198,10 +198,10 @@ const lessonHeading = page => flow(page).locator('[data-lesson-heading]');
 const questionHeading = page => flow(page).locator('[data-question-number]').first();
 
 /** A one-finger horizontal drag on the page, as touch events (React listens on the lesson root). */
-async function swipe(page, dx, { release = true } = {}) {
-  await page.locator('.lesson-flow-page').evaluate((sheet, { dx, release }) => {
+async function swipe(page, dx, { release = true, at = 0.75 } = {}) {
+  await page.locator('.lesson-flow-page').evaluate((sheet, { dx, release, at }) => {
     const { left, width, top, height } = sheet.getBoundingClientRect();
-    const y = top + Math.min(height, innerHeight - top) * 0.4;
+    const y = top + Math.min(height, innerHeight - top) * at;
     const x = left + width / 2;
     const target = sheet.querySelector('p') ?? sheet;
     // WebKit has no Touch constructor; React only reads the touch lists and coordinates.
@@ -217,13 +217,44 @@ async function swipe(page, dx, { release = true } = {}) {
     fire('touchstart', x);
     for (let step = 1; step <= 4; step++) fire('touchmove', x + dx * step / 4);
     if (release) fire('touchend', x + dx);
-  }, { dx, release });
+  }, { dx, release, at });
 }
 
 const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
+/** Record where each sheet is visible on screen when the next turn starts. */
+async function watchTurnWindows(page) {
+  await page.evaluate(() => {
+    window.__turnWindows = null;
+    if (window.__turnWatched) return;
+    window.__turnWatched = true;
+    const start = document.startViewTransition.bind(document);
+    document.startViewTransition = callback => {
+      const transition = start(callback);
+      transition.ready.then(() => {
+        const visible = name => {
+          const style = getComputedStyle(document.documentElement, `::view-transition-group(${name})`);
+          const top = new DOMMatrix(style.transform).f;
+          const [insetTop = '0', , insetBottom = insetTop] = (style.clipPath.match(/inset\(([^)]*)\)/)?.[1] ?? '').split(/\s+/);
+          return [top + parseFloat(insetTop), top + parseFloat(style.height) - parseFloat(insetBottom)];
+        };
+        window.__turnWindows = { out: visible('lesson-leaf'), in: visible('lesson-leaf-in') };
+      });
+      return transition;
+    };
+  });
+}
+
+async function expectSameWindow(page) {
+  await expect.poll(() => page.evaluate(() => window.__turnWindows)).not.toBeNull();
+  const { out, in: next } = await page.evaluate(() => window.__turnWindows);
+  expect(Math.abs(out[0] - next[0]), JSON.stringify({ out, next })).toBeLessThanOrEqual(1);
+  expect(Math.abs(out[1] - next[1]), JSON.stringify({ out, next })).toBeLessThanOrEqual(1);
+  expect(out[1] - out[0]).toBeGreaterThan(100);
+}
+
 async function edgesClearOfControls(page) {
-  const edges = await flow(page).locator('[data-turn-edge]').evaluateAll(list => list.map(edge => edge.getBoundingClientRect().toJSON()));
+  const edges = await flow(page).locator('[data-turn-edge], [data-turn-corner]').evaluateAll(list => list.map(edge => edge.getBoundingClientRect().toJSON()));
   const controls = await flow(page).locator('input, textarea, select, button:not([data-turn-edge]), a, summary')
     .evaluateAll(list => list.filter(node => node.getClientRects().length).map(node => node.getBoundingClientRect().toJSON()));
   for (const edge of edges) for (const control of controls) expect(overlaps(edge, control), JSON.stringify({ edge, control })).toBe(false);
@@ -248,6 +279,11 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   expect(Math.abs(edge.y + edge.height - (sheet.y + sheet.height))).toBeLessThanOrEqual(1);
   expect(Math.abs(edge.x + edge.width - (sheet.x + sheet.width))).toBeLessThanOrEqual(1);
   await edgesClearOfControls(page);
+  // Every page is at least a screen tall below the notebook bar, and each side curls at the top too.
+  const viewport = page.viewportSize();
+  expect(sheet.height).toBeGreaterThanOrEqual(Math.min(viewport.height - 176, 400) - 1);
+  await expect(flow(page).locator('[data-turn-corner="right"] [data-curl]')).toBeVisible();
+  await expect(flow(page).locator('[data-turn-corner="left"]')).toHaveCount(0);
 
   // Tap the right edge: the page turns and the hint is remembered.
   const saved = page.waitForResponse(response => response.url().endsWith('/api/learners/me/hints') && response.status() === 204);
@@ -263,6 +299,20 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await expect(lessonHeading(page)).toBeVisible();
   await turnSettled(page);
 
+  // The top corner turns too, and both sheets show in the same window whatever their length.
+  await watchTurnWindows(page);
+  await flow(page).locator('[data-turn-corner="right"]').tap();
+  await expect(questionHeading(page)).toBeVisible();
+  await expectSameWindow(page);
+  await turnSettled(page);
+  // Scrolled down a page, the turn still uses one window for both sheets.
+  await page.evaluate(() => scrollBy(0, 400));
+  await watchTurnWindows(page);
+  await previousEdge(page).tap();
+  await expect(lessonHeading(page)).toBeVisible();
+  await expectSameWindow(page);
+  await turnSettled(page);
+
   // A short swipe lifts the corner, then springs back without turning.
   const right = flow(page).locator('[data-turn-edge="right"]');
   await swipe(page, -40, { release: false });
@@ -270,6 +320,13 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   expect(Number(await right.evaluate(node => node.style.getPropertyValue('--pull')))).toBeCloseTo(40 / 64, 2);
   await swipe(page, -40);
   await expect(right).not.toHaveAttribute('data-pulled');
+  // In the upper half the top corner lifts instead.
+  const rightTop = flow(page).locator('[data-turn-corner="right"]');
+  await swipe(page, -40, { release: false, at: 0.2 });
+  await expect(rightTop).toHaveAttribute('data-pulled', '');
+  await expect(right).not.toHaveAttribute('data-pulled');
+  await swipe(page, -40, { at: 0.2 });
+  await expect(rightTop).not.toHaveAttribute('data-pulled');
   await expect(lessonHeading(page)).toBeVisible();
   await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn');
   // Past the 64 px threshold it turns.
