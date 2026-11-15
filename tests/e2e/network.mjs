@@ -4,8 +4,10 @@ export async function shapeNetwork(page, browserName) {
   if (browserName === 'chromium') {
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('Network.enable');
-    const throttle = () => cdp.send('Network.emulateNetworkConditions', {
-      offline: false,
+    // One CDP session owns the network conditions. A second one (context.setOffline) would be
+    // overridden by these, so going offline also goes through here: throttle({ offline: true }).
+    const throttle = ({ offline = false } = {}) => cdp.send('Network.emulateNetworkConditions', {
+      offline,
       latency: 300,
       downloadThroughput: 1_600_000 / 8,
       uploadThroughput: 750_000 / 8,
@@ -20,7 +22,7 @@ export async function shapeNetwork(page, browserName) {
     await delay(300);
     await route.continue();
   });
-  return async () => {};
+  return async ({ offline = false } = {}) => { await page.context().setOffline(offline); };
 }
 
 export async function timeFromTap(control, ready) {
