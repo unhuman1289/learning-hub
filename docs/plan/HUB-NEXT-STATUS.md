@@ -6,7 +6,7 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-Khung staging hoàn tất HUB-NEXT (gộp #154, #153, PHONE-CHECK bước 8–9) đã kết thúc lúc 22:20 Europe/Berlin.
+staging: U6 lật trang bằng mép sổ (#160), đến 02:30 Europe/Berlin
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
