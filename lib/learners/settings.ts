@@ -104,6 +104,8 @@ export function parseSettingsPatch(body: unknown): SettingsPatch {
 export async function updateSettings(db: Db, learnerId: string, patch: SettingsPatch, now = new Date()) {
   const current = await readSettings(db, learnerId);
   const next = { ...current, ...patch };
+  // Edited preferences keep the hints the learner has already seen.
+  if (patch.preferences) for (const key of Object.values(SEEN_HINTS)) if (key in current.preferences) next.preferences = { ...next.preferences, [key]: current.preferences[key] };
   await db
     .prepare(
       `INSERT INTO learner_settings (user_id, daily_target_minutes, updated, display_name, explain_language, preferences, ai_budget, personal_prompt, avatar)
@@ -125,4 +127,35 @@ export async function updateSettings(db: Db, learnerId: string, patch: SettingsP
     )
     .run();
   return readSettings(db, learnerId);
+}
+
+/** UI hints a learner has already seen. Stored in `preferences` but kept out of model context. */
+export const SEEN_HINTS = { pageEdge: 'pageEdgeHintSeen' } as const;
+export type SeenHint = keyof typeof SEEN_HINTS;
+export const isSeenHint = (value: unknown): value is SeenHint => typeof value === 'string' && Object.hasOwn(SEEN_HINTS, value);
+
+/** The learner has not yet dismissed this hint. */
+export const showsHint = (settings: LearnerSettings, hint: SeenHint) => settings.preferences[SEEN_HINTS[hint]] !== true;
+
+/**
+ * Remembers that the learner saw a hint. Children may record this for themselves even though they
+ * cannot edit settings: it changes no goal, budget or prompt. A single statement, so concurrent
+ * settings edits are not overwritten.
+ */
+export async function markHintSeen(db: Db, learnerId: string, hint: SeenHint, now = new Date()) {
+  const key = SEEN_HINTS[hint];
+  await db
+    .prepare(
+      `INSERT INTO learner_settings (user_id, daily_target_minutes, updated, preferences) VALUES (?, ?, ?, json_object(?, json('true')))
+    ON CONFLICT(user_id) DO UPDATE SET preferences = json_set(preferences, '$.' || ?, json('true')), updated = excluded.updated`,
+    )
+    .bind(learnerId, DEFAULT_TARGET_MINUTES, now.toISOString(), key, key)
+    .run();
+}
+
+/** Learning preferences without UI bookkeeping, for model context. */
+export function learningPreferences(preferences: unknown) {
+  if (!isRecord(preferences)) return preferences;
+  const hidden = new Set<string>(Object.values(SEEN_HINTS));
+  return Object.fromEntries(Object.entries(preferences).filter(([key]) => !hidden.has(key)));
 }

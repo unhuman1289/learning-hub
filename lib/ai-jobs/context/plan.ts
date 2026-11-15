@@ -10,6 +10,7 @@ import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { planContext, type PlanContext } from '../../contracts/ai-common.ts';
 import { contextHash, learnerContext, skillContext, slots, safeText, type Job } from './common.ts';
+import { learningPreferences } from '../../learners/settings.ts';
 export async function buildPlanContext(db: EvidenceDb, job: Job, environment: string, roadmapV2=false): Promise<PlanContext> {
   const learner = await learnerContext(db, job.learner_id, environment);
   const { results: subjects = [] } = await db
@@ -61,7 +62,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     learner: {
       ...learner.public,
       targetMinutes: job.adaptive ? (job.purpose === 'daily' ? 45 : 15) : target,
-      preferences: cleanPreferences(JSON.parse(String(learner.settings?.preferences ?? '{}'))),
+      preferences: cleanPreferences(learningPreferences(JSON.parse(String(learner.settings?.preferences ?? '{}')))),
       studyMinutes14d: study,
     },
     policy: {

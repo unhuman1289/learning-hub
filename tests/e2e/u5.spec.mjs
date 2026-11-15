@@ -7,6 +7,9 @@ import { shapeNetwork, timeFromTap } from './network.mjs';
 const desk = page => page.getByRole('region', { name: 'Bài tiếp theo' });
 const flow = page => page.locator('.lesson-flow');
 const firstQuestion = page => flow(page).locator('[data-question-number]').first();
+// The right page edge turns forward; its name says where it goes.
+const nextEdge = page => flow(page).getByRole('button', { name: /^(Bắt đầu bài|Trang sau: Câu [\d–]+|Sang Tổng kết)$/ });
+const previousEdge = page => flow(page).getByRole('button', { name: 'Trang trước', exact: true });
 
 function checkTime(info, metric, ms, localLimit) {
   const limit = process.env.CI ? 5000 : localLimit;
@@ -145,7 +148,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
     // instead of racing the next tap against a page that is about to unmount.
     const sheet = flow(page).locator('.lesson-flow-page');
     await sheet.evaluate(element => { element.dataset.e2eTurnedFrom = ''; });
-    await flow(page).getByRole('button', { name: /^(Bắt đầu|Tiếp|Tổng kết)$/ }).tap();
+    await nextEdge(page).tap();
     await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
     await turnSettled(page);
   }
@@ -189,4 +192,133 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(page.getByRole('link', { name: /Mở bài|Làm tiếp/ }).first()).toBeVisible();
 
   console.log(JSON.stringify({ project: info.project.name, coldMs, warmMs, firstMs, gradeMs, desk: deskStats, lesson: lessonStats, notebook: notebookStats }));
+});
+
+const lessonHeading = page => flow(page).locator('[data-lesson-heading]');
+const questionHeading = page => flow(page).locator('[data-question-number]').first();
+
+/** A one-finger horizontal drag on the page, as touch events (React listens on the lesson root). */
+async function swipe(page, dx, { release = true } = {}) {
+  await page.locator('.lesson-flow-page').evaluate((sheet, { dx, release }) => {
+    const { left, width, top, height } = sheet.getBoundingClientRect();
+    const y = top + Math.min(height, innerHeight - top) * 0.4;
+    const x = left + width / 2;
+    const target = sheet.querySelector('p') ?? sheet;
+    // WebKit has no Touch constructor; React only reads the touch lists and coordinates.
+    const fire = (type, clientX) => {
+      const touch = { identifier: 1, target, clientX, clientY: y };
+      const ended = type === 'touchend';
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperties(event, {
+        touches: { value: ended ? [] : [touch] }, targetTouches: { value: ended ? [] : [touch] }, changedTouches: { value: [touch] },
+      });
+      target.dispatchEvent(event);
+    };
+    fire('touchstart', x);
+    for (let step = 1; step <= 4; step++) fire('touchmove', x + dx * step / 4);
+    if (release) fire('touchend', x + dx);
+  }, { dx, release });
+}
+
+const overlaps = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+
+async function edgesClearOfControls(page) {
+  const edges = await flow(page).locator('[data-turn-edge]').evaluateAll(list => list.map(edge => edge.getBoundingClientRect().toJSON()));
+  const controls = await flow(page).locator('input, textarea, select, button:not([data-turn-edge]), a, summary')
+    .evaluateAll(list => list.filter(node => node.getClientRects().length).map(node => node.getBoundingClientRect().toJSON()));
+  for (const edge of edges) for (const control of controls) expect(overlaps(edge, control), JSON.stringify({ edge, control })).toBe(false);
+}
+
+test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, context, browserName }) => {
+  await page.goto('/');
+  // A profile the test above has not used, so this is still its first lesson.
+  await page.getByRole('button', { name: /Người học thử/ }).tap();
+  await desk(page).getByRole('listitem').filter({ hasText: 'Đọc về hệ thống' }).getByRole('link', { name: /Mở bài|Học tiếp/ }).first().tap();
+  await expect(lessonHeading(page)).toBeVisible();
+
+  // First lesson: the hint shows by the right edge; the first page has no left edge.
+  const hint = flow(page).getByText('Chạm mép giấy để lật', { exact: true });
+  await expect(hint).toBeVisible();
+  await expect(previousEdge(page)).toHaveCount(0);
+  const start = flow(page).getByRole('button', { name: 'Bắt đầu bài', exact: true });
+  const sheet = await flow(page).locator('.lesson-flow-page').boundingBox();
+  const edge = await start.boundingBox();
+  expect(edge.width).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(edge.y - (sheet.y + sheet.height / 2))).toBeLessThanOrEqual(1);
+  expect(Math.abs(edge.y + edge.height - (sheet.y + sheet.height))).toBeLessThanOrEqual(1);
+  expect(Math.abs(edge.x + edge.width - (sheet.x + sheet.width))).toBeLessThanOrEqual(1);
+  await edgesClearOfControls(page);
+
+  // Tap the right edge: the page turns and the hint is remembered.
+  const saved = page.waitForResponse(response => response.url().endsWith('/api/learners/me/hints') && response.status() === 204);
+  await start.tap();
+  await saved;
+  await expect(questionHeading(page)).toBeVisible();
+  await turnSettled(page);
+  await expect(hint).toHaveCount(0);
+  await edgesClearOfControls(page);
+
+  // Tap the left edge: back to the first page.
+  await previousEdge(page).tap();
+  await expect(lessonHeading(page)).toBeVisible();
+  await turnSettled(page);
+
+  // A short swipe lifts the corner, then springs back without turning.
+  const right = flow(page).locator('[data-turn-edge="right"]');
+  await swipe(page, -40, { release: false });
+  await expect(right).toHaveAttribute('data-pulled', '');
+  expect(Number(await right.evaluate(node => node.style.getPropertyValue('--pull')))).toBeCloseTo(40 / 64, 2);
+  await swipe(page, -40);
+  await expect(right).not.toHaveAttribute('data-pulled');
+  await expect(lessonHeading(page)).toBeVisible();
+  await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn');
+  // Past the 64 px threshold it turns.
+  await swipe(page, -90);
+  await expect(questionHeading(page)).toBeVisible();
+  await turnSettled(page);
+
+  // Keyboard: the edge takes visible focus, curls further, and Enter turns the page.
+  const forward = nextEdge(page);
+  await forward.focus();
+  if (browserName === 'chromium') {
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(forward).toBeFocused();
+    expect(await forward.evaluate(node => node.matches(':focus-visible'))).toBe(true);
+    await expect.poll(() => forward.locator('[data-curl]').evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThan(30);
+  }
+  const before = await questionHeading(page).getAttribute('data-question-number');
+  await page.keyboard.press('Enter');
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).toHaveCount(0);
+  await turnSettled(page);
+  await expect(page.locator(':focus')).not.toHaveAttribute('data-turn-edge');
+  await page.keyboard.press('ArrowLeft');
+  await turnSettled(page);
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).toBeVisible();
+
+  // Remembered in the profile: the hint stays away after a reload.
+  await page.reload();
+  await expect(flow(page)).toBeVisible();
+  await expect(hint).toHaveCount(0);
+
+  if (browserName === 'chromium') {
+    // On a 4× slower CPU a turn must not block the main thread for more than 50 ms.
+    const cdp = await context.newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    await page.evaluate(() => {
+      window.__longTasks = [];
+      new PerformanceObserver(list => window.__longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration))))
+        .observe({ type: 'longtask' });
+    });
+    for (const turn of [() => nextEdge(page).tap(), () => previousEdge(page).tap()]) {
+      await page.evaluate(() => { window.__longTasks.length = 0; });
+      await turn();
+      await expect(page.locator('html')).toHaveAttribute('data-lesson-turn', /.+/);
+      await turnSettled(page);
+      const tasks = await page.evaluate(() => window.__longTasks);
+      console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
+      expect(Math.max(0, ...tasks), 'long task during a turn').toBeLessThanOrEqual(50);
+    }
+    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  }
 });

@@ -12,7 +12,7 @@ const deviceNotebook = {
 };
 const visiblePage = page => page.locator('.lesson-flow');
 
-async function turnUntil(page, target, direction = /^(Bắt đầu|Tiếp|Tổng kết)$/) {
+async function turnUntil(page, target, direction = /^(Bắt đầu bài|Trang sau: Câu [\d–]+|Sang Tổng kết)$/) {
   for (let offset = 0; offset < 20 && !await target.isVisible(); offset++) {
     const corner = page.getByRole('button', { name: direction });
     await expect(corner).toBeVisible();
@@ -150,7 +150,7 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         const first = visiblePage(page).locator('[data-question-number]').first();
         if (name.trim() === 'Mở bài') {
           await open.tap();
-          await expect(page.getByRole('button', { name: 'Bắt đầu' })).toBeVisible();
+          await expect(page.getByRole('button', { name: 'Bắt đầu bài' })).toBeVisible();
           await turnUntil(page, first);
         } else times.push(await timeFromTap(open, first));
         lessonUrl = page.url();
