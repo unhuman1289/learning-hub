@@ -16,7 +16,7 @@ Chủ dự án quyết ngày 14/11/2026: L, G, T, K chỉ lên staging.
 - **Qwen:** tối đa 2 lượt thật cho mỗi thay đổi. Dùng fixture trước (cổng Q).
 - Việc đưa lên production là quyết định riêng, sau khi cả nhóm E–U đã lên production.
 
-**Số migration:** `0030` cho P3 (`perf_daily`), `0031` cho L, `0032` cho G, `0033` cho T. K không cần migration.
+**Số migration:** `0030` cho P3 (`perf_daily`), `0031` cho L, `0032` cho T, `0033` cho G3. K không cần migration.
 
 ## 1. Thứ tự và việc chạy song song
 
@@ -33,7 +33,7 @@ Chủ dự án quyết ngày 14/11/2026: L, G, T, K chỉ lên staging.
 | 7 | **L6**: thử trên staging | L4, L5, P3 | G1 | — |
 | 8 | **G1**: chuẩn hoá đáp án | L1 (cùng `autograde.ts`) | L2–L5 | `autograde.ts` |
 | 9 | **G2**: bằng chứng trích dẫn | — | L2–L5 | `apply/assess.ts` |
-| 10 | **G3**: hiệu chuẩn hằng tuần, `0032` | L4 (cho câu nghe), chủ dự án duyệt đáp án chuẩn | T0–T2 | automation route, `runner.mjs` |
+| 10 | **G3**: hiệu chuẩn hằng tuần, `0033` | L4 (cho câu nghe), chủ dự án duyệt đáp án chuẩn | T0–T2 | automation route, `runner.mjs` |
 | 11 | **G4**: "Chấm sai?" tính theo lần chấm lại | — | T0–T2 | `disputes/service.ts` |
 | 12 | **T0**: cổng kỹ thuật (Durable Object, WebSocket) | — | L1–L5 | `build/worker.ts`, `wrangler.jsonc` |
 | 13 | **T1–T4**: gia sư | T0 đạt, L2 xong (`runner.mjs`) | G3–G4 | automation route, `runner.mjs` |
@@ -400,7 +400,7 @@ Phần lớn đã có: lỗi có `evidence` ≤ 80 ký tự, và Hub từ chối
 
 **Xong khi:** đủ test, replay Qwen offline đạt, đã gộp.
 
-### G3. Hiệu chuẩn hằng tuần, migration `0032`
+### G3. Hiệu chuẩn hằng tuần, migration `0033`
 
 **Đáp án chuẩn:**
 - Ngày 14/11/2026, chủ dự án giao Claude duyệt thay 32 bài làm trong `fixtures/eval/assess/deutsch.json`. Từng dòng được chấm lại theo rubric (đủ điểm là `correct`, từ một nửa trở lên là `partial`, dưới một nửa là `incorrect`). 4 dòng đã sửa:
@@ -421,7 +421,7 @@ Phần lớn đã có: lỗi có `evidence` ≤ 80 ký tự, và Hub từ chối
 - Gửi kết quả qua `POST /api/automation/v2/calibration` (scope `jobs:assess`). Chỉ gửi số liệu tổng và id các trường hợp trượt, không gửi bài làm.
 
 **Hub:**
-- Bảng `grader_calibrations(id, runner_version, model, prompt_hash, set_hash, n, agreement, evidence_not_verbatim, injection_shifted, mean_seconds, created_at)` trong `0032_calibration.sql`, có trong `backup-contract.mjs`.
+- Bảng `grader_calibrations(id, runner_version, model, prompt_hash, set_hash, n, agreement, evidence_not_verbatim, injection_shifted, mean_seconds, created_at)` trong `0033_calibration.sql`, có trong `backup-contract.mjs`.
 - Cảnh báo `grader_calibration_low` vào `alert_events`, hiện ở Cần xem, khi có một trong các điều kiện:
   - `agreement` < 0,90;
   - `evidence_not_verbatim` > 0;
@@ -434,7 +434,7 @@ Phần lớn đã có: lỗi có `evidence` ≤ 80 ký tự, và Hub từ chối
 - `tests/home-runner.test.mjs`: engine giả cho kết quả cố định, tính đúng tỉ lệ khớp;
 - test route: sai scope bị từ chối, dưới ngưỡng tạo cảnh báo.
 
-**Xong khi:** đã gộp; deploy staging với `0032`; một lượt `--calibrate` thật (1 lượt Qwen) ghi được dòng trên staging và hiện trong Quản trị.
+**Xong khi:** đã gộp; deploy staging với `0033`; một lượt `--calibrate` thật (1 lượt Qwen) ghi được dòng trên staging và hiện trong Quản trị.
 
 ### G4. "Chấm sai?" chuyển người khi bất đồng
 
@@ -491,7 +491,7 @@ Một nhánh thử, kết quả ghi trong `docs/plan/status/T.md`:
 
 ### T1. Dữ liệu và API (relay giả)
 
-**Migration `0033_tutor.sql`:**
+**Migration `0032_tutor.sql`:**
 - Bảng `tutor_turns(id, lesson_id, item_id, learner_id, question, answer, status, leak_blocked, first_token_ms, created_at, answered_at)`.
 - `status` gồm `queued`, `streaming`, `answered`, `failed`, `blocked`.
 - Có trong `backup-contract.mjs`.
@@ -573,7 +573,7 @@ Một nhánh thử, kết quả ghi trong `docs/plan/status/T.md`:
 
 ### T5. Thử trên staging
 
-1. **Deploy:** ghi khung giờ, sao lưu D1, deploy với `0033`. Lớp Durable Object mới được tạo khi deploy. Kiểm health và smoke test.
+1. **Deploy:** ghi khung giờ, sao lưu D1, deploy với `0032`. Lớp Durable Object mới được tạo khi deploy. Kiểm health và smoke test.
 2. **Cấp quyền:** chủ dự án đã đồng ý scope `tutor:answer` (15/11). Cấp lại thông tin runner staging có scope này trước khi thử.
 3. **Thử:** bật runner staging có `tutor`. Hồ sơ QA hỏi 3 lượt trong một bài. Kiểm:
    - mức `hint1` được ghi;
