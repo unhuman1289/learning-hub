@@ -40,8 +40,14 @@ const knowledgeBlock = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("steps"), steps: z.array(text(500)).min(1).max(12) }).strict(),
 ]);
 
-const audioSpec = z.object({
-  lang: z.enum(["de-DE", "zh-CN", "en-US", "vi-VN"]),
+export const audioLanguage = z.enum(["de-DE", "zh-CN", "en-US", "vi-VN"]);
+export const ttsVoices = z.partialRecord(audioLanguage, z.object({
+  f: text(100), m: text(100),
+}).strict().refine(pair => pair.f !== pair.m));
+export type TtsVoices = z.infer<typeof ttsVoices>;
+
+export const audioSpec = z.object({
+  lang: audioLanguage,
   lines: z.array(z.object({ speaker: z.enum(["a", "b"]), text: text(600) }).strict()).min(1).max(12),
   rate: z.literal([0.8, 0.9, 1]),
   maxPlays: z.literal([1, 2, 3]),

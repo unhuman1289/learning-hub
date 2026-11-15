@@ -1,3 +1,4 @@
+import { audioLanguage, ttsVoices } from "./lesson-package-v3.ts";
 import {frameworkInput} from '../roadmap/frameworks.ts';
 import {roadmapChanges,newStep} from '../roadmap/changes.ts';
 import { z } from 'zod/v4';
@@ -314,6 +315,7 @@ export const planContext = z
     planningGuidance: text(2000).optional(),
     adaptive: adaptiveDecision.optional(),
     roadmapProtocol: z.literal(2).optional(),
+    tts: z.object({ languages: z.array(audioLanguage).min(1).max(4), voices: ttsVoices }).strict().optional(),
     frameworks: z.array(z.object({key:z.string(),label:z.string(),levels:z.array(z.string())}).strict()).optional(),
     subjects: z.array(subject).max(30),
     explorations: z

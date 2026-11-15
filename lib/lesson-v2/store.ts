@@ -1,3 +1,4 @@
+import type { LessonAudio } from '../audio/lesson.ts';
 import {cutoffFor} from '../daily-policy.ts';
 import { ApiError } from '../api-error.ts';
 import type { AudioSpec, LessonItemAny, LessonPackage } from '../contracts/lesson-package-v3.ts';
@@ -60,8 +61,7 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
 }
 
 /** What a learner may see of an item before revealing hints or the solution, or before it is graded. */
-type AudioMetadata = { hash?: string; durationMs?: number };
-type PublicAudio = Omit<AudioSpec, 'lines'> & AudioMetadata;
+type PublicAudio = Omit<AudioSpec, 'lines'> & { src?: { f: string; m: string }; durationMs?: number };
 type PublicItem<T> = T extends LessonItemAny ? Omit<T, 'key' | 'hints' | 'solution' | 'explanation' | 'audio'> : never;
 export type ItemView = PublicItem<LessonItemAny> & {
   audio?: PublicAudio;
@@ -69,7 +69,7 @@ export type ItemView = PublicItem<LessonItemAny> & {
 };
 export type Support = Record<string, 'hint1' | 'hint2' | 'solution'>;
 
-export function itemView(item: LessonItemAny & { audio?: AudioSpec & AudioMetadata }, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
+export function itemView(item: LessonItemAny & { audio?: AudioSpec & Partial<LessonAudio> }, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
   const { key: _key, hints, solution, explanation, audio, ...visible } = item;
   void _key;
   const level = graded ? 'solution' : support;
@@ -79,7 +79,8 @@ export function itemView(item: LessonItemAny & { audio?: AudioSpec & AudioMetada
   return {
     ...visible, stage, hintCount: hints.length, flag,
     ...(audio ? { audio: {
-      hash: audio.hash, lang: audio.lang, rate: audio.rate, maxPlays: audio.maxPlays,
+      ...(audio.hashF && audio.hashM ? { src: { f: '/api/audio/' + audio.hashF, m: '/api/audio/' + audio.hashM } } : {}),
+      lang: audio.lang, rate: audio.rate, maxPlays: audio.maxPlays,
       durationMs: audio.durationMs, transcript: audio.transcript,
     } } : {}),
     revealed: { hints: shownHints, solutionSeen: support === "solution", ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },

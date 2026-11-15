@@ -1,3 +1,4 @@
+import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {applyRoadmapChanges,listSteps} from '../../roadmap/store.ts';
 import {frameworkFor,inferFramework} from '../../roadmap/frameworks.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
@@ -12,7 +13,7 @@ import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
-export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false) {
+export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>) {
   const errors: ValidationIssue[] = [],
     statements: ReturnType<EvidenceDb['prepare']>[] = [],
     applyGuards: ReturnType<EvidenceDb['prepare']>[] = [],
@@ -22,7 +23,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     expected = context.subjects.map((s) => s.subjectId);
   if (ids.length !== new Set(ids).size || ids.length !== expected.length || expected.some((id) => !ids.includes(id)))
     issue('/subjects', 'unknown_reference', 'Mỗi sổ trong ngữ cảnh phải xuất hiện đúng một lần.');
-  const extra = await prepareExplorations(db, job, context, result, token, now, issue);
+  const extra = await prepareExplorations(db, job, context, result, token, now, issue, audioBucket);
   let newMinutes = extra.minutes;
   const savedIds: string[] = [...extra.savedIds];
   statements.push(...extra.statements);
@@ -287,7 +288,8 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
+      const audio = await resolveLessonAudio(db, packageInput, context.tts, audioBucket);
+      const checked = validateLessonPackage(audio.lesson, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       if(modern&&checked.lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))
@@ -390,7 +392,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         statements.push(
           db
             .prepare(
-              `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
+              `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at,stimulus,audio_hash_f,audio_hash_m) SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
             )
             .bind(
               id,
@@ -404,8 +406,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
               item.difficulty,
               item.key ? 1 : 0,
               hashes[i],
-              JSON.stringify(item),
+              JSON.stringify('audio' in item && item.audio ? { ...item, audio: { ...item.audio, ...audio.assets.get(item.id) } } : item),
               now.toISOString(),
+              ...audioColumns(audio.assets.get(item.id)),
               id,
               job.id,
               token,
