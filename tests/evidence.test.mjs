@@ -52,6 +52,51 @@ test('autograde matrix: exact sets, numeric units/tolerances and German normaliz
   assert.equal(autoGrade(text, 'kochen').feedback, 'Đúng.');
   assert.equal(autoGrade(text, 'kocht').feedback, 'Chưa đúng. Đọc lại đề và thử sửa nhé.');
 });
+test('text key normalization accepts typography variants while preserving spelling and meaning', () => {
+  const cases = [
+    ['nach Hause', 'nach\u00a0Hause', true],
+    ['nach Hause', 'nach\u202fHause', true],
+    ['"Hallo"', '„Hallo“', true],
+    ['"Hallo"', '“Hallo”', true],
+    ["geht's", 'geht‘s', true],
+    ["geht's", 'geht’s', true],
+    ['A-B', 'A‐B', true],
+    ['A-B', 'A‑B', true],
+    ['A-B', 'A–B', true],
+    ['A-B', 'A—B', true],
+    ['A-B', 'A－B', true],
+    ['A-B', 'AB', false],
+    ...Array.from('…,;:．！，；：？', mark => ['Hallo', 'Hallo' + mark, true]),
+    ['Hallo Welt', 'Hallo, Welt', false],
+    ['hòa', 'hoà', true],
+    ['thuỷ', 'thủy', true],
+    ['khỏe', 'khoẻ', true],
+    ['HÒA', 'HOÀ'.normalize('NFD'), true],
+    ['hòa', 'hóa', false],
+    ['hoàn', 'hòan', false],
+    ['3.5', '3,5', true],
+    ['Giá -3,5 kg', 'Giá -3.5 kg', true],
+    ['3.5', '3,5！', true],
+    ['3.5kg', '3,5kg', false],
+    ['A3.5', 'A3,5', false],
+    ['1.234.5', '1.234,5', false],
+    ['3.5', '35', false],
+    ['Häuser', 'Hause', false],
+    ['schön', 'schon', false],
+    ['für', 'fur', false],
+    ['Straße', 'Strase', false],
+    ['Straße', 'Strasse', false],
+    [['Straße', 'Strasse'], 'Strasse', true],
+    ['mà', 'ma', false],
+  ];
+  for (const [expected, answer, correct] of cases) {
+    const accepted = Array.isArray(expected) ? expected : [expected];
+    const key = { type: 'text', accepted, caseSensitive: true };
+    assert.equal(autoGrade(key, answer).result, correct ? 'correct' : 'incorrect',
+      `${JSON.stringify(accepted)} vs ${JSON.stringify(answer)}`);
+  }
+});
+
 test('ambiguous numbers ask for clarification without saving a submission or consuming an attempt', async () => {
   const { db, id } = await seed();
   const item = structuredClone(fixture.items[0]);
