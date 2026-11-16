@@ -8,7 +8,9 @@ import { containsContactDetails, containsPossibleClinicalIdentifier } from '../a
 import { AUDIO_HASH, audioVariant } from './hash.mjs';
 import { m4aDurationMs } from './mp4.ts';
 
-export const MAX_AUDIO_BYTES = 1024 * 1024;
+import { MAX_AUDIO_BYTES, wavDurationMs } from './wav.ts';
+import { OPENAI_VOICE_PREFIX } from './openai-voices.ts';
+export { MAX_AUDIO_BYTES } from './wav.ts';
 const metadata = z.object({ audio: audioSpec, variant: z.enum(['f', 'm']) }).strict();
 
 function readMetadata(req: Request) {
@@ -50,25 +52,28 @@ export async function uploadAudio(
   recheckLease: () => Promise<unknown>, now = new Date(),
 ) {
   if (job.kind !== 'plan' || !AUDIO_HASH.test(hash)) throw new ApiError(404, 'Không tìm thấy âm thanh.');
-  if (req.headers.get('Content-Type')?.toLowerCase() !== 'audio/mp4') throw new ApiError(415, 'Cần tệp audio/mp4.');
+  const mime = req.headers.get('Content-Type')?.toLowerCase();
+  if (mime !== 'audio/mp4' && mime !== 'audio/wav') throw new ApiError(415, 'Cần tệp M4A hoặc WAV.');
   const { audio, variant } = readMetadata(req);
   const context = JSON.parse(job.context_snapshot!) as PlanContext;
   const pair = context.tts?.voices[audio.lang];
   if (!pair || !context.tts?.languages.includes(audio.lang)) throw new ApiError(409, 'Lease chưa có giọng đọc cho ngôn ngữ này.');
+  const wave = pair.f.startsWith(OPENAI_VOICE_PREFIX) && pair.m.startsWith(OPENAI_VOICE_PREFIX);
+  if (mime !== (wave ? 'audio/wav' : 'audio/mp4')) throw new ApiError(415, 'Định dạng âm thanh không khớp giọng đọc.');
   const dialogue = audio.lines.map(line => line.text).join('\n');
   if (containsContactDetails(dialogue) || context.subjects.some(subject => containsPossibleClinicalIdentifier(dialogue, subject.sensitivity)))
     throw new ApiError(400, 'Lời thoại có thể chứa định danh.');
   const expected = await audioVariant(audio, pair, variant);
   if (expected.hash !== hash) throw new ApiError(400, 'Mã âm thanh không khớp lời thoại và giọng.');
   const bytes = await readAudio(req);
-  const durationMs = m4aDurationMs(bytes);
-  if (!durationMs) throw new ApiError(415, 'Tệp M4A không hợp lệ.');
+  const durationMs = wave ? wavDurationMs(bytes) : m4aDurationMs(bytes);
+  if (!durationMs) throw new ApiError(415, 'Tệp âm thanh không hợp lệ.');
   await recheckLease();
-  const key = 'audio/' + hash + '.m4a';
+  const key = 'audio/' + hash + (wave ? '.wav' : '.m4a');
   // R2's precondition also covers concurrent uploads from separate leases.
   const created = await bucket.put(key, bytes, {
     onlyIf: { etagDoesNotMatch: '*' },
-    httpMetadata: { contentType: 'audio/mp4' },
+    httpMetadata: { contentType: mime },
     customMetadata: { durationMs: String(durationMs) },
   });
   const object = created ?? await bucket.head(key);

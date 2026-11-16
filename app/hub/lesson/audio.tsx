@@ -177,6 +177,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     remaining === 0 ? "Nghe thêm (tính là gợi ý)" : "Phát âm thanh";
   const duration = (audio.durationMs ?? 0) / 1000;
   return <div ref={panel} className="grid gap-1">
+    <span className="text-xs">Giọng tổng hợp</span>
     <audio
       ref={media} src={src} preload="none"
       onPlaying={() => { clearTimeout(timeout.current); setState("playing"); }}

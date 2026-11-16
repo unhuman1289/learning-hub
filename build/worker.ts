@@ -1,3 +1,6 @@
+import planPrompt from '../integrations/runner-prompts/plan-request.md?raw';
+import assessPrompt from '../integrations/runner-prompts/assess-local.md?raw';
+import recheckPrompt from '../integrations/runner-prompts/assess-recheck.md?raw';
 import { consumeOpenAi, redispatchOpenAi } from './openai-queue';
 import { checkNightlyCoverage } from '../lib/roadmap/coverage';
 import { berlinDay } from '../lib/daily-policy';
@@ -48,7 +51,10 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
 }
 
 export default {
-  queue: consumeOpenAi,
+  queue(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env) {
+    return consumeOpenAi(batch, env, (kind, purpose) =>
+      kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt);
+  },
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env);
     if (guarded) return guarded;

@@ -12,27 +12,31 @@ import { submitLesson } from '../lib/evidence/submit.ts';
 
 const now = new Date('2026-11-16T10:00:00Z');
 const learner = 'demo-listening-authoring';
-const stamp = now.toISOString();
 export const germanVoices = { 'de-DE': { f: 'Anna (German (Germany))', m: 'Reed (German (Germany))' } };
 const defaultSample = JSON.parse(readFileSync(new URL('./fixtures/qwen/l4-listening-sample.json', import.meta.url))).listeningSample;
+
+export async function seedListeningRequest(db, { title = 'Deutsch', goal = 'Deutsch A1: Uhrzeit und Termine', at = now, bindings = {} } = {}) {
+  db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'Demo','l4@example.test',1,1,1,'learner','active')").run(learner);
+  const subject = await createSubject(db, learner, learner, parseSubjectInput({ title, goal }), at);
+  db.sqlite.prepare("UPDATE subjects SET status='active' WHERE id=?").run(subject.id);
+  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at)
+    VALUES('sk_listeningtime',?,?,'uhrzeit','Uhrzeit und Termine','',1,'[]','active','ai',?,?)`).run(subject.id, learner, at.toISOString(), at.toISOString());
+  const insertStep = db.sqlite.prepare(`INSERT INTO roadmap_steps(id,learner_id,subject_id,ord,title,objective,situation,skill_ids,requires,band,kind,status,origin,created_at,updated_at)
+    VALUES(?,?,?,?,?,'Giờ hẹn và nơi gặp','Hẹn gặp','["sk_listeningtime"]','[]',2,'new',?,'migration',?,?)`);
+  for (const [index, name] of ['Uhrzeit und Termine', 'Wochentage', 'Kalender', 'Verabredungen', 'Öffnungszeiten'].entries()) {
+    insertStep.run('time-' + index, learner, subject.id, index + 1, name, index ? 'planned' : 'practising', at.toISOString(), at.toISOString());
+  }
+  const request = await createRequest(db, bindings, learner, learner,
+    parseRequest({ subjectId: subject.id, mode: 'practice', stepId: 'time-0', clientRequestId: crypto.randomUUID() }), at);
+  return { learner, subject, request };
+}
 
 export async function listeningJob(db, { sample = defaultSample, ttsVoices = germanVoices, title = 'Deutsch', goal = 'Deutsch A1: Uhrzeit und Termine' } = {}) {
   const client = {
     id: 'local-replay', scopes: ['jobs:plan', 'jobs:assess'], learnerIds: [learner],
     purposes: ['request', 'submission'], triggers: ['on_demand', 'deferred', 'scheduled'],
   };
-  db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'Demo','l4@example.test',1,1,1,'learner','active')").run(learner);
-  const subject = await createSubject(db, learner, learner, parseSubjectInput({ title, goal }), now);
-  db.sqlite.prepare("UPDATE subjects SET status='active' WHERE id=?").run(subject.id);
-  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at)
-    VALUES('sk_listeningtime',?,?,'uhrzeit','Uhrzeit und Termine','',1,'[]','active','ai',?,?)`).run(subject.id, learner, stamp, stamp);
-  const insertStep = db.sqlite.prepare(`INSERT INTO roadmap_steps(id,learner_id,subject_id,ord,title,objective,situation,skill_ids,requires,band,kind,status,origin,created_at,updated_at)
-    VALUES(?,?,?,?,?,'Giờ hẹn và nơi gặp','Hẹn gặp','["sk_listeningtime"]','[]',2,'new',?,'migration',?,?)`);
-  for (const [index, name] of ['Uhrzeit und Termine', 'Wochentage', 'Kalender', 'Verabredungen', 'Öffnungszeiten'].entries()) {
-    insertStep.run('time-' + index, learner, subject.id, index + 1, name, index ? 'planned' : 'practising', stamp, stamp);
-  }
-  const request = await createRequest(db, {}, learner, learner,
-    parseRequest({ subjectId: subject.id, mode: 'practice', stepId: 'time-0', clientRequestId: crypto.randomUUID() }), now);
+  const { subject, request } = await seedListeningRequest(db, { title, goal });
   const claim = (kind, capabilities) => leaseJobs(db, client, {
     kinds: [kind], max: 1, capabilities, ttsVoices,
     runner: { name: 'local-replay', version: '1', model: 'fixture' },
