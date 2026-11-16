@@ -2631,6 +2631,10 @@
                         }
                       ]
                     }
+                  },
+                  "gradingMode": {
+                    "type": "string",
+                    "const": "whole-lesson"
                   }
                 },
                 "required": [
@@ -5098,6 +5102,10 @@
                         }
                       ]
                     }
+                  },
+                  "gradingMode": {
+                    "type": "string",
+                    "const": "whole-lesson"
                   }
                 },
                 "required": [
@@ -8166,6 +8174,10 @@
                         }
                       ]
                     }
+                  },
+                  "gradingMode": {
+                    "type": "string",
+                    "const": "whole-lesson"
                   }
                 },
                 "required": [

@@ -33,6 +33,7 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
   const items = [];
   let imageCount = 0;
   for (const a of attempts) {
+    if (lesson.gradingMode === 'whole-lesson' && !dispute && a.grader === 'auto') continue;
     const item = JSON.parse(String(a.payload));
     const photos = [];
     for (const id of JSON.parse(String(a.attachment_ids)) as string[]) {

@@ -55,6 +55,7 @@ export function LessonReader({
   const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !answered.has(item.id));
   let initialItem = 0;
   if (lesson.completedAt) initialItem = summaryIndex;
+  else if (pending === "whole-lesson") initialItem = summaryIndex;
   else if (pending) initialItem = lesson.items.findIndex(item => item.id === pending) + 1;
   else if (correctionIndex >= 0) initialItem = correctionIndex + 1;
   else if (answered.size || lesson.items.some(item => item.revealed.solutionSeen || hasAnswer(item))) {
@@ -94,9 +95,14 @@ export function LessonReader({
             }}
             progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
             completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
+            {lesson.wholeLesson && !readonly && !lesson.completedAt &&
+              <button type="button" className={buttonClass("primary")} disabled={busy || session.waitingForGrade}
+                onClick={() => void session.submit("whole-lesson")}>
+                {pending ? "Thử nộp lại" : "Nộp bài"}
+              </button>}
             {lesson.output && <p>{words.place.product} · {lesson.output}</p>}
             {!readonly && <button type="button" className={buttonClass(lesson.completedAt ? "ghost" : "primary")}
-              disabled={busy || !!pending} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
+              disabled={busy || !!pending || (lesson.wholeLesson && !lesson.completedAt && (!history.length || session.waitingForGrade))} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
               {lesson.completedAt ? words.action.reopen : words.action.finish}
             </button>}
           </LessonSummary>
@@ -126,7 +132,7 @@ export function LessonReader({
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
-          onSubmit={() => void session.submit(item.id)} canSubmit={canSubmit} awaitingFeedback={awaiting && pending !== item.id}
+          onSubmit={() => void session.submit(item.id)} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
           gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :

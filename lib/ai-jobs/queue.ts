@@ -5,6 +5,8 @@ import { ApiError } from '../api-error.ts';
 import { usesAdaptivePlan } from '../subjects/sql.ts';
 export type QueueBindings = {
   AI_LOCAL_ONLY?: string;
+  ENVIRONMENT?: string;
+  OPENAI_SUBJECT_IDS?: string;
   ADAPTIVE_PILOT_SUBJECT_ID?: string;
   AI_JOBS_DAILY_CAP?: string;
   AI_QUEUE?: { send(body: unknown): Promise<unknown> };
@@ -12,6 +14,13 @@ export type QueueBindings = {
   AI_DISPATCH_SECRET?: string;
   HUB2_ENABLED?: string;
 };
+export function openAiSubjects(bindings: QueueBindings) {
+  return bindings.ENVIRONMENT === 'staging'
+    ? [...new Set((bindings.OPENAI_SUBJECT_IDS ?? '').split(',').map(id => id.trim()))]
+        .filter(id => /^sub_[0-9a-f]{20}$/.test(id)).slice(0, 20)
+    : [];
+}
+
 export async function dispatchJob(
   bindings: QueueBindings,
   job: { id: string; kind: string; purpose: string; priority: number },
@@ -167,7 +176,10 @@ export async function enqueue(
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
-  if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {
+  if (input.subjectId && openAiSubjects(bindings).includes(input.subjectId) && saved.status === 'queued' &&
+      (saved.trigger !== 'deferred' || input.purpose === 'submission' || input.purpose === 'recheck')) {
+    await bindings.AI_QUEUE?.send({ jobId: saved.id }).catch(() => console.error('OpenAI dispatch unavailable; queued job retained.'));
+  } else if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {
     if (saved.trigger === 'on_demand')
       await dispatchJob(bindings, saved, now).catch(() => console.error('Dispatch unavailable; queued job retained.'));
   }
@@ -180,10 +192,10 @@ export async function queueSubmission(db: EvidenceDb, bindings: QueueBindings, l
     .all<{ status: string; result: string | null }>();
   if (!results.length || (results.every((a) => a.status === 'graded') && results.filter((a) => a.result === 'incorrect').length <= 1)) return null;
   const sub = await db
-    .prepare('SELECT l.subject_id,s.ai_job_id FROM submissions s JOIN learning_lessons l ON l.id=s.lesson_id WHERE s.id=? AND s.learner_id=?')
+    .prepare("SELECT l.subject_id,s.ai_job_id,json_extract(l.payload,'$.gradingMode') AS grading_mode FROM submissions s JOIN learning_lessons l ON l.id=s.lesson_id WHERE s.id=? AND s.learner_id=?")
     .bind(id, learnerId)
-    .first<{ subject_id: string; ai_job_id: string | null }>();
-  if (!sub) return null;
+    .first<{ subject_id: string; ai_job_id: string | null; grading_mode: string | null }>();
+  if (!sub || (sub.grading_mode === 'whole-lesson' && results.every(a => a.status === 'graded'))) return null;
   const job = await enqueue(db, bindings, { learnerId, kind: 'assess', purpose: 'submission', subjectId: sub.subject_id, refId: id }, now);
   // Only link the job; never move a graded submission back to waiting (a replay returns the same job).
   await db.prepare('UPDATE submissions SET ai_job_id=? WHERE id=? AND learner_id=? AND ai_job_id IS NULL').bind(job.id, id, learnerId).run();

@@ -81,8 +81,14 @@ export const lessonPackageV3 = lessonPackageV2.extend({
   contract: z.literal("lesson-package/3"),
   items: z.array(itemV3).min(1).max(25),
   knowledge: z.array(knowledgeBlock).max(12),
+  gradingMode: z.literal("whole-lesson").optional(),
 }).superRefine((lesson, ctx) => {
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
+  if (lesson.gradingMode === "whole-lesson" && (lesson.items.length > 8 ||
+    lesson.items.some(item => !["short", "long", "code"].includes(item.input) || !("rubric" in item) || !item.rubric ||
+      ("key" in item && item.key) || item.attachment !== "none"))) {
+    issue(["items"], "Bài chấm cuối lượt có tối đa 8 câu mở dạng văn bản, mỗi câu có rubric.");
+  }
   const ids = lesson.items.map(item => item.id);
   if (new Set(ids).size !== ids.length) issue(["items"], "Mã câu phải khác nhau.");
   for (const [i, item] of lesson.items.entries()) {

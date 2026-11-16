@@ -54,6 +54,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
       containsPossibleClinicalIdentifier(g.feedback + '\n' + g.correction, context.subject.sensitivity)
     )
       issue(path, 'privacy', 'Lời phê có thể chứa định danh.');
+    const solutionSeen = appended.gradingMode === 'whole-lesson' && a.support === 'solution';
     const rubric = a.rubric ?? [];
     if (g.result === 'ungradable') {
       if (!g.feedback.trim() || g.score !== 0) issue(path, 'schema', 'Câu không chấm được cần lý do và score 0.');
@@ -102,12 +103,12 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
           id,
           a.attemptId,
           job.id,
-          g.result,
-          g.score,
-          JSON.stringify(g.rubricScores),
-          evidence.feedback,
+          solutionSeen ? 'incorrect' : g.result,
+          solutionSeen ? 0 : g.score,
+          JSON.stringify(solutionSeen ? [] : g.rubricScores),
+          solutionSeen ? 'Đã xem lời giải. ' + evidence.feedback : evidence.feedback,
           g.correction,
-          JSON.stringify(evidence.errors),
+          JSON.stringify(solutionSeen ? [] : evidence.errors),
           now.toISOString(),
           job.id,
           token,
@@ -122,7 +123,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
         )
         .bind(id, a.attemptId, job.learner_id, id, job.id, token),
     );
-    if (g.checkItem) {
+    if (g.checkItem && appended.gradingMode !== 'whole-lesson') {
       checks++;
       const checked = lessonItem.safeParse(g.checkItem);
       if (!checked.success) issue(path + '/checkItem', 'schema', 'Câu kiểm tra không hợp lệ.');

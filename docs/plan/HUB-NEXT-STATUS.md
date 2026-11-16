@@ -6,6 +6,10 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
+staging: thử runner OpenAI và nộp cả bài, đến 05:00 Europe/Berlin
+
+Ứng viên staging có Queue consumer OpenAI và chế độ nộp cả bài. Danh sách sổ dùng OpenAI mặc định trống. Chỉ thêm ID sổ demo văn bản người lớn khi kiểm thử trực tiếp.
+
 Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.

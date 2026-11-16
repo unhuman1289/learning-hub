@@ -1,3 +1,4 @@
+import { openAiSubjects } from '../../../../../lib/ai-jobs/queue';
 import { uploadAudio } from '../../../../../lib/audio/upload';
 import { callKnowledgeTool,routeKnowledge } from '../../../../../lib/knowledge/tools';
 import {readBoundedText} from '../../../../../lib/mcp/body';
@@ -99,7 +100,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         throw new ApiError(403, 'Lượt xử lý chỉ dành cho máy ở nhà.');
       const input = leaseBody.safeParse(body);
       if (!input.success) throw new ApiError(400, 'Lease request không hợp lệ.');
-      return Response.json({ jobs: await leaseJobs(db, client, input.data, env.ENVIRONMENT ?? 'unknown') }, { headers });
+      return Response.json({ jobs: await leaseJobs(db, client, { ...input.data, excludeSubjectIds: openAiSubjects(env) }, env.ENVIRONMENT ?? 'unknown') }, { headers });
     }
     // Read-only history for the Drive copy on the family Mac (L5.6): only profiles listed for this client.
     if (path[0] === 'history' && path.length === 2 && req.method === 'GET') {

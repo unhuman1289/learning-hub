@@ -112,5 +112,6 @@ export async function readLessonV2(db: Db, learnerId: string, lessonId: string, 
     items: items.map((item) => itemView(JSON.parse(item.payload) as LessonItemAny, item.stage, support[item.item_id], gradedItemIds.has(item.item_id), item.flag)),
     draft: JSON.parse(row.draft) as Record<string, { answer: string; attachmentIds?: string[] }>,
     draftRevision: row.draft_revision,
+    wholeLesson: lesson.contract === "lesson-package/3" && lesson.gradingMode === "whole-lesson",
   };
 }
