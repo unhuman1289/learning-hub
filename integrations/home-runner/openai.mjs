@@ -50,7 +50,8 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
       const body = await response.json().catch(() => null);
       if (!response.ok) {
         const code = body?.error?.code;
-        const knownCode = ['credit_balance_exhausted', 'project_spend_limit_exceeded', 'organization_spend_limit_exceeded', 'rate_limit_exceeded'].includes(code);
+        const knownCode = ['credit_balance_exhausted', 'project_spend_limit_exceeded', 'organization_spend_limit_exceeded', 'rate_limit_exceeded',
+          'invalid_json_schema', 'invalid_api_key', 'model_not_found', 'insufficient_permissions', 'unsupported_value', 'invalid_request_error'].includes(code);
         const error = new Error('OpenAI HTTP ' + response.status + (knownCode ? ' (' + code + ')' : ''));
         error.retryable = response.status >= 500 || (response.status === 429 && code === 'rate_limit_exceeded');
         throw error;

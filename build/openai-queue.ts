@@ -52,7 +52,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       const token = lease.leaseToken;
       const active = await leasedJob(db, client, id, token);
       const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose });
-      await processJob({
+      const processed = await processJob({
         context: async () => JSON.parse(active.context_snapshot!),
         heartbeat: async () => heartbeat(db, client, id, token),
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
@@ -70,6 +70,14 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
           kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt,
       });
       const current = await readJob(db, id);
+      if (current?.status === 'failed') {
+        const detail = 'error' in processed && typeof processed.error === 'string'
+          ? processed.error.match(/OpenAI HTTP \d{3}(?: \([a-z_]+\))?/)?.[0] : undefined;
+        if (detail) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
+          .bind(detail, id, client.id).run();
+        console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, kind: job.kind,
+          status: current.status, ...(detail ? { detail } : {}) }));
+      }
       if (current?.status === 'queued') message.retry({ delaySeconds: 30 });
       else message.ack();
     } catch {
