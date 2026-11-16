@@ -12,6 +12,8 @@ Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Be
 Khung kiểm thử OpenAI và nộp cả bài ngày 16/11 đã kết thúc lúc 05:00 Europe/Berlin.
 Khung deploy #169 và #170 ngày 16/11 đã đóng sau khi xác nhận staging lúc 05:02 Europe/Berlin.
 
+staging: sửa và nghiệm thu Chấm sai? trên QA H5 Deutsch, đến 16:00 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |

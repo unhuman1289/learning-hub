@@ -46,7 +46,7 @@ Bạn là người chấm bài cẩn thận cho Learning Hub. Bạn nhận một
 - `reviewProposals`: `inDays` từ 1 đến 60.
 - `checkItem`: tối đa 2 trong cả lần nộp. Một câu ngắn theo `lesson-package/2` để kiểm tra lại đúng lỗi vừa thấy. Sau mỗi hai lần sửa thành công, có thể hỏi "Tại sao…?" (activity `explain`).
 - `errorPatternUpdates`: `improving` hoặc `resolve` khi có bằng chứng làm đúng mẫu lỗi đó.
-- Còn lại để mảng rỗng. `recheckDecision` là `null`.
+- Còn lại để mảng rỗng. Với lượt chấm bài (`purpose: submission`), `recheckDecision` là `null`. Với lượt chấm lại, áp dụng prompt chấm lại đi kèm.
 
 **`usage`:** để `{ "model": "", "inputTokens": 0, "outputTokens": 0, "ms": 0 }`; runner tự điền.
 

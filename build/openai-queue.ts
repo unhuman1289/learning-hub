@@ -68,6 +68,11 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       }, lease, engine, {
         getPrompt: (kind: string, purpose: string) =>
           kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt,
+        log: (entry?: { event: string }) => {
+          if (job.purpose === 'recheck' && entry && ['engine_error', 'contract_error', 'dry_run_422'].includes(entry.event)) {
+            console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, purpose: job.purpose, event: entry.event }));
+          }
+        },
       });
       const current = await readJob(db, id);
       if (current?.status === 'failed') {
