@@ -1,4 +1,3 @@
-import { roadmapProgressWrite } from '../lib/roadmap/progress.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -8,6 +7,7 @@ import { refreshSkills } from '../lib/learner-model/nightly.ts';
 import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
+import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { processJob } from '../integrations/home-runner/job.mjs';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
@@ -1278,14 +1278,20 @@ test('v3 planning requires runner support and does not write a new lesson after 
   }
 });
 
-test('a capable runner saves a scoped stable opening roadmap and placement lesson', async () => {
+test('a Deutsch notebook outside the TTS pilot saves its roadmap and places from text evidence', async () => {
   const { db, lesson: openLesson } = await assigned();
   db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(openLesson);
   const notebook = await createSubject(db, learner, learner, parseSubjectInput({
     title: 'Deutsch mới', goal: 'Đặt lịch làm việc, trình độ A2',
   }), now);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
-  const [lease] = await leaseJobs(db, client, {...input, capabilities:['lesson-v3','roadmap-v2']}, 'test', now);
+  const bucket = { head: async () => null };
+  const ttsSubjectIds = openAiTtsSubjects({ ENVIRONMENT: 'staging', UPLOADS: bucket, OPENAI_API_KEY: 'fixture-key',
+    OPENAI_SUBJECT_IDS: notebook.id + ',' + subject, OPENAI_TTS_SUBJECT_IDS: subject });
+  assert.deepEqual(ttsSubjectIds, [subject]);
+  const [lease] = await leaseJobs(db, client, {
+    ...input, capabilities: ['lesson-v3', 'roadmap-v2', 'tts'], ttsVoices: openAiGermanVoices,
+  }, 'test', now);
   assert.equal(lease.jobId, job.id);
   const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
   assert.equal(context.roadmapProtocol, 2);
@@ -1308,11 +1314,11 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     framework:{key:'de-cefr',levelFrom:'A2.1'}};
   lesson.targetSkills = skills.slice(0,5).map(ref);
   lesson.items.forEach((item,i)=>{item.skills=[ref(skills[i%5])];});
-  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now);
+  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now,undefined,bucket,ttsSubjectIds);
   assert.equal(saved.status,200,JSON.stringify(saved));
   const steps=db.sqlite.prepare('SELECT id,requires,skill_ids,listening FROM roadmap_steps WHERE learner_id=? AND subject_id=? ORDER BY ord').all(learner,notebook.id);
   assert.equal(steps.length,5);
-  assert(steps.every(step=>step.listening===1));
+  assert(steps.every(step=>step.listening===0));
   assert.match(steps[0].id,/^rs_[a-f0-9]{20}$/);
   assert.deepEqual(JSON.parse(steps[1].requires),[steps[0].id]);
   const placed=db.sqlite.prepare('SELECT id,step_role,updated FROM learning_lessons WHERE subject_id=?').get(notebook.id);
@@ -1341,13 +1347,6 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
   }
   await completeLesson(db,learner,placed.id,true,placed.updated,new Date(now.getTime()+1));
   const statuses=()=>db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(notebook.id).map(row=>row.status);
-  assert.deepEqual(statuses(), Array(5).fill('planned'));
-  const markListening=db.sqlite.prepare(`INSERT INTO skill_states(skill_id,learner_id,subject_id,mastery,mastery_ceiling,
-    dim_knowledge,dim_recognition,dim_application,dim_retention,attempts_total,evidence_hash,recompute_token,updated_at,listening)
-    VALUES(?,?,?,'developing','developing',0,0,0,0,2,'h','x',?,'{"level":"secure","days":["2026-10-12","2026-10-13"]}')`);
-  for(const step of steps.slice(0,3))for(const skill of JSON.parse(step.skill_ids))
-    markListening.run(skill,learner,notebook.id,now.toISOString());
-  await roadmapProgressWrite(db,learner,placed.id,new Date(now.getTime()+2)).run();
   assert.deepEqual(statuses(), ['placed','placed','planned','planned','planned']);
 
   const later=new Date(now.getTime()+2000);
@@ -1370,10 +1369,10 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     if(item.rubric)item.rubric=item.rubric.map(criterion=>({...criterion,skill:skillId}));
   });
   extension.explorations=[{requestId:request.id,subjectId:notebook.id,action:'assign',reason:'Luyện bước đã qua',lesson:practice}];
-  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later);
+  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later,undefined,bucket,ttsSubjectIds);
   assert.equal(more.status,200,JSON.stringify(more));
   assert.equal(more.outcome.extraLessonIds.length,1);
-  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=1').get(notebook.id).n,8);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=0').get(notebook.id).n,8);
   assert.equal(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE id=?').get(steps[0].id).status,'placed');
   for (const valid of [true,false]) {
     const stamp=new Date(later.getTime()+(valid?1000:2000));

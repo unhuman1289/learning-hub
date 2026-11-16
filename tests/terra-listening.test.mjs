@@ -16,6 +16,7 @@ test('Terra API fixture and Queue delivery replay save a Deutsch lesson with fou
   const db = memoryDb();
   t.after(() => db.sqlite.close());
   const { subject, learner, request } = await seedListeningRequest(db, { at: new Date() });
+  db.sqlite.prepare("UPDATE roadmap_steps SET listening=1 WHERE id='time-2'").run();
   const job = db.sqlite.prepare('SELECT job_id FROM learner_requests WHERE id=?').get(request.id);
   const objects = new Map();
   const env = {
@@ -58,6 +59,13 @@ test('Terra API fixture and Queue delivery replay save a Deutsch lesson with fou
       Object.assign(result.subjects[0], {
         subjectId: subject.id, expectedRevision: context.subjects[0].revision, reason: context.adaptive.reason,
       });
+      result.subjects[0].roadmapChanges = [
+        { op: 'revise', stepId: 'time-1', fields: { title: 'Tage im Überblick' } },
+        { op: 'append', step: {
+          title: 'Einen Termin verschieben', objective: 'Nghe và xác nhận giờ hẹn mới.', situation: 'Đổi giờ hẹn',
+          skills: ['sk_listeningtime'], requires: [], band: 2, kind: 'new',
+        } },
+      ];
       Object.assign(result.explorations[0], { subjectId: subject.id, requestId: request.id });
       return Response.json({
         status: 'completed', model: body.model, usage: { input_tokens: 100, output_tokens: 100 },
@@ -76,6 +84,10 @@ test('Terra API fixture and Queue delivery replay save a Deutsch lesson with fou
   const saved = await readJob(db, job.job_id);
   assert.equal(saved.status, 'succeeded', saved.error);
   assert.equal(saved.runner && JSON.parse(saved.runner).name, 'openai-staging');
+  const steps = db.sqlite.prepare('SELECT title,listening FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(subject.id);
+  assert.equal(steps.length, 6);
+  assert.equal(steps[1].title, 'Tage im Überblick');
+  assert.deepEqual(steps.map(step => step.listening), [0, 0, 1, 0, 0, 1]);
   const [lessonId] = JSON.parse(saved.outcome).extraLessonIds;
   const lesson = await readLessonV2(db, learner, lessonId);
   const listening = lesson.items.filter(item => item.audio);

@@ -83,7 +83,7 @@ async function replayRequest(raw, expectedSteps) {
     assert(lessonId);
     assert.equal(db.sqlite.prepare('SELECT result_lesson_id FROM learner_requests WHERE id=?').get(requested.id).result_lesson_id, lessonId);
     assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n, expectedSteps);
-    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=1').get(notebook.id).n, expectedSteps);
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=0').get(notebook.id).n, expectedSteps);
     console.log('đã lưu bài Xin bài; số bước mới:', expectedSteps);
   } finally {
     db.sqlite.close();

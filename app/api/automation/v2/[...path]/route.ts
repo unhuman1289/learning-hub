@@ -1,4 +1,5 @@
 import { openAiSubjects } from '../../../../../lib/ai-jobs/queue';
+import { openAiTtsSubjects } from '../../../../../lib/audio/openai-voices';
 import { uploadAudio } from '../../../../../lib/audio/upload';
 import { callKnowledgeTool,routeKnowledge } from '../../../../../lib/knowledge/tools';
 import {readBoundedText} from '../../../../../lib/mcp/body';
@@ -146,6 +147,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         new Date(),
         env.AI_PRICE_TABLE,
         env.UPLOADS,
+        openAiTtsSubjects(env),
       );
       // Email only when the third failed check ends the job; the 06:00 digest covers the rest.
       if (result.status === 422 && (await readJob(db, id))?.status === 'failed') await sendAlertDigest(db, env).catch(() => {});

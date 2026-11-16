@@ -1,6 +1,6 @@
 import { uploadOpenAiPlanAudio } from './openai-tts.ts';
 import { uploadAudio } from '../lib/audio/upload.ts';
-import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
+import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
 import { processJob } from '../integrations/home-runner/job.mjs';
 import { applyResult } from '../lib/ai-jobs/result.ts';
@@ -19,6 +19,7 @@ const client: AutomationClient = {
 
 export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch) {
   const subjectIds = openAiSubjects(env);
+  const ttsSubjectIds = openAiTtsSubjects(env);
   const { DB: db, OPENAI_API_KEY: apiKey, UPLOADS: bucket } = env;
   for (const message of batch.messages) {
     const id = message.body?.jobId;
@@ -37,8 +38,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       continue;
     }
     try {
-      const tts = job.kind === 'plan' && bucket && env.OPENAI_TTS_SUBJECT_IDS?.split(',')
-        .some(subjectId => subjectId.trim() === job.subject_id);
+      const tts = job.kind === 'plan' && ttsSubjectIds.includes(job.subject_id);
       const [lease] = await leaseJobs(db, client, {
         kinds: [job.kind], subjectIds, jobId: id, textOnly: true, max: 1,
         capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(tts ? ['tts'] : [])],
@@ -59,7 +59,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
         context: async () => JSON.parse(active.context_snapshot!),
         heartbeat: async () => heartbeat(db, client, id, token),
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
-          const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket);
+          const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket, ttsSubjectIds);
           return { status: response.status, body: response };
         },
         state: async () => {

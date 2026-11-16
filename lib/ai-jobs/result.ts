@@ -23,6 +23,7 @@ export async function applyResult(
   now = new Date(),
   priceTable?: string,
   audioBucket?: Pick<R2Bucket, 'head'>,
+  ttsSubjectIds: readonly string[] = [],
 ) {
   const job = await leasedJob(db, client, id, leaseToken, now, true),
     hash = await sha256Hex(canonical(input));
@@ -36,7 +37,7 @@ export async function applyResult(
   const token = crypto.randomUUID();
   let prepared = parsed.success
     ? job.kind === 'plan'
-      ? await preparePlan(db, job, JSON.parse(job.context_snapshot!) as PlanContext, parsed.data as typeof planResult._output, token, now, false, audioBucket)
+      ? await preparePlan(db, job, JSON.parse(job.context_snapshot!) as PlanContext, parsed.data as typeof planResult._output, token, now, false, audioBucket, ttsSubjectIds)
       : job.purpose === 'recheck'
         ? await prepareRecheck(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
         : await prepareAssess(db, job, JSON.parse(job.context_snapshot!) as AssessContext, parsed.data as typeof assessResult._output, token, now)
@@ -57,7 +58,7 @@ export async function applyResult(
         return copy;
       });
       // A rejected replan stays pending. The lesson still has to pass its original context and target checks.
-      prepared=await preparePlan(db,job,context,{...result,subjects},token,now,rejectedReplan,audioBucket);
+      prepared=await preparePlan(db,job,context,{...result,subjects},token,now,rejectedReplan,audioBucket,ttsSubjectIds);
       skippedRoadmap=true;
     }
   }

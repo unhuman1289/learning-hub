@@ -1,3 +1,4 @@
+import { openAiGermanVoices } from '../../audio/openai-voices.ts';
 import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {applyRoadmapChanges,listSteps} from '../../roadmap/store.ts';
 import { listeningLanguage } from '../../subjects/item-kinds.ts';
@@ -14,7 +15,7 @@ import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
-export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>) {
+export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>, ttsSubjectIds: readonly string[] = []) {
   const errors: ValidationIssue[] = [],
     statements: ReturnType<EvidenceDb['prepare']>[] = [],
     applyGuards: ReturnType<EvidenceDb['prepare']>[] = [],
@@ -263,13 +264,15 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ? (setup?.framework ? frameworkFor(setup.framework,c.title,c.goal,c.curriculum) : inferFramework(c.title,c.goal,c.curriculum))
       : undefined;
     const stepFramework = current.framework ? c.framework?.key : selected?.key ?? c.framework?.key;
+    const language = listeningLanguage(stepFramework);
+    const requireListening = ttsSubjectIds.includes(s.subjectId) && !!language && Object.hasOwn(openAiGermanVoices, language);
     let resultingSteps: Awaited<ReturnType<typeof listSteps>>|undefined;
     if(modern&&(s.openingSteps||s.roadmapChanges?.length)){
       try{
         const changes=s.openingSteps?s.openingSteps.map(step=>({op:'append' as const,step})):s.roadmapChanges!;
         const edit=await applyRoadmapChanges(db,{learnerId:job.learner_id,subjectId:s.subjectId,changes,jobId:job.id,
           stamp:now.toISOString(),gate,bind:gateValues,resolveSkill:ref=>{const id=resolve(ref);return id&&skillMap.get(id)?.status!=='retired'?id:undefined;},
-          initialize:!!s.openingSteps,replan:task==='replan',requireListening:!!listeningLanguage(stepFramework),
+          initialize:!!s.openingSteps,replan:task==='replan',requireListening,
           mastered:new Set(c.skills.filter(skill=>skill.mastery==='demonstrated').map(skill=>skill.skillId))});
         resultingSteps=edit.steps;
         statements.push(...edit.statements);
