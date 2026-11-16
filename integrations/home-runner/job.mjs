@@ -8,9 +8,8 @@ import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
 
-const root = new URL('../../', import.meta.url);
 const body = (file) => {
-  const text = readFileSync(new URL(file, root), 'utf8');
+  const text = readFileSync(new URL('../../' + file, import.meta.url), 'utf8');
   const cut = text.indexOf('\n---\n');
   return (cut >= 0 ? text.slice(cut + 5) : text).trim();
 };
