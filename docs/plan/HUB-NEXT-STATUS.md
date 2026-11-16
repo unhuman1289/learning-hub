@@ -55,3 +55,9 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 - Review [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144) khi các bước sẵn sàng.
 
 Mỗi merge U2–U4 đạt 409 test, typecheck, lint, contracts:check, build và Qwen replay offline. Commit staging giữ bản sửa đăng nhập `lib/auth/runtime.ts` từ `codex/phone-fixes`. Chờ thử điện thoại thật và chạy job thật trên bản staging này.
+
+## OpenAI staging · nghiệm thu 16/11/2026
+
+- Hub và MCP staging đã được đọc lại ở commit `ffd86264015d1431f73360d74973100145a375c0`. D1 kết nối. Đã sao lưu staging trước migration `0031_listening.sql`. Smoke trong workflow gặp `ECONNRESET` sau khi hai Worker đã deploy. Chạy lại smoke từ máy đạt.
+- Luna đã chấm và đọc lại lượt nộp demo `subm_95f513a5a67e7daf42d1` gồm 8 câu. Terra đã soạn và đọc lại bài `les_3d6e2b7eec96b6e65c9b` ở chế độ nộp cả bài. D1 ghi cả hai job thành công với đúng model. Gửi lại cùng mã nộp chỉ trả một lượt.
+- Đã khóa hồ sơ smoke tạm. OpenAI trên staging hiện chỉ bật cho sổ demo người lớn **QA H5 Deutsch**. Chưa mở sổ trẻ em. Chưa quan sát lượt thật lúc 00:00 Berlin, chấm lại qua Terra hay kiểm trên điện thoại thật. Chưa đối chiếu số tiền với OpenAI Usage.
