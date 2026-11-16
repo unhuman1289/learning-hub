@@ -6,6 +6,8 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
+staging: deploy L4 #173 và nghiệm thu Cổng Q trên sổ Deutsch QA riêng, đến 22:40 Europe/Berlin
+
 Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ thuộc Qwen local theo [quyết định 16/11](HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài). Queue OpenAI và chế độ nộp cả bài hiện mới bật cho sổ demo người lớn **QA H5 Deutsch**. Bài nghe còn cần nối TTS vào luồng API.
 
 Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
@@ -43,7 +45,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). PHONE-CHECK bước 8–9 đạt trên staging. Chủ dự án bỏ qua thử thiết bị thật |
 | U6 mép sổ | [#160](https://github.com/unhuman1289/learning-hub/pull/160), [#161](https://github.com/unhuman1289/learning-hub/pull/161) và #169 đã lên staging. Bản ghép local `808fb91` đạt 6/6 e2e. CI sau khi gộp cũng không ghi nhận tác vụ dài trong hai lần lật ở CPU chậm 4×. | Biên bản U6 ở commit local `639186a`. Năm tệp sửa thử được giữ riêng. Chủ dự án còn duyệt trên iPhone thật. |
 | Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp và deploy. CI sau khi gộp đo 176.993 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | [Kết quả CI](https://github.com/unhuman1289/learning-hub/actions/runs/43797525717). |
-| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) đạt fixture và replay với head `51ccc37`. | Giữ #173 mở để nối TTS vào Queue OpenAI. Cổng Q cần bài Deutsch do Terra soạn qua API với 2–3 câu nghe và đủ hai giọng, kèm ID bài đọc lại được. |
+| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) đã gộp ở `a1b082a` sau khi CI của `fc07303` đạt. | Deploy staging và chạy một job Terra trên sổ Deutsch QA riêng. Cổng Q cần 2–3 câu nghe đủ hai giọng, kèm ID bài đọc lại được và thời gian TTS từng bản. |
 | L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. | L6 chờ L4. Dùng bài nghe đã lưu qua API để thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
 | G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
 | T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đang mở. | Nối ghi `hint1` sau L3. T2 còn kiểm WebSocket qua Access. Sau đó làm T3–T5. |
