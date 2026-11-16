@@ -21,7 +21,7 @@ test('OpenAI uses Responses, a strict schema, and the intended model for each jo
       assert.equal(body.store, false);
       assert.equal(body.text.format.strict, true);
       assert.deepEqual(body.text.format.schema.required, ['score', 'comment']);
-      assert.equal(request.redirect, 'error');
+      assert.equal(request.redirect, 'manual');
       return Response.json({
         status: 'completed',
         output: [
@@ -81,4 +81,16 @@ test('OpenAI runner returns a child job before calling the model', async () => {
   });
   assert.equal(output.status, 'returned');
   assert.equal(returned, true);
+});
+
+
+test('OpenAI refuses redirects without forwarding credentials', async () => {
+  let requests = 0;
+  const engine = openAiEngine({ apiKey: 'test-key', kind: 'assess', fetcher: async (_, request) => {
+    requests++;
+    assert.equal(request.redirect, 'manual');
+    return new Response(null, { status: 302, headers: { Location: 'https://example.invalid/' } });
+  } });
+  await assert.rejects(engine.run(input), /OpenAI HTTP 302/);
+  assert.equal(requests, 1);
 });

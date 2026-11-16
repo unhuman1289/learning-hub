@@ -50,7 +50,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
           text: { format: { name: 'learning_hub_result', type: 'json_schema', strict: true, schema: requestSchema } },
         }),
         signal: AbortSignal.timeout(90000),
-        redirect: 'error',
+        redirect: 'manual',
       }).catch(error => {
         if (error?.name === 'TimeoutError' || error?.name === 'AbortError')
           throw new Error('OpenAI request timed out.');
