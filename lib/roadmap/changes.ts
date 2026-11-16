@@ -51,7 +51,7 @@ export async function applyRoadmapChanges(db:Db,input:{
    if(previous&&band<previous.band-1)invalid('Độ khó giảm quá một mức.');
    const done=input.replan&&skills.every(skill=>input.mastered?.has(skill));
    current.splice(at,0,{id:nextId,learnerId,subjectId,ord,title,objective,situation,skills,requires,band,
-    levelLabel:levelLabel??null,mode:kind,status:done?'passed':'planned',passedVia:done?'mastery':null,passedAt:done?stamp:null,revision:0});
+    levelLabel:levelLabel??null,mode:kind,status:done?'passed':'planned',passedVia:done?'mastery':null,passedAt:done?stamp:null,revision:0,listening:0});
    inserted.add(nextId);
   } else {
    const step=current.find(step=>step.id===c.stepId&&step.status==='planned')??invalid('Chỉ sửa hoặc bỏ bước chưa mở.');

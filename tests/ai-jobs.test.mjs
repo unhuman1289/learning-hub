@@ -9,6 +9,7 @@ import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { processJob } from '../integrations/home-runner/job.mjs';
+import { openAiEngine } from '../integrations/home-runner/openai.mjs';
 import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
 import { readLessonSubmissions, submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
@@ -709,6 +710,19 @@ async function gradedWrong() {
 }
 const disputeInput = { reason: 'answer_correct', message: 'Mình nghĩ đáp án a cũng đúng.', recheck: true };
 
+test('a dispute queues recheck when the old answer has only an unresolved skill key', async () => {
+  const { db, attempt } = await gradedWrong();
+  try {
+    db.sqlite.prepare('UPDATE attempts SET skill_ids=? WHERE id=?').run('["key:legacy"]', attempt.id);
+    const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+    assert.equal(dispute.status, 'rechecking');
+    assert.equal((await readJob(db, dispute.jobId)).ref_id, dispute.id);
+    assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'disputed');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
 test('a dispute takes the answer out of the rules at once and cannot be opened twice', async () => {
   const { db, attempt } = await gradedWrong();
   const before = db.sqlite.prepare('SELECT attempts_total FROM skill_states').get().attempts_total;
@@ -781,6 +795,53 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   db.sqlite.close();
 });
 
+
+for (const decision of ['upheld', 'overturned']) {
+  test(`Terra recheck fixture persists ${decision} through the runner and D1 validator`, async () => {
+    const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();
+    try {
+      const originalGrade = db.sqlite.prepare('SELECT grade_id FROM disputes WHERE id=?').get(dispute.id).grade_id;
+      const explanation = decision === 'upheld' ? 'Giữ điểm theo đáp án đã công bố.' : result.recheckDecision.explanation;
+      const fixture = { ...result, grades: decision === 'upheld' ? [] : result.grades, recheckDecision: { decision, explanation } };
+      let calls = 0;
+      const engine = openAiEngine({ apiKey: 'fixture', kind: 'assess', purpose: 'recheck', fetcher: async (_url, options) => {
+        calls++;
+        const body = JSON.parse(options.body);
+        assert.equal(body.model, 'gpt-6.1-terra');
+        assert.match(body.instructions, /`upheld`[^\n]+`grades: \[\]`/);
+        assert.match(body.instructions, /`overturned`[^\n]+đúng một `grade`/);
+        return Response.json({ status: 'completed', model: body.model, output: [{ type: 'message', content: [
+          { type: 'output_text', text: JSON.stringify(fixture) },
+        ] }] });
+      } });
+      const hub = {
+        context: async () => ({ ...context, learner: { ...context.learner, role: 'adult' } }),
+        result: async (current, draft, dryRun) => {
+          const saved = await applyResult(db, client, current.jobId, current.leaseToken, draft, dryRun, now);
+          return { status: saved.status, body: saved };
+        },
+        state: async id => ({ status: (await readJob(db, id)).status }),
+        fail: async (_lease, reason) => assert.fail(reason),
+      };
+      const processed = await processJob(hub, { ...lease, kind: 'assess', purpose: 'recheck' }, engine);
+      assert.equal(processed.status, 'succeeded');
+      assert.equal(calls, 1);
+      const saved = await readJob(db, job.id);
+      const row = db.sqlite.prepare('SELECT status,resolved_by,resolution_note,resolution_grade_id FROM disputes WHERE id=?').get(dispute.id);
+      const attemptRow = db.sqlite.prepare('SELECT status,current_grade_id FROM attempts WHERE id=?').get(attempt.id);
+      assert.equal(row.status, decision);
+      assert.equal(row.resolved_by, 'ai');
+      assert.equal(row.resolution_note, explanation);
+      assert.equal(attemptRow.status, 'graded');
+      assert.equal(JSON.parse(saved.usage).model, 'gpt-6.1-terra');
+      assert.deepEqual(JSON.parse(saved.outcome).gradeIds, decision === 'upheld' ? [] : [row.resolution_grade_id]);
+      assert.equal(attemptRow.current_grade_id, decision === 'upheld' ? originalGrade : row.resolution_grade_id);
+      assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, decision === 'upheld' ? 1 : 2);
+    } finally {
+      db.sqlite.close();
+    }
+  });
+}
 
 test('three rejected recheck submissions send the dispute to a person and preserve the existing grade', async () => {
   const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();

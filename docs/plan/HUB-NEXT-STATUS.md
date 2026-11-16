@@ -12,13 +12,15 @@ Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Be
 Khung kiểm thử OpenAI và nộp cả bài ngày 16/11 đã kết thúc lúc 05:00 Europe/Berlin.
 Khung deploy #169 và #170 ngày 16/11 đã đóng sau khi xác nhận staging lúc 05:02 Europe/Berlin.
 
+Khung sửa và nghiệm thu **Chấm sai?** trên QA H5 Deutsch đã đóng sau khi đọc lại quyết định Terra và điểm lưu ngày 16/11.
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `58daf7554c1606205067e92ffaa23715cc1dfa4b` | [Deploy 16/11 lúc 05:02 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/43801508569), gồm #169 và #170. Hub và MCP cùng SHA, D1 kết nối, smoke đạt. Đã có `0030_perf.sql` và `0031_listening.sql`; không còn migration chờ. |
+| Staging | `e5ec27cd0202ed33495eddd218fa1169c16b5443` | Hub và MCP cùng SHA, D1 kết nối, smoke Hub đạt. Không có migration chờ. [Biên bản Terra trên QA H5 Deutsch](../ops/QA-H5-OPENAI-ACCEPTANCE.md). |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -41,8 +43,8 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). PHONE-CHECK bước 8–9 đạt trên staging. Chủ dự án bỏ qua thử thiết bị thật |
 | U6 mép sổ | [#160](https://github.com/unhuman1289/learning-hub/pull/160), [#161](https://github.com/unhuman1289/learning-hub/pull/161) và #169 đã lên staging. Bản ghép local `808fb91` đạt 6/6 e2e. CI sau khi gộp cũng không ghi nhận tác vụ dài trong hai lần lật ở CPU chậm 4×. | Biên bản U6 ở commit local `639186a`. Năm tệp sửa thử được giữ riêng. Chủ dự án còn duyệt trên iPhone thật. |
 | Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp và deploy. CI sau khi gộp đo 176.993 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | [Kết quả CI](https://github.com/unhuman1289/learning-hub/actions/runs/43797525717). |
-| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158) và L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) đã lên staging. L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đang mở. | Xử lý xung đột và [lỗi ghi hỗ trợ khi nộp trong lúc phát](https://github.com/unhuman1289/learning-hub/pull/167#discussion_r4576736798), chạy lại CI rồi làm L4. |
-| L5–L6 | L5 [#163](https://github.com/unhuman1289/learning-hub/pull/163) đã gộp. E2e giao diện đạt với API nghe mô phỏng. Fixture L2 local lưu được hai giọng qua Worker/D1/R2 và cả hai trả Range 206. Bàn học đạt 176.658 B gzip. | Sau khi gộp #167, chạy lại với API nghe thật để kiểm khôi phục lượt và cách ghi hỗ trợ trước/sau nộp. L6 chờ L4 và P3, thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
+| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158) và L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) đã lên staging. L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp ở `4e4a04c` sau khi CI đạt. Hỗ trợ được ghi trước khi phát chậm hoặc nghe thêm. | Làm L4. [Biên bản L3](status/L3.md) ghi các ca hồi quy nộp từng câu và nộp cả bài. |
+| L5–L6 | L5 [#163](https://github.com/unhuman1289/learning-hub/pull/163) đã gộp. E2e giao diện đạt với API nghe mô phỏng. Fixture L2 local lưu được hai giọng qua Worker/D1/R2 và cả hai trả Range 206. Bàn học đạt 176.658 B gzip. | Chạy lại trên bản tích hợp có L3 với API nghe thật để kiểm khôi phục lượt và cách ghi hỗ trợ trước/sau nộp. L6 chờ L4 và P3, thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
 | G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
 | T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đang mở. | Nối ghi `hint1` sau L3. T2 còn kiểm WebSocket qua Access. Sau đó làm T3–T5. |
 | K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2 còn xác nhận OAuth staging đủ 11 công cụ và lịch riêng. K3 kiểm kết quả lượt đầu. |

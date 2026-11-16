@@ -4,10 +4,10 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Pause, Play, RotateCcw } from "lucide-react";
 import { PaperConfirm } from "../paper-confirm";
 import { pencilLink } from "../paper-bits";
-import { recordPlay, revealTranscript, type ListeningAudio, type ListeningItem, type Voice } from "./listen-api";
+import { recordPlaybackSupport, revealTranscript, type ListeningAudio, type ListeningItem, type Voice } from "./listen-api";
 
-type PlayState = "idle" | "starting" | "playing" | "paused" | "retry";
-type PlayAttempt = { slow: boolean; extra: boolean; retry: boolean };
+type PlayState = "idle" | "authorizing" | "ready" | "starting" | "playing" | "paused" | "retry";
+type PlayAttempt = { slow: boolean; retry: boolean };
 const transport = "stone inline-flex min-h-14 min-w-14 items-center justify-center gap-2 px-3 text-sm font-medium";
 const link = pencilLink + " min-h-11 text-sm";
 
@@ -19,7 +19,8 @@ export type ListeningControls = {
   voiceError: string;
   onVoice: (voice: Voice) => void;
   plays: number;
-  onPlayed: () => void;
+  onPlayed: (slow: boolean) => Promise<void>;
+  playSaving: boolean;
   nextSrc?: string;
   answered: boolean;
 };
@@ -40,11 +41,12 @@ export function LessonAudio({ audio, ...controls }: { audio: ListeningAudio } & 
   </>;
 }
 
-function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, plays, onPlayed, nextSrc }:
+function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, plays, onPlayed, playSaving, nextSrc }:
   { audio: ListeningAudio; src: string } & ListeningControls) {
   const media = useRef<HTMLAudioElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const attempt = useRef<PlayAttempt | null>(null);
+  const supportSaved = useRef(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [state, setState] = useState<PlayState>("idle");
   const [elapsed, setElapsed] = useState(0);
@@ -86,22 +88,51 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     timeout.current = setTimeout(failed, 12_000);
   }
 
-  function start(slow = false, restart = false) {
+  async function start(slow = false, restart = false) {
     const player = media.current;
-    if (!player || state === "starting") return;
+    if (!player || state === "starting" || state === "authorizing" || playSaving) return;
     const retry = state === "retry" && !!attempt.current;
     if (retry && player.error) player.load();
-    if (state !== "paused" || restart || slow) {
-      attempt.current = { slow: slow || (retry && !!attempt.current?.slow), extra: remaining === 0, retry };
+    const restartFromBeginning = (state !== "paused" && state !== "ready") || restart || slow;
+    if (restartFromBeginning) {
+      attempt.current = { slow: slow || (retry && !!attempt.current?.slow), retry };
+    }
+    const current = attempt.current;
+    if (!current) return;
+    const support = current.slow ? "slow" : remaining === 0 ? "extra" : null;
+    const authorizing = support && !supportSaved.current && !item.readOnly;
+    if (authorizing) {
+      // Commit assistance before any assisted audio can be heard, including when the learner
+      // submits from another tab or leaves this page before the audio ends.
+      setState("authorizing");
+      player.pause();
+      setRecordError(false);
+      try {
+        await recordPlaybackSupport(item, support);
+      } catch {
+        if (media.current === player) {
+          setRecordError(true);
+          setState("ready");
+        }
+        return;
+      }
+      if (media.current !== player) return;
+      supportSaved.current = true;
+    }
+    if (restartFromBeginning || authorizing) {
       player.currentTime = 0;
       setElapsed(0);
     }
-    player.playbackRate = attempt.current?.slow ? 0.8 : audio.rate;
+    player.playbackRate = current.slow ? 0.8 : audio.rate;
     player.preservesPitch = true;
     setState("starting");
     waitForPlayback();
     void player.play().catch(error => {
-      if (error.name !== "AbortError") failed();
+      if (authorizing && error.name === "NotAllowedError") {
+        clearTimeout(timeout.current);
+        // Some browsers require a fresh gesture after the network request.
+        setState("ready");
+      } else if (error.name !== "AbortError") failed();
     });
   }
 
@@ -110,7 +141,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
       clearTimeout(timeout.current);
       setState("paused");
       media.current?.pause();
-    } else start();
+    } else void start();
   }
 
   const shortcut = useEffectEvent((event: KeyboardEvent) => {
@@ -122,7 +153,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
       toggle();
     } else if (event.key.toLowerCase() === "r") {
       event.preventDefault();
-      start(false, true);
+      void start(false, true);
     }
   });
   useEffect(() => {
@@ -137,12 +168,12 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     attempt.current = null;
     setState("idle");
     if (!current || current.retry) return;
-    onPlayed();
-    void recordPlay(item, current.slow || current.extra).catch(() => setRecordError(true));
+    setRecordError(false);
+    void onPlayed(current.slow).catch(() => setRecordError(true));
   }
 
   const active = state === "playing" || state === "starting";
-  const playLabel = active ? "Tạm dừng" : state === "retry" ? "Phát lại" : state === "paused" ? "Nghe tiếp" :
+  const playLabel = active ? "Tạm dừng" : state === "ready" ? "Phát âm thanh" : state === "retry" ? "Phát lại" : state === "paused" ? "Nghe tiếp" :
     remaining === 0 ? "Nghe thêm (tính là gợi ý)" : "Phát âm thanh";
   const duration = (audio.durationMs ?? 0) / 1000;
   return <div ref={panel} className="grid gap-1">
@@ -156,7 +187,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
       onError={() => { if (attempt.current) failed(); }}
     />
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <button type="button" className={transport} onClick={toggle}>
+      <button type="button" className={transport} onClick={toggle} disabled={playSaving || state === "authorizing"}>
         {active ? <Pause size={18} aria-hidden /> : state === "retry" ? <RotateCcw size={18} aria-hidden /> :
           <Play size={18} aria-hidden />}
         {playLabel}
@@ -170,15 +201,15 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     </div>
     <div className="flex flex-wrap items-center gap-x-3">
       <p role="status" className="text-sm text-muted-paper">
-        {state === "starting" ? "Đang mở âm thanh…" : state === "playing" ? "Đang phát" :
+        {playSaving || state === "authorizing" ? "Đang ghi lượt nghe…" : state === "starting" ? "Đang mở âm thanh…" : state === "playing" ? "Đang phát" :
           state === "retry" ? "Âm thanh bị gián đoạn." :
           remaining === 0 ? "Đã hết lượt nghe" : `Còn ${remaining} lượt nghe`}
       </p>
       {state === "playing" && <span aria-hidden="true" className="text-sm tabular-nums text-muted-paper">
         {clock(elapsed)}{duration > 0 && ` / ${clock(duration)}`}
       </span>}
-      <button type="button" disabled={state === "starting" || state === "retry"}
-        className={link + " disabled:opacity-60"} onClick={() => start(true, true)}>Chậm hơn</button>
+      <button type="button" disabled={playSaving || state === "authorizing" || state === "starting" || state === "retry"}
+        className={link + " disabled:opacity-60"} onClick={() => void start(true, true)}>Chậm hơn</button>
     </div>
     {(voiceError || recordError) && <p role="status" className="text-sm text-muted-paper">
       {voiceError || "Chưa ghi được lượt nghe."}

@@ -153,6 +153,13 @@ export async function markHintSeen(db: Db, learnerId: string, hint: SeenHint, no
     .run();
 }
 
+export async function setListeningVoice(db: Db, learnerId: string, voice: 'f' | 'm', now = new Date()) {
+  await db.prepare(
+    `INSERT INTO learner_settings (user_id,daily_target_minutes,updated,preferences) VALUES (?,?,?,json_object('listeningVoice',?))
+     ON CONFLICT(user_id) DO UPDATE SET preferences=json_set(preferences,'$.listeningVoice',?),updated=excluded.updated`,
+  ).bind(learnerId, DEFAULT_TARGET_MINUTES, now.toISOString(), voice, voice).run();
+}
+
 /** Learning preferences without UI bookkeeping, for model context. */
 export function learningPreferences(preferences: unknown) {
   if (!isRecord(preferences)) return preferences;
