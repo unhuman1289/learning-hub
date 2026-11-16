@@ -31,9 +31,8 @@ Nhánh tích hợp local và GitHub cùng ở `bde5e3e72f2002b6c3e46dbfb9416c76e
 
 - Trong cửa sổ theo dõi có bốn phản hồi HTTP 204 từ `POST /api/rum`. Log chỉ ghi thời điểm và mã HTTP, không chứa loại phép đo hoặc định danh, nên không ghép từng phản hồi với từng thao tác.
 - Lúc 09:44:48 CET, D1 có dòng `first_question` của ngày Berlin `2026-11-16`, mã quốc gia `DE`, thiết bị `phone`, `n=3`, `p75=1475 ms`. Đây là số tổng hợp của nhóm. D1 không lưu thời điểm riêng cho từng mẫu, nên không thể quy cả ba mẫu cho cú bấm lúc 09:44.
-- Còn đối chiếu số lượt và p75 của cùng dòng trong Quản trị → Hệ thống bằng phiên quản trị staging.
+- **PASS:** Chủ dự án mở Quản trị → Hệ thống bằng phiên quản trị staging và báo dòng **Đức · Mở câu đầu · Điện thoại** có **4 lượt, p75 824 ms**, ngày **16/11/2026** giờ Berlin. Truy vấn D1 sau khi nhận kết quả khớp cả ngày, mã `DE`, lớp `phone`, số mẫu và p75. Số liệu đã tăng từ 3 lên 4 lượt giữa hai lần đọc D1.
 
 ## Còn lại
 
-- Đối chiếu dòng D1 của lượt thử lại với bảng Quản trị → Hệ thống.
 - Gắn `audio_play` và `tutor_first_token` ở L6/T5.
