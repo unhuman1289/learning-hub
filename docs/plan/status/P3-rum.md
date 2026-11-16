@@ -27,7 +27,13 @@ Nhánh tích hợp local và GitHub cùng ở `bde5e3e72f2002b6c3e46dbfb9416c76e
 - **Thiết bị thật, 09:35 CET:** Chủ dự án xác nhận Safari iPhone vào được câu hỏi qua **Học tiếp**. D1 staging chưa có dòng `first_question` trước và sau thao tác. Ngày Berlin `2026-11-16` có dòng `desk`, mã `DE`, lớp `phone`, `n=8`, `p75=1217 ms`. Dòng bàn học là số tổng hợp, không dùng để quy kết lượt iPhone này.
 - **Giả lập:** WebKit iPhone 13 vào thẳng câu hỏi từ cùng thẻ và gọi `sendBeacon` với `first_question` (737 ms), lớp `phone`. Beacon bị chặn tại trình duyệt kiểm thử để không trộn với mẫu iPhone thật. Chưa xác định lỗi xảy ra ở bước gửi, tiếp nhận hay gộp mẫu trên Safari iPhone. Chưa đối chiếu được dòng `first_question` trong quản trị.
 
+### Lượt thử lại · 09:44 CET
+
+- Trong cửa sổ theo dõi có bốn phản hồi HTTP 204 từ `POST /api/rum`. Log chỉ ghi thời điểm và mã HTTP, không chứa loại phép đo hoặc định danh, nên không ghép từng phản hồi với từng thao tác.
+- Lúc 09:44:48 CET, D1 có dòng `first_question` của ngày Berlin `2026-11-16`, mã quốc gia `DE`, thiết bị `phone`, `n=3`, `p75=1475 ms`. Đây là số tổng hợp của nhóm. D1 không lưu thời điểm riêng cho từng mẫu, nên không thể quy cả ba mẫu cho cú bấm lúc 09:44.
+- Còn đối chiếu số lượt và p75 của cùng dòng trong Quản trị → Hệ thống bằng phiên quản trị staging.
+
 ## Còn lại
 
-- Chạy lại bước 3 trên sổ QA đã chuẩn bị, quan sát HTTP của beacon và đối chiếu mức tăng `n` cùng `p75` của `first_question` theo ngày Berlin, quốc gia, thiết bị giữa D1 và giao diện bằng tài khoản quản trị.
+- Đối chiếu dòng D1 của lượt thử lại với bảng Quản trị → Hệ thống.
 - Gắn `audio_play` và `tutor_first_token` ở L6/T5.
