@@ -6,12 +6,11 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-staging: deploy #169 và #170, đến 05:35 Europe/Berlin
-
 Staging có Queue consumer OpenAI và chế độ nộp cả bài theo [quyết định 16/11](HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài). Hiện chỉ bật cho sổ demo người lớn **QA H5 Deutsch**. Kết quả chạy model thật xem ở mục OpenAI staging bên dưới.
 
 Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
 Khung kiểm thử OpenAI và nộp cả bài ngày 16/11 đã kết thúc lúc 05:00 Europe/Berlin.
+Khung deploy #169 và #170 ngày 16/11 đã đóng sau khi xác nhận staging lúc 05:02 Europe/Berlin.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -19,7 +18,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `ffd86264015d1431f73360d74973100145a375c0` | [Deploy 16/11](https://github.com/unhuman1289/learning-hub/actions/runs/43795841335). Workflow lỗi kết nối khi smoke sau deploy. Smoke chạy lại từ máy đạt và xác nhận Hub, MCP cùng SHA và D1 kết nối. Đã áp `0030_perf.sql` và `0031_listening.sql`. |
+| Staging | `58daf7554c1606205067e92ffaa23715cc1dfa4b` | [Deploy 16/11 lúc 05:02 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/43801508569), gồm #169 và #170. Hub và MCP cùng SHA, D1 kết nối, smoke đạt. Đã có `0030_perf.sql` và `0031_listening.sql`; không còn migration chờ. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -40,8 +39,8 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | U2–U4 | Đã gộp [#146](https://github.com/unhuman1289/learning-hub/pull/146), [#148](https://github.com/unhuman1289/learning-hub/pull/148), [#149](https://github.com/unhuman1289/learning-hub/pull/149) và deploy staging | [Bàn giao U](status/U.md). Chờ kiểm điện thoại, e2e và ngân sách mục 4.2. |
 | Q2 mở sổ | Đã gộp [#154](https://github.com/unhuman1289/learning-hub/pull/154), deploy staging | [Kết quả Q2](status/Q2.md). Bước 9 PHONE-CHECK đạt trên staging |
 | U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). PHONE-CHECK bước 8–9 đạt trên staging. Chủ dự án bỏ qua thử thiết bị thật |
-| U6 mép sổ | [#160](https://github.com/unhuman1289/learning-hub/pull/160) và [#161](https://github.com/unhuman1289/learning-hub/pull/161) đã lên staging. Bản ghép local `808fb91` gồm `bde5e3e` và head #169 đạt 6/6 e2e; lật đầu sau reload và lật kế tiếp đều đạt ngưỡng 50 ms ở CPU chậm 4×. | Biên bản U6 ở commit local `639186a`. Năm tệp sửa thử được giữ riêng. Còn duyệt trên iPhone thật sau khi staging có #169. |
-| Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp. Bản ghép local đạt 176.811 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | Kiểm SHA khi deploy staging sau khung thử OpenAI. |
+| U6 mép sổ | [#160](https://github.com/unhuman1289/learning-hub/pull/160), [#161](https://github.com/unhuman1289/learning-hub/pull/161) và #169 đã lên staging. Bản ghép local `808fb91` đạt 6/6 e2e. CI sau khi gộp cũng không ghi nhận tác vụ dài trong hai lần lật ở CPU chậm 4×. | Biên bản U6 ở commit local `639186a`. Năm tệp sửa thử được giữ riêng. Chủ dự án còn duyệt trên iPhone thật. |
+| Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp và deploy. CI sau khi gộp đo 176.993 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | [Kết quả CI](https://github.com/unhuman1289/learning-hub/actions/runs/43797525717). |
 | L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158) và L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) đã lên staging. L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đang mở. | Xử lý xung đột và [lỗi ghi hỗ trợ khi nộp trong lúc phát](https://github.com/unhuman1289/learning-hub/pull/167#discussion_r4576736798), chạy lại CI rồi làm L4. |
 | L5–L6 | L5 [#163](https://github.com/unhuman1289/learning-hub/pull/163) đã gộp. E2e giao diện đạt với API nghe mô phỏng. Fixture L2 local lưu được hai giọng qua Worker/D1/R2 và cả hai trả Range 206. Bàn học đạt 176.658 B gzip. | Sau khi gộp #167, chạy lại với API nghe thật để kiểm khôi phục lượt và cách ghi hỗ trợ trước/sau nộp. L6 chờ L4 và P3, thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
 | G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
