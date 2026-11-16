@@ -44,7 +44,7 @@ async function replayOpening(raw) {
     const saved = await applyResult(db, client, job.id, lease.leaseToken, payload, false, now);
     assert.equal(saved.status, 200, JSON.stringify(saved));
     assert.equal(saved.outcome.subjects[0].lessonIds.length, 1);
-    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n, 5);
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=0').get(notebook.id).n, 5);
     return saved;
   } finally {
     db.sqlite.close();
@@ -83,6 +83,7 @@ async function replayRequest(raw, expectedSteps) {
     assert(lessonId);
     assert.equal(db.sqlite.prepare('SELECT result_lesson_id FROM learner_requests WHERE id=?').get(requested.id).result_lesson_id, lessonId);
     assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n, expectedSteps);
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=1').get(notebook.id).n, expectedSteps);
     console.log('đã lưu bài Xin bài; số bước mới:', expectedSteps);
   } finally {
     db.sqlite.close();
@@ -96,6 +97,28 @@ async function replayListening(raw) {
     assert.deepEqual(context.adaptive.listening, { min: 2, max: 3 });
     const fixtureLesson = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-listening.json', import.meta.url)));
     assert.deepEqual(fixtureLesson, raw.explorations[0].lesson);
+    const wrongMode = structuredClone(draft);
+    wrongMode.explorations[0].lesson.gradingMode = 'whole-lesson';
+    const copiedDialogue = structuredClone(draft);
+    const firstItem = copiedDialogue.explorations[0].lesson.items[0];
+    firstItem.prompt += ' «' + firstItem.audio.lines[0].text + '»';
+    const replies = [wrongMode, copiedDialogue];
+    const rejected = [];
+    const invalid = await processJob(hub, lease, {
+      name: 'qwen-fixture',
+      async run() { return { json: replies.shift(), usage: raw.usage }; },
+    }, {
+      log: event => rejected.push(event),
+      renderAudio: async () => assert.fail('Bản soạn bị từ chối trước TTS'),
+    });
+    assert.equal(invalid.status, 'failed');
+    assert.equal(replies.length, 0);
+    assert(rejected.some(event => event.event === 'contract_error' &&
+      event.errors.some(error => error.path === '/explorations/0/lesson/items' && error.code === 'custom')));
+    assert(rejected.some(event => event.event === 'listening_contract_error' &&
+      event.errors.includes('listening_prompt /explorations/0/lesson/items/0/prompt')));
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n, 0);
+    console.log('l4-listening-sample.json: đã từ chối sai chế độ chấm và đề chép lời thoại trước TTS');
     const result = await processJob(hub, lease, {
       name: 'qwen-fixture',
       async run() { return { json: draft, usage: raw.usage }; },
