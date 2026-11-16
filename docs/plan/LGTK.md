@@ -12,8 +12,8 @@ Chủ dự án quyết ngày 14/11/2026: L, G, T, K chỉ lên staging.
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó qua `deploy-staging.yml`, sau khi ghi khung giờ `staging: <luồng>, đến HH:MM Europe/Berlin` trong `HUB-NEXT-STATUS.md`.
 - Trước mỗi lần áp migration lên staging: sao lưu D1 staging theo `docs/ops/BACKUP.md` (`release.mjs` chưa tự sao lưu). Diễn tập migration trên local trước.
 - Sau mỗi lần deploy: health đúng SHA, D1 kết nối, `staging-smoke.mjs` đạt. Đóng khung giờ khi xong.
-- **Runner staging:** dùng cấu hình riêng chỉ cho hồ sơ QA, như lần PHONE-CHECK ngày 14/11. Chỉ bật khi thử và tắt ngay sau đó. Runner production luôn được ưu tiên dùng LM Studio.
-- **Qwen:** tối đa 2 lượt thật cho mỗi thay đổi. Dùng fixture trước (cổng Q).
+- **Model staging:** chuyển các luồng AI sang OpenAI API qua Job API v2 theo [quyết định 16/11 trong HUB-NEXT](HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài). Nghiệm thu bằng hồ sơ QA trên luồng API, không dùng Qwen local. Yêu cầu này thay các lượt Qwen staging mô tả trong thiết kế trước đó.
+- **Giọng đọc:** kiểm fixture trước. TTS Mac đã kiểm được hợp đồng và đường lưu L2 trên local. Nghiệm thu bài nghe staging cần luồng API tạo và lưu đủ hai giọng.
 - Việc đưa lên production là quyết định riêng, sau khi cả nhóm E–U đã lên production.
 
 **Số migration:** `0030` cho P3 (`perf_daily`), `0031` cho L, `0032` cho G, `0033` cho T. K không cần migration.
@@ -270,7 +270,7 @@ Không đo được "bấm nghe đến có tiếng" và "chữ đầu tiên củ
 
 **Xong khi:** đủ test; các test cũ về hoàn thành bài, track độc lập và giờ Berlin vẫn đạt; đã gộp.
 
-### L4. Hub quyết tỉ lệ, Qwen soạn
+### L4. Hub quyết tỉ lệ, Terra soạn qua API
 
 **Hub quyết:**
 - `decideNext` trả thêm `listening: { min, max }` cho sổ ngôn ngữ:
@@ -294,13 +294,13 @@ Không đo được "bấm nghe đến có tiếng" và "chữ đầu tiên củ
   - `evidence` vẫn phải trích từ câu trả lời của người học, không trích từ lời thoại.
 
 **Cổng Q:**
-- Làm fixture trước: `fixtures/lessons/deutsch-listening.json` và một kết quả Qwen mẫu trong `tests/fixtures/qwen/`.
-- Sau đó chạy tối đa 2 lượt Qwen thật trên local, với giọng thật.
+- Trước khi duyệt gộp, dùng `fixtures/lessons/deutsch-listening.json` và replay offline để kiểm schema, hạn mức câu nghe, khả năng TTS và lưu tệp trên luồng API. Giữ các mẫu đã có để kiểm hồi quy.
+- Nối khả năng TTS trên Queue staging, gồm hai giọng đúng ngôn ngữ, tạo tệp và lưu qua đường xác thực lease. Sau khi bản đã gộp lên staging, xin bài Deutsch trong sổ QA qua Terra và đọc lại kết quả đã lưu.
 
 **Test:** `tests/roadmap-scenarios.test.mjs` (tỉ lệ nghe), `tests/home-runner.test.mjs` (schema), replay Qwen offline.
 
 **Xong khi:**
-- trên local, Qwen soạn được một bài Deutsch có 2–3 câu nghe đạt `validate.ts`;
+- Terra qua Job API v2 soạn được một bài Deutsch có 2–3 câu nghe đạt `validate.ts`. Job `succeeded` có ID bài đọc lại được và mỗi câu có đủ hai giọng trong R2;
 - giọng đọc tạo trong dưới 20 giây cho mỗi bản, tức dưới 40 giây cho cả hai bản của một bài;
 - đã gộp.
 
@@ -335,14 +335,13 @@ Không đo được "bấm nghe đến có tiếng" và "chữ đầu tiên củ
 
 ### L6. Thử trên staging
 
-1. **Deploy:** ghi khung giờ, sao lưu D1 staging, deploy commit đã gộp với `--apply-migrations` (`0030` nếu P3 đã gộp, và `0031`). Kiểm health đúng SHA và smoke test.
-2. **Runner staging:** bật với `tts` và giọng đã chọn, chỉ hồ sơ QA. Xin một bài Deutsch, tối đa 2 lượt Qwen. Kiểm:
+1. **Deploy:** ghi khung giờ và kiểm staging đã có `0030`, `0031`. Sao lưu D1 trước khi áp migration còn thiếu. Deploy commit đã gộp, rồi kiểm health đúng SHA và smoke test.
+2. **Luồng API staging:** dùng sổ QA Deutsch được bật OpenAI và khả năng TTS đã kiểm ở L4. Dùng bài nghe do Terra soạn và đã lưu. Kiểm:
    - có dòng `audio_assets` và tệp R2 cho cả bản nam và nữ;
    - đổi giọng trên bài phát đúng bản;
    - `GET /api/audio/<hash>` trả 206;
    - job `succeeded` với id bài đã lưu.
 
-   Tắt runner sau khi xong.
 3. **PHONE-CHECK bước 10** (đã có trong `docs/ops/PHONE-CHECK.md`):
    - chủ dự án thử trên iPhone ở Đức;
    - Ếch thử trên điện thoại ở Việt Nam;
@@ -358,7 +357,7 @@ Không đo được "bấm nghe đến có tiếng" và "chữ đầu tiên củ
    Nếu p75 vượt 1 giây, đề xuất URL R2 công khai với khoá `audio/<hmac(secret,hash)>.m4a` để edge ở Việt Nam cache. Đây là thay đổi riêng, cần chủ dự án đồng ý.
 5. **Tiếng Trung** sau Deutsch, trên staging, sau khi có giọng `zh-CN`.
 
-**Xong khi:** các bước 1–2 đạt, bước 3 đạt hoặc được ghi là bỏ qua, `status/L.md` và `HUB-NEXT-STATUS.md` đã cập nhật.
+**Xong khi:** các bước 1–2 đạt, bước 3 đạt trên máy thật, `status/L.md` và `HUB-NEXT-STATUS.md` đã cập nhật. Nếu máy thật gặp lỗi, ghi thiết bị và lỗi để thử lại.
 
 ## 5. G · Chấm tin cậy hơn
 
@@ -660,6 +659,6 @@ Bước <U6 | P3-rum | K1 | L1…L6 | G1…G4 | T0…T5> trong docs/plan/LGTK.md
 Chỉ staging: không deploy production, không migration production.
 Làm trên nhánh codex/<bước>, commit từng phần, mở PR vào codex/hub-next-wip.
 Dừng khi: đạt "Xong khi" của bước, cần tôi quyết định (mục 8), hoặc một lỗi đã thử 3 vòng.
-Qwen thật tối đa 2 lượt. Lệnh chạy lâu chạy nền, kiểm lại sau ít nhất 60 giây.
+Dùng fixture trước và nghiệm thu staging qua OpenAI API. Lệnh chạy lâu chạy nền, kiểm lại sau ít nhất 60 giây.
 Cuối lượt: cập nhật docs/plan/status/<bước>.md, báo phần đã xong, PR và quyết định đang chờ.
 ```
