@@ -19,8 +19,13 @@ test('OpenAI uses Responses, a strict schema, and the intended model for each jo
       const body = JSON.parse(request.body);
       assert.equal(body.model, model);
       assert.equal(body.store, false);
-      assert.equal(body.text.format.strict, true);
-      assert.deepEqual(body.text.format.schema.required, ['score', 'comment']);
+      if (kind === 'plan') {
+        assert.equal(body.text.format.type, 'json_object');
+        assert.match(body.input, /"required":\["score"\]/);
+      } else {
+        assert.equal(body.text.format.strict, true);
+        assert.deepEqual(body.text.format.schema.required, ['score', 'comment']);
+      }
       assert.equal(request.redirect, 'manual');
       return Response.json({
         status: 'completed',

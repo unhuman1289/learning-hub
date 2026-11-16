@@ -542,6 +542,16 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         }
         break;
       }
+      if (qwen.name === 'openai' && lease.kind === 'plan') {
+        const lessons = [
+          ...(Array.isArray(result.subjects) ? result.subjects.flatMap(subject => [subject?.primaryLesson, subject?.reviewSet]) : []),
+          ...(Array.isArray(result.explorations) ? result.explorations.map(exploration => exploration?.lesson) : []),
+        ].filter(Boolean);
+        if (lessons.some(lesson => lesson.gradingMode !== 'whole-lesson')) {
+          repair = [{ path: '/gradingMode', code: 'schema', message: 'Mọi bài mới cần gradingMode whole-lesson.' }];
+          continue;
+        }
+      }
       const local = contract.zod.safeParse(result);
       if (!local.success) {
         repair = local.error.issues.slice(0, 20).map((i) => ({ path: '/' + i.path.join('/'), message: i.message }));

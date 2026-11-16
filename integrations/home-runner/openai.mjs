@@ -32,7 +32,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
       const started = Date.now();
       let requestSchema;
       try {
-        requestSchema = responsesSchema(strictSchema(schema));
+        if (kind !== 'plan') requestSchema = responsesSchema(strictSchema(schema));
       } catch {
         throw new Error('OpenAI schema preparation failed.');
       }
@@ -42,12 +42,13 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
         body: JSON.stringify({
           model,
           instructions: system,
-          input: user,
+          input: kind === 'plan' ? user + '\nReturn one JSON object. Follow this schema and omit unused optional fields:\n' + JSON.stringify(schema) : user,
           store: false,
           service_tier: 'default',
           reasoning: { effort: kind === 'plan' || purpose === 'recheck' ? 'low' : 'none' },
           max_output_tokens: kind === 'plan' ? 12000 : 6000,
-          text: { format: { name: 'learning_hub_result', type: 'json_schema', strict: true, schema: requestSchema } },
+          text: { format: kind === 'plan' ? { type: 'json_object' }
+            : { name: 'learning_hub_result', type: 'json_schema', strict: true, schema: requestSchema } },
         }),
         signal: AbortSignal.timeout(90000),
         redirect: 'manual',
