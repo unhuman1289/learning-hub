@@ -157,7 +157,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
 
       <div className="grid min-w-0 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-8">
         <div className="min-w-0">
-          <LubeckWindow clock={clock} onDarkness={setDarkness} className="relative z-[1] mx-auto max-w-[44rem]" />
+          <LubeckWindow clock={clock} onDarkness={setDarkness} waitingForDesk={hub2 && !data && !shelf.error} className="relative z-[1] mx-auto max-w-[44rem]" />
           <section aria-label="Bàn học">
             <OakDesk lamp={darkness * 0.5} apron>
               <div className="flex min-w-0 items-end gap-2 sm:items-center sm:gap-4">

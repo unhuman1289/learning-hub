@@ -5,13 +5,11 @@ import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
 import { itemPolicy, isMathFramework } from '../../lib/subjects/item-kinds.ts';
 import { normalizeNumericKeyValue, numericKeyValuePattern } from '../../lib/lesson-v2/numeric.ts';
 import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
-import { uploadPlanAudio } from './tts.mjs';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
 
-const root = new URL('../../', import.meta.url);
 const body = (file) => {
-  const text = readFileSync(new URL(file, root), 'utf8');
+  const text = readFileSync(new URL('../../' + file, import.meta.url), 'utf8');
   const cut = text.indexOf('\n---\n');
   return (cut >= 0 ? text.slice(cut + 5) : text).trim();
 };
@@ -435,8 +433,52 @@ function finalize(json, context, usage, kind) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000 } = {}) {
+function wholeLessonSchema(schema) {
+  const rubric = z.toJSONSchema(lessonPackageV3).properties.items.items.anyOf[0].properties.rubric;
+  function visit(node, question = false) {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) {
+      node.forEach(child => visit(child, question));
+      return;
+    }
+    const properties = node.properties;
+    if (properties?.contract?.const === 'lesson-package/3' && properties.items) {
+      properties.gradingMode = { const: 'whole-lesson' };
+      node.required = [...new Set([...(node.required ?? []), 'gradingMode'])];
+      properties.items.maxItems = Math.min(properties.items.maxItems ?? 8, 8);
+      visit(properties.items, true);
+      for (const [key, child] of Object.entries(properties)) if (key !== 'items') visit(child);
+      return;
+    }
+    if (question && properties?.input?.const) {
+      if (!['short', 'long', 'code'].includes(properties.input.const)) {
+        properties.input = { const: 'short' };
+        for (const key of ['choices', 'fragments', 'sequence', 'choicesLeft', 'choicesRight', 'left', 'right', 'entries', 'cells', 'labels', 'figure', 'steps', 'image', 'description', 'marks', 'headers', 'rowLabels']) {
+          delete properties[key];
+        }
+      }
+      delete properties.key;
+      delete properties.audio;
+      properties.attachment = { const: 'none' };
+      properties.rubric ??= structuredClone(rubric);
+      node.required = [...new Set([...(node.required ?? []).filter(key => key in properties), 'rubric', 'attachment'])];
+    }
+    for (const child of Object.values(node)) visit(child, question);
+  }
+  visit(schema);
+  return schema;
+}
+
+export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt } = {}) {
   const context = await hub.context(lease);
+  if (qwen.name === 'openai' && (
+    context.learner?.role !== 'adult' ||
+    (context.subjects ?? [context.subject]).some(subject => subject?.sensitivity !== 'normal') ||
+    (context.attempts ?? []).some(attempt => attempt.attachments?.length)
+  )) {
+    await hub.fail(lease, 'Đợt thử OpenAI chỉ nhận văn bản của sổ người lớn đã chọn.', true);
+    return { jobId: lease.jobId, status: 'returned' };
+  }
   const hasPhotos = (context.attempts ?? []).some(a => a.attachments?.some(img => !img.expired));
   if (hasPhotos && !qwen.vision) {
     await hub.fail(lease, 'Qwen chưa hỗ trợ chấm ảnh trên máy này.', true);
@@ -448,7 +490,8 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
   const timer = setInterval(() => hub.heartbeat(lease).catch(() => {}), heartbeatMs);
   try {
     const contract = contractFor(lease.kind);
-    const schema = generationSchema(lease.kind, context, contract.json);
+    const generatedSchema = generationSchema(lease.kind, context, contract.json);
+    const schema = qwen.name === 'openai' && lease.kind === 'plan' ? wholeLessonSchema(generatedSchema) : generatedSchema;
     const promptContext = lease.kind === 'plan' ? compactPlanContext(context, PLAN_CONTEXT_BYTES, entry => log({ jobId: lease.jobId, ...entry })) : context;
     if(context.roadmapProtocol===2&&context.purpose==='request'){
       // Keep the learning evidence, but avoid giving the model old exercises to imitate.
@@ -458,25 +501,33 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     }
     let lastError = 'Engine không trả kết quả hợp lệ';
     let repair = null;
+    let retryable = true;
     let draft;
+    if (qwen.name === 'openai') {
+      promptContext.learner = { ...promptContext.learner, displayName: 'Người học', personalPrompt: '' };
+      for (const attempt of promptContext.attempts ?? []) attempt.previousAttempts = [];
+      if (promptContext.recentEvidence) promptContext.recentEvidence = [];
+    }
     const uploadedAudio = new Set();
     for (let round = 0; round < 2; round++) {
       let result;
       // Only some items were rejected: resend just those, not the whole lesson.
-      const partial = lease.kind === 'plan' && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;
+      const partial = qwen.name !== 'openai' && lease.kind === 'plan' && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;
       try {
         if (partial) {
           const { text, paths } = partialPrompt({
-            context, draft, groups: partial, prompts: context.subjects.flatMap(subject => recentPrompts(subject)),
+            context: promptContext, draft, groups: partial, prompts: promptContext.subjects.flatMap(subject => recentPrompts(subject)),
           });
           const itemSchema = notebookLessonSchema(context.subjects.length === 1 ? context.subjects[0] : undefined).properties.items.items;
-          const out = await qwen.run({ system: systemPrompt(lease.kind, lease.purpose), user: text, schema: partialSchema(itemSchema, paths), images: [] });
+          const out = await qwen.run({ system: getPrompt(lease.kind, lease.purpose), user: text, schema: partialSchema(itemSchema, paths), images: [] });
           result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
         } else {
         const out = await qwen.run({
-          system: systemPrompt(lease.kind, lease.purpose) + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
+          system: getPrompt(lease.kind, lease.purpose) + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
-          user: userPrompt(promptContext, repair),
+          user: userPrompt(promptContext, repair) + (qwen.name === 'openai' && lease.kind === 'plan'
+            ? '\nMỗi bài dùng gradingMode whole-lesson, tối đa 8 câu văn bản mở có rubric và lời giải. Viết lại mọi yêu cầu chọn/nối/xếp thành câu trả lời tự nhập. Không tạo đáp án chấm máy hay tệp đính kèm.'
+            : ''),
           schema,
           images,
         });
@@ -485,7 +536,21 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       } catch (error) {
         lastError = qwen.name + ': ' + (error instanceof Error ? error.message : String(error));
         log({ jobId: lease.jobId, engine: qwen.name, event: 'engine_error' });
+        if (qwen.name === 'openai') {
+          if (error?.retryable === true && round === 0) continue;
+          retryable = false;
+        }
         break;
+      }
+      if (qwen.name === 'openai' && lease.kind === 'plan') {
+        const lessons = [
+          ...(Array.isArray(result.subjects) ? result.subjects.flatMap(subject => [subject?.primaryLesson, subject?.reviewSet]) : []),
+          ...(Array.isArray(result.explorations) ? result.explorations.map(exploration => exploration?.lesson) : []),
+        ].filter(Boolean);
+        if (lessons.some(lesson => lesson.gradingMode !== 'whole-lesson')) {
+          repair = [{ path: '/gradingMode', code: 'schema', message: 'Mọi bài mới cần gradingMode whole-lesson.' }];
+          continue;
+        }
       }
       const local = contract.zod.safeParse(result);
       if (!local.success) {
@@ -507,8 +572,10 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         log({ jobId: lease.jobId, engine: qwen.name, event: 'local_duplicates', errors: duplicates.slice(0, 10).map(e => e.path) });
         continue;
       }
-      if (lease.kind === 'plan' && context.tts)
+      if (lease.kind === 'plan' && context.tts) {
+        const { uploadPlanAudio } = await import('./tts.mjs');
         await uploadPlanAudio(hub, lease, context, validResult, undefined, uploadedAudio);
+      }
       let dry = await hub.result(lease, validResult, true);
       const rejectedOptionalRoadmap = dry.status === 422 &&
         context.purpose === 'request' && context.adaptive?.roadmapTask === 'none' &&
@@ -550,7 +617,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       log({ jobId: lease.jobId, engine: qwen.name, event: 'succeeded', lessonCount, ms: result.usage.ms });
       return { jobId: lease.jobId, status: 'succeeded', engine: qwen.name };
     }
-    await hub.fail(lease, lastError, true);
+    await hub.fail(lease, lastError, retryable);
     return { jobId: lease.jobId, status: 'failed', error: lastError };
   } finally {
     clearInterval(timer);

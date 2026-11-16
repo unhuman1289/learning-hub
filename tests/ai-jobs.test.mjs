@@ -1328,3 +1328,17 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
   }
   db.sqlite.close();
 });
+
+test('staging OpenAI dispatch and claim are scoped to the selected notebook and exact queued job', async () => {
+  const db = seed();
+  const sent = [];
+  const bindings = { ENVIRONMENT: 'staging', OPENAI_SUBJECT_IDS: subject, AI_QUEUE: { send: async body => sent.push(body) } };
+  const scheduled = await enqueue(db, bindings, { learnerId: learner, subjectId: subject, kind: 'plan', purpose: 'daily' }, now);
+  const other = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
+  assert.deepEqual(sent, [{ jobId: scheduled.id }]);
+  const [legacy] = await leaseJobs(db, client, { ...input, excludeSubjectIds: [subject] }, 'staging', now);
+  assert.equal(legacy.jobId, other.id);
+  const [selected] = await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject], capabilities: ['lesson-v3', 'adaptive-plan'] }, 'staging', now);
+  assert.equal(selected.jobId, scheduled.id);
+  assert.deepEqual(await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject] }, 'staging', now), []);
+});

@@ -18,7 +18,7 @@ export async function POST(req: Request, context: Context) {
     const learnerId = await lessonTarget(db, user, req, id, 'edit_work');
     if (learnerId instanceof Response) return learnerId;
     const body = await req.json().catch(() => null) as { level?: unknown } | null;
-    if (body?.level === 'slow' || body?.level === 'transcript') {
+    if (body?.level === 'slow' || body?.level === 'extra' || body?.level === 'transcript') {
       return Response.json(await revealListening(db, learnerId, id, itemId, body.level), { headers: privateHeaders });
     }
     const result = await reveal(db, learnerId, id, itemId, body?.level);

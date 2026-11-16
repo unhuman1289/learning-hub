@@ -9,7 +9,7 @@ export type ListeningItem = {
   readOnly: boolean;
 };
 
-async function post(item: ListeningItem, action: "plays" | "reveal", body: { slow: boolean } | { level: "transcript" }) {
+async function post(item: ListeningItem, action: "plays" | "reveal", body: { slow: boolean } | { level: "slow" | "extra" | "transcript" }) {
   if (item.readOnly) return null;
   const path = `/api/lessons/${encodeURIComponent(item.lessonId)}/items/${encodeURIComponent(item.itemId)}/${action}`;
   const response = await fetch(path, {
@@ -27,6 +27,10 @@ export async function recordPlay(item: ListeningItem, slow: boolean) {
   if (!response) return null;
   const { plays } = await response.json() as { plays: number };
   return plays;
+}
+
+export async function recordPlaybackSupport(item: ListeningItem, level: "slow" | "extra") {
+  await post(item, "reveal", { level });
 }
 
 export async function revealTranscript(item: ListeningItem) {

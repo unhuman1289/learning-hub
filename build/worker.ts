@@ -1,3 +1,4 @@
+import { consumeOpenAi, redispatchOpenAi } from './openai-queue';
 import { checkNightlyCoverage } from '../lib/roadmap/coverage';
 import { berlinDay } from '../lib/daily-policy';
 import handler from "vinext/server/fetch-handler";
@@ -47,6 +48,7 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
 }
 
 export default {
+  queue: consumeOpenAi,
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env);
     if (guarded) return guarded;
@@ -57,6 +59,10 @@ export default {
   },
   scheduled(controller: ScheduledController, env: Cloudflare.Env, ctx: ExecutionContext) {
     const scheduledAt = new Date(controller.scheduledTime);
+    if (controller.cron === '*/5 * * * *') {
+      ctx.waitUntil(redispatchOpenAi(env, scheduledAt));
+      return;
+    }
     if (env.HUB2_ENABLED === "true" && env.DB) {
       const steps = hub2Steps(env.DB, env, scheduledAt);
       if (steps.length) ctx.waitUntil(runSteps(steps));

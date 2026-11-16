@@ -114,10 +114,10 @@ export async function recordSupport(db: Db, learnerId: string, lessonId: string,
   return writeSupport(db, learnerId, lessonId, itemId, level);
 }
 
-export async function revealListening(db: Db, learnerId: string, lessonId: string, itemId: string, level: 'slow' | 'transcript') {
+export async function revealListening(db: Db, learnerId: string, lessonId: string, itemId: string, level: 'slow' | 'extra' | 'transcript') {
   const { audio } = await readItem(db, learnerId, lessonId, itemId);
   if (!audio) throw bad('Câu này không có âm thanh.');
-  if (level === 'slow') return { support: await writeSupport(db, learnerId, lessonId, itemId, 'hint1') };
+  if (level !== 'transcript') return { support: await writeSupport(db, learnerId, lessonId, itemId, 'hint1') };
   if (audio.transcript === 'never') {
     const row = await db.prepare("SELECT 1 FROM learner_settings WHERE user_id=? AND json_type(preferences,'$.replaceAudioWithText')='true'")
       .bind(learnerId).first();

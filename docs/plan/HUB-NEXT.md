@@ -45,6 +45,14 @@
 - Xoá dữ liệu, deploy, merge và migration production cần chủ dự án đồng ý từng lần.
 - Không force-push.
 
+### Quyết định 16/11/2026 · OpenAI API và chấm cuối bài
+
+Phạm vi đợt này là **bước 1, 2 và 4** của kế hoạch chuyển sang OpenAI. Quyết định này thay yêu cầu chỉ dùng Qwen cho những luồng được chuyển. Bỏ bước 3 là đợt so sánh với Qwen. Giữ kiểm thử chức năng và xác nhận staging trước khi bật từng sổ.
+
+1. **Nối OpenAI vào Job API v2 và Cloudflare Queue.** Dùng GPT‑6 Luna chấm câu mở, GPT‑6.1 Terra soạn bài và chấm lại. `OPENAI_API_KEY` đã được xác minh có trong Secrets của Worker `learning-hub-staging`. Gọi thử mỗi model một lần với dữ liệu mẫu và kiểm Usage của project staging. Xác nhận Worker lưu được bài và lời phê khi Mac tắt. Khi gửi lại cùng một job, kiểm kết quả đã lưu để tránh ghi trùng.
+2. **Nộp cả bài và chấm cuối lượt.** Bài mới mặc định dùng câu mở. Hub lưu nháp trong lúc làm, chỉ gọi Luna khi bấm **Nộp bài**, gom các câu cần chấm vào một yêu cầu và hiện kết quả kèm giải thích theo từng câu sau khi lưu. Gợi ý không tính lỗi. Câu ngắn đã xem đáp án tính 0 điểm, ghi một lỗi và bỏ khỏi yêu cầu. Câu dài hoặc code đã xem lời giải cũng tính 0 điểm và ghi một lỗi, nhưng nếu đã nhập bài làm thì vẫn gửi để nhận xét. Nếu không còn câu nào cần chấm hoặc nhận xét thì không gọi API.
+4. **Bật theo từng sổ.** Bật trước trên staging cho văn bản người lớn sau khi luồng nộp, lưu và mở lại bài đã qua kiểm thử. Mở tiếp cho văn bản trẻ em khi xác minh điều kiện xử lý dữ liệu và quyền phụ huynh. Giữ bài cũ, nháp và điểm. Xác nhận một lượt giao lúc **00:00 Europe/Berlin** bằng mã bài đã lưu và kiểm tra các sổ không đủ điều kiện giữ nguyên.
+
 ## 1. Hiện trạng (đo ngày 13/11/2026)
 
 ### 1.1. Dùng thật và quy mô mã

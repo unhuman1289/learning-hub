@@ -23,7 +23,7 @@ type PendingSubmission = {
   clientSubmissionId: string;
   draftRevision: number;
   stage: string | null;
-  itemIds: string[];
+  itemIds: string[] | null;
   answers?: DraftAnswers;
 };
 export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
@@ -96,10 +96,13 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         if (storedSubmission) {
           try {
             const queued = JSON.parse(storedSubmission) as PendingSubmission;
-            if (queued.itemIds?.length === 1 && result.items.some(item => item.id === queued.itemIds[0]) &&
-                typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
+            const queuedItem = queued.itemIds?.length === 1 ? queued.itemIds[0] : null;
+            const pendingId = result.wholeLesson
+              ? (queued.itemIds === null && queued.stage === null ? "whole-lesson" : null)
+              : (result.items.some(item => item.id === queuedItem) ? queuedItem : null);
+            if (pendingId && typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
               pendingSubmission.current = queued;
-              setPending(queued.itemIds[0]);
+              setPending(pendingId);
             }
           } catch {
             writeOfflineDraft(submissionKey, undefined);
@@ -277,12 +280,12 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       if (!pendingSubmission.current) {
         if (saveInFlight.current && !(await saveInFlight.current)) return;
         const item = lesson.items.find(i => i.id === itemId);
-        if (!item) return;
+        if (!item && !lesson.wholeLesson) return;
         pendingSubmission.current = {
           clientSubmissionId: crypto.randomUUID(),
           draftRevision: revision.current,
-          stage: item.stage,
-          itemIds: [itemId],
+          stage: lesson.wholeLesson ? null : item!.stage,
+          itemIds: lesson.wholeLesson ? null : [itemId],
           ...(JSON.stringify(latest.current) !== saved.current ? { answers: latest.current } : {}),
         };
         writeOfflineDraft(submissionKey, JSON.stringify(pendingSubmission.current));
@@ -323,7 +326,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         setPending(null);
         void refreshFeedback();
       }
-      setError((e as Error).message + (pendingSubmission.current ? " Bấm lại ở câu này khi có mạng để kiểm tra kết quả." : ""));
+      setError((e as Error).message + (pendingSubmission.current ? " Bấm nộp lại khi có mạng để kiểm tra kết quả." : ""));
     } finally {
       setBusy(false);
     }

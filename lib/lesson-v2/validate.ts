@@ -153,8 +153,9 @@ export function validateLessonPackage(
         `A ${lesson.template === 'reading' ? 'reading' : lesson.kind} lesson has ${low}–${high} items (it has ${lesson.items.length}).`,
       );
     const open = items.filter((item) => !item.key).length;
-    if (open > AI_MAX_OPEN_ITEMS)
-      issue('/items', 'size_limit', `At most ${AI_MAX_OPEN_ITEMS} open-answer items per lesson (it has ${open}); give the others a key.`);
+    const limit = lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson' ? 8 : AI_MAX_OPEN_ITEMS;
+    if (open > limit)
+      issue('/items', 'size_limit', `At most ${limit} open-answer items per lesson (it has ${open}).`);
   }
   if (review && !options.adaptive && lesson.estMinutes > 20) issue('/estMinutes', 'schema', 'A review set takes at most 20 minutes.');
 
@@ -198,7 +199,7 @@ export function validateLessonPackage(
   });
 
   const listeningItems = items.filter(item => item.audio);
-  if (listeningItems.length && !listeningItems.some(item => item.key))
+  if (!(lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson') && listeningItems.length && !listeningItems.some(item => item.key))
     issue('/items', 'schema', 'Bài có câu nghe cần ít nhất một câu nghe chấm tự động.');
   if (items.filter(item => item.key?.type === 'dictation').length > 2)
     issue('/items', 'size_limit', 'Mỗi bài có tối đa hai câu chính tả.');
