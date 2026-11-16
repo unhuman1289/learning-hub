@@ -72,7 +72,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       const current = await readJob(db, id);
       if (current?.status === 'failed') {
         const detail = 'error' in processed && typeof processed.error === 'string'
-          ? processed.error.match(/OpenAI HTTP \d{3}(?: \([a-z_]+\))?/)?.[0] : undefined;
+          ? processed.error.match(/OpenAI (?:HTTP \d{3}(?: \([a-z_]+\))?|schema preparation failed|request timed out|request transport failed|response status: (?:failed|incomplete|cancelled|queued|in_progress|unknown)(?: \((?:max_output_tokens|content_filter)\))?|declined this response|response was not valid JSON)/)?.[0] : undefined;
         if (detail) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
           .bind(detail, id, client.id).run();
         console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, kind: job.kind,

@@ -30,6 +30,12 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
     async run({ system, user, schema, images = [] }) {
       if (images.length) throw new Error('OpenAI pilot only supports text.');
       const started = Date.now();
+      let requestSchema;
+      try {
+        requestSchema = responsesSchema(strictSchema(schema));
+      } catch {
+        throw new Error('OpenAI schema preparation failed.');
+      }
       const response = await fetcher('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
@@ -41,10 +47,14 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
           service_tier: 'default',
           reasoning: { effort: kind === 'plan' || purpose === 'recheck' ? 'low' : 'none' },
           max_output_tokens: kind === 'plan' ? 12000 : 6000,
-          text: { format: { name: 'learning_hub_result', type: 'json_schema', strict: true, schema: responsesSchema(strictSchema(schema)) } },
+          text: { format: { name: 'learning_hub_result', type: 'json_schema', strict: true, schema: requestSchema } },
         }),
         signal: AbortSignal.timeout(90000),
         redirect: 'error',
+      }).catch(error => {
+        if (error?.name === 'TimeoutError' || error?.name === 'AbortError')
+          throw new Error('OpenAI request timed out.');
+        throw new Error('OpenAI request transport failed.');
       });
 
       const body = await response.json().catch(() => null);
@@ -56,7 +66,11 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
         error.retryable = response.status >= 500 || (response.status === 429 && code === 'rate_limit_exceeded');
         throw error;
       }
-      if (body?.status !== 'completed') throw new Error('OpenAI response did not complete.');
+      if (body?.status !== 'completed') {
+        const status = ['failed', 'incomplete', 'cancelled', 'queued', 'in_progress'].includes(body?.status) ? body.status : 'unknown';
+        const reason = ['max_output_tokens', 'content_filter'].includes(body?.incomplete_details?.reason) ? body.incomplete_details.reason : null;
+        throw new Error('OpenAI response status: ' + status + (reason ? ' (' + reason + ')' : ''));
+      }
 
       const content = (body.output ?? []).filter(item => item.type === 'message').flatMap(item => item.content ?? []);
       if (content.some(item => item.type === 'refusal')) throw new Error('OpenAI declined this response.');
