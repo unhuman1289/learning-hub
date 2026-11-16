@@ -1,4 +1,4 @@
-import { audioLanguage, ttsVoices } from "./lesson-package-v3.ts";
+import { audioLanguage, audioSpec, ttsVoices } from "./lesson-package-v3.ts";
 import {frameworkInput} from '../roadmap/frameworks.ts';
 import {roadmapChanges,newStep} from '../roadmap/changes.ts';
 import { z } from 'zod/v4';
@@ -343,6 +343,7 @@ const assessmentAttempt = z
     input: z.enum(['choice', 'short', 'long', 'cloze', 'match', 'order', 'label', 'table', 'code']),
     language: z.enum(['rust', 'python', 'text']).optional(),
     starter: text(5000).optional(),
+    transcript: audioSpec.shape.lines.optional(),
     skills: z.array(ref).max(3),
     prompt: text(2000),
     rubric: z

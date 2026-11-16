@@ -41,6 +41,7 @@ export function stepStatus(step:RoadmapStep,mastered:Set<string>,evidence:Roadma
 type NextInput={
  steps:RoadmapStep[];skills:RoadmapSkill[];errors:{skillId:string;confidence:string;status:string}[];
  independentSkills:Set<string>;challenged:Set<string>;day:string;daily:boolean;requestMode:'learn'|'practice'|'personal';
+ listening?: { completedLessons:number; observedSkills:ReadonlySet<string> };
  maxDifficulty:number;recentPractice:number;replan?:boolean;requestedStepId?:string;
 };
 export function decideNext(state:NextInput) {
@@ -60,8 +61,17 @@ export function decideNext(state:NextInput) {
  const decision=(mode:'learn'|'practice'|'review'|'challenge'|'personal'|'none',step:RoadmapStep|undefined,skills:string[],reasonCode:ReasonCode,needsScaffold=false)=>{
   const band=Math.min(step?.band??2,state.maxDifficulty);
   const stepRole:StepRole|null=mode==='learn'?'intro':mode==='challenge'?'challenge':step&&(mode==='practice'||mode==='review')?'practice':null;
-  return {mode,minutes:state.daily?45 as const:15 as const,step:step?{id:step.id,title:step.title,skills:step.skills}:null,
-   stepRole, targetSkills:skills.slice(0,3),difficulty:{min:Math.max(1,band-1),max:Math.min(state.maxDifficulty,band+1)},
+  const targets=skills.slice(0,3);
+  let listening={min:0,max:0};
+  const listeningState=state.listening;
+  if(listeningState){
+   if(mode==='learn'||mode==='review')listening={min:1,max:2};
+   if(mode==='challenge')listening={min:2,max:6};
+   if(mode==='practice')listening=listeningState.completedLessons>=3&&targets.some(skill=>!listeningState.observedSkills.has(skill))
+    ?{min:3,max:4}:{min:2,max:3};
+  }
+  return {mode,listening,minutes:state.daily?45 as const:15 as const,step:step?{id:step.id,title:step.title,skills:step.skills}:null,
+   stepRole, targetSkills:targets,difficulty:{min:Math.max(1,band-1),max:Math.min(state.maxDifficulty,band+1)},
    reasonCode,reason:reasons[reasonCode],needsScaffold,roadmapTask};
  };
  const learn=()=>{

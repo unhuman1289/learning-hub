@@ -18,6 +18,7 @@ import { processJob, userPrompt, systemPrompt, normalizePlan, compactPlanContext
 import { strictSchema, stripOptionalNulls, parseJsonReply } from '../integrations/home-runner/schema.mjs';
 import { childEnv, codexEngine, qwenEngine } from '../integrations/home-runner/engines.mjs';
 import { leaseRequest, pollDelay, parseEnvFile, runOnce } from '../integrations/home-runner/runner.mjs';
+import { listeningJob, germanVoices } from './listening-authoring-fixture.mjs';
 import { createHub } from '../integrations/home-runner/hub.mjs';
 
 const now = new Date('2026-11-12T09:00:00Z'),
@@ -712,3 +713,84 @@ for (const active of [false, true]) {
     assert.match(stdout, active ? /job drained[\s\S]*"event":"stop"/ : /"event":"stop"/);
   });
 }
+
+test('Hub leases a listening quota only for notebooks whose language has two runner voices', async t => {
+  const cases = [
+    [{}, { min: 2, max: 3 }],
+    [{ ttsVoices: {} }, { min: 0, max: 0 }],
+    [{ ttsVoices: { 'en-US': { f: 'Test f', m: 'Test m' } } }, { min: 0, max: 0 }],
+    [{ title: 'Rust', goal: 'Rust ownership', ttsVoices: germanVoices }, { min: 0, max: 0 }],
+  ];
+  for (const [options, expected] of cases) {
+    const db = memoryDb();
+    t.after(() => db.sqlite.close());
+    const { hub, lease, context } = await listeningJob(db, options);
+    assert.deepEqual(context.adaptive.listening, expected);
+    let shape;
+    await processJob(hub, lease, {
+      name: 'qwen',
+      async run({ schema }) {
+        shape = schema.properties.explorations.items.properties.lesson.properties.items;
+        throw Error('schema inspected');
+      },
+    });
+    if (expected.max) {
+      assert.equal(shape.prefixItems.length, expected.max);
+      for (const [index, item] of shape.prefixItems.entries()) {
+        for (const branch of item.anyOf) {
+          assert.equal(branch.required.includes('audio'), index < expected.min);
+          assert.deepEqual(branch.properties.audio.properties.lang, { const: 'de-DE' });
+        }
+      }
+      assert(shape.items.anyOf.every(branch => !branch.properties.audio));
+    } else {
+      assert(shape.items.anyOf.every(branch => !branch.properties.audio));
+    }
+  }
+});
+
+test('listening quota and quoted grading evidence are enforced through lease, upload and save', async t => {
+  const db = memoryDb();
+  t.after(() => db.sqlite.close());
+  const { hub, lease, context, draft, submitted, objects, submitOpenAnswer } = await listeningJob(db);
+  assert.deepEqual(context.adaptive.listening, { min: 2, max: 3 });
+  const body = { ...draft, contextHash: context.contextHash };
+  const missing = await hub.result(lease, body, true);
+  assert.equal(missing.status, 422);
+  assert(missing.body.errors.some(error => error.code === 'listening_count'), JSON.stringify(missing.body));
+
+  const wrong = structuredClone(draft);
+  delete wrong.explorations[0].lesson.items[0].audio;
+  let renders = 0;
+  const engine = fakeEngine('qwen', [() => wrong, () => draft]);
+  const run = await processJob(hub, lease, engine, {
+    renderAudio: async (_audio, voices) => {
+      renders++;
+      const variant = voices[0] === germanVoices['de-DE'].f ? 'f' : 'm';
+      return readFileSync(new URL(`./fixtures/audio/de-DE-${variant}.m4a`, import.meta.url));
+    },
+  });
+  assert.equal(run.status, 'succeeded', JSON.stringify(run));
+  assert.equal(renders, 4);
+  assert.equal(objects.size, 4);
+  const job = await hub.state(lease.jobId);
+  const [lessonId] = job.outcome.extraLessonIds;
+  assert(lessonId);
+  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM lesson_items WHERE lesson_id=? AND stimulus='audio'").get(lessonId).n, 2);
+  const repeated = await hub.result(lease, submitted[0], false);
+  assert(repeated.body.replayed);
+  assert.deepEqual(repeated.body.outcome.extraLessonIds, [lessonId]);
+
+  const assess = await submitOpenAnswer(lessonId);
+  const assessing = await hub.context(assess);
+  assert.deepEqual(assessing.attempts[0].transcript, draft.explorations[0].lesson.items[1].audio.lines);
+  const result = grade(assessing, { evidence: 'in der Bibliothek' });
+  result.contextHash = assessing.contextHash;
+  result.grades[0].rubricScores[0].points = 1;
+  const rejected = await hub.result(assess, result, true);
+  assert.equal(rejected.status, 422);
+  assert(rejected.body.errors.some(error => error.path === '/grades/0/errors'));
+  result.grades[0].errors = [];
+  const accepted = await hub.result(assess, result, false);
+  assert.equal(accepted.status, 200, JSON.stringify(accepted));
+});

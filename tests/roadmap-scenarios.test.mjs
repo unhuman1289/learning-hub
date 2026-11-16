@@ -166,3 +166,17 @@ test('stepStatus and the SQL writer agree on the listening gate', async t => {
     assert.equal((await listSteps(db, 'adult', id))[0].status, expected);
   }
 });
+
+test('listening quotas follow the roadmap mode and the target skills’ listening evidence', () => {
+  const planned = { id: 'step', title: 'Hẹn giờ', skills: ['time'], status: 'planned', requires: [], band: 2 };
+  const practising = { ...planned, status: 'practising' };
+  const listening = { completedLessons: 2, observedSkills: new Set() };
+  const practice = { ...state([practising]), listening };
+  assert.deepEqual(decideNext({ ...state([planned]), listening }).listening, { min: 1, max: 2 });
+  assert.deepEqual(decideNext(practice).listening, { min: 2, max: 3 });
+  assert.deepEqual(decideNext({ ...practice, listening: { ...listening, completedLessons: 3 } }).listening, { min: 3, max: 4 });
+  assert.deepEqual(decideNext({ ...practice, listening: { completedLessons: 3, observedSkills: new Set(['time']) } }).listening, { min: 2, max: 3 });
+  assert.deepEqual(decideNext({ ...practice, independentSkills: new Set(['time']) }).listening, { min: 2, max: 6 });
+  assert.deepEqual(decideNext({ ...practice, skills: [{ ...skill('time'), nextReviewDay: '2026-11-01' }] }).listening, { min: 1, max: 2 });
+  assert.deepEqual(decideNext(state([practising])).listening, { min: 0, max: 0 });
+});

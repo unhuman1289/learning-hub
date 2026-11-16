@@ -4,7 +4,7 @@ import {frameworkFor,inferFramework} from '../../roadmap/frameworks.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
-import { validateLessonPackage } from '../../lesson-v2/validate.ts';
+import { listeningIssues, validateLessonPackage } from '../../lesson-v2/validate.ts';
 import { promptHash, newLessonId } from '../../lesson-v2/store.ts';
 import { cutoffFor } from '../../daily-policy.ts';
 import { addDays, clampMastery } from '../../learner-model/rules.ts';
@@ -288,8 +288,12 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
+      const listening = context.adaptive?.listening;
+      const draftIssues = listeningIssues(packageInput.items, listening, c.framework?.key);
+      for (const problem of draftIssues) issue(path + '/' + field + problem.path, problem.code, problem.message);
+      if (draftIssues.length) continue;
       const audio = await resolveLessonAudio(db, packageInput, context.tts, audioBucket);
-      const checked = validateLessonPackage(audio.lesson, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
+      const checked = validateLessonPackage(audio.lesson, { listening, maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       if(modern&&checked.lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))

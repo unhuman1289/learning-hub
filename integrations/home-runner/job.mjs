@@ -2,9 +2,10 @@
 import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { assessResult, planResult } from '../../lib/contracts/ai-common.ts';
-import { itemPolicy, isMathFramework } from '../../lib/subjects/item-kinds.ts';
+import { itemPolicy, isMathFramework, listeningLanguage } from '../../lib/subjects/item-kinds.ts';
 import { normalizeNumericKeyValue, numericKeyValuePattern } from '../../lib/lesson-v2/numeric.ts';
 import { lessonPackageV3 } from '../../lib/contracts/lesson-package-v3.ts';
+import { listeningIssues } from '../../lib/lesson-v2/validate.ts';
 import { HubError } from './hub.mjs';
 import { KEY_EXAMPLES, findDuplicates, itemFailures, mergeFixes, partialPrompt, partialSchema, recentPrompts } from './repair.mjs';
 
@@ -29,7 +30,7 @@ export function contractFor(kind) {
   return schemas[kind];
 }
 
-function notebookLessonSchema(subject) {
+function notebookLessonSchema(subject, listening) {
   const schema = z.toJSONSchema(lessonPackageV3);
   delete schema.$schema;
   const policy = itemPolicy(subject?.framework?.key);
@@ -71,21 +72,49 @@ function notebookLessonSchema(subject) {
     return item;
   });
   items.items = { anyOf: [...branches, ...structured].filter(branch => allowed.includes(branch.properties.input.const)) };
+  if (listening) {
+    for (const branch of items.items.anyOf) {
+      if (listening.max === 0) delete branch.properties.audio;
+      else branch.properties.audio.properties.lang = { const: listeningLanguage(subject?.framework?.key) };
+    }
+  }
   if (!policy.codeKnowledge)
     schema.properties.knowledge.items.oneOf = schema.properties.knowledge.items.oneOf.filter(branch => branch.properties.kind.const !== 'code');
   return schema;
 }
 
-const nullablePackage = subject => ({ anyOf: [notebookLessonSchema(subject), { type: 'null' }] });
+const nullablePackage = (subject, listening) => ({ anyOf: [notebookLessonSchema(subject, listening), { type: 'null' }] });
+
+// LM Studio supports prefixItems but rejects contains/minContains/maxContains.
+function constrainListening(items, listening) {
+  if (!listening?.max) return;
+  const question = (shape, index) => {
+    if (index >= listening.min && index < listening.max) return shape;
+    return { anyOf: shape.anyOf.map(branch => {
+      const copy = structuredClone(branch);
+      if (index < listening.min) copy.required.push('audio');
+      else delete copy.properties.audio;
+      return copy;
+    }) };
+  };
+  items.minItems = Math.max(items.minItems, listening.min);
+  if (items.prefixItems) {
+    items.prefixItems = items.prefixItems.map(question);
+  } else {
+    const shape = items.items;
+    items.prefixItems = Array.from({ length: listening.max }, (_, index) => question(shape, index));
+    items.items = question(shape, listening.max);
+  }
+}
 
 function generationSchema(kind, context, schema) {
   if (kind !== 'plan') return schema;
   schema = structuredClone(schema);
   const subjectProperties = schema.properties.subjects.items.properties;
   const onlySubject = context.subjects.length === 1 ? context.subjects[0] : undefined;
-  subjectProperties.primaryLesson = nullablePackage(onlySubject);
-  subjectProperties.reviewSet = nullablePackage(onlySubject);
-  schema.properties.explorations.items.properties.lesson = nullablePackage(onlySubject);
+  subjectProperties.primaryLesson = nullablePackage(onlySubject, context.adaptive?.listening);
+  subjectProperties.reviewSet = nullablePackage(onlySubject, context.adaptive?.listening);
+  schema.properties.explorations.items.properties.lesson = nullablePackage(onlySubject, context.adaptive?.listening);
   if (context.subjects.length > 1) {
     const { subjects, explorations } = schema.properties;
     subjects.items = { anyOf: context.subjects.map(subject => {
@@ -203,9 +232,14 @@ function generationSchema(kind, context, schema) {
           }
         }
       }
+      constrainListening(lesson.properties.items, context.adaptive.listening);
       explorations.items.properties.lesson = lesson;
     }
     return request;
+  }
+  if (context.purpose === 'daily') {
+    const primary = subjectProperties.primaryLesson.anyOf.find(branch => branch.type === 'object');
+    constrainListening(primary.properties.items, context.adaptive?.listening);
   }
   if(context.roadmapProtocol===2&&context.purpose==='daily'&&context.adaptive?.roadmapTask!=='none'){
     const item=schema.properties.subjects.items;
@@ -469,7 +503,7 @@ function wholeLessonSchema(schema) {
   return schema;
 }
 
-export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt } = {}) {
+export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt, renderAudio } = {}) {
   const context = await hub.context(lease);
   if (qwen.name === 'openai' && (
     context.learner?.role !== 'adult' ||
@@ -518,7 +552,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
           const { text, paths } = partialPrompt({
             context: promptContext, draft, groups: partial, prompts: promptContext.subjects.flatMap(subject => recentPrompts(subject)),
           });
-          const itemSchema = notebookLessonSchema(context.subjects.length === 1 ? context.subjects[0] : undefined).properties.items.items;
+          const itemSchema = notebookLessonSchema(context.subjects.length === 1 ? context.subjects[0] : undefined, context.adaptive?.listening).properties.items.items;
           const out = await qwen.run({ system: getPrompt(lease.kind, lease.purpose), user: text, schema: partialSchema(itemSchema, paths), images: [] });
           result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
         } else {
@@ -564,6 +598,28 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         continue;
       }
       let validResult = lease.kind === 'plan' ? normalizePlan(local.data) : local.data;
+      const listening = context.adaptive?.listening;
+      if (lease.kind === 'plan' && listening) {
+        const parts = [
+          ...validResult.subjects.flatMap((entry, index) => ['primaryLesson', 'reviewSet'].map(field => ({
+            lesson: entry[field], subjectId: entry.subjectId, path: `/subjects/${index}/${field}`,
+          }))),
+          ...validResult.explorations.map((entry, index) => ({
+            lesson: entry.lesson, subjectId: entry.subjectId, path: `/explorations/${index}/lesson`,
+          })),
+        ];
+        const checked = parts.flatMap(({ lesson, subjectId, path }) => lesson
+          ? listeningIssues(lesson.items, listening, context.subjects.find(subject => subject.subjectId === subjectId)?.framework?.key)
+            .map(issue => ({ ...issue, path: path + issue.path }))
+          : []);
+        if (checked.length) {
+          repair = checked;
+          draft = validResult;
+          lastError = qwen.name + ': số câu nghe hoặc ngôn ngữ sai yêu cầu';
+          log({ jobId: lease.jobId, event: 'listening_contract_error', errors: checked.map(issue => issue.code + ' ' + issue.path) });
+          continue;
+        }
+      }
       const duplicates = lease.kind === 'plan' ? findDuplicates(validResult, context) : [];
       if (duplicates.length) {
         repair = duplicates;
@@ -574,7 +630,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       }
       if (lease.kind === 'plan' && context.tts) {
         const { uploadPlanAudio } = await import('./tts.mjs');
-        await uploadPlanAudio(hub, lease, context, validResult, undefined, uploadedAudio);
+        await uploadPlanAudio(hub, lease, context, validResult, renderAudio, uploadedAudio);
       }
       let dry = await hub.result(lease, validResult, true);
       const rejectedOptionalRoadmap = dry.status === 422 &&

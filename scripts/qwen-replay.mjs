@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import { itemPolicy } from '../lib/subjects/item-kinds.ts';
-import { normalizeLesson, normalizePlan } from '../integrations/home-runner/job.mjs';
+import { normalizeLesson, normalizePlan, processJob } from '../integrations/home-runner/job.mjs';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
 
 import { normalizeNumericKeyValue, numericKeyValuePattern, parseNumericAnswer } from '../lib/lesson-v2/numeric.ts';
@@ -13,6 +13,7 @@ import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { enqueue } from '../lib/ai-jobs/queue.ts';
 import { leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
+import { germanVoices, listeningJob } from '../tests/listening-authoring-fixture.mjs';
 
 async function replayOpening(raw) {
   const db = memoryDb();
@@ -88,12 +89,47 @@ async function replayRequest(raw, expectedSteps) {
   }
 }
 
+async function replayListening(raw) {
+  const db = memoryDb();
+  try {
+    const { hub, lease, context, draft, submitted } = await listeningJob(db, { sample: raw });
+    assert.deepEqual(context.adaptive.listening, { min: 2, max: 3 });
+    const fixtureLesson = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-listening.json', import.meta.url)));
+    assert.deepEqual(fixtureLesson, raw.explorations[0].lesson);
+    const result = await processJob(hub, lease, {
+      name: 'qwen-fixture',
+      async run() { return { json: draft, usage: raw.usage }; },
+    }, {
+      renderAudio: async (_audio, voices) => {
+        const variant = voices[0] === germanVoices['de-DE'].f ? 'f' : 'm';
+        return readFileSync(new URL(`../tests/fixtures/audio/de-DE-${variant}.m4a`, import.meta.url));
+      },
+    });
+    assert.equal(result.status, 'succeeded', JSON.stringify(result));
+    const { outcome } = await hub.state(lease.jobId);
+    const [lessonId] = outcome.extraLessonIds;
+    const { n } = db.sqlite.prepare(`SELECT count(*) n FROM lesson_items WHERE lesson_id=? AND stimulus='audio'
+      AND audio_hash_f IS NOT NULL AND audio_hash_m IS NOT NULL`).get(lessonId);
+    assert.equal(n, 2);
+    const replay = await hub.result(lease, submitted[0], false);
+    assert(replay.body.replayed);
+    assert.deepEqual(replay.body.outcome, outcome);
+    console.log('l4-listening-sample.json:', n, 'câu nghe đã lưu, đủ hai giọng, replay giữ nguyên ID bài');
+  } finally {
+    db.sqlite.close();
+  }
+}
+
 const numericPattern = new RegExp(numericKeyValuePattern);
 const folder = new URL('../tests/fixtures/qwen/', import.meta.url);
 const fixtures = readdirSync(folder).filter(name => name.endsWith('.json')).sort();
 assert(fixtures.length, 'Thiếu fixture Qwen.');
 for (const name of fixtures) {
   const fixture = JSON.parse(readFileSync(new URL(name, folder), 'utf8'));
+  if (fixture.listeningSample) {
+    await replayListening(fixture.listeningSample);
+    continue;
+  }
   if (fixture.requestCapture) {
     await replayRequest(fixture.requestCapture, fixture.expectedSteps);
     continue;
