@@ -7,7 +7,7 @@ import {memoryDb} from './d1-adapter.mjs';
 import {createSubject,updateSubject} from '../lib/subjects/service.ts';
 import {parseSubjectInput,parseSubjectPatch} from '../lib/subjects/policy.ts';
 import {frameworkFor} from '../lib/roadmap/frameworks.ts';
-import {decideNext,passesChallenge,placeSteps,stepStatus} from '../lib/roadmap/progress.ts';
+import {decideNext,passesChallenge,placeSteps,stepStatus,roadmapProgressWrite} from '../lib/roadmap/progress.ts';
 import {listSteps,applyRoadmapChanges} from '../lib/roadmap/store.ts';
 import {checkCoverage} from '../lib/roadmap/coverage.ts';
 import {readRoadmapProgress} from '../lib/roadmap/report.ts';
@@ -128,4 +128,41 @@ test('0024 backfills only valid own steps with intact prerequisites and passes i
     {roadmap_step_id:'mine:s1',step_role:'intro'});
   assert.equal(sqlite.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
   assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(),[]);
+});
+
+test('stepStatus and the SQL writer agree on the listening gate', async t => {
+  const db = memoryDb();
+  t.after(() => db.sqlite.close());
+  const { id } = await newSubject(db, 'adult', 'Deutsch', 'Học A2');
+  seedStep(db, 'adult', id, 'step', 'Wortstellung', 'word-order', 1, 'practising');
+  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,origin,created_at,updated_at)
+    VALUES('word-order',?,'adult','word-order','Wortstellung','user',?,?)`).run(id, stamp, stamp);
+  db.sqlite.prepare(`INSERT INTO skill_states(skill_id,learner_id,subject_id,mastery,mastery_ceiling,
+    dim_knowledge,dim_recognition,dim_application,dim_retention,attempts_total,evidence_hash,recompute_token,updated_at)
+    VALUES('word-order','adult',?,'demonstrated','demonstrated',3,3,3,3,1,'h','x',?)`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,kind,roadmap_step_id,step_role)
+    VALUES('lesson','adult',?,'{}','2026-11-12',?,'3','new','step','practice')`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,
+    difficulty,auto_gradable,prompt_hash,origin,payload,created_at)
+    VALUES('lesson','i1','adult',?,'independent','apply','short','["word-order"]',1,1,'h','plan','{}',?)`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO submissions(id,learner_id,lesson_id,client_submission_id,request_hash,status,created_at)
+    VALUES('sub','adult','lesson','client','h','graded',?)`).run(stamp);
+  db.sqlite.prepare(`INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,
+    answer,support,context,status,current_grade_id,day,created_at)
+    VALUES('attempt','sub','adult','lesson','i1',?,'["word-order"]','apply',1,'ok','none','lesson','graded','grade','2026-11-12',?)`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO grades(id,attempt_id,grader,result,score,feedback,correction,errors,created_at)
+    VALUES('grade','attempt','auto','correct',1,'','','[]',?)`).run(stamp);
+  for (const [required, listening, expected] of [
+    [1, null, 'practising'], [1, { level: 'emerging', days: ['2026-11-12'] }, 'practising'],
+    [1, { level: 'secure', days: ['2026-11-11', '2026-11-12'] }, 'passed'], [0, null, 'passed'],
+  ]) {
+    db.sqlite.prepare("UPDATE roadmap_steps SET listening=?,status='practising',passed_via=NULL,passed_at=NULL WHERE id='step'").run(required);
+    db.sqlite.prepare("UPDATE skill_states SET listening=? WHERE skill_id='word-order'").run(listening ? JSON.stringify(listening) : null);
+    const [step] = await listSteps(db, 'adult', id);
+    const mastered = new Set(['word-order']);
+    const secure = listening?.level === 'secure' ? mastered : new Set();
+    assert.equal(stepStatus(step, mastered, [row('word-order')], true, secure), expected);
+    await roadmapProgressWrite(db, 'adult', 'lesson', new Date(stamp)).run();
+    assert.equal((await listSteps(db, 'adult', id))[0].status, expected);
+  }
 });

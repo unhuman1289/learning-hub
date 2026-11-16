@@ -9,7 +9,7 @@ import { LessonFlow } from "../lesson/flow";
 import { lessonGroups } from "../lesson/groups";
 import { LessonItem } from "../lesson/item";
 import { ListeningBrowserNotice, useListeningSettings } from "../lesson/listening";
-import type { ListeningAudio } from "../lesson/listen-api";
+import { recordPlay, type ListeningAudio } from "../lesson/listen-api";
 import { LessonSummary } from "../lesson/summary";
 import { Book } from "../notebook/book";
 import { PaperConfirm } from "../paper-confirm";
@@ -41,6 +41,7 @@ export function LessonReader({
   const hasListening = lesson?.items.some(item => !!item.audio) ?? false;
   const settings = useListeningSettings(ownerId, hasListening && !readonly);
   const [listeningPlays, setListeningPlays] = useState<Record<string, number>>({});
+  const [savingPlays, setSavingPlays] = useState<string[]>([]);
   if (!lesson) return <p role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">{error || "Đang mở bài…"}</p>;
 
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;
@@ -96,7 +97,7 @@ export function LessonReader({
             progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
             completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
             {lesson.wholeLesson && !readonly && !lesson.completedAt &&
-              <button type="button" className={buttonClass("primary")} disabled={busy || session.waitingForGrade}
+              <button type="button" className={buttonClass("primary")} disabled={busy || session.waitingForGrade || savingPlays.length > 0}
                 onClick={() => void session.submit("whole-lesson")}>
                 {pending ? "Thử nộp lại" : "Nộp bài"}
               </button>}
@@ -120,17 +121,28 @@ export function LessonReader({
         const changed = !latest || latest.answer !== value.answer || !!value.attachmentIds?.length;
         const canSubmit = pending === item.id || (!pending && !awaiting && hasAnswer(item) && (changed || !latest?.result));
         const nextAudio: ListeningAudio | undefined = lesson.items[index]?.audio;
+        const playSaving = savingPlays.includes(item.id);
+        const listeningItem = { lessonId: id, itemId: item.id, readOnly: readonly };
         const listening = item.audio && settings.ready ? {
           ...settings,
-          item: { lessonId: id, itemId: item.id, readOnly: readonly },
+          item: listeningItem,
           answered: !!latest,
-          plays: listeningPlays[item.id] ?? 0,
-          onPlayed: () => setListeningPlays(previous => ({ ...previous, [item.id]: (previous[item.id] ?? 0) + 1 })),
+          plays: Math.max(listeningPlays[item.id] ?? 0, lesson.listen_log[item.id] ?? 0),
+          playSaving,
+          onPlayed: async (slow: boolean) => {
+            setSavingPlays(current => [...current, item.id]);
+            try {
+              const plays = await recordPlay(listeningItem, slow);
+              if (plays !== null) setListeningPlays(previous => ({ ...previous, [item.id]: plays }));
+            } finally {
+              setSavingPlays(current => current.filter(id => id !== item.id));
+            }
+          },
           nextSrc: nextAudio?.src?.[settings.voice],
         } : undefined;
         return <LessonItem key={item.id} listening={listening} item={item} number={index} value={value} formatText={formatText}
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
-          disabled={busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
+          disabled={playSaving || busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
           onSubmit={() => void session.submit(item.id)} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
