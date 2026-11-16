@@ -73,6 +73,7 @@ function notebookLessonSchema(subject, listening) {
   });
   items.items = { anyOf: [...branches, ...structured].filter(branch => allowed.includes(branch.properties.input.const)) };
   if (listening) {
+    if (listening.max > 0) delete schema.properties.gradingMode;
     for (const branch of items.items.anyOf) {
       if (listening.max === 0) delete branch.properties.audio;
       else branch.properties.audio.properties.lang = { const: listeningLanguage(subject?.framework?.key) };

@@ -97,9 +97,20 @@ export function listeningIssues(items: readonly LessonItemAny[], range: Validate
   if (count < range.min || count > range.max)
     return [{ path: '/items', code: 'listening_count', message: `Bài cần ${range.min}–${range.max} câu nghe (hiện có ${count}).` }];
   const lang = listeningLanguage(framework);
-  return items.flatMap((item, index) => item.audio && item.audio.lang !== lang
-    ? [{ path: `/items/${index}/audio/lang`, code: 'listening_language', message: 'Cần dùng đúng ngôn ngữ của sổ.' }]
-    : []);
+  const wordsOnly = (text: string) => text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const issues: LessonIssue[] = [];
+  for (const [index, item] of items.entries()) {
+    if (!item.audio) continue;
+    if (item.audio.lang !== lang)
+      issues.push({ path: `/items/${index}/audio/lang`, code: 'listening_language', message: 'Cần dùng đúng ngôn ngữ của sổ.' });
+    const prompt = wordsOnly(item.prompt);
+    if (item.audio.lines.some(line => {
+      const dialogue = wordsOnly(line.text);
+      return dialogue && (lang === 'zh-CN' ? prompt.includes(dialogue) : ` ${prompt} `.includes(` ${dialogue} `));
+    }))
+      issues.push({ path: `/items/${index}/prompt`, code: 'listening_prompt', message: 'Đề câu nghe không được chép nguyên lượt thoại.' });
+  }
+  return issues;
 }
 
 /** Validates a lesson package; returns the parsed package when there are no issues. */
@@ -213,7 +224,8 @@ export function validateLessonPackage(
 
   issues.push(...listeningIssues(items, options.listening, options.frameworkKey));
   const listeningItems = items.filter(item => item.audio);
-  if (!(lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson') && listeningItems.length && !listeningItems.some(item => item.key))
+  const wholeLessonWithoutQuota = !options.listening && lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson';
+  if (!wholeLessonWithoutQuota && listeningItems.length && !listeningItems.some(item => item.key))
     issue('/items', 'schema', 'Bài có câu nghe cần ít nhất một câu nghe chấm tự động.');
   if (items.filter(item => item.key?.type === 'dictation').length > 2)
     issue('/items', 'size_limit', 'Mỗi bài có tối đa hai câu chính tả.');

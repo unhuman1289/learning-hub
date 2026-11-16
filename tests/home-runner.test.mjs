@@ -726,15 +726,17 @@ test('Hub leases a listening quota only for notebooks whose language has two run
     t.after(() => db.sqlite.close());
     const { hub, lease, context } = await listeningJob(db, options);
     assert.deepEqual(context.adaptive.listening, expected);
-    let shape;
+    let lessonProperties;
     await processJob(hub, lease, {
       name: 'qwen',
       async run({ schema }) {
-        shape = schema.properties.explorations.items.properties.lesson.properties.items;
+        lessonProperties = schema.properties.explorations.items.properties.lesson.properties;
         throw Error('schema inspected');
       },
     });
+    const shape = lessonProperties.items;
     if (expected.max) {
+      assert(!lessonProperties.gradingMode);
       assert.equal(shape.prefixItems.length, expected.max);
       for (const [index, item] of shape.prefixItems.entries()) {
         for (const branch of item.anyOf) {
@@ -758,6 +760,16 @@ test('listening quota and quoted grading evidence are enforced through lease, up
   const missing = await hub.result(lease, body, true);
   assert.equal(missing.status, 422);
   assert(missing.body.errors.some(error => error.code === 'listening_count'), JSON.stringify(missing.body));
+
+  const revealed = structuredClone(body);
+  const item = revealed.explorations[0].lesson.items[0];
+  item.prompt += ' «GEHT ES MORGEN UM ACHT UHR?»';
+  const leak = await hub.result(lease, revealed, true);
+  assert(leak.body.errors.some(error => error.code === 'listening_prompt'));
+  item.prompt = draft.explorations[0].lesson.items[0].prompt;
+  item.audio.lang = 'zh-CN';
+  const language = await hub.result(lease, revealed, true);
+  assert(language.body.errors.some(error => error.code === 'listening_language'));
 
   const wrong = structuredClone(draft);
   delete wrong.explorations[0].lesson.items[0].audio;
