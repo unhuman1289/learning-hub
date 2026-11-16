@@ -11,6 +11,14 @@ import { m4aDurationMs } from './mp4.ts';
 import { MAX_AUDIO_BYTES, wavDurationMs } from './wav.ts';
 import { OPENAI_VOICE_PREFIX } from './openai-voices.ts';
 export { MAX_AUDIO_BYTES } from './wav.ts';
+export class AudioStorageError extends ApiError {
+  readonly code;
+  constructor(code: 'r2_put_failed' | 'r2_head_failed' | 'r2_object_unconfirmed' | 'audio_asset_write_failed') {
+    super(503, 'Chưa xác nhận tệp âm thanh.');
+    this.code = code;
+  }
+}
+
 const metadata = z.object({ audio: audioSpec, variant: z.enum(['f', 'm']) }).strict();
 
 function readMetadata(req: Request) {
@@ -71,18 +79,33 @@ export async function uploadAudio(
   await recheckLease();
   const key = 'audio/' + hash + (wave ? '.wav' : '.m4a');
   // R2's precondition also covers concurrent uploads from separate leases.
-  const created = await bucket.put(key, bytes, {
-    onlyIf: { etagDoesNotMatch: '*' },
-    httpMetadata: { contentType: mime },
-    customMetadata: { durationMs: String(durationMs) },
-  });
-  const object = created ?? await bucket.head(key);
+  let object;
+  try {
+    object = await bucket.put(key, bytes, {
+      onlyIf: { etagDoesNotMatch: '*' },
+      httpMetadata: { contentType: mime },
+      customMetadata: { durationMs: String(durationMs) },
+    });
+  } catch {
+    throw new AudioStorageError('r2_put_failed');
+  }
+  if (!object) {
+    try {
+      object = await bucket.head(key);
+    } catch {
+      throw new AudioStorageError('r2_head_failed');
+    }
+  }
   const storedDuration = Number(object?.customMetadata?.durationMs);
   if (!object || !Number.isSafeInteger(storedDuration) || storedDuration <= 0)
-    throw new ApiError(503, 'Chưa xác nhận tệp âm thanh.');
-  await db.prepare(`INSERT INTO audio_assets(hash,lang,rate,voices,duration_ms,bytes,r2_key,created_job_id,created_at)
-    VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(hash) DO UPDATE SET duration_ms=excluded.duration_ms,bytes=excluded.bytes
-    WHERE audio_assets.duration_ms<>excluded.duration_ms OR audio_assets.bytes<>excluded.bytes`)
-    .bind(hash, audio.lang, audio.rate, JSON.stringify(expected.voices), storedDuration, object.size, key, job.id, now.toISOString()).run();
+    throw new AudioStorageError('r2_object_unconfirmed');
+  try {
+    await db.prepare(`INSERT INTO audio_assets(hash,lang,rate,voices,duration_ms,bytes,r2_key,created_job_id,created_at)
+      VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(hash) DO UPDATE SET duration_ms=excluded.duration_ms,bytes=excluded.bytes
+      WHERE audio_assets.duration_ms<>excluded.duration_ms OR audio_assets.bytes<>excluded.bytes`)
+      .bind(hash, audio.lang, audio.rate, JSON.stringify(expected.voices), storedDuration, object.size, key, job.id, now.toISOString()).run();
+  } catch {
+    throw new AudioStorageError('audio_asset_write_failed');
+  }
   return { hash, durationMs: storedDuration };
 }

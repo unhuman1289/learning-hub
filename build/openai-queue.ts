@@ -1,8 +1,8 @@
-import { uploadOpenAiPlanAudio } from './openai-tts.ts';
+import { QueueAudioError, uploadOpenAiPlanAudio } from './openai-tts.ts';
 import { uploadAudio } from '../lib/audio/upload.ts';
 import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
-import { processJob } from '../integrations/home-runner/job.mjs';
+import { contractFor, processJob } from '../integrations/home-runner/job.mjs';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { failLeasedJob, heartbeat, leasedJob, leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { openAiSubjects } from '../lib/ai-jobs/queue.ts';
@@ -16,6 +16,31 @@ const client: AutomationClient = {
   purposes: ['initial', 'daily', 'request', 'submission', 'recheck'],
   triggers: ['on_demand', 'scheduled', 'deferred'],
 };
+
+const contentEvents = new Set(['contract_error', 'listening_contract_error', 'local_duplicates', 'audio_validation_error', 'dry_run_422']);
+
+function planFieldNames(node: unknown, fields: Set<string>) {
+  if (!node || typeof node !== 'object') return fields;
+  if ('properties' in node && node.properties && typeof node.properties === 'object')
+    for (const field of Object.keys(node.properties)) fields.add(field);
+  for (const child of Object.values(node)) planFieldNames(child, fields);
+  return fields;
+}
+
+let planFields: Set<string> | undefined;
+function contentIssues(event: string, issues: unknown[] = []) {
+  planFields ??= planFieldNames(contractFor('plan').json, new Set());
+  const fields = planFields;
+  return issues.slice(0, 10).map(issue => {
+    const [code, path] = typeof issue === 'string' ? (event === 'local_duplicates' ? ['duplicate_item', issue] : issue.split(' ', 2))
+      : issue && typeof issue === 'object' && 'code' in issue && 'path' in issue ? [issue.code, issue.path] : [];
+    const safeCode = typeof code === 'string' && /^[a-z_]{1,40}$/.test(code) ? code : 'validation_failed';
+    const safePath = typeof path === 'string' && path.startsWith('/')
+      ? '/' + path.slice(1).split('/').slice(0, 16).map(part => fields.has(part) || /^[0-9]{1,3}$/.test(part) ? part : '*').join('/')
+      : undefined;
+    return { code: safeCode, ...(safePath ? { path: safePath } : {}) };
+  });
+}
 
 export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch) {
   const subjectIds = openAiSubjects(env);
@@ -54,6 +79,9 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       }
       const token = lease.leaseToken;
       const active = await leasedJob(db, client, id, token);
+      const logAudioFailure = (event: string, details: object) => console.warn(JSON.stringify({
+        component: 'openai-queue-tts', jobId: id, leaseCount: active.lease_count, event, ...details,
+      }));
       const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher });
       const processed = await processJob({
         context: async () => JSON.parse(active.context_snapshot!),
@@ -70,15 +98,23 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
           failLeasedJob(db, await leasedJob(db, client, id, token), retryable),
       }, lease, engine, {
         getPrompt,
-        ...(tts && bucket ? { prepareAudio: (context: Parameters<typeof uploadOpenAiPlanAudio>[0],
-          result: Parameters<typeof uploadOpenAiPlanAudio>[1], uploaded: Set<string>) =>
-          uploadOpenAiPlanAudio(context, result, apiKey, async (request, hash) => {
-            const verify = () => leasedJob(db, client, id, token);
-            return uploadAudio(db, bucket, request, await verify(), hash, verify);
-          }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher) } : {}),
-        log: (entry?: { event: string }) => {
-          if (entry && ['audio_error', 'audio_validation_error'].includes(entry.event))
-            console.warn(JSON.stringify({ component: 'openai-queue-tts', jobId: id, event: entry.event }));
+        ...(tts && bucket ? { prepareAudio: async (context: Parameters<typeof uploadOpenAiPlanAudio>[0],
+          result: Parameters<typeof uploadOpenAiPlanAudio>[1], uploaded: Set<string>) => {
+          try {
+            return await uploadOpenAiPlanAudio(context, result, apiKey, async (request, hash) => {
+              const verify = () => leasedJob(db, client, id, token);
+              return uploadAudio(db, bucket, request, await verify(), hash, verify);
+            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher);
+          } catch (error) {
+            logAudioFailure('audio_error', error instanceof QueueAudioError ? error.diagnostic : {
+              stage: 'unexpected', code: 'audio_unexpected',
+            });
+            throw error;
+          }
+        } } : {}),
+        log: (entry?: { event: string; errors?: unknown[] }) => {
+          if (tts && entry && contentEvents.has(entry.event))
+            logAudioFailure(entry.event, { stage: 'lesson_validation', issues: contentIssues(entry.event, entry.errors) });
           if (job.purpose === 'recheck' && entry && ['engine_error', 'contract_error', 'dry_run_422'].includes(entry.event)) {
             console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, purpose: job.purpose, event: entry.event }));
           }
@@ -90,8 +126,8 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
           ? processed.error.match(/OpenAI (?:HTTP \d{3}(?: \([a-z_]+\))?|schema preparation failed|request timed out|request transport failed|response status: (?:failed|incomplete|cancelled|queued|in_progress|unknown)(?: \((?:max_output_tokens|content_filter)\))?|declined this response|response was not valid JSON)/)?.[0] : undefined;
         if (detail) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
           .bind(detail, id, client.id).run();
-        console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, kind: job.kind,
-          status: current.status, ...(detail ? { detail } : {}) }));
+        console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, leaseCount: active.lease_count, kind: job.kind,
+          event: 'queue_failed', status: current.status, ...(detail ? { detail } : {}) }));
       }
       if (current?.status === 'queued') message.retry({ delaySeconds: 30 });
       else message.ack();
