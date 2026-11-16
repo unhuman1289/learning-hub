@@ -710,6 +710,19 @@ async function gradedWrong() {
 }
 const disputeInput = { reason: 'answer_correct', message: 'Mình nghĩ đáp án a cũng đúng.', recheck: true };
 
+test('a dispute queues recheck when the old answer has only an unresolved skill key', async () => {
+  const { db, attempt } = await gradedWrong();
+  try {
+    db.sqlite.prepare('UPDATE attempts SET skill_ids=? WHERE id=?').run('["key:legacy"]', attempt.id);
+    const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+    assert.equal(dispute.status, 'rechecking');
+    assert.equal((await readJob(db, dispute.jobId)).ref_id, dispute.id);
+    assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'disputed');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
 test('a dispute takes the answer out of the rules at once and cannot be opened twice', async () => {
   const { db, attempt } = await gradedWrong();
   const before = db.sqlite.prepare('SELECT attempts_total FROM skill_states').get().attempts_total;
