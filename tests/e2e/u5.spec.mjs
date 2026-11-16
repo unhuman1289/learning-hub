@@ -49,7 +49,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const warmMs = await page.evaluate(() => performance.now());
   checkTime(info, 'desk-warm', warmMs, 3000);
   const deskStats = await warm();
-  expect(deskStats.gzip).toBeLessThanOrEqual(180_000);
+  expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
   expect(deskStats.api.length).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
@@ -186,6 +186,46 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(page.getByRole('link', { name: /Mở bài|Làm tiếp/ }).first()).toBeVisible();
 
   console.log(JSON.stringify({ project: info.project.name, coldMs, warmMs, firstMs, gradeMs, desk: deskStats, lesson: lessonStats, notebook: notebookStats }));
+});
+
+test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', async ({ page }) => {
+  const manifest = JSON.parse(await readFile('dist/client/.vite/manifest.json', 'utf8'));
+  const scene = '/' + manifest['app/hub/lubeck/scene.ts'].file;
+  await page.goto('/');
+  await page.getByRole('button', { name: /Ếch thử/ }).tap();
+  await expect(openLesson(page)).toBeVisible();
+
+  let sceneRequested = false;
+  const watchScene = request => {
+    if (new URL(request.url()).pathname === scene) sceneRequested = true;
+  };
+  let todayRequested = false;
+  let releaseToday;
+  const heldToday = new Promise(resolve => { releaseToday = resolve; });
+  await page.route(url => url.pathname === '/api/today', async route => {
+    todayRequested = true;
+    await heldToday;
+    await route.continue();
+  });
+  await page.clock.install();
+  page.on('request', watchScene);
+  try {
+    await page.goto('/');
+    await expect.poll(() => todayRequested).toBe(true);
+    await expect(page.locator('.lhw-window')).toHaveCount(1);
+    await page.clock.runFor(4500);
+    await expect(openLesson(page)).toHaveCount(0);
+    expect(sceneRequested).toBe(false);
+
+    releaseToday();
+    await expect(openLesson(page)).toBeVisible();
+    await page.clock.runFor(4500);
+    await expect.poll(() => sceneRequested).toBe(true);
+    await expect(page.locator('.lhw-window [data-p=front]')).toHaveCount(1);
+  } finally {
+    releaseToday();
+    page.off('request', watchScene);
+  }
 });
 
 const lessonHeading = page => flow(page).locator('[data-lesson-heading]');
