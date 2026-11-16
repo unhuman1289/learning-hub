@@ -21,7 +21,13 @@ Nhánh tích hợp local và GitHub cùng ở `bde5e3e72f2002b6c3e46dbfb9416c76e
 - **Đối chiếu D1:** Không có dòng `first_question` trước và sau lượt kiểm. Có dòng `desk` ngày Berlin `2026-11-16`, quốc gia `DE`, thiết bị `phone`, `n=3`, `p75=936 ms`. Đây là số tổng hợp của bàn học. Hồ sơ QA nhận HTTP 404 ở API chỉ dành cho quản trị. Chưa đối chiếu bảng Quản trị → Hệ thống bằng phiên admin.
 - **Thiết bị thật:** Chưa chạy. Hai lượt giả lập dùng kết nối của máy kiểm thử và chưa xác nhận tuyến mạng từ điện thoại thật.
 
+## Safari iPhone trên staging · 16/11/2026
+
+- Health báo staging `58daf7554c1606205067e92ffaa23715cc1dfa4b`. Nhánh tích hợp ở `6711ff7336ace59b3bb2cb522fede518dd9bdd70`. Tạo sổ riêng **QA P3-rum · iPhone**, lưu một câu đóng qua API và đọc lại bài chính dang dở có **Học tiếp**.
+- **Thiết bị thật, 09:35 CET:** Chủ dự án xác nhận Safari iPhone vào được câu hỏi qua **Học tiếp**. D1 staging chưa có dòng `first_question` trước và sau thao tác. Ngày Berlin `2026-11-16` có dòng `desk`, mã `DE`, lớp `phone`, `n=8`, `p75=1217 ms`. Dòng bàn học là số tổng hợp, không dùng để quy kết lượt iPhone này.
+- **Giả lập:** WebKit iPhone 13 vào thẳng câu hỏi từ cùng thẻ và gọi `sendBeacon` với `first_question` (737 ms), lớp `phone`. Beacon bị chặn tại trình duyệt kiểm thử để không trộn với mẫu iPhone thật. Chưa xác định lỗi xảy ra ở bước gửi, tiếp nhận hay gộp mẫu trên Safari iPhone. Chưa đối chiếu được dòng `first_question` trong quản trị.
+
 ## Còn lại
 
-- Chuẩn bị một bài QA dang dở có bài làm đã lưu để bàn học hiện **Học tiếp**. Chạy lại bước 3 và đối chiếu mức tăng `n` cùng `p75` của `first_question` theo ngày Berlin, quốc gia, thiết bị giữa D1 và giao diện bằng tài khoản quản trị.
+- Chạy lại bước 3 trên sổ QA đã chuẩn bị, quan sát HTTP của beacon và đối chiếu mức tăng `n` cùng `p75` của `first_question` theo ngày Berlin, quốc gia, thiết bị giữa D1 và giao diện bằng tài khoản quản trị.
 - Gắn `audio_play` và `tutor_first_token` ở L6/T5.
