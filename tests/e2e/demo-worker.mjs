@@ -12,19 +12,24 @@ process.env.LEARNING_HUB_LOCAL_STATE = state;
 runLocalD1(['execute', 'learning-hub', '--command',
   "UPDATE learner_settings SET daily_target_minutes=120 WHERE user_id='demo-ech'"]);
 if (process.env.E2E_LISTENING === '1') {
-  const fixture = 'tests/e2e/fixtures/listening-demo.m4a';
-  const key = 'audio/e2e-listening.m4a';
-  const upload = spawnSync(process.execPath, [
-    'node_modules/wrangler/bin/wrangler.js', 'r2', 'object', 'put', 'learning-hub-uploads-local/' + key,
-    '--file', fixture, '--local', '--persist-to', state, '--config', 'wrangler.jsonc',
-  ], { stdio: 'inherit' });
-  if (upload.error) throw upload.error;
-  if (upload.status !== 0) throw Error('Could not seed listening audio.');
   const { f, m, next } = VOICE_HASHES;
+  const voices = {
+    f: { fixture: 'tests/fixtures/audio/de-DE-f.m4a', key: 'audio/e2e-listening-f.m4a', duration: 1254 },
+    m: { fixture: 'tests/fixtures/audio/de-DE-m.m4a', key: 'audio/e2e-listening-m.m4a', duration: 1672 },
+  };
+  for (const { fixture, key } of Object.values(voices)) {
+    const upload = spawnSync(process.execPath, [
+      'node_modules/wrangler/bin/wrangler.js', 'r2', 'object', 'put', 'learning-hub-uploads-local/' + key,
+      '--file', fixture, '--local', '--persist-to', state, '--config', 'wrangler.jsonc',
+    ], { stdio: 'inherit' });
+    if (upload.error) throw upload.error;
+    if (upload.status !== 0) throw Error('Could not seed listening audio.');
+  }
   const quote = value => "'" + JSON.stringify(value).replaceAll("'", "''") + "'";
-  const rows = [f, m, next].map(hash =>
-    `('${hash}','de-DE',1,'{}',4939,${statSync(fixture).size},'${key}','e2e','2026-11-15T00:00:00Z')`);
-  const audio = { ...AUDIO, hashF: f, hashM: m, durationMs: 4939 };
+  const asset = (hash, { fixture, key, duration }) =>
+    `('${hash}','de-DE',1,'{}',${duration},${statSync(fixture).size},'${key}','e2e','2026-11-15T00:00:00Z')`;
+  const rows = [asset(f, voices.f), asset(m, voices.m), asset(next, voices.f)];
+  const audio = { ...AUDIO, hashF: f, hashM: m, durationMs: voices.f.duration };
   const assistedLessons = ASSISTED_LESSONS.map(({ id, mode, level }) => `
     INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot)
       SELECT '${id}',user_id,subject_id,json_patch(json_set(payload,
@@ -42,7 +47,7 @@ if (process.env.E2E_LISTENING === '1') {
     INSERT INTO audio_assets(hash,lang,rate,voices,duration_ms,bytes,r2_key,created_job_id,created_at)
       VALUES ${rows.join(',')};
     UPDATE lesson_items SET stimulus='audio',audio_hash_f='${f}',audio_hash_m='${m}',
-      payload=json_set(payload,'$.audio',json(${quote(audio)}),'$.prompt','Bạn nghe thấy họ hẹn nhau lúc nào?')
+      payload=json_set(payload,'$.audio',json(${quote(audio)}),'$.prompt','Nghe và viết lại lời chào.')
       WHERE lesson_id='${LISTENING_LESSON}' AND item_id='i1';
     UPDATE lesson_items SET stimulus='audio',audio_hash_f='${next}',audio_hash_m='${m}',
       payload=json_set(payload,'$.audio',json(${quote({ ...audio, hashF: next })}))
