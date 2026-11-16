@@ -360,6 +360,26 @@
           ],
           "additionalProperties": false
         },
+        "listening": {
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 6
+            }
+          },
+          "required": [
+            "min",
+            "max"
+          ],
+          "additionalProperties": false
+        },
         "roadmapTask": {
           "type": "string",
           "enum": [

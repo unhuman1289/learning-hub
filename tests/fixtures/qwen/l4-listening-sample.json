@@ -1,0 +1,201 @@
+{
+  "listeningSample": {
+    "contract": "plan-result/1",
+    "contextHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "usage": {
+      "model": "fixture",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "ms": 0
+    },
+    "subjects": [
+      {
+        "subjectId": "sub_listening_fixture",
+        "expectedRevision": 0,
+        "expectedOpenPrimaryLessonId": null,
+        "action": "no_action",
+        "reason": "Luyện theo bước đang học.",
+        "progressSummary": "",
+        "primaryLesson": null,
+        "reviewSet": null,
+        "skillChanges": [],
+        "masteryProposals": [],
+        "requestsHandled": []
+      }
+    ],
+    "explorations": [
+      {
+        "requestId": "req_listening_fixture",
+        "subjectId": "sub_listening_fixture",
+        "action": "assign",
+        "reason": "Luyện nghe thông tin lịch hẹn.",
+        "lesson": {
+          "contract": "lesson-package/3",
+          "kind": "review",
+          "template": "skill",
+          "title": "Nghe và xác nhận lịch hẹn",
+          "objective": "Hiểu giờ hẹn và nơi gặp trong hội thoại ngắn.",
+          "why": "Luyện nhận ra thông tin cần xác nhận khi đổi lịch.",
+          "reasonRefs": [
+            "sk_listeningtime"
+          ],
+          "estMinutes": 15,
+          "level": "A1",
+          "targetSkills": [
+            "sk_listeningtime"
+          ],
+          "sheet": null,
+          "sections": [],
+          "diagram": null,
+          "stages": [
+            {
+              "stage": "retrieval",
+              "itemIds": [
+                "i1",
+                "i2"
+              ]
+            },
+            {
+              "stage": "independent",
+              "itemIds": [
+                "i3"
+              ]
+            }
+          ],
+          "items": [
+            {
+              "id": "i1",
+              "activity": "recognize",
+              "input": "choice",
+              "skills": [
+                "sk_listeningtime"
+              ],
+              "difficulty": 1,
+              "prompt": "Nghe và chọn giờ hai người đồng ý gặp.",
+              "hints": [
+                "Nghe thông tin được xác nhận ở lượt nói cuối.",
+                "Chú ý cách nói giờ và nơi gặp."
+              ],
+              "solution": "Họ đồng ý gặp lúc chín giờ.",
+              "attachment": "none",
+              "audio": {
+                "lang": "de-DE",
+                "lines": [
+                  {
+                    "speaker": "a",
+                    "text": "Geht es morgen um acht Uhr?"
+                  },
+                  {
+                    "speaker": "b",
+                    "text": "Nein, aber um neun habe ich Zeit."
+                  },
+                  {
+                    "speaker": "a",
+                    "text": "Gut, dann um neun Uhr."
+                  }
+                ],
+                "rate": 0.8,
+                "maxPlays": 3,
+                "transcript": "after_answer"
+              },
+              "choices": [
+                {
+                  "id": "a",
+                  "text": "8 giờ"
+                },
+                {
+                  "id": "b",
+                  "text": "9 giờ"
+                },
+                {
+                  "id": "c",
+                  "text": "10 giờ"
+                }
+              ],
+              "key": {
+                "type": "choice",
+                "correct": [
+                  "b"
+                ]
+              }
+            },
+            {
+              "id": "i2",
+              "activity": "recognize",
+              "input": "long",
+              "skills": [
+                "sk_listeningtime"
+              ],
+              "difficulty": 1,
+              "prompt": "Nghe và tóm tắt bằng tiếng Việt giờ hẹn mới và nơi gặp.",
+              "hints": [
+                "Nghe thông tin được xác nhận ở lượt nói cuối.",
+                "Chú ý cách nói giờ và nơi gặp."
+              ],
+              "solution": "Hai người gặp lúc ba giờ ở thư viện.",
+              "attachment": "none",
+              "audio": {
+                "lang": "de-DE",
+                "lines": [
+                  {
+                    "speaker": "a",
+                    "text": "Treffen wir uns um zwei?"
+                  },
+                  {
+                    "speaker": "b",
+                    "text": "Lieber um drei, in der Bibliothek."
+                  },
+                  {
+                    "speaker": "a",
+                    "text": "Ja, das passt."
+                  }
+                ],
+                "rate": 0.8,
+                "maxPlays": 3,
+                "transcript": "after_answer"
+              },
+              "rubric": [
+                {
+                  "criterion": "Nêu đúng giờ hẹn mới",
+                  "points": 1
+                },
+                {
+                  "criterion": "Nêu đúng địa điểm",
+                  "points": 1
+                }
+              ]
+            },
+            {
+              "id": "i3",
+              "activity": "apply",
+              "input": "short",
+              "skills": [
+                "sk_listeningtime"
+              ],
+              "difficulty": 1,
+              "prompt": "Điền giới từ tiếng Đức chỉ giờ vào chỗ trống: Wir treffen uns ___ vier Uhr.",
+              "hints": [
+                "Chỗ trống đứng ngay trước giờ hẹn.",
+                "Giới từ cần điền có hai chữ cái."
+              ],
+              "solution": "Wir treffen uns um vier Uhr.",
+              "attachment": "none",
+              "key": {
+                "type": "text",
+                "accepted": [
+                  "um"
+                ],
+                "caseSensitive": false
+              }
+            }
+          ],
+          "output": null,
+          "sources": [],
+          "nextTopic": "Xác nhận lại địa điểm gặp.",
+          "knowledge": []
+        }
+      }
+    ],
+    "summary": "Một bài luyện nghe giờ hẹn."
+  }
+}

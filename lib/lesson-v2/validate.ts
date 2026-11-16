@@ -1,4 +1,4 @@
-import { itemPolicy, isMathFramework, type ItemKind } from '../subjects/item-kinds.ts';
+import { itemPolicy, isMathFramework, listeningLanguage, type ItemKind } from '../subjects/item-kinds.ts';
 import { lessonPackageV2 } from '../contracts/lesson-items.ts';
 import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
@@ -18,6 +18,7 @@ export type ValidateOptions = {
   subjectTitle?: string;
   frameworkKey?: string;
   itemKinds?: ItemKind[];
+  listening?: { min: number; max: number };
 };
 
 /** D20: items per lesson written by an AI runner, and at most four open answers so grading stays quick. */
@@ -85,6 +86,29 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
   if (item.key?.type === 'text' && item.key.accepted.length > 1 && item.key.accepted.some((answer) => words(answer) > 3)) {
     // Several accepted long answers means the answer is not unique: grade it with a rubric (LESSON-DESIGN §5.3).
     issue('key/accepted', 'schema', 'Text keys accept answers of at most 3 words, or a single exact sentence; use a rubric otherwise.');
+  }
+  return issues;
+}
+
+/** A leased quota applies to both the drafted lesson and the questions that can actually be saved. */
+export function listeningIssues(items: readonly LessonItemAny[], range: ValidateOptions['listening'], framework?: string): LessonIssue[] {
+  if (!range) return [];
+  const count = items.filter(item => item.audio).length;
+  if (count < range.min || count > range.max)
+    return [{ path: '/items', code: 'listening_count', message: `Bài cần ${range.min}–${range.max} câu nghe (hiện có ${count}).` }];
+  const lang = listeningLanguage(framework);
+  const wordsOnly = (text: string) => text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const issues: LessonIssue[] = [];
+  for (const [index, item] of items.entries()) {
+    if (!item.audio) continue;
+    if (item.audio.lang !== lang)
+      issues.push({ path: `/items/${index}/audio/lang`, code: 'listening_language', message: 'Cần dùng đúng ngôn ngữ của sổ.' });
+    const prompt = wordsOnly(item.prompt);
+    if (item.audio.lines.some(line => {
+      const dialogue = wordsOnly(line.text);
+      return dialogue && (lang === 'zh-CN' ? prompt.includes(dialogue) : ` ${prompt} `.includes(` ${dialogue} `));
+    }))
+      issues.push({ path: `/items/${index}/prompt`, code: 'listening_prompt', message: 'Đề câu nghe không được chép nguyên lượt thoại.' });
   }
   return issues;
 }
@@ -198,8 +222,10 @@ export function validateLessonPackage(
       issues.push({path:`/items/${index}/difficulty`,code:'difficulty_limit',message:'Câu quá dễ cho bước này.'});
   });
 
+  issues.push(...listeningIssues(items, options.listening, options.frameworkKey));
   const listeningItems = items.filter(item => item.audio);
-  if (!(lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson') && listeningItems.length && !listeningItems.some(item => item.key))
+  const wholeLessonWithoutQuota = !options.listening && lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson';
+  if (!wholeLessonWithoutQuota && listeningItems.length && !listeningItems.some(item => item.key))
     issue('/items', 'schema', 'Bài có câu nghe cần ít nhất một câu nghe chấm tự động.');
   if (items.filter(item => item.key?.type === 'dictation').length > 2)
     issue('/items', 'size_limit', 'Mỗi bài có tối đa hai câu chính tả.');

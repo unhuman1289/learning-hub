@@ -1,3 +1,4 @@
+import { audioSpec } from '../../contracts/lesson-package-v3.ts';
 import { contextExcerpt } from '../../knowledge/service.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
@@ -57,7 +58,9 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
       )
       .bind(job.learner_id, a.lesson_id, a.item_id, a.attempt_no)
       .all<{ answer: string; result: string | null; feedback: string | null }>();
+    const transcript = item.input === 'long' ? audioSpec.shape.lines.safeParse(item.audio?.lines) : undefined;
     items.push({
+      ...(transcript?.success ? { transcript: transcript.data.map(line => ({ ...line, text: safeText(line.text, sensitivity) })) } : {}),
       attemptId: a.id,
       itemId: a.item_id,
       stage: a.stage,

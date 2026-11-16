@@ -1,11 +1,11 @@
-import planPrompt from '../integrations/runner-prompts/plan-request.md?raw';
-import assessPrompt from '../integrations/runner-prompts/assess-local.md?raw';
-import recheckPrompt from '../integrations/runner-prompts/assess-recheck.md?raw';
+import { uploadOpenAiPlanAudio } from './openai-tts.ts';
+import { uploadAudio } from '../lib/audio/upload.ts';
+import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
 import { processJob } from '../integrations/home-runner/job.mjs';
-import { applyResult } from '../lib/ai-jobs/result';
-import { failLeasedJob, heartbeat, leasedJob, leaseJobs, readJob } from '../lib/ai-jobs/lease';
-import { openAiSubjects } from '../lib/ai-jobs/queue';
+import { applyResult } from '../lib/ai-jobs/result.ts';
+import { failLeasedJob, heartbeat, leasedJob, leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
+import { openAiSubjects } from '../lib/ai-jobs/queue.ts';
 import type { AutomationClient } from '../lib/auth/automation';
 
 const client: AutomationClient = {
@@ -17,9 +17,10 @@ const client: AutomationClient = {
   triggers: ['on_demand', 'scheduled', 'deferred'],
 };
 
-export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env) {
+export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch) {
   const subjectIds = openAiSubjects(env);
-  const { DB: db, OPENAI_API_KEY: apiKey } = env;
+  const ttsSubjectIds = openAiTtsSubjects(env);
+  const { DB: db, OPENAI_API_KEY: apiKey, UPLOADS: bucket } = env;
   for (const message of batch.messages) {
     const id = message.body?.jobId;
     if (!db || !id || !/^job_[0-9a-f]{20}$/.test(id) || !subjectIds.length) {
@@ -37,9 +38,11 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       continue;
     }
     try {
+      const tts = job.kind === 'plan' && ttsSubjectIds.includes(job.subject_id);
       const [lease] = await leaseJobs(db, client, {
         kinds: [job.kind], subjectIds, jobId: id, textOnly: true, max: 1,
-        capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2'],
+        capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(tts ? ['tts'] : [])],
+        ...(tts ? { ttsVoices: openAiGermanVoices } : {}),
         runner: { name: 'openai-staging', version: '1', model: 'openai' },
       }, 'staging');
       if (!lease) {
@@ -51,12 +54,12 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
       }
       const token = lease.leaseToken;
       const active = await leasedJob(db, client, id, token);
-      const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose });
+      const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher });
       const processed = await processJob({
         context: async () => JSON.parse(active.context_snapshot!),
         heartbeat: async () => heartbeat(db, client, id, token),
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
-          const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE);
+          const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket, ttsSubjectIds);
           return { status: response.status, body: response };
         },
         state: async () => {
@@ -66,9 +69,16 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env
         fail: async (_lease: unknown, _reason: string, retryable: boolean) =>
           failLeasedJob(db, await leasedJob(db, client, id, token), retryable),
       }, lease, engine, {
-        getPrompt: (kind: string, purpose: string) =>
-          kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt,
+        getPrompt,
+        ...(tts && bucket ? { prepareAudio: (context: Parameters<typeof uploadOpenAiPlanAudio>[0],
+          result: Parameters<typeof uploadOpenAiPlanAudio>[1], uploaded: Set<string>) =>
+          uploadOpenAiPlanAudio(context, result, apiKey, async (request, hash) => {
+            const verify = () => leasedJob(db, client, id, token);
+            return uploadAudio(db, bucket, request, await verify(), hash, verify);
+          }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher) } : {}),
         log: (entry?: { event: string }) => {
+          if (entry && ['audio_error', 'audio_validation_error'].includes(entry.event))
+            console.warn(JSON.stringify({ component: 'openai-queue-tts', jobId: id, event: entry.event }));
           if (job.purpose === 'recheck' && entry && ['engine_error', 'contract_error', 'dry_run_422'].includes(entry.event)) {
             console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, purpose: job.purpose, event: entry.event }));
           }

@@ -21,9 +21,13 @@ type Changes=z.infer<typeof roadmapChanges>;
 
 export async function applyRoadmapChanges(db:Db,input:{
  learnerId:string;subjectId:string;changes:Changes;jobId:string;stamp:string;gate:string;bind:unknown[];
- resolveSkill:(id:string)=>string|undefined;replan?:boolean;mastered?:Set<string>;initialize?:boolean;
+ resolveSkill:(id:string)=>string|undefined;replan?:boolean;mastered?:Set<string>;initialize?:boolean;requireListening?:boolean;
 }){
  const {learnerId,subjectId,changes,jobId,stamp,gate,bind}=input;
+ const listening = input.requireListening ? 1 : 0;
+ const secure = new Set(input.replan && listening ? (await db.prepare(
+  "SELECT skill_id FROM skill_states WHERE learner_id=? AND subject_id=? AND json_extract(listening,'$.level')='secure'",
+ ).bind(learnerId,subjectId).all<{skill_id:string}>()).results?.map(row=>row.skill_id) : []);
  const prior=await listSteps(db,learnerId,subjectId);
  const current=prior.map(step=>({...step}));
  const ids=new Map<string,string>();
@@ -49,9 +53,9 @@ export async function applyRoadmapChanges(db:Db,input:{
    const requires=c.step.requires.length?c.step.requires.map(req=>ids.get(req)??req):previous?[previous.id]:[];
    if(before&&ord===before.ord)invalid('Không còn khoảng để chèn bước.');
    if(previous&&band<previous.band-1)invalid('Độ khó giảm quá một mức.');
-   const done=input.replan&&skills.every(skill=>input.mastered?.has(skill));
+   const done=input.replan&&skills.every(skill=>input.mastered?.has(skill)&&(!listening||secure.has(skill)));
    current.splice(at,0,{id:nextId,learnerId,subjectId,ord,title,objective,situation,skills,requires,band,
-    levelLabel:levelLabel??null,mode:kind,status:done?'passed':'planned',passedVia:done?'mastery':null,passedAt:done?stamp:null,revision:0,listening:0});
+    levelLabel:levelLabel??null,mode:kind,status:done?'passed':'planned',passedVia:done?'mastery':null,passedAt:done?stamp:null,revision:0,listening});
    inserted.add(nextId);
   } else {
    const step=current.find(step=>step.id===c.stepId&&step.status==='planned')??invalid('Chỉ sửa hoặc bỏ bước chưa mở.');
@@ -97,10 +101,10 @@ export async function applyRoadmapChanges(db:Db,input:{
  const statements=[];
  for(const step of current){
   if(inserted.has(step.id)){
-   statements.push(db.prepare(`INSERT INTO roadmap_steps(id,learner_id,subject_id,ord,title,objective,situation,skill_ids,requires,band,level_label,kind,status,passed_via,passed_at,origin,origin_job_id,created_at,updated_at)
-    SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'ai',?,?,? WHERE ${gate}`)
+   statements.push(db.prepare(`INSERT INTO roadmap_steps(id,learner_id,subject_id,ord,title,objective,situation,skill_ids,requires,band,level_label,kind,status,passed_via,passed_at,origin,origin_job_id,created_at,updated_at,listening)
+    SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'ai',?,?,?,? WHERE ${gate}`)
     .bind(step.id,learnerId,subjectId,step.ord,step.title,step.objective,step.situation,JSON.stringify(step.skills),JSON.stringify(step.requires),
-     step.band,step.levelLabel,step.mode,step.status,step.passedVia,step.passedAt,jobId,stamp,stamp,...bind));
+     step.band,step.levelLabel,step.mode,step.status,step.passedVia,step.passedAt,jobId,stamp,stamp,step.listening,...bind));
   } else if(touched.has(step.id)){
    statements.push(db.prepare(`UPDATE roadmap_steps SET title=?,objective=?,situation=?,skill_ids=?,requires=?,band=?,level_label=?,kind=?,status=?,retired_reason=?,revision=revision+1,updated_at=?
     WHERE id=? AND learner_id=? AND subject_id=? AND status='planned' AND revision=? AND ${gate}`)
