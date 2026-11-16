@@ -12,7 +12,7 @@ Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Be
 Khung kiểm thử OpenAI và nộp cả bài ngày 16/11 đã kết thúc lúc 05:00 Europe/Berlin.
 Khung deploy #169 và #170 ngày 16/11 đã đóng sau khi xác nhận staging lúc 05:02 Europe/Berlin.
 
-staging: sửa và nghiệm thu Chấm sai? trên QA H5 Deutsch, đến 16:00 Europe/Berlin
+Khung sửa và nghiệm thu **Chấm sai?** trên QA H5 Deutsch đã đóng sau khi đọc lại quyết định Terra và điểm lưu ngày 16/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -20,7 +20,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `58daf7554c1606205067e92ffaa23715cc1dfa4b` | [Deploy 16/11 lúc 05:02 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/43801508569), gồm #169 và #170. Hub và MCP cùng SHA, D1 kết nối, smoke đạt. Đã có `0030_perf.sql` và `0031_listening.sql`; không còn migration chờ. |
+| Staging | `e5ec27cd0202ed33495eddd218fa1169c16b5443` | Hub và MCP cùng SHA, D1 kết nối, smoke Hub đạt. Không có migration chờ. [Biên bản Terra trên QA H5 Deutsch](../ops/QA-H5-OPENAI-ACCEPTANCE.md). |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
