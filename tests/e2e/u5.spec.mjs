@@ -557,5 +557,9 @@ test('F3 cập nhật kết quả đã chấm sau tải trước', async ({ page
   await openLesson(page).tap();
   await expect(page.getByText('Đang cập nhật…')).toHaveCount(0);
   await expect.poll(async () => (await (await context.request.get(path + '/feedback')).json()).submissions.some(s => s.id === submitted.id)).toBe(true);
-  await expect(flow(page)).toContainText(/Đúng|Chưa đúng|Một phần|Thử lại|Kiểm tra/);
+  const question = flow(page).locator(`[data-question-number="${lesson.items.indexOf(item) + 1}"]`);
+  if (!(await question.isVisible())) { await nextEdge(page).tap(); await turnSettled(page); }
+  await expect(question).toBeVisible();
+  const card = question.locator('xpath=ancestor::article');
+  await expect(card.getByRole('status')).toContainText(submitted.attempts[0].feedback);
 });
