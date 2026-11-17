@@ -16,6 +16,8 @@ Khung nghiệm thu đợt 1 đã đóng ngày 17/11 mà chưa nghiệm thu đư�
 
 GitHub Actions chạy lại sau khi chủ dự án lên GitHub Pro (17/11). Repo chuyển sang public sau bước H1 (cổng gia đình trên staging).
 
+staging: deploy H1 cổng gia đình (#184), không migration, đến 13:30 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
