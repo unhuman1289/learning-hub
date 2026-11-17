@@ -1,6 +1,6 @@
 import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from 'jose';
 
-export type AutomationScope = 'runs:create' | 'context:read' | 'result:write' | 'jobs:plan' | 'jobs:assess' | 'attachments:read' | 'history:read' | 'knowledge:write';
+export type AutomationScope = 'runs:create' | 'context:read' | 'result:write' | 'jobs:plan' | 'jobs:assess' | 'attachments:read' | 'history:read' | 'knowledge:write' | 'tutor:answer';
 export type AutomationClient = {
   id: string;
   keySha256: string;
@@ -20,7 +20,7 @@ export type AutomationBindings = {
   ENVIRONMENT?: string;
 };
 
-const scopeSet = new Set<AutomationScope>(['runs:create', 'context:read', 'result:write','jobs:plan','jobs:assess','attachments:read','history:read','knowledge:write']);
+const scopeSet = new Set<AutomationScope>(['runs:create', 'context:read', 'result:write','jobs:plan','jobs:assess','attachments:read','history:read','knowledge:write','tutor:answer']);
 const jwksByIssuer = new Map<string, ReturnType<typeof createRemoteJWKSet>>();
 const noStore = { 'Cache-Control': 'no-store' };
 
@@ -76,7 +76,7 @@ export function configuredAutomationClients(bindings: AutomationBindings): Autom
     const [runner] = entries;
     if (!runner || runner.id !== 'home-runner' || runner.learnerIds?.length !== 1 ||
         !runner.scopes.includes('jobs:plan') || !runner.scopes.includes('jobs:assess') ||
-        runner.scopes.some(scope => !['jobs:plan', 'jobs:assess', 'attachments:read', 'history:read'].includes(scope)) ||
+        runner.scopes.some(scope => !['jobs:plan', 'jobs:assess', 'attachments:read', 'history:read', 'tutor:answer'].includes(scope)) ||
         !runner.purposes?.length || !runner.triggers?.length) return null;
     clients = [...clients.filter(client => client.id !== runner.id), runner];
     if (clients.length > 32) return null;
@@ -152,7 +152,7 @@ export async function authorizeAutomation(
   const issuer = parseIssuer(bindings.ACCESS_TEAM_DOMAIN);
   const audience = bindings.AUTOMATION_ACCESS_AUD?.trim();
   const clients = configuredAutomationClients(bindings);
-  const local = scope.startsWith('jobs:') && bindings.APP_ENV === 'local' && bindings.ENVIRONMENT === 'local' && new URL(request.url).hostname === 'localhost';
+  const local = (scope.startsWith('jobs:') || scope === 'tutor:answer') && bindings.APP_ENV === 'local' && bindings.ENVIRONMENT === 'local' && new URL(request.url).hostname === 'localhost';
   if ((!local && (!issuer || !audience)) || !clients) return { response: failure(503, 'Automation authorization is not configured.') };
 
   const auth = request.headers.get('authorization') ?? '';

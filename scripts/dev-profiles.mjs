@@ -7,7 +7,7 @@ const client = {
   id: 'local-runner',
   accessClientId: 'local-demo-only',
   keySha256: config.keySha256 ?? config.client.keySha256,
-  scopes: ['jobs:plan', 'jobs:assess'],
+  scopes: ['jobs:plan', 'jobs:assess', 'tutor:answer'],
   learnerIds: ['demo-ech'],
   purposes: ['initial', 'request', 'submission', 'recheck'],
   triggers: ['on_demand', 'deferred'],

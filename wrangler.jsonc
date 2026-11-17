@@ -29,6 +29,8 @@
       "bucket_name": "learning-hub-uploads-local"
     }
   ],
+  "durable_objects": { "bindings": [{ "name": "TUTOR_RELAY", "class_name": "TutorRelay" }] },
+  "migrations": [{ "tag": "tutor-relay-v1", "new_sqlite_classes": ["TutorRelay"] }],
   "observability": {
     "enabled": true
   },
@@ -58,6 +60,8 @@
           "migrations_dir": "drizzle"
         }
       ],
+      "durable_objects": { "bindings": [{ "name": "TUTOR_RELAY", "class_name": "TutorRelay" }] },
+      "migrations": [{ "tag": "tutor-relay-v1", "new_sqlite_classes": ["TutorRelay"] }],
       "assets": {
         "binding": "ASSETS",
         "run_worker_first": false

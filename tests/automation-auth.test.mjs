@@ -86,3 +86,17 @@ test('staging runner credential replaces only the scoped staging runner', () => 
   assert.equal(configuredAutomationClients({ ...bindings, STAGING_RUNNER_CLIENT: JSON.stringify({ ...runner, learnerIds: undefined }) }), null);
   assert.equal(configuredAutomationClients({ ...bindings, STAGING_RUNNER_CLIENT: [runner, bridge].map(entry => JSON.stringify(entry)).join(',') }), null);
 });
+
+test('tutor scope requires both a valid Access assertion and an authorized bearer', async () => {
+  const secret = 'tutor-secret-123456789012345678901234567890';
+  const client = { id: 'tutor-runner', keySha256: await sha256Hex(secret), scopes: ['tutor:answer'], accessClientId };
+  const bindings = { ACCESS_TEAM_DOMAIN: issuer, AUTOMATION_ACCESS_AUD: audience, AUTOMATION_CLIENTS: JSON.stringify([client]) };
+  const { keyResolver, sign } = await setup();
+  const jwt = await sign();
+  const request = (token = jwt) => new Request('https://hub.example/api/automation/v2/tutor/connect', {
+    headers: { authorization: `Bearer lhk_tutor-runner_${secret}`, ...(token ? { 'cf-access-jwt-assertion': token } : {}) },
+  });
+  assert.ok('client' in await authorizeAutomation(request(), bindings, 'tutor:answer', keyResolver));
+  assert.equal((await authorizeAutomation(request(''), bindings, 'tutor:answer', keyResolver)).response.status, 401);
+  assert.equal((await authorizeAutomation(request(), { ...bindings, AUTOMATION_CLIENTS: JSON.stringify([{ ...client, scopes: ['jobs:assess'] }]) }, 'tutor:answer', keyResolver)).response.status, 403);
+});

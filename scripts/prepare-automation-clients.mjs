@@ -35,7 +35,7 @@ const clients = [
     id: 'home-runner',
     keySha256: runner.hash,
     accessClientId: accessId,
-    scopes: ['jobs:assess', 'jobs:plan', 'attachments:read', 'history:read'],
+    scopes: ['jobs:assess', 'jobs:plan', 'attachments:read', 'history:read', ...(env === 'staging' ? ['tutor:answer'] : [])],
     purposes: ['submission', 'recheck', 'request', 'initial', 'daily'],
     triggers: ['on_demand', 'deferred', 'scheduled'],
     learnerIds: profiles,

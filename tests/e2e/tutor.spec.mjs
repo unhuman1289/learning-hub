@@ -46,18 +46,34 @@ test('Quản trị tắt gia sư, trẻ em hỏi qua SSE và người giám hộ
   expect((await toggle(true)).status()).toBe(200);
   expect((await profile({ action: 'select', id: child })).status()).toBe(200);
 
-  const heartbeat = new URL('/api/automation/v2/jobs/lease', local);
-  heartbeat.hostname = 'localhost';
-  const lease = await page.request.post(heartbeat.href, {
+  const leaseUrl = new URL('/api/automation/v2/jobs/lease', local);
+  leaseUrl.hostname = 'localhost';
+  const lease = await page.request.post(leaseUrl.href, {
     headers: { Authorization: bearer },
     data: { kinds: ['assess'], max: 1, runner: { name: 'T1 QA', version: '1', model: 'none' } },
   });
   expect(lease.status()).toBe(200);
+  const wsUrl = new URL('/api/automation/v2/tutor/connect', local);
+  wsUrl.hostname = 'localhost'; wsUrl.protocol = 'ws:';
+  const socket = new WebSocket(wsUrl, { headers: { Authorization: bearer } });
+  await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, {once:true}); socket.addEventListener('error', reject, {once:true}); });
+  const heartbeat = setInterval(() => socket.send('ping'), 30000);
+  socket.addEventListener('close', () => clearInterval(heartbeat), {once:true});
+  socket.addEventListener('message', event => {
+    if (event.data === 'pong') return;
+    const msg = JSON.parse(event.data);
+    if (msg.type === 'ask') {
+      socket.send(JSON.stringify({type:'delta',turnId:msg.turnId,text:'Em thử tìm từ khóa. '}));
+      socket.send(JSON.stringify({type:'delta',turnId:msg.turnId,text:'Em nghĩ gì?'}));
+      socket.send(JSON.stringify({type:'done',turnId:msg.turnId}));
+    }
+  });
   const response = await ask('Em nên bắt đầu từ đâu? test@example.test');
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toContain('text/event-stream');
   const events = await response.text();
-  expect(events).toMatch(/event: delta[\s\S]*event: done/);
+  expect(events).toMatch(/event: delta[\s\S]*event: delta[\s\S]*event: done/);
+  socket.close();
   const turnId = JSON.parse(events.split('\n')[1].slice('data: '.length)).id;
 
   expect((await profile({ action: 'select', id: 'demo-adult' })).status()).toBe(200);

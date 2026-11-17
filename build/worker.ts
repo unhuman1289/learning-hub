@@ -1,3 +1,5 @@
+export { TutorRelay } from './tutor-relay';
+import { authorizeAutomation } from '../lib/auth/automation';
 import planPrompt from '../integrations/runner-prompts/plan-request.md?raw';
 import assessPrompt from '../integrations/runner-prompts/assess-local.md?raw';
 import recheckPrompt from '../integrations/runner-prompts/assess-recheck.md?raw';
@@ -58,6 +60,14 @@ export default {
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env);
     if (guarded) return guarded;
+    if (new URL(request.url).pathname === '/api/automation/v2/tutor/connect') {
+      if (request.method !== 'GET' || request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response(null, {status:400});
+      if (!env.TUTOR_RELAY || env.ENVIRONMENT === 'production') return new Response(null, {status:404});
+      const auth = await authorizeAutomation(request, env, 'tutor:answer');
+      if ('response' in auth) return auth.response;
+      const stub = env.TUTOR_RELAY.get(env.TUTOR_RELAY.idFromName('tutor'), {locationHint:'weur'});
+      return stub.fetch('https://tutor.internal/connect', {headers:{Upgrade:'websocket', 'X-Tutor-Session':JSON.stringify({learners:auth.client.learnerIds})}});
+    }
     const direct = isDirectMcpRoute(request) || (householdMode(env) && isMcpAccountSignIn(request));
     // MCP/OAuth keeps its own token and account checks, independent of the household profile.
     if (direct) return directMcp.fetch(request, env as Parameters<typeof directMcp.fetch>[1], !!householdMode(env));

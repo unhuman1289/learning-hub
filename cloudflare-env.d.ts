@@ -14,6 +14,7 @@ declare namespace Cloudflare {
     OPENAI_TTS_SUBJECT_IDS?: string;
     ASSETS?: Fetcher;
     DB?: D1Database;
+    TUTOR_RELAY?: DurableObjectNamespace;
     BUCKET?: R2Bucket;
     /** Learners' photos of handwritten work; objects expire after 30 days (bucket lifecycle). */
     UPLOADS?: R2Bucket;

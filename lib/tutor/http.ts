@@ -7,7 +7,7 @@ import { lessonTarget, privateHeaders } from '../lesson-v2/route-helpers.ts';
 import type { TutorRelay } from './relay.ts';
 import { openTutorTurn, readTutorTurns, tutorStream, TUTOR_QUEUED_MESSAGE } from './service.ts';
 
-export async function postTutor(req: Request, user: Viewer | null, storage: () => EvidenceDb, runnerId: string, relay?: TutorRelay) {
+export async function postTutor(req: Request, user: Viewer | null, storage: () => EvidenceDb, runnerId: string, relay?: TutorRelay, relayStub?: DurableObjectStub) {
   const started = performance.now();
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401, headers: privateHeaders });
   if (req.headers.get('origin') !== new URL(req.url).origin) {
@@ -22,6 +22,17 @@ export async function postTutor(req: Request, user: Viewer | null, storage: () =
     const learnerId = await lessonTarget(db, user, req, input.data.lessonId, 'edit_work');
     if (learnerId instanceof Response) return learnerId;
 
+    if (relayStub) {
+      const turn = await openTutorTurn(db, learnerId, input.data, false);
+      try {
+        const response = await relayStub.fetch('https://tutor.internal/submit', {method:'POST', body:JSON.stringify({id:turn.id})});
+        return new Response(response.body, {status:response.status, headers:{...Object.fromEntries(response.headers), ...privateHeaders}});
+      } catch {
+        // The relay may have claimed or completed the turn before the response failed.
+        const saved = await db.prepare('SELECT status FROM tutor_turns WHERE id=?').bind(turn.id).first<{status:string}>();
+        return Response.json({id:turn.id, status:saved?.status ?? 'unknown', message:'Mở lại để xem trạng thái câu hỏi.'}, {status:202, headers:privateHeaders});
+      }
+    }
     const activeRelay = relay && (await runnerStatus(db, runnerId)).online ? relay : undefined;
     const turn = await openTutorTurn(db, learnerId, input.data, !!activeRelay);
     if (!activeRelay) {
