@@ -81,12 +81,14 @@ export default function Tutor({lessonId,itemId,number,child}:{lessonId:string;it
   }
   if(!enabled) return null;
   return <div className="mt-4 flex flex-col items-end gap-2">
+    <link rel="preload" as="image" href="/api/tutor/sprite/idle.webp" />
+    <link rel="preload" as="image" href="/api/tutor/sprite/sit.webp" />
     <button ref={trigger} type="button" aria-label="Hỏi gia sư về câu này" aria-expanded={open} onClick={()=>{setOpen(true);setState('greet');void load(true).catch(()=>{setOffline(true);setState('offline');});}}
       className="flex min-h-11 items-center gap-2 rounded-xl bg-[#fff8e9] p-2 text-[#38281e] shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#773729]">
-      <TutorPet state={open?state:'idle'}/><span>Hỏi mình nhé!</span>
+      <TutorPet state={open?(remaining === 0 ? 'limit' : state):'idle'}/><span>Hỏi mình nhé!</span>
     </button>
     {open && <section aria-label="Trò chuyện với gia sư" className={'w-full max-w-xl overflow-y-auto rounded-t-2xl border border-[#a78b72] bg-[#fff9ed] p-4 text-[#38281e] shadow-lg max-h-[55dvh] motion-safe:animate-[tutor-enter_200ms_ease-out] '+(child?'text-lg leading-9':'leading-7')}>
-      <header className="flex items-start gap-3"><TutorPet state={state}/><div className="flex-1"><strong>Gia sư nhỏ</strong><p className="text-sm leading-5">{child?'Chỉ hỏi về câu này. Bố mẹ đọc được mọi câu hỏi và trả lời.':'Gợi hướng cho câu này, không nói đáp án.'}</p></div><button type="button" onClick={close} className="min-h-11 min-w-11 underline">Đóng</button></header>
+      <header className="flex items-start gap-3"><TutorPet state={remaining === 0 ? 'limit' : state}/><div className="flex-1"><strong>Gia sư nhỏ</strong><p className="text-sm leading-5">{child?'Chỉ hỏi về câu này. Bố mẹ đọc được mọi câu hỏi và trả lời.':'Gợi hướng cho câu này, không nói đáp án.'}</p></div><button type="button" onClick={close} className="min-h-11 min-w-11 underline">Đóng</button></header>
       <div className="mt-3 grid gap-3" aria-live="polite">
         <p className="mr-8 rounded-xl bg-white p-3">Chào bạn! Câu {number} có chỗ nào chưa rõ? Mình gợi hướng thôi, không nói đáp án đâu nhé.</p>
         {messages.map(m=><div key={m.id} className="grid gap-2"><p className="ml-8 rounded-xl bg-[#ffe79a] p-3">{m.question}</p>

@@ -18,6 +18,7 @@ import { sendAlertDigest } from "../lib/alerts";
 import directMcp from './direct-mcp-worker';
 import {isDirectMcpRoute, isMcpAccountSignIn} from './mcp-routing';
 import {householdGuard, householdMode} from '../lib/household';
+import {tutorSprite} from '../lib/tutor/sprite';
 
 const berlinHour = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" });
 
@@ -62,7 +63,13 @@ export default {
     const direct = isDirectMcpRoute(request) || (householdMode(env) && isMcpAccountSignIn(request));
     // MCP/OAuth keeps its own token and account checks, independent of the household profile.
     if (direct) return directMcp.fetch(request, env as Parameters<typeof directMcp.fetch>[1], !!householdMode(env));
-    return (await householdGuard(request, env)) ?? handler.fetch(request, env, ctx);
+    const household = await householdGuard(request, env);
+    if (household) return household;
+    if (new URL(request.url).pathname.startsWith('/api/tutor/sprite/')) {
+      if (!householdMode(env)) return new Response(null, {status: 404});
+      return tutorSprite(request, env.UPLOADS);
+    }
+    return handler.fetch(request, env, ctx);
   },
   scheduled(controller: ScheduledController, env: Cloudflare.Env, ctx: ExecutionContext) {
     const scheduledAt = new Date(controller.scheduledTime);
