@@ -109,7 +109,8 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const previous = (await submissions()).length;
   // Fail only the submission request. Other resources remain available so reload
   // and browser cache behavior cannot mask a lost or duplicated submission.
-  const failedSubmission = route => route.abort('internetdisconnected');
+  let failSubmission = true;
+  const failedSubmission = route => failSubmission ? route.abort('internetdisconnected') : route.continue();
   await page.route('**/submissions', failedSubmission);
   await field.fill('Lena kann heute Suppe kochen.');
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
@@ -117,7 +118,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const retry = card.getByRole('button', { name: 'Thử lại', exact: true });
   await expect(retry).toBeVisible();
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
-  await page.unroute('**/submissions', failedSubmission);
+  failSubmission = false;
   const gradeMs = await timeFromTap(retry, card.getByRole('status').filter({ hasText: /Đúng/ }).first());
   checkTime(info, 'grade', gradeMs, 1200);
   expect((await submissions()).length).toBe(previous + 1);
