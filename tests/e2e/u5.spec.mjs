@@ -246,7 +246,7 @@ test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', a
 });
 
 const lessonHeading = page => flow(page).locator('[data-lesson-heading]');
-const questionHeading = page => flow(page).locator('[data-question-number]').first();
+const questionHeading = page => flow(page).locator('[data-question-number]:visible').first();
 
 /** A one-finger horizontal drag on the page, as touch events (React listens on the lesson root). */
 async function swipe(page, dx, { release = true, at = 0.75 } = {}) {
@@ -397,7 +397,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   }
   const before = await questionHeading(page).getAttribute('data-question-number');
   await page.keyboard.press('Enter');
-  await expect(flow(page).locator(`[data-question-number="${before}"]`)).toHaveCount(0);
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).not.toBeVisible();
   await turnSettled(page);
   await expect(page.locator(':focus')).not.toHaveAttribute('data-turn-edge');
   await page.keyboard.press('ArrowLeft');

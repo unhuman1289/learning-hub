@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { RuledPage } from "../../../components/notebook/paper";
 import { rumAfterPaint, rumNavigationStart } from "../rum";
+import { lessonPageWindow } from "./page-window";
 
 type Side = "left" | "right";
 type Corner = "top" | "bottom";
@@ -37,7 +38,6 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const end = index === pages.length - 1;
   const current = pages[index];
   const first = current[0];
-  const last = current.at(-1);
   const question = index > 0 && !end;
 
   useEffect(() => {
@@ -177,17 +177,25 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       if (event.animationName === "lesson-leaf-arrive" && paper.current) delete paper.current.dataset.fallbackTurn;
     }}>
       <span className="lesson-flow-curl" aria-hidden="true" />
-      <RuledPage key={first} as="section" className="lesson-flow-page">
-        {question && <>
-          <p className="mb-3 font-hand text-lg text-muted-paper">{subject} · {first === last ? `Câu ${first}/${count}` : `Câu ${first}–${last}/${count}`}</p>
+      {(question ? lessonPageWindow(groups, target) : [current]).map(numbers => {
+        const active = numbers.includes(target);
+        const pageFirst = numbers[0];
+        const pageLast = numbers.at(-1);
+        const pageIsQuestion = pageFirst > 0 && pageFirst <= count;
+        return <div key={pageFirst} data-question-page={pageIsQuestion ? pageFirst : undefined}
+          data-active={active ? "" : undefined} inert={!active} aria-hidden={active ? undefined : true}
+          className="lesson-flow-window-page">
+      <RuledPage as="section" className="lesson-flow-page">
+        {pageIsQuestion && <>
+          <p className="mb-3 font-hand text-lg text-muted-paper">{subject} · {pageFirst === pageLast ? `Câu ${pageFirst}/${count}` : `Câu ${pageFirst}–${pageLast}/${count}`}</p>
           {materials}
         </>}
         <div className="lesson-flow-questions">
-          {current.map(number => <div key={number} className="min-w-0">{page(number, jump, true)}</div>)}
+          {numbers.map(number => <div key={number} className="min-w-0">{page(number, jump, active)}</div>)}
         </div>
         {hint && !end && <p className="lesson-flow-hint font-hand">Chạm mép giấy để lật</p>}
         {status && <p role="status" className="mt-5 border-t border-rule pt-2 text-sm text-muted-paper">{status}</p>}
-        <nav aria-label="Lật trang bài học">
+        {active && <nav aria-label="Lật trang bài học">
           {index > 0 && <>
             <button type="button" ref={element => keepEdge("left-bottom", element)} data-turn-edge="left" data-side="left" data-corner="bottom"
               className="lesson-flow-edge" disabled={locked} aria-label="Trang trước" onClick={event => turnFrom(-1, "bottom", event.timeStamp)}>
@@ -208,8 +216,10 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
               <span data-curl />
             </span>
           </>}
-        </nav>
+        </nav>}
       </RuledPage>
+      </div>;
+      })}
     </div>
   </div>;
 }

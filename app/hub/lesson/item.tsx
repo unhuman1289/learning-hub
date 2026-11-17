@@ -111,7 +111,7 @@ export function LessonItem({
           className="min-w-0 scroll-mt-24 whitespace-pre-wrap break-words font-print text-[1.65rem] leading-tight">
           <span className="font-hand text-xl text-accent-paper">{number}.</span> {formatText(item.prompt)}
         </h2>
-        <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />
+        <HintNote item={item} disabled={locked} onReveal={onReveal} active={active} formatText={formatText} />
       </div>
       {item.instructions && <p className="text-muted-paper">{formatText(item.instructions)}</p>}
       {item.audio && (listening ? <LessonAudio audio={item.audio} {...listening} active={active} /> :
