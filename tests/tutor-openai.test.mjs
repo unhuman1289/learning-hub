@@ -130,3 +130,30 @@ test('disabling notebook AI while a child receives an answer prevents saving',as
   assert.equal(await answerTutor(db,env,turn.id,'',()=>{},fetcher),'ineligible');
   assert.equal(db.sqlite.prepare('SELECT status FROM tutor_turns WHERE id=?').get(turn.id).status,'blocked');
 });
+
+test('adult and child Responses payloads include nickname but not account name or profile id',async t=>{
+  for(const role of ['adult','child']) {
+    await t.test(role,async t=>{
+      const db=memoryDb();t.after(()=>db.sqlite.close());
+      const profile='private-profile-unique-89214', name='Private Legalname Unique', nickname='Ếch';
+      db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,1,1,1,'learner','active')").run(profile,name,'private@example.test');
+      db.sqlite.prepare("INSERT INTO learner_settings(user_id,updated,role,display_name) VALUES(?,'t',?,?)").run(profile,role,nickname);
+      db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES(?,?,'Deutsch','skill','active',?,'t','t')").run(subject,profile,profile);
+      const lessonId=await insertLessonV2(db,{learnerId:profile,subjectId:subject,day:'2026-11-17',lesson:fixture});
+      const turn=await openTutorTurn(db,profile,{lessonId,itemId:'i1',question:'Gợi ý cách bắt đầu?'},false);
+      let sent;
+      const result=await answerTutor(db,{OPENAI_ENABLED:'true',ENVIRONMENT:'staging',OPENAI_API_KEY:'fake'},turn.id,'prompt',()=>{},async (_url,options)=>{sent=JSON.parse(options.body);return fakeTutorOpenAi();});
+      assert.equal(result,'answered');assert.equal(JSON.parse(sent.input).nickname,nickname);
+      const payload=JSON.stringify(sent);assert.equal(payload.includes(profile),false);assert.equal(payload.includes(name),false);assert.equal(payload.includes('private@example.test'),false);
+    });
+  }
+});
+
+test('first-token timing log contains only durations and the opaque turn id',async t=>{
+  const {db,env,create}=await setup(t);const turn=await create();const logs=[];const old=console.info;
+  console.info=value=>logs.push(JSON.parse(value));
+  try {assert.equal(await answerTutor(db,env,turn.id,'secret prompt',()=>{},fakeTutorOpenAi),'answered');} finally {console.info=old;}
+  const entry=logs.find(x=>x.component==='tutor-timing');assert.equal(entry.turnId,turn.id);
+  for(const key of ['pre_answer_ms','eligibility_ms','recovery_ms','context_ms','claim_ms','recheck_ms','count_ms','openai_first_ms','first_token_ms']) assert.ok(Number.isFinite(entry[key]) && entry[key]>=0,key);
+  assert.doesNotMatch(JSON.stringify(entry),/secret prompt|Private Name|private@example\.test|Ếch/);
+});
