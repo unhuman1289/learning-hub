@@ -9,5 +9,7 @@ export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
   const local = env.ENVIRONMENT === 'local' && env.APP_ENV === 'local';
-  return postTutor(req, await getHubUser(), storage, {env: local ? {...env, OPENAI_API_KEY:'local-fixture'} : env, prompt, ...(local ? {fetcher:fakeTutorOpenAi} : {})});
+  const user = await getHubUser();
+  if (local && !user) await req.arrayBuffer();
+  return postTutor(req, user, storage, {env: local ? {...env, OPENAI_API_KEY:'local-fixture'} : env, prompt, ...(local ? {fetcher:fakeTutorOpenAi} : {})});
 }

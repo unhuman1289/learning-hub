@@ -192,14 +192,7 @@ test('a child can save their own voice and cannot change other settings', async 
   expect((await request.post('/api/learners/demo-adult/voice', { headers, data: { voice: 'm' } })).status()).toBe(404);
   const expected = { ...before, preferences: { ...before.preferences, listeningVoice: 'm' } };
   const readSettings = async () => (await (await request.get(settings)).json()).settings;
-  const patch = () => request.patch(settings, { headers, data: { preferences: { replaceAudioWithText: true } } });
-  let forbidden = await patch();
-  // Wrangler can restart the local worker between requests. Check the saved settings
-  // before repeating this denied write, and still require the application to return 403.
-  if (forbidden.status() === 503 && (await forbidden.text()).includes('Your worker restarted mid-request')) {
-    expect(await readSettings()).toEqual(expected);
-    forbidden = await patch();
-  }
+  const forbidden = await request.patch(settings, { headers, data: { preferences: { replaceAudioWithText: true } } });
   expect(forbidden.status(), await forbidden.text()).toBe(403);
   expect(await readSettings()).toEqual(expected);
 });
