@@ -52,7 +52,7 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
 }
 
 export default {
-  queue(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env) {
+  queue(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string; calibrationJobId?: string }>, env: Cloudflare.Env) {
     return consumeOpenAi(batch, env, (kind, purpose) =>
       kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt, fetch, tutorPrompt);
   },

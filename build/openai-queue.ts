@@ -1,3 +1,4 @@
+import { consumeCalibration, recoverCalibrationJobs } from './calibration-queue.ts';
 import { answerTutor } from '../lib/tutor/openai.ts';
 import { QueueAudioError, speechJobLimit, uploadOpenAiPlanAudio } from './openai-tts.ts';
 import { uploadAudio } from '../lib/audio/upload.ts';
@@ -61,11 +62,20 @@ export async function failExpiredOpenAiJobs(db: NonNullable<Cloudflare.Env['DB']
   ]);
 }
 
-export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch, tutorPrompt = '') {
+export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string; calibrationJobId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch, tutorPrompt = '') {
   const { DB: db, OPENAI_API_KEY: apiKey, UPLOADS: bucket } = env;
   const subjectIds = db ? await aiSubjects(db, env) : [];
   const ttsSubjectIds = db && apiKey && bucket ? await aiSubjects(db, env, true) : [];
   for (const message of batch.messages) {
+    const calibrationId = message.body?.calibrationJobId;
+    if (calibrationId && /^cal_[0-9a-f-]{36}$/.test(calibrationId)) {
+      if (!db) { message.retry({delaySeconds:60}); continue; }
+      try {
+        const status = await consumeCalibration(db, env, calibrationId, getPrompt('assess','submission'), fetcher);
+        if (status === 'unavailable') message.retry({delaySeconds:60}); else message.ack();
+      } catch { message.retry({delaySeconds:60}); }
+      continue;
+    }
     const tutorId=message.body?.tutorTurnId;
     if (tutorId && /^tur_[0-9a-f-]{36}$/.test(tutorId)) {
       if (!db || !apiKey || !tutorPrompt) { message.retry({delaySeconds:60}); continue; }
@@ -205,6 +215,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
 export async function redispatchOpenAi(env: Cloudflare.Env, now: Date) {
   if (!env.DB) return;
   await failExpiredOpenAiJobs(env.DB, now);
+  await recoverCalibrationJobs(env.DB, env, now);
   if (!env.AI_QUEUE || !env.OPENAI_API_KEY) return;
   const subjectIds = await aiSubjects(env.DB, env);
   if (!subjectIds.length) return;
