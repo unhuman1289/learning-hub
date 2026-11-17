@@ -53,26 +53,43 @@ async function* records(body:ReadableStream<Uint8Array>) {
 }
 
 export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt:string, emit:Emit, fetcher:Fetcher=fetch, timeoutMs=10000, startedAt=Date.now()) {
-  if (!await tutorEligible(db,id,env)) return 'ineligible' as const;
+  const timing = {pre_answer_ms:Math.max(0,Date.now()-startedAt), eligibility_ms:0, recovery_ms:0, context_ms:0, claim_ms:0, recheck_ms:0, count_ms:0, openai_first_ms:0};
+  let phase=Date.now();
+  const eligible = await tutorEligible(db,id,env);
+  timing.eligibility_ms=Date.now()-phase;
+  if (!eligible) return 'ineligible' as const;
   // Context is built while queued; it excludes keys and other questions.
+  phase=Date.now();
   await db.prepare("UPDATE tutor_turns SET status='queued',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND lease_expires_at IS NOT NULL AND lease_expires_at<=?").bind(id,new Date().toISOString()).run();
+  timing.recovery_ms=Date.now()-phase;
+  phase=Date.now();
   const data=await tutorContext(db,id);
+  timing.context_ms=Date.now()-phase;
   if (!data) {
     const current=await db.prepare('SELECT status FROM tutor_turns WHERE id=?').bind(id).first<{status:string}>();
     if (current?.status==='streaming') { emit('turn',{id,status:'streaming',message:TUTOR_BUSY}); return 'claimed' as const; }
     return 'ineligible' as const;
   }
   const token=crypto.randomUUID(), started=startedAt;
-  if (!await claim(db,id,token,new Date())) return 'claimed' as const;
+  phase=Date.now();
+  const claimed=await claim(db,id,token,new Date());
+  timing.claim_ms=Date.now()-phase;
+  if (!claimed) return 'claimed' as const;
   emit('turn',{id,status:'streaming'});
   const abort=new AbortController();
   let firstMs:number|undefined, answer='', inputTokens:number|undefined, outputTokens:number|undefined, completed=false;
   let timer=setTimeout(()=>abort.abort(),Math.max(0,timeoutMs-(Date.now()-started)));
   try {
-    if (!await tutorEligible(db,id,env)) throw new Error('Ineligible');
+    phase=Date.now();
+    const stillEligible=await tutorEligible(db,id,env);
+    timing.recheck_ms=Date.now()-phase;
+    if (!stillEligible) throw new Error('Ineligible');
     if (!env.OPENAI_API_KEY || Date.now()-started>=timeoutMs) throw new Error('Unavailable');
+    phase=Date.now();
     const counted=await db.prepare("UPDATE tutor_turns SET openai_calls=openai_calls+1 WHERE id=? AND status='streaming' AND attempt_token=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN ai_subject_controls c ON c.subject_id=l.subject_id WHERE l.id=tutor_turns.lesson_id AND coalesce(c.openai_enabled,1)=1)").bind(id,token).run();
+    timing.count_ms=Date.now()-phase;
     if (!counted.meta.changes) throw new Error('Call limit');
+    const openaiStarted=Date.now();
     const response=await fetcher('https://api.openai.com/v1/responses', {method:'POST',
       headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
       body:JSON.stringify({model:'gpt-6-luna',instructions:prompt,input:JSON.stringify(data.context),stream:true,store:false,
@@ -80,7 +97,13 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     if (!response.ok || !response.body) throw new Error('Unavailable');
     for await (const entry of records(response.body)) {
       if (entry.type==='response.output_text.delta' && typeof entry.delta==='string' && entry.delta) {
-        if (firstMs===undefined) { firstMs=Date.now()-started; clearTimeout(timer); timer=setTimeout(()=>abort.abort(),60000); }
+        if (firstMs===undefined) {
+          firstMs=Date.now()-started;
+          timing.openai_first_ms=Date.now()-openaiStarted;
+          // Durations and the opaque turn ID only: never log prompts, learner data or credentials.
+          console.info(JSON.stringify({component:'tutor-timing',turnId:id,first_token_ms:firstMs,...timing}));
+          clearTimeout(timer); timer=setTimeout(()=>abort.abort(),60000);
+        }
         answer+=entry.delta;
         if ([...answer].length>2000 || answer.includes('\0')) throw new Error('Response too long');
         emit('delta',{text:entry.delta});
