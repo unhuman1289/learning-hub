@@ -25,7 +25,7 @@ export async function GET(req: Request) {
     }
     if (id) {
       const row = await db
-        .prepare('SELECT id,kind,purpose,status,context_snapshot,outcome,usage,cost_usd,error,created_at,finished_at FROM ai_jobs WHERE id=?')
+        .prepare('SELECT id,kind,purpose,status,openai_calls,context_snapshot,outcome,usage,cost_usd,error,created_at,finished_at FROM ai_jobs WHERE id=?')
         .bind(id)
         .first();
       if (!row) throw new ApiError(404, 'Không tìm thấy lượt.');
@@ -33,11 +33,13 @@ export async function GET(req: Request) {
     }
     const { results = [] } = await db
       .prepare(
-        'SELECT j.id,j.learner_id,u.name AS learner_name,j.kind,j.purpose,j.trigger,j.status,j.created_at,j.finished_at,j.outcome,j.usage,j.cost_usd,j.error FROM ai_jobs j JOIN user u ON u.id=j.learner_id WHERE (? IS NULL OR j.status=?) AND (? IS NULL OR j.learner_id=?) AND (? IS NULL OR j.kind=?) ORDER BY j.created_at DESC LIMIT 100',
+        'SELECT j.id,j.learner_id,u.name AS learner_name,j.kind,j.purpose,j.trigger,j.status,j.openai_calls,j.created_at,j.finished_at,j.outcome,j.usage,j.cost_usd,j.error FROM ai_jobs j JOIN user u ON u.id=j.learner_id WHERE (? IS NULL OR j.status=?) AND (? IS NULL OR j.learner_id=?) AND (? IS NULL OR j.kind=?) ORDER BY j.created_at DESC LIMIT 100',
       )
       .bind(status, status, learner, learner, kind, kind)
       .all();
-    return Response.json({ jobs: results }, { headers });
+    const {results: tutorTurns=[]}=await db.prepare(`SELECT t.id,t.status,t.openai_calls,t.created_at,u.name AS learner_name
+      FROM tutor_turns t JOIN user u ON u.id=t.learner_id WHERE (? IS NULL OR t.learner_id=?) ORDER BY t.created_at DESC LIMIT 100`).bind(learner,learner).all();
+    return Response.json({ jobs: results, tutorTurns }, { headers });
   } catch (e) {
     return apiFailure(e, 'Chưa tải được nhật ký xử lý.', headers);
   }

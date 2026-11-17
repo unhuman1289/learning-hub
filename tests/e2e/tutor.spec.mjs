@@ -23,11 +23,22 @@ test('Quản trị tắt gia sư, trẻ em hỏi qua SSE và người giám hộ
   expect((await ask('Em nên bắt đầu từ đâu?')).status()).toBe(401);
   await childProfile.tap();
   await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
+  expect((await page.request.get('/api/admin/ai-controls')).status()).toBe(403);
+  expect((await page.request.put('/api/admin/ai-controls', {headers, data:{subjectId:'sub_11111111111111111111',openaiEnabled:true,ttsEnabled:true}})).status()).toBe(403);
   expect((await toggle(false)).status()).toBe(403);
 
   expect((await profile({ action: 'select', id: 'demo-admin' })).status()).toBe(200);
   expect((await profile({ action: 'manage' })).status()).toBe(200);
   await page.goto('/?trang=quan-tri');
+  await page.getByRole('button', { name: 'Sổ', exact: true }).tap();
+  const controlResponse = await page.request.get('/api/admin/ai-controls');
+  expect(controlResponse.status()).toBe(200);
+  const before = (await controlResponse.json()).controls[0];
+  const update = (openaiEnabled, ttsEnabled) => page.request.put('/api/admin/ai-controls', {headers, data:{subjectId:before.id,openaiEnabled,ttsEnabled}});
+  const saved = await update(!before.openai_enabled, !!before.tts_enabled);
+  expect(saved.status()).toBe(200);
+  expect((await saved.json()).controls.find(x=>x.id===before.id).openai_enabled).toBe(Number(!before.openai_enabled));
+  expect((await update(!!before.openai_enabled, !!before.tts_enabled)).status()).toBe(200);
   await page.getByRole('button', { name: 'Gia đình', exact: true }).tap();
   const member = page.getByRole('listitem').filter({ hasText: 'demo-ech@example.test' });
   const checkbox = member.getByRole('checkbox', { name: 'Cho phép dùng gia sư' });

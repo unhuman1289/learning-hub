@@ -19,7 +19,7 @@ function responsesSchema(schema) {
   return result;
 }
 
-export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
+export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFetch = async () => {} }) {
   const model = OPENAI_MODELS[purpose === 'recheck' ? 'recheck' : kind];
   if (!model) throw new Error('Unsupported OpenAI job kind.');
   if (!apiKey?.trim()) throw new Error('Missing OpenAI project API key.');
@@ -36,6 +36,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch }) {
       } catch {
         throw new Error('OpenAI schema preparation failed.');
       }
+      await beforeFetch();
       const response = await fetcher('https://api.openai.com/v1/responses', {
         method: 'POST',
         headers: { Authorization: 'Bearer ' + apiKey, 'Content-Type': 'application/json' },

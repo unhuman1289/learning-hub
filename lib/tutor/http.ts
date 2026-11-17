@@ -1,6 +1,6 @@
 import type { Viewer } from '../access.ts';
 import { apiFailure } from '../api-error.ts';
-import { openAiSubjects } from '../ai-jobs/queue.ts';
+import { aiSubjects } from '../ai-controls.ts';
 import { answerTutor, dispatchTutor } from './openai.ts';
 import { tutorQuestion } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
@@ -26,8 +26,7 @@ export async function postTutor(req: Request, user: Viewer | null, storage: () =
       const settings = await db.prepare(`SELECT l.subject_id,coalesce(s.role,'adult') AS role FROM learning_lessons l
         LEFT JOIN learner_settings s ON s.user_id=l.user_id WHERE l.id=? AND l.user_id=?`).bind(input.data.lessonId,learnerId)
         .first<{subject_id:string;role:string}>();
-      const local=openai.env.ENVIRONMENT==='local' && openai.env.APP_ENV==='local';
-      if (!settings || (!local && (settings.role!=='adult' || !openAiSubjects(openai.env).includes(settings.subject_id))))
+      if (!settings || (settings.role!=='adult' && !(openai.env.ENVIRONMENT==='local' && openai.env.APP_ENV==='local')) || !(await aiSubjects(db, openai.env)).includes(settings.subject_id))
         return Response.json({error:'Gia sư chưa được bật cho sổ này.'}, {status:403,headers:privateHeaders});
       const turn = await openTutorTurn(db, learnerId, input.data, false);
       const encoder=new TextEncoder(); let cancelled=false;
