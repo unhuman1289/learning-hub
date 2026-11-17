@@ -12,6 +12,8 @@ import { berlinBackupDay, isBerlinBackupTime } from "../lib/backup-schedule.mjs"
 
 import { expireAttachments, refreshSkills } from "../lib/learner-model/nightly";
 import { queueDaily } from "../lib/ai-jobs/queue";
+import { enqueueCalibration } from '../lib/calibration/jobs';
+import { isBerlinCalibrationTime } from '../lib/calibration-schedule.mjs';
 import { isBerlinPlanTime } from "../lib/plan-schedule.mjs";
 import { maintainJobs } from "../lib/ai-jobs/lease";
 import { sendAlertDigest } from "../lib/alerts";
@@ -53,7 +55,7 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
 }
 
 export default {
-  queue(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env) {
+  queue(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string; calibrationJobId?: string }>, env: Cloudflare.Env) {
     return consumeOpenAi(batch, env, (kind, purpose) =>
       kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt, fetch, tutorPrompt);
   },
@@ -75,6 +77,8 @@ export default {
     const scheduledAt = new Date(controller.scheduledTime);
     if (controller.cron === '*/5 * * * *') {
       ctx.waitUntil(redispatchOpenAi(env, scheduledAt));
+      if (env.HUB2_ENABLED === 'true' && env.DB && isBerlinCalibrationTime(scheduledAt))
+        ctx.waitUntil(enqueueCalibration(env.DB, env, 'weekly:' + berlinDay(scheduledAt), scheduledAt));
       return;
     }
     if (env.HUB2_ENABLED === "true" && env.DB) {

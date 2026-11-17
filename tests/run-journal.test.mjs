@@ -70,9 +70,10 @@ test('backup restores every table and Unicode/quotes into empty migrated SQLite;
  // Keep the v1 journal tables for this fixture while exercising the current backup contract.
  const perfSchema=readFileSync(new URL('../drizzle/0030_perf.sql',import.meta.url),'utf8');
  const tutorSchema=readFileSync(new URL('../drizzle/0032_tutor.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0033_ai_controls.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0034_tutor_openai.sql',import.meta.url),'utf8');
- db.sqlite.exec(perfSchema+listeningSchema+tutorSchema);
+ const calibrationSchema=readFileSync(new URL('../drizzle/0036_calibration.sql',import.meta.url),'utf8');
+ db.sqlite.exec(perfSchema+listeningSchema+tutorSchema+calibrationSchema);
  const backup=await createBackup(db,'user-private',now);assert.equal(backup.format,4);
- const copy=memoryDb({ through: "0025" });copy.sqlite.exec(perfSchema+listeningSchema+tutorSchema);copy.sqlite.exec(buildRestoreSql(backup));
+ const copy=memoryDb({ through: "0025" });copy.sqlite.exec(perfSchema+listeningSchema+tutorSchema+calibrationSchema);copy.sqlite.exec(buildRestoreSql(backup));
  for(const [table,expected]of Object.entries(backup.tables))assert.deepEqual(copy.sqlite.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all(),expected,table);
  assert.throws(()=>copy.sqlite.exec(buildRestoreSql(backup)),/UNIQUE/);
  assert.throws(()=>buildRestoreSql({...backup,tables:{...backup.tables,learning_lessons:[]}}),/missing lessons/);
