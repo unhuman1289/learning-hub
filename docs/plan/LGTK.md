@@ -161,6 +161,13 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 
 **Xong khi:** test và e2e (iPhone 13, Pixel 7) đạt với adapter giả. Trên staging, một lượt thật trên sổ QA người lớn có chữ đầu tiên dưới 2 giây, đo ở server.
 
+**Sửa mục tiêu 17/11 (Claude):** hai lượt đo trên staging cho thấy riêng OpenAI đến token đầu đã mất 1,7–2,7 s với prompt khoảng 250 token, nên "dưới 2 s" không nằm trong tầm kiểm soát của Hub. Chức năng T2 đã nghiệm thu (SSE, lưu lượt, ≤2 lời gọi, chỉ biệt danh). Mục tiêu thay bằng:
+- phần Hub trước khi gọi OpenAI ≤ 300 ms (đo `tutor-timing`, trung vị 3 lượt). Hiện là 730–888 ms qua khoảng 8 lượt D1 tuần tự;
+- giao diện hiện trạng thái "đang nghĩ" ngay khi gửi, không chờ token đầu;
+- thời gian OpenAI đến token đầu chỉ ghi lại, không chặn.
+
+**T2.1:** gom các lượt đọc/ghi D1 trên đường trả lời gia sư (đọc body và kiểm, quyền và sổ, tạo lượt, eligibility, recovery, context, claim, recheck, count) thành 1–2 `db.batch` hoặc truy vấn gộp. Giữ nguyên kiểm quyền, cổng sổ bị tắt, trần 2 lời gọi và bảo vệ cuộc đua với nộp bài.
+
 ### T3. Chặn lộ đáp án và giao diện Hỏi
 
 **Chặn ở Worker:**
