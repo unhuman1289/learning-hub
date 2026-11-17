@@ -13,7 +13,7 @@ npm run contracts:check
 npm run build
 ```
 
-`prepare-h5-qa.mjs` writes generated QA passwords, service credentials and seed SQL to a private folder, mode 0600. For staging, supply `--staging --bridge-secrets <private bridge JSON>`. It preserves the v1 clients in that configuration and adds a v2 client restricted to the generated learner ID. Review the existing configuration before uploading `secrets.json` with Wrangler; never commit or paste its contents.
+`prepare-h5-qa.mjs` writes service credentials and seed SQL to a private folder, mode 0600. Local fixtures retain their generated email credentials; staging fixtures use household profiles with no credential account. Put the staging passphrase in `private-data/staging-household.txt` (private, never logged); `e2e-hub2.mjs` selects each generated profile by ID. The legacy reset and benchmark tools accept only older `qa-h5-` identities and must not be used on the new profiles. For staging, supply `--staging --bridge-secrets <private bridge JSON>`. It preserves the v1 clients in that configuration and adds a v2 client restricted to the generated learner ID. Review the existing configuration before uploading `secrets.json` with Wrangler; never commit or paste its contents.
 
 Run `e2e-hub2.mjs --manifest <private QA manifest>` after separately seeding that folder's `seed.sql` and `job.sql` into the matching environment. Only localhost and the exact staging hostname are permitted. It exercises the authenticated app and leased service API; no learner data is sent to a model.
 

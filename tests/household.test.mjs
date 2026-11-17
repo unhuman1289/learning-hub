@@ -62,6 +62,10 @@ test('access gate: people with a valid assertion pass; missing, foreign or servi
 test('profile mode removes account routes and leaves automation to its own auth', async () => {
   const env = { HOUSEHOLD_GATE: 'access', ACCESS_TEAM_DOMAIN: 'family.cloudflareaccess.com', APP_ACCESS_AUD: 'aud-app' };
   assert.equal((await householdGuard(req('/api/auth/sign-in/email', { method: 'POST' }), env)).status, 404);
+  assert.equal((await householdGuard(req('/api/auth/sign-up/email', { method: 'POST' }), { HOUSEHOLD_GATE: 'passphrase' })).status, 404);
+  const register = await householdGuard(req('/register'), { HOUSEHOLD_GATE: 'passphrase' });
+  assert.equal(register.status, 302);
+  assert.equal(register.headers.get('location'), 'https://learn.example/');
   const login = await householdGuard(req('/login'), env);
   assert.equal(login.status, 302);
   assert.equal(login.headers.get('location'), 'https://learn.example/');
@@ -166,4 +170,17 @@ test('family door uses a small script-free password form', async () => {
   assert.match(html, /Phòng học cả nhà/);
   assert.doesNotMatch(html, /<script/i);
   assert.ok(Buffer.byteLength(html) <= 6144);
+});
+
+test('passphrase attempts are rate limited per client', async () => {
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('correct horse'))), (x) =>
+    x.toString(16).padStart(2, '0'),
+  ).join('');
+  const env = { HOUSEHOLD_GATE: 'passphrase', HOUSEHOLD_PASSPHRASE_SHA256: hash, PROFILE_COOKIE_SECRET: 'x'.repeat(32),
+    HOUSEHOLD_LIMITER: { limit: async ({ key }) => ({ success: key !== 'household:203.0.113.9' }) } };
+  const form = (ip) => new Request('https://learn.example/api/household', { method: 'POST',
+    headers: { Origin: 'https://learn.example', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': ip },
+    body: new URLSearchParams({ passphrase: 'correct horse' }) });
+  assert.equal((await householdGuard(form('203.0.113.9'), env)).status, 429);
+  assert.equal((await householdGuard(form('198.51.100.7'), env)).status, 303);
 });
