@@ -260,3 +260,61 @@ test('concurrent attempts for the same sentence keep the per-file limit', async 
   assert.equal(calls, 2);
   assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_speech_calls').get().openai_calls, 2);
 });
+
+test('R2 head failure after audio upload fails the same job and does not retry OpenAI', async t => {
+  const { db, job, run, counts, objects } = await setupTerraFixture(t, {
+    head: () => { throw Error('private R2 failure'); }, retry: () => assert.fail('must not retry'),
+  });
+  await run();
+  const row = db.sqlite.prepare('SELECT status,error,openai_calls,speech_calls FROM ai_jobs WHERE id=?').get(job.job_id);
+  assert.equal(row.status, 'failed');
+  assert.match(row.error, /Không hoàn tất/);
+  assert.equal(row.openai_calls, 1);
+  assert.equal(row.speech_calls, 12);
+  assert.equal(objects.size, 4);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n, 0);
+  await run();
+  assert.equal(counts().terraCalls, 1);
+});
+
+test('a committed result survives a lost D1 response after audio upload', async t => {
+  const { db, job, run, counts } = await setupTerraFixture(t);
+  const batch = db.batch.bind(db);
+  let lost = false;
+  db.batch = async statements => {
+    const result = await batch(statements);
+    if (!lost && statements.some(statement => statement.sql.includes("SET status='succeeded'"))) {
+      lost = true;
+      throw Error('response lost after commit');
+    }
+    return result;
+  };
+  await run();
+  const row = db.sqlite.prepare('SELECT status,outcome FROM ai_jobs WHERE id=?').get(job.job_id);
+  assert.equal(lost, true);
+  assert.equal(row.status, 'succeeded');
+  assert.equal(JSON.parse(row.outcome).extraLessonIds.length, 1);
+  assert.equal(counts().terraCalls, 1);
+});
+
+test('scheduled sweep fails only expired exhausted OpenAI leases', async t => {
+  const { db, env, job } = await setupTerraFixture(t);
+  const { failExpiredOpenAiJobs } = await import('../build/openai-queue.ts');
+  await initializeAiControls(db, env);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='leased',lease_client_id='openai-staging',lease_token_sha256='old',lease_expires_at='2026-11-17T00:00:00.000Z',openai_calls=2 WHERE id=?").run(job.job_id);
+  await failExpiredOpenAiJobs(db, new Date('2026-11-17T01:00:00.000Z'));
+  const row = db.sqlite.prepare('SELECT status,error,lease_token_sha256 FROM ai_jobs WHERE id=?').get(job.job_id);
+  assert.equal(row.status, 'failed');
+  assert.match(row.error, /Không hoàn tất/);
+  assert.equal(row.lease_token_sha256, null);
+});
+
+test('normal lease maintenance fails exhausted OpenAI lease before requeue', async t => {
+  const { db, job } = await setupTerraFixture(t);
+  const { maintainJobs } = await import('../lib/ai-jobs/lease.ts');
+  db.sqlite.prepare("UPDATE ai_jobs SET status='leased',lease_client_id='openai-staging',lease_token_sha256='old',lease_expires_at='2026-11-17T00:00:00.000Z',expires_at='2026-11-18T00:00:00.000Z',openai_calls=2 WHERE id=?").run(job.job_id);
+  await maintainJobs(db, new Date('2026-11-17T01:00:00.000Z'));
+  const row = db.sqlite.prepare('SELECT status,error FROM ai_jobs WHERE id=?').get(job.job_id);
+  assert.equal(row.status, 'failed');
+  assert.match(row.error, /Không hoàn tất/);
+});
