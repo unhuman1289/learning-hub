@@ -10,6 +10,12 @@ import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
 import type { PlanContext, PlanResult } from '../lib/contracts/ai-common.ts';
 import type { AudioSpec } from '../lib/contracts/lesson-package-v3.ts';
 
+export function speechJobLimit(value: string | undefined): number {
+  if (value === undefined) return 12;
+  if (!/^[1-9]\d{0,5}$/.test(value)) throw new Error('OPENAI_SPEECH_MAX_PER_JOB must be a positive integer.');
+  return Number(value);
+}
+
 type AudioDiagnostic = {
   stage: 'lesson_validation' | 'speech_api' | 'audio_format' | 'r2' | 'asset_metadata' | 'audio_upload';
   code: string;
@@ -27,7 +33,7 @@ export class QueueAudioError extends Error {
 }
 
 export async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice: string, apiKey: string,
-  fetcher: typeof fetch, signal: AbortSignal, location: Pick<AudioDiagnostic, 'path' | 'variant'>, db?: EvidenceDb, jobId?: string) {
+  fetcher: typeof fetch, signal: AbortSignal, location: Pick<AudioDiagnostic, 'path' | 'variant'>, db?: EvidenceDb, jobId?: string, maxPerJob = 12) {
   const speechError = (code: string, httpStatus?: number) => new QueueAudioError({
     ...location, stage: 'speech_api', code, ...(httpStatus !== undefined ? { httpStatus } : {}),
   });
@@ -36,6 +42,15 @@ export async function speech(audio: AudioSpec, line: AudioSpec['lines'][number],
     const digest = await crypto.subtle.digest('SHA-256',bytes);
     const hash = Array.from(new Uint8Array(digest), x=>x.toString(16).padStart(2,'0')).join('');
     await db.prepare('INSERT OR IGNORE INTO ai_speech_calls(hash,openai_calls) VALUES(?,0)').bind(hash).run();
+    // Reserve job budget first. This conditional UPDATE serializes concurrent
+    // turns and persists across leases. A rejected per-file reservation may use
+    // a job slot, conservatively preventing extra provider calls.
+    const reserved = await db.prepare(`UPDATE ai_jobs SET speech_calls=speech_calls+1
+      WHERE id=? AND status='leased' AND speech_calls<?
+      AND EXISTS(SELECT 1 FROM ai_speech_calls WHERE hash=? AND openai_calls<2)
+      AND NOT EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id
+        AND (openai_enabled=0 OR tts_enabled=0))`).bind(jobId, maxPerJob, hash).run();
+    if (!reserved.meta.changes) throw speechError('speech_job_limit');
     const count = await db.prepare("UPDATE ai_speech_calls SET openai_calls=openai_calls+1 WHERE hash=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM ai_jobs j LEFT JOIN ai_subject_controls c ON c.subject_id=j.subject_id WHERE j.id=? AND j.status='leased' AND coalesce(c.openai_enabled,1)=1 AND coalesce(c.tts_enabled,1)=1)").bind(hash,jobId).run();
     if (!count.meta.changes) throw speechError('speech_call_limit');
   }
@@ -86,7 +101,7 @@ type Upload = (req: Request, hash: string) => ReturnType<typeof uploadAudio>;
 
 export async function uploadOpenAiPlanAudio(
   context: PlanContext, result: PlanResult, apiKey: string, upload: Upload,
-  fetched: Set<string>, log: (entry: { variant: string; ms: number; count: number }) => void, fetcher = fetch, db?: EvidenceDb, jobId?: string,
+  fetched: Set<string>, log: (entry: { variant: string; ms: number; count: number }) => void, fetcher = fetch, db?: EvidenceDb, jobId?: string, maxPerJob = 12,
 ) {
   const drafts = [
     ...result.subjects.flatMap((entry, index) => (['primaryLesson', 'reviewSet'] as const)
@@ -135,7 +150,7 @@ export async function uploadOpenAiPlanAudio(
     for (let offset = 0; offset < turns.length; offset += 4) {
       const group = turns.slice(offset, offset + 4);
       const bytes = await Promise.all(group.map(({ audio, line, voice, path }) =>
-        speech(audio, line, voice, apiKey, fetcher, signal, { path, variant }, db, jobId)));
+        speech(audio, line, voice, apiKey, fetcher, signal, { path, variant }, db, jobId, maxPerJob)));
       group.forEach(({ hash }, index) => {
         const pieces = clips.get(hash) ?? [];
         pieces.push(bytes[index]);

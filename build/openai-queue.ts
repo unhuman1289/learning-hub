@@ -1,5 +1,5 @@
 import { answerTutor } from '../lib/tutor/openai.ts';
-import { QueueAudioError, uploadOpenAiPlanAudio } from './openai-tts.ts';
+import { QueueAudioError, speechJobLimit, uploadOpenAiPlanAudio } from './openai-tts.ts';
 import { uploadAudio } from '../lib/audio/upload.ts';
 import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
@@ -124,9 +124,9 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
             return await uploadOpenAiPlanAudio(context, result, apiKey, async (request, hash) => {
               const verify = () => leasedJob(db, client, id, token);
               return uploadAudio(db, bucket, request, await verify(), hash, verify);
-            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher, db, id);
+            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher, db, id, speechJobLimit(env.OPENAI_SPEECH_MAX_PER_JOB));
           } catch (error) {
-            if (error instanceof QueueAudioError && error.diagnostic.code === 'speech_call_limit') speechLimit = true;
+            if (error instanceof QueueAudioError && ['speech_call_limit', 'speech_job_limit'].includes(error.diagnostic.code)) speechLimit = true;
             logAudioFailure('audio_error', error instanceof QueueAudioError ? error.diagnostic : {
               stage: 'unexpected', code: 'audio_unexpected',
             });
@@ -144,7 +144,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       const current = await readJob(db, id);
       if (current?.status === 'failed') {
         const counter = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
-        if (speechLimit) await db.prepare("UPDATE ai_jobs SET error='Không tạo được âm thanh: đã hết 2 lần gọi hoặc quyền sử dụng đã thay đổi.' WHERE id=? AND status='failed'").bind(id).run();
+        if (speechLimit) await db.prepare("UPDATE ai_jobs SET error='Chưa tạo được âm thanh: đã hết giới hạn lượt gọi hoặc quyền sử dụng đã thay đổi.' WHERE id=? AND status='failed'").bind(id).run();
         else if (counter?.openai_calls === 2) await db.prepare("UPDATE ai_jobs SET error='Đã dùng hết 2 lần gọi OpenAI; lượt xử lý không hoàn thành.' WHERE id=? AND status='failed'").bind(id).run();
         const detail = 'error' in processed && typeof processed.error === 'string'
           ? processed.error.match(/OpenAI (?:HTTP \d{3}(?: \([a-z_]+\))?|schema preparation failed|request timed out|request transport failed|response status: (?:failed|incomplete|cancelled|queued|in_progress|unknown)(?: \((?:max_output_tokens|content_filter)\))?|declined this response|response was not valid JSON)/)?.[0] : undefined;
