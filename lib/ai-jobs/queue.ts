@@ -1,4 +1,4 @@
-import { aiSubjects } from '../ai-controls.ts';
+import { aiSubjectEnabled } from '../ai-controls.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
@@ -173,7 +173,7 @@ export async function enqueue(
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
-  if (input.subjectId && (await aiSubjects(db, bindings)).includes(input.subjectId) && saved.status === 'queued' &&
+  if (input.subjectId && await aiSubjectEnabled(db, bindings, input.subjectId) && saved.status === 'queued' &&
       (saved.trigger !== 'deferred' || input.purpose === 'submission' || input.purpose === 'recheck')) {
     await bindings.AI_QUEUE?.send({ jobId: saved.id }).catch(() => console.error('OpenAI dispatch unavailable; queued job retained.'));
   } else if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {

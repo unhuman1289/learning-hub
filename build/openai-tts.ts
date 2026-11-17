@@ -36,7 +36,7 @@ export async function speech(audio: AudioSpec, line: AudioSpec['lines'][number],
     const digest = await crypto.subtle.digest('SHA-256',bytes);
     const hash = Array.from(new Uint8Array(digest), x=>x.toString(16).padStart(2,'0')).join('');
     await db.prepare('INSERT OR IGNORE INTO ai_speech_calls(hash,openai_calls) VALUES(?,0)').bind(hash).run();
-    const count = await db.prepare("UPDATE ai_speech_calls SET openai_calls=openai_calls+1 WHERE hash=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM ai_jobs j JOIN ai_subject_controls c ON c.subject_id=j.subject_id WHERE j.id=? AND j.status='leased' AND c.openai_enabled=1 AND c.tts_enabled=1)").bind(hash,jobId).run();
+    const count = await db.prepare("UPDATE ai_speech_calls SET openai_calls=openai_calls+1 WHERE hash=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM ai_jobs j LEFT JOIN ai_subject_controls c ON c.subject_id=j.subject_id WHERE j.id=? AND j.status='leased' AND coalesce(c.openai_enabled,1)=1 AND coalesce(c.tts_enabled,1)=1)").bind(hash,jobId).run();
     if (!count.meta.changes) throw speechError('speech_call_limit');
   }
   let response;

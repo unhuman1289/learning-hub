@@ -13,7 +13,7 @@ runLocalD1(['execute', 'learning-hub', '--command', `
  SELECT id,1,0,'e2e-fixture','2026-01-01T00:00:00Z' FROM subjects WHERE id='sub_55555555555555555555';
  INSERT OR IGNORE INTO ai_control_initialization(id,initialized_at) VALUES(1,'2026-01-01T00:00:00Z');
 `]);
-process.env.E2E_AI_CONTROLS='1';
+if (process.env.E2E_TUTOR === '1') process.env.E2E_AI_CONTROLS='1';
 // The fixture starts with several open lessons. Give the fake runner room for one more.
 runLocalD1(['execute', 'learning-hub', '--command',
   "UPDATE learner_settings SET daily_target_minutes=120 WHERE user_id='demo-ech'"]);

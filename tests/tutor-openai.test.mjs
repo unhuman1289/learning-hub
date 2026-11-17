@@ -6,13 +6,13 @@ import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 import { openTutorTurn } from '../lib/tutor/service.ts';
 import { answerTutor, tutorEligible, TUTOR_BUSY } from '../lib/tutor/openai.ts';
 import { fakeTutorOpenAi } from '../lib/tutor/fake-openai.ts';
-import { consumeOpenAi } from '../build/openai-queue.ts';
+import { consumeOpenAi, redispatchOpenAi } from '../build/openai-queue.ts';
 const fixture=JSON.parse(readFileSync(new URL('../fixtures/contracts/lesson-v2/deutsch-modalverb.json',import.meta.url)));
 const subject='sub_aaaaaaaaaaaaaaaaaaaa';
 async function setup(t) {
   const db=memoryDb(); t.after(()=>db.sqlite.close());
   db.sqlite.exec(`INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES('u','Private Name','private@example.test',1,1,1,'learner','active');
-    INSERT INTO learner_settings(user_id,updated,role,display_name) VALUES('u','t','adult','Ếch');
+    INSERT INTO learner_settings(user_id,updated,role,display_name) VALUES('u','t','child','Ếch');
     INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('${subject}','u','Deutsch','skill','active','u','t','t');`);
   const lessonId=await insertLessonV2(db,{learnerId:'u',subjectId:subject,day:'2026-11-17',lesson:fixture});
   const env={OPENAI_ENABLED:'true',ENVIRONMENT:'staging',OPENAI_SUBJECT_IDS:subject,OPENAI_API_KEY:'fake'};
@@ -28,7 +28,7 @@ test('streamed Luna request sends only the current exercise and saves tokens bef
     request={url,...JSON.parse(options.body)}; return fakeTutorOpenAi();
   });
   assert.equal(result,'answered'); assert.equal(request.model,'gpt-6-luna'); assert.equal(request.stream,true); assert.equal(request.store,false);
-  assert.equal(request.input.includes('SECRET-OTHER'),false); assert.equal(request.input.includes('Private Name'),false);
+  assert.equal(request.input.includes('SECRET-OTHER'),false); assert.equal(request.input.includes('Private Name'),false); assert.equal(request.input.includes('private@example.test'),false);
   const input=JSON.parse(request.input); assert.equal(input.nickname,'Ếch'); assert.equal(input.draft,'draft'); assert.match(input.question,/email redacted/);
   assert.equal('key' in input,false); assert.equal('solution' in input,false);
   assert.deepEqual(events.map(x=>x.type),['turn','delta','delta','done']);
@@ -58,11 +58,11 @@ test('submission or admin disable while generating cannot write an answer',async
   assert.equal(events.includes('done'),false);
 });
 
-test('staging only permits adult profiles in the enabled notebooks',async t=>{
+test('staging permits children in enabled notebooks and respects the switch',async t=>{
   const {db,env,create}=await setup(t);const turn=await create();
   assert.equal(await tutorEligible(db,turn.id,env),true);
   db.sqlite.prepare("UPDATE learner_settings SET role='child'").run();
-  assert.equal(await tutorEligible(db,turn.id,env),false);
+  assert.equal(await tutorEligible(db,turn.id,env),true);
   assert.equal(await tutorEligible(db,turn.id,{...env,ENVIRONMENT:'local',APP_ENV:'local'}),true);
   db.sqlite.prepare("UPDATE learner_settings SET role='adult'").run();
   assert.equal(await tutorEligible(db,turn.id,{...env,OPENAI_ENABLED:'false'}),false);
@@ -112,4 +112,21 @@ test('replayed tutor deliveries stop after two actual calls',async t=>{
   for(const m of [first,second,third]) await consumeOpenAi({messages:[m]},{...env,DB:db},()=>'',fail,'prompt');
   assert.equal(calls,2);assert.equal(second.acked,true);assert.equal(third.acked,true);
   assert.deepEqual({...db.sqlite.prepare('SELECT status,openai_calls FROM tutor_turns WHERE id=?').get(turn.id)},{status:'failed',openai_calls:2});
+});
+
+test('queued child tutor turn is redispatched while its notebook is enabled',async t=>{
+  const {db,env,create}=await setup(t); const turn=await create(new Date('2026-11-17T10:00:00Z'));
+  const sent=[]; const dispatchEnv={...env,DB:db,AI_QUEUE:{send:async body=>sent.push(body)}};
+  await redispatchOpenAi(dispatchEnv,new Date('2026-11-17T10:03:00Z'));
+  assert.deepEqual(sent,[{tutorTurnId:turn.id}]);
+  db.sqlite.prepare("INSERT INTO ai_subject_controls(subject_id,openai_enabled,tts_enabled,updated_by,updated_at) VALUES(?,0,1,'admin','t')").run(subject);
+  sent.length=0; await redispatchOpenAi(dispatchEnv,new Date('2026-11-17T10:04:00Z'));
+  assert.deepEqual(sent,[]);
+});
+
+test('disabling notebook AI while a child receives an answer prevents saving',async t=>{
+  const {db,env,create}=await setup(t); const turn=await create();
+  const fetcher=async()=>{db.sqlite.prepare("INSERT INTO ai_subject_controls(subject_id,openai_enabled,tts_enabled,updated_by,updated_at) VALUES(?,0,1,'admin','t')").run(subject);return fakeTutorOpenAi();};
+  assert.equal(await answerTutor(db,env,turn.id,'',()=>{},fetcher),'ineligible');
+  assert.equal(db.sqlite.prepare('SELECT status FROM tutor_turns WHERE id=?').get(turn.id).status,'blocked');
 });

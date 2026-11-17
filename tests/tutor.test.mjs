@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import { setAiControls } from '../lib/ai-controls.ts';
 import { listFamily, setTutorEnabled } from '../lib/admin/family.ts';
 import { backupColumns, buildRestoreSql } from '../lib/backup-contract.mjs';
 import { lessonSummary } from '../lib/lesson-v2/summary.ts';
@@ -56,6 +57,12 @@ test('per-lesson limit, profile toggle and guardian history',async t=>{
  assert.equal((await history(guardian,'?learner=child')).status,200);await setTutorEnabled(db,'child',true);
  for(let n=0;n<20;n++) assert.match(await (await ask()).text(),/event: done/);
  assert.equal((await ask()).status,409);assert.equal((await lessonSummary(db,'child',lessonId)).tutorTurns.length,20);
+});
+test('child can ask by default and a disabled notebook returns 403',async t=>{
+ const {db,ask}=await setup(t);
+ assert.match(await (await ask()).text(),/event: done/);
+ await setAiControls(db,{OPENAI_ENABLED:'true'},subjectId,{openaiEnabled:false,ttsEnabled:true},'admin');
+ assert.equal((await ask()).status,403);
 });
 test('backup restores tutor turns with usage and older snapshots with defaults',async t=>{
  const {db,ask}=await setup(t);await (await ask()).text();

@@ -9,7 +9,7 @@ import { createDispute, escalateDispute, resolveDispute, listDisputes, listDispu
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
 import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
-import { aiSubjects } from '../lib/ai-controls.ts';
+import { aiSubjects, setAiControls } from '../lib/ai-controls.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { processJob } from '../integrations/home-runner/job.mjs';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
@@ -1303,7 +1303,7 @@ test('v3 planning requires runner support and does not write a new lesson after 
   }
 });
 
-test('a Deutsch notebook outside the TTS pilot saves its roadmap and places from text evidence', async () => {
+test('a Deutsch notebook with TTS disabled saves its roadmap and places from text evidence', async () => {
   const { db, lesson: openLesson } = await assigned();
   db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(openLesson);
   const notebook = await createSubject(db, learner, learner, parseSubjectInput({
@@ -1311,6 +1311,7 @@ test('a Deutsch notebook outside the TTS pilot saves its roadmap and places from
   }), now);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
   const bucket = { head: async () => null };
+  await setAiControls(db,{OPENAI_ENABLED:'true'},notebook.id,{openaiEnabled:true,ttsEnabled:false},'admin');
   const ttsSubjectIds = await aiSubjects(db, { OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', UPLOADS: bucket, OPENAI_API_KEY: 'fixture-key',
     OPENAI_SUBJECT_IDS: notebook.id + ',' + subject, OPENAI_TTS_SUBJECT_IDS: subject }, true);
   assert.deepEqual(ttsSubjectIds, [subject]);
@@ -1430,7 +1431,10 @@ test('staging OpenAI dispatch and claim are scoped to the selected notebook and 
   const scheduled = await enqueue(db, bindings, { learnerId: learner, subjectId: subject, kind: 'plan', purpose: 'daily' }, now);
   const other = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
   assert.deepEqual(sent, [{ jobId: scheduled.id }]);
-  const [legacy] = await leaseJobs(db, client, { ...input, excludeSubjectIds: [subject] }, 'staging', now);
+  const enabled = await aiSubjects(db, bindings);
+  assert.deepEqual(enabled, [subject]);
+  assert.deepEqual(await leaseJobs(db, client, { ...input, jobId: scheduled.id, excludeSubjectIds: enabled }, 'staging', now), []);
+  const [legacy] = await leaseJobs(db, client, { ...input, excludeSubjectIds: enabled }, 'staging', now);
   assert.equal(legacy.jobId, other.id);
   const [selected] = await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject], capabilities: ['lesson-v3', 'adaptive-plan'] }, 'staging', now);
   assert.equal(selected.jobId, scheduled.id);

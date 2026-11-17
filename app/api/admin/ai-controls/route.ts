@@ -14,8 +14,8 @@ async function access() {
 async function read() {
   const db=storage();
   await initializeAiControls(db,env);
-  const {results: controls=[]}=await db.prepare(`SELECT s.id,s.title,u.name AS learner_name,coalesce(c.openai_enabled,0) AS openai_enabled,
-    coalesce(c.tts_enabled,0) AS tts_enabled,c.updated_by,c.updated_at FROM subjects s JOIN user u ON u.id=s.learner_id
+  const {results: controls=[]}=await db.prepare(`SELECT s.id,s.title,u.name AS learner_name,coalesce(c.openai_enabled,1) AS openai_enabled,
+    coalesce(c.tts_enabled,1) AS tts_enabled,c.updated_by,c.updated_at FROM subjects s JOIN user u ON u.id=s.learner_id
     LEFT JOIN ai_subject_controls c ON c.subject_id=s.id WHERE s.status<>'archived' ORDER BY u.name,s.title,s.id`).all();
   const {results: log=[]}=await db.prepare('SELECT * FROM ai_control_log ORDER BY changed_at DESC,id DESC LIMIT 200').all();
   return {controls,log};
