@@ -10,7 +10,7 @@ const tutorConfig = {
     return {
       ...server,
       url: 'http://127.0.0.1:' + port + '/api/health',
-      env: { LEARNING_HUB_DEMO_PORT: String(port), LEARNING_HUB_DEMO_STATE: '.wrangler/e2e-tutor-' + port + '-' + process.pid },
+      env: { E2E_TUTOR: '1', LEARNING_HUB_DEMO_PORT: String(port), LEARNING_HUB_DEMO_STATE: '.wrangler/e2e-tutor-' + port + '-' + process.pid },
     };
   }),
   projects: config.projects.map((project, index) => ({

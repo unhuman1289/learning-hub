@@ -123,3 +123,10 @@ test('queued child tutor turn is redispatched while its notebook is enabled',asy
   sent.length=0; await redispatchOpenAi(dispatchEnv,new Date('2026-11-17T10:04:00Z'));
   assert.deepEqual(sent,[]);
 });
+
+test('disabling notebook AI while a child receives an answer prevents saving',async t=>{
+  const {db,env,create}=await setup(t); const turn=await create();
+  const fetcher=async()=>{db.sqlite.prepare("INSERT INTO ai_subject_controls(subject_id,openai_enabled,tts_enabled,updated_by,updated_at) VALUES(?,0,1,'admin','t')").run(subject);return fakeTutorOpenAi();};
+  assert.equal(await answerTutor(db,env,turn.id,'',()=>{},fetcher),'ineligible');
+  assert.equal(db.sqlite.prepare('SELECT status FROM tutor_turns WHERE id=?').get(turn.id).status,'blocked');
+});
