@@ -166,3 +166,16 @@ test('eligibility uses one read and respects the global and per-notebook AI swit
   statements=0;assert.equal(await tutorEligible(tracked,turn.id,env),false);assert.equal(statements,1);
   statements=0;assert.equal(await tutorEligible(tracked,turn.id,{...env,OPENAI_ENABLED:'false'}),false);assert.equal(statements,0);
 });
+
+test('answer filtering occurs before SSE and persistence, with a blocked event and flag', async t => {
+  const {db,env,create}=await setup(t); const turn=await create();
+  const item=JSON.parse(db.sqlite.prepare("SELECT payload FROM lesson_items WHERE item_id='i1'").get().payload);
+  item.key={type:'text',accepted:['Guten Tag'],caseSensitive:false}; item.solution='Guten Tag';
+  db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE item_id='i1'").run(JSON.stringify(item));
+  const entries=[{type:'response.output_text.delta',delta:'Hãy nghĩ nhé. GUTEN, '},{type:'response.output_text.delta',delta:'tag! Thử lại?'},{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:2}}}];
+  const fetcher=async()=>new Response(entries.map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''));
+  const events=[]; assert.equal(await answerTutor(db,env,turn.id,'',(type,data)=>events.push({type,data}),fetcher),'answered');
+  const row=db.sqlite.prepare('SELECT answer,leak_blocked FROM tutor_turns WHERE id=?').get(turn.id);
+  assert.equal(row.leak_blocked,1); assert.doesNotMatch(row.answer,/guten/i); assert.match(row.answer,/Chỗ này có đáp án/);
+  assert.ok(events.some(event=>event.type==='blocked')); assert.doesNotMatch(JSON.stringify(events),/guten/i);
+});

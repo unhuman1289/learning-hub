@@ -1,3 +1,4 @@
+import { answerFragments } from './leak.ts';
 import { safeText } from '../automation/privacy.ts';
 import { contextExcerpt } from '../knowledge/service.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
@@ -24,7 +25,7 @@ export async function tutorContext(db: EvidenceDb, id: string) {
   // Structured exercises need their visible fragments/options, but never keys or rubrics.
   const visibleFields = ['input','instructions','fragments','left','right','steps','image','description','marks','headers','rowLabels','language','starter','lines'];
   const details = Object.fromEntries(visibleFields.filter(key => item[key] !== undefined).map(key => [key, item[key]]));
-  return { learnerId: row.learner_id, context: {
+  return { learnerId: row.learner_id, answerFragments: answerFragments(item), context: {
     nickname: clean(row.display_name || 'Người học'), question: clean(row.question), prompt: clean(item.prompt),
     choices: (item.choices ?? []).map(choice => ({id:choice.id, text:clean(choice.text)})),
     details: clean(JSON.stringify(details)), draft: clean(draft[item.id]?.answer), knowledge: clean(JSON.stringify(knowledge)),

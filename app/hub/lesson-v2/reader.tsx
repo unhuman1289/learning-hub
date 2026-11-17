@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
+const Tutor = lazy(() => import("../lesson/tutor"));
 import { feedbackForItems } from "../../../lib/feedback-history";
 import { formatChemicalText, isChemistryNotebook } from "../../../lib/chemistry";
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
@@ -140,7 +141,7 @@ export function LessonReader({
           },
           nextSrc: nextAudio?.src?.[settings.voice],
         } : undefined;
-        return <LessonItem key={item.id} listening={listening} item={item} number={index} value={value} formatText={formatText}
+        return <div key={item.id}><LessonItem listening={listening} item={item} number={index} value={value} formatText={formatText}
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={playSaving || busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
@@ -153,7 +154,9 @@ export function LessonReader({
             <Feedback submission={current} items={[item]} onCodeLine={onCodeLine} readOnly={frozen} child={child}
               formatText={formatText} onRefresh={() => void session.refreshFeedback()} />
             <PreviousFeedback entries={previous} item={item} readOnly={frozen} formatText={formatText} />
-          </> : undefined} />;
+          </> : undefined} />
+          {!frozen && <Suspense fallback={null}><Tutor lessonId={id} itemId={item.id} number={index} child={child} /></Suspense>}
+        </div>;
       }} />
   </Book>;
 }
