@@ -16,7 +16,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   count: number;
   subject: string;
   materials: ReactNode;
-  page: (index: number, jump: (index: number) => void) => ReactNode;
+  page: (index: number, jump: (index: number) => void, active: boolean) => ReactNode;
   status: string;
   locked: boolean;
   /** Show "Chạm mép giấy để lật" until the learner first turns a page. */
@@ -183,7 +183,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
           {materials}
         </>}
         <div className="lesson-flow-questions">
-          {current.map(number => <div key={number} className="min-w-0">{page(number, jump)}</div>)}
+          {current.map(number => <div key={number} className="min-w-0">{page(number, jump, true)}</div>)}
         </div>
         {hint && !end && <p className="lesson-flow-hint font-hand">Chạm mép giấy để lật</p>}
         {status && <p role="status" className="mt-5 border-t border-rule pt-2 text-sm text-muted-paper">{status}</p>}

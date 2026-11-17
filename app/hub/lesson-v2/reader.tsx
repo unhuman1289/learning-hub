@@ -81,7 +81,7 @@ export function LessonReader({
     {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
     {hasListening && <ListeningBrowserNotice />}
     <LessonFlow initialItem={initialItem} groups={lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
-      locked={busy || !!pending} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump) => {
+      locked={busy || !!pending} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump, active) => {
         if (index === 0) return <>
           <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
           <p className="mt-3">{lesson.objective}</p>
@@ -140,7 +140,7 @@ export function LessonReader({
           },
           nextSrc: nextAudio?.src?.[settings.voice],
         } : undefined;
-        return <LessonItem key={item.id} listening={listening} item={item} number={index} value={value} formatText={formatText}
+        return <LessonItem key={item.id} active={active} listening={listening} item={item} number={index} value={value} formatText={formatText}
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={playSaving || busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
