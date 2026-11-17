@@ -16,7 +16,8 @@ export async function tutorEligible(db:EvidenceDb, id:string, env:Bindings) {
     LEFT JOIN learner_settings s ON s.user_id=t.learner_id WHERE t.id=?`).bind(id)
     .first<{subject_id:string;role:string;completed_at:string|null;enabled:number;flag:string|null}>();
   if (!row || row.completed_at || !row.enabled || row.flag === 'item_void') return false;
-  return (row.role === 'adult' || env.ENVIRONMENT === 'local' && env.APP_ENV === 'local') && (await aiSubjects(db, env)).includes(row.subject_id);
+  // Children are included (owner decision 17/11/2026); they are sent by nickname only and guardians read every turn.
+  return (await aiSubjects(db, env)).includes(row.subject_id);
 }
 
 export async function dispatchTutor(env:Bindings, id:string) {
