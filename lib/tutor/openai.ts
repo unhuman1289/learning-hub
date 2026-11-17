@@ -1,4 +1,4 @@
-import { aiSubjects } from '../ai-controls.ts';
+import { aiSubjectEnabled } from '../ai-controls.ts';
 import { tutorAnswer } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { tutorContext } from './context.ts';
@@ -17,7 +17,7 @@ export async function tutorEligible(db:EvidenceDb, id:string, env:Bindings) {
     .first<{subject_id:string;role:string;completed_at:string|null;enabled:number;flag:string|null}>();
   if (!row || row.completed_at || !row.enabled || row.flag === 'item_void') return false;
   // Children are included (owner decision 17/11/2026); they are sent by nickname only and guardians read every turn.
-  return (await aiSubjects(db, env)).includes(row.subject_id);
+  return aiSubjectEnabled(db, env, row.subject_id);
 }
 
 export async function dispatchTutor(env:Bindings, id:string) {

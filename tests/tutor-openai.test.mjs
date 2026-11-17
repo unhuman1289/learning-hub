@@ -6,7 +6,7 @@ import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 import { openTutorTurn } from '../lib/tutor/service.ts';
 import { answerTutor, tutorEligible, TUTOR_BUSY } from '../lib/tutor/openai.ts';
 import { fakeTutorOpenAi } from '../lib/tutor/fake-openai.ts';
-import { consumeOpenAi } from '../build/openai-queue.ts';
+import { consumeOpenAi, redispatchOpenAi } from '../build/openai-queue.ts';
 const fixture=JSON.parse(readFileSync(new URL('../fixtures/contracts/lesson-v2/deutsch-modalverb.json',import.meta.url)));
 const subject='sub_aaaaaaaaaaaaaaaaaaaa';
 async function setup(t) {
@@ -112,4 +112,14 @@ test('replayed tutor deliveries stop after two actual calls',async t=>{
   for(const m of [first,second,third]) await consumeOpenAi({messages:[m]},{...env,DB:db},()=>'',fail,'prompt');
   assert.equal(calls,2);assert.equal(second.acked,true);assert.equal(third.acked,true);
   assert.deepEqual({...db.sqlite.prepare('SELECT status,openai_calls FROM tutor_turns WHERE id=?').get(turn.id)},{status:'failed',openai_calls:2});
+});
+
+test('queued child tutor turn is redispatched while its notebook is enabled',async t=>{
+  const {db,env,create}=await setup(t); const turn=await create(new Date('2026-11-17T10:00:00Z'));
+  const sent=[]; const dispatchEnv={...env,DB:db,AI_QUEUE:{send:async body=>sent.push(body)}};
+  await redispatchOpenAi(dispatchEnv,new Date('2026-11-17T10:03:00Z'));
+  assert.deepEqual(sent,[{tutorTurnId:turn.id}]);
+  db.sqlite.prepare("INSERT INTO ai_subject_controls(subject_id,openai_enabled,tts_enabled,updated_by,updated_at) VALUES(?,0,1,'admin','t')").run(subject);
+  sent.length=0; await redispatchOpenAi(dispatchEnv,new Date('2026-11-17T10:04:00Z'));
+  assert.deepEqual(sent,[]);
 });
