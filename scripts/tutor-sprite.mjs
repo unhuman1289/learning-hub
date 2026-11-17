@@ -1,5 +1,5 @@
 // Requires ImageMagick and cwebp. Input stays outside Git; output defaults to ignored private-data/.
-import { readFile, mkdir, stat } from 'node:fs/promises';
+import { readFile, mkdir, stat, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 const [source, output = 'private-data/tutor-sprite/rows'] = process.argv.slice(2);
@@ -22,3 +22,5 @@ for (const {row, name, frames} of manifest.rows) {
   if (size > 40_000) throw new Error(`${name} exceeds 40 KB: ${size}`);
   console.log(`${name}: ${size} bytes`);
 }
+
+await writeFile(join(output, 'manifest.json'), JSON.stringify({cell: [96, 104], rows: manifest.rows}, null, 2) + '\n');

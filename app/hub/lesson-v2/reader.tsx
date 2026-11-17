@@ -43,6 +43,7 @@ export function LessonReader({
   const settings = useListeningSettings(ownerId, hasListening && !readonly);
   const [listeningPlays, setListeningPlays] = useState<Record<string, number>>({});
   const [savingPlays, setSavingPlays] = useState<string[]>([]);
+  const [checkIntent, setCheckIntent] = useState<{ itemId: string; previousId: string | undefined }>();
   if (!lesson) return <p role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">{error || "Đang mở bài…"}</p>;
 
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;
@@ -145,7 +146,7 @@ export function LessonReader({
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={playSaving || busy || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={frozen}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
-          onSubmit={() => void session.submit(item.id)} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
+          onSubmit={() => { setCheckIntent({itemId: item.id, previousId: current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
           gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :
@@ -155,7 +156,7 @@ export function LessonReader({
               formatText={formatText} onRefresh={() => void session.refreshFeedback()} />
             <PreviousFeedback entries={previous} item={item} readOnly={frozen} formatText={formatText} />
           </> : undefined} />
-          {!frozen && <Suspense fallback={null}><Tutor lessonId={id} itemId={item.id} number={index} child={child} /></Suspense>}
+          {!frozen && <Suspense fallback={null}><Tutor lessonId={id} itemId={item.id} number={index} child={child} correctCheck={checkIntent?.itemId === item.id && current?.id !== checkIntent.previousId && latest?.result === "correct" ? current?.id : undefined} /></Suspense>}
         </div>;
       }} />
   </Book>;

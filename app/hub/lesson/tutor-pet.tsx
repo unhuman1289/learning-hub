@@ -24,7 +24,7 @@ function PetImage({state}: {state:TutorPetState}) {
   return <span aria-hidden="true" data-pet-state={state} data-pet-row={name} className="tutor-pet">
     <span className="tutor-pet-fallback" hidden={!failed}>☺</span>
     {!failed && <span className="tutor-pet-window"><img key={name} alt="" src={`/api/tutor/sprite/${name}.webp`} style={style}
-      className={`tutor-pet-strip ${state === 'offline' ? 'tutor-pet-offline' : ''} ${state === 'cheer' || state === 'nod' || (state === 'blocked' && !covered) ? 'tutor-pet-once' : ''}`}
+      className={`tutor-pet-strip ${state === 'offline' ? 'tutor-pet-offline' : ''} ${state === 'cheer' || state === 'nod' || state === 'greet' || state === 'point' || (state === 'blocked' && !covered) ? 'tutor-pet-once' : ''}`}
       onError={()=>setFailed(true)} onAnimationEnd={()=>{if(state === 'blocked' && !covered) setCovered(true);}} /></span>}
   </span>;
 }
