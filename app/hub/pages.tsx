@@ -11,6 +11,7 @@ import RunStatus from "../run-status";
 import { ImportPanel } from "./lesson-v2/import-panel";
 import { AiJobsPanel } from "./ai-jobs-panel";
 import { AdminAttention, AdminGradingQuality, type ReadLearnerNames } from "./admin-disputes";
+import { AiControls } from "./ai-controls";
 import { FamilyAdmin } from "./family-admin";
 import { PerfTable } from "./perf-table";
 import { buttonClass } from "./ui";
@@ -19,7 +20,7 @@ import type { LearnerSummary } from "../../lib/learners/list";
 import type { DailyApi } from "./use-daily";
 import type { WorkspaceApi } from "./use-workspace";
 
-const sections = { attention: "Cần xem", family: "Gia đình", knowledge: "Knowledge", system: "Hệ thống" } as const;
+const sections = { attention: "Cần xem", family: "Gia đình", books: "Sổ", knowledge: "Knowledge", system: "Hệ thống" } as const;
 type Section = keyof typeof sections;
 
 export function AdminView({ daily, workspace, hub2 = false, profileMode = false }: {
@@ -63,7 +64,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
     setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
   }
 
-  const visibleSections: Section[] = hub2 ? ["attention", "family", "knowledge", "system"] : ["family", "system"];
+  const visibleSections: Section[] = hub2 ? ["attention", "family", "books", "knowledge", "system"] : ["family", "system"];
   return (
     <div className="admin-notebook mx-auto w-full max-w-4xl">
       <h1 className="mb-4 font-print text-4xl font-medium">Quản trị</h1>
@@ -86,6 +87,8 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
             <FamilyAdmin />
             {hub2 && <AdminDetails title="Nhập bài đã duyệt"><ImportPanel /></AdminDetails>}
           </div>}
+
+          {hub2 && opened.has("books") && <div hidden={selection !== "books"}><AiControls /></div>}
 
           {hub2 && opened.has("knowledge") && <div hidden={selection !== "knowledge"}>
             <KnowledgePanel />
