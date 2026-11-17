@@ -69,6 +69,10 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
       ...(item.input === 'code' ? { language: item.language, starter: safeText(item.starter, sensitivity) } : {}),
       skills: JSON.parse(String(a.skill_ids)),
       prompt: safeText(item.prompt, sensitivity),
+      ...(dispute ? Object.fromEntries(['choices', 'left', 'right', 'steps'].flatMap(field =>
+        Array.isArray(item[field]) ? [[field, item[field].map((option: { id: string; text: string }) => ({
+          id: option.id, text: safeText(option.text, sensitivity),
+        }))]] : [])) : {}),
       rubric: item.rubric ?? null,
       solution: safeText(item.solution, sensitivity),
       key: item.key ?? null,
@@ -107,7 +111,7 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
     jobId: job.id,
     purpose: job.purpose,
     contextHash: 'sha256:' + '0'.repeat(64),
-    learner: learner.public,
+    learner: dispute ? { role: learner.public.role, explainLanguage: learner.public.explainLanguage } : learner.public,
     subject: {
       subjectId: subject.id,
       title: safeText(subject.title, sensitivity),
@@ -145,13 +149,18 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
     calibration: calibration.map((x) => ({ ...x, note: safeText(x.note, sensitivity) })),
     truncated: [],
   };
+  // Rechecks do not send profile identity, including a profile name repeated in free text.
+  const displayName = learner.public.displayName;
+  const namePattern = dispute && displayName && displayName !== 'Người học'
+    ? new RegExp(`(?<![\\p{L}\\p{N}])${displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'gu')
+    : null;
   const clean = (v: unknown): unknown =>
     Array.isArray(v)
       ? v.map(clean)
       : v && typeof v === 'object'
         ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)]))
         : typeof v === 'string'
-          ? v.replaceAll(job.learner_id, '[id riêng]')
+          ? (namePattern ? v.replaceAll(job.learner_id, '[id riêng]').replace(namePattern, '[người học]') : v.replaceAll(job.learner_id, '[id riêng]'))
           : v;
   const safe = clean(context) as Record<string, unknown>,
     truncated = safe.truncated as string[];

@@ -528,7 +528,15 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     const generatedSchema = generationSchema(lease.kind, context, contract.json);
     const openAiWholeLesson = qwen.name === 'openai' && lease.kind === 'plan' && !context.adaptive?.listening?.max;
     const schema = openAiWholeLesson ? wholeLessonSchema(generatedSchema) : generatedSchema;
-    const promptContext = lease.kind === 'plan' ? compactPlanContext(context, PLAN_CONTEXT_BYTES, entry => log({ jobId: lease.jobId, ...entry })) : context;
+    let promptContext = lease.kind === 'plan' ? compactPlanContext(context, PLAN_CONTEXT_BYTES, entry => log({ jobId: lease.jobId, ...entry })) : context;
+    if (context.purpose === 'recheck') {
+      const { role, explainLanguage, displayName, ref } = context.learner;
+      const name = displayName && displayName !== 'Người học' ? new RegExp(`(?<![\\p{L}\\p{N}])${displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'gu') : null;
+      const redact = value => Array.isArray(value) ? value.map(redact) : value && typeof value === 'object'
+        ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redact(entry)]))
+        : typeof value === 'string' ? (name ? value.replaceAll(ref ?? '\u0000', '[id riêng]').replace(name, '[người học]') : value.replaceAll(ref ?? '\u0000', '[id riêng]')) : value;
+      promptContext = redact({ ...context, learner: { role, explainLanguage } });
+    }
     if(context.roadmapProtocol===2&&context.purpose==='request'){
       // Keep the learning evidence, but avoid giving the model old exercises to imitate.
       for(const subject of promptContext.subjects)
@@ -540,7 +548,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let retryable = true;
     let draft;
     if (qwen.name === 'openai') {
-      promptContext.learner = { ...promptContext.learner, displayName: 'Người học', personalPrompt: '' };
+      if (context.purpose !== 'recheck') promptContext.learner = { ...promptContext.learner, displayName: 'Người học', personalPrompt: '' };
       for (const attempt of promptContext.attempts ?? []) attempt.previousAttempts = [];
       if (promptContext.recentEvidence) promptContext.recentEvidence = [];
     }
