@@ -23,6 +23,7 @@
 | 17/11 | Nghiệm thu L6 bằng hai máy thật; bỏ đo `audio_play` | L xong, trừ L7 |
 | 17/11 | **Không thử ở Việt Nam** vì không có điều kiện | Ngân sách tốc độ (HUB-NEXT mục 4.2) giữ làm chuẩn, nhưng đo bằng mạng 4G giả lập trong CI và máy thật ở Đức. Không chờ số liệu từ Việt Nam |
 | 17/11 | Claude lập plan và điều phối | Chat Codex Planning thôi sửa plan. Mục 12 |
+| 17/11 | **OpenAI và TTS mặc định bật cho mọi sổ trên staging, kể cả trẻ em.** Quản trị → Sổ tắt được từng sổ. Trẻ em chỉ gửi biệt danh, giám hộ đọc được mọi lời AI | Giải quyết quyết định 11.2. T4 và G5 không còn chờ. Bỏ chép danh sách cũ từ secret |
 | 17/11 | Claude được gộp PR vào `codex/hub-next-wip` và deploy staging khi CI đạt và bước nằm trong plan này | Production, xoá dữ liệu và đổi quyền vẫn cần chủ dự án |
 
 **Luật chung (giữ từ bản 1):**
@@ -389,7 +390,6 @@ Sau khi các đợt 1–4 đạt. Đây là phác thảo. Kế hoạch chi tiế
 
 | # | Khi | Câu hỏi | Claude khuyên |
 |---|---|---|---|
-| 2 | Trước T4, G5 | Cho phép gửi văn bản và ảnh của **trẻ em** tới OpenAI (gia sư, chấm câu mở, chấm ảnh), với biệt danh và giám hộ đọc được | Quyết sau khi đọc chính sách dữ liệu API của OpenAI cho project. Đến lúc đó chỉ bật cho người lớn |
 | 3 | R0 | Production dùng OpenAI cho mọi luồng AI và tắt runner Qwen trên Mac | Có, vì staging đã chạy và nghiệm thu theo OpenAI |
 | 4 | R0 | Hạn mức chi tiêu OpenAI mỗi tháng cho production | Chủ dự án đặt con số, Claude ước từ số token của G3, T4, F0 |
 | 5 | F0 | Cấp quyền Workers Observability cho token Cloudflare dùng khi đo (API truy vấn telemetry yêu cầu quyền Write) | Cần cho số đo CPU từng route. Có thể bỏ qua: thời gian server đã đo được |
