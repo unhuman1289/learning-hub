@@ -18,7 +18,7 @@ GitHub Actions chạy lại sau khi chủ dự án lên GitHub Pro (17/11). Repo
 
 Khung staging H1 đã đóng lúc 12:32 Europe/Berlin ngày 17/11.
 
-staging: deploy A1 (#188) với migration `0033`, đến 15:00 Europe/Berlin
+Khung staging A1 đã đóng lúc 13:48 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -26,7 +26,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `ac6804676612aee0e6ece4870e35b386d016e65d` | Deploy 17/11 lúc 12:32 Berlin sau khi gộp H1 [#184](https://github.com/unhuman1289/learning-hub/pull/184) và [#185](https://github.com/unhuman1289/learning-hub/pull/185). **Cổng gia đình bật** (mật khẩu chung, hồ sơ, PIN), giới hạn 10 lần nhập mật khẩu mỗi phút mỗi IP, không còn đăng ký email. Smoke household đạt: cổng 200, sai mật khẩu 401, API riêng 401, đăng ký 404, automation 403, MCP 401. Hub và MCP cùng SHA. |
+| Staging | `5c68c077c18ba3fc75edd0476fa23e768bd918df` | Deploy 17/11 lúc 13:48 Berlin sau khi gộp A1 [#188](https://github.com/unhuman1289/learning-hub/pull/188). Đã sao lưu D1, áp `0033_ai_controls.sql`. Cổng gia đình bật, smoke household đạt, Hub và MCP cùng SHA. Bảng `ai_subject_controls` còn trống; Worker chép từ secret cũ ở lần đọc đầu. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -54,6 +54,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | G | G1, G2 trên staging cho bài văn bản. G4 [#176](https://github.com/unhuman1289/learning-hub/pull/176) trên staging: lần chấm lại có hiệu lực, hai lần chấm hiện trong Cần xem và sổ giám hộ, có tỉ lệ đổi điểm 7 ngày. | G4 còn nghiệm thu một ca đổi điểm trên QA H5 Deutsch. Còn G3 (`0033`), G5. |
 | T | T1 (`0032`) và T2 [#179](https://github.com/unhuman1289/learning-hub/pull/179) (`0034`) trên staging: Worker gọi Luna stream SSE, lượt lỗi hoặc quá 10 s vào Queue, trần 60 lượt/ngày, ghi token và `first_token_ms`. Chỉ bật cho hồ sơ người lớn trên sổ đã bật OpenAI. #175 đã đóng. | T2 còn một lượt thật đo chữ đầu < 2 s. Tiếp T3 chặn lộ đáp án và giao diện Hỏi, T4 nghiệm thu. |
 | K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2/K3 bỏ trên staging (17/11). [Hướng dẫn K2](status/K2.md) dùng lại ở bước R. |
+| A1 điều khiển AI | [#188](https://github.com/unhuman1289/learning-hub/pull/188) trên staging: cờ OpenAI/TTS theo sổ chỉ quản trị sửa, nhật ký, trần 2 lời gọi mỗi job, lượt gia sư và tệp Speech | Chủ dự án bật AI và TTS cho sổ QA L4 trong Quản trị. Sau đó chạy lại nghiệm thu G4, L7, T2 |
 | L7 | [#178](https://github.com/unhuman1289/learning-hub/pull/178) trên staging: Speech API trả AAC (ADTS), lưu nguyên tệp nén. Fixture: AAC 9.551 B so với WAV 60.266 B | Nghiệm thu bằng một bài Terra mới trên QA L4: 4 tệp AAC trả 206, kích thước thật, nghe trên iPhone |
 | H1 cổng gia đình | Lên staging 17/11. Hồ sơ cũ giữ lại: quản trị unhuman, QA H5 (và other), QA Cổng Q, PHONE-CHECK | Chủ dự án đặt PIN quản lý và tạo hồ sơ giống production |
 | D giao bài 00:00 | Chưa có biên bản đọc lại id bài với OpenAI | Claude đọc D1 staging sau một lượt 00:00 Berlin |
