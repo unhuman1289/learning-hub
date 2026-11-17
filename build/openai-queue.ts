@@ -14,7 +14,7 @@ const client: AutomationClient = {
   id: 'openai-staging',
   keySha256: '',
   accessClientId: '',
-  scopes: ['jobs:plan', 'jobs:assess'],
+  scopes: ['jobs:plan', 'jobs:assess', 'attachments:read'],
   purposes: ['initial', 'daily', 'request', 'submission', 'recheck'],
   triggers: ['on_demand', 'scheduled', 'deferred'],
 };
@@ -107,8 +107,8 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
     try {
       const tts = job.kind === 'plan' && ttsSubjectIds.includes(job.subject_id);
       const [lease] = await leaseJobs(db, client, {
-        kinds: [job.kind], subjectIds: [job.subject_id], jobId: id, textOnly: true, max: 1,
-        capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(tts ? ['tts'] : [])],
+        kinds: [job.kind], subjectIds: [job.subject_id], jobId: id, max: 1,
+        capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', 'vision', ...(tts ? ['tts'] : [])],
         ...(tts ? { ttsVoices: openAiGermanVoices } : {}),
         runner: { name: 'openai-staging', version: '1', model: 'openai' },
       }, 'staging');
@@ -126,13 +126,40 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       const logAudioFailure = (event: string, details: object) => console.warn(JSON.stringify({
         component: 'openai-queue-tts', jobId: id, leaseCount: active.lease_count, event, ...details,
       }));
-      const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher, beforeFetch: async () => {
+      const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher, allowVision: true, beforeFetch: async () => {
         const counted = await db.prepare(`UPDATE ai_jobs SET openai_calls=openai_calls+1 WHERE id=? AND openai_calls<2
           AND status='leased' AND lease_token_sha256=? AND NOT EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id AND openai_enabled=0)`)
           .bind(id, active.lease_token_sha256).run();
         if (!counted.meta.changes) throw new Error('Đã hết giới hạn 2 lần gọi hoặc quyền sử dụng đã thay đổi.');
       } });
+      const snapshot = JSON.parse(active.context_snapshot!);
+      const identity = await db.prepare('SELECT name FROM user WHERE id=?').bind(job.learner_id).first<{name:string}>();
+      engine.privateNames = [job.learner_id, identity?.name].filter((name): name is string => !!name);
+      const photos = (snapshot.attempts ?? []).flatMap((a: {attachments: {attachmentId: string; expired: boolean}[]}) => a.attachments);
+      let photoError: string | null = null;
+      const photoData = new Map<string, {mime: string; base64: string}>();
+      let totalBytes = 0;
+      for (const photo of photos) {
+        const row = await db.prepare('SELECT r2_key,mime,bytes FROM attachments WHERE id=? AND learner_id=? AND deleted_at IS NULL AND expires_at>?').bind(photo.attachmentId, job.learner_id, new Date().toISOString()).first<{r2_key:string;mime:string;bytes:number}>();
+        if (photo.expired || !row || !bucket) { photoError = 'Ảnh đã bị xoá hoặc hết hạn; không thể chấm bài.'; break; }
+        if (row.bytes > 3000000 || !['image/jpeg','image/png','image/webp'].includes(row.mime)) { photoError = 'Ảnh quá lớn hoặc định dạng không được hỗ trợ; không thể chấm bài.'; break; }
+        const object = await bucket.get(row.r2_key);
+        if (!object) { photoError = 'Ảnh đã bị xoá hoặc không còn trong kho; không thể chấm bài.'; break; }
+        if (object.size > 3000000) { photoError = 'Ảnh quá lớn; không thể chấm bài.'; break; }
+        const bytes = new Uint8Array(await object.arrayBuffer());
+        if (!bytes.length || bytes.length > 3000000) { photoError = 'Ảnh rỗng hoặc quá lớn; không thể chấm bài.'; break; }
+        totalBytes += bytes.length;
+        if (totalBytes > 8000000) { photoError = 'Tổng kích thước ảnh vượt 8 MB; không thể chấm bài.'; break; }
+        let binary = ''; for (let i = 0; i < bytes.length; i += 8192) binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+        photoData.set(photo.attachmentId, {mime: row.mime, base64: btoa(binary)});
+      }
+      if (photoError) {
+        await failLeasedJob(db, active, false);
+        await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed'").bind(photoError, id).run();
+        message.ack(); continue;
+      }
       const processed = await processJob({
+        attachment: async (_lease: unknown, attachmentId: string) => { const image = photoData.get(attachmentId); if (!image) throw new Error('Ảnh đã hết hạn.'); return image; },
         context: async () => JSON.parse(active.context_snapshot!),
         heartbeat: async () => heartbeat(db, client, id, token),
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
@@ -225,7 +252,6 @@ export async function redispatchOpenAi(env: Cloudflare.Env, now: Date) {
       AND expires_at>? AND updated_at<=?
       AND (status='queued' OR (status='leased' AND lease_client_id=? AND lease_expires_at<=?))
       AND (trigger<>'deferred' OR purpose IN ('submission','recheck'))
-      AND needs_vision=0
       ORDER BY priority DESC, created_at, id LIMIT 10`,
   ).bind(JSON.stringify(subjectIds), now.toISOString(), new Date(now.getTime() - 120000).toISOString(),
     client.id, now.toISOString()).all<{ id: string }>();

@@ -1500,3 +1500,56 @@ test('staging OpenAI dispatch and claim are scoped to the selected notebook and 
   assert.equal(selected.jobId, scheduled.id);
   assert.deepEqual(await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject] }, 'staging', now), []);
 });
+
+test('Queue sends a child photo as private image data and stops if the photo is gone or the notebook is disabled', async t => {
+  const { consumeOpenAi } = await import('../build/openai-queue.ts');
+  for (const mode of ['child', 'deleted', 'disabled', 'limit']) {
+    const {db, lesson} = await assigned();
+    t.after(() => db.sqlite.close());
+    db.sqlite.prepare("UPDATE learner_settings SET role='child',display_name='Học thử' WHERE user_id=?").run(learner);
+    const photo='img_aaaaaaaaaaaaaaaaaaaa';
+    db.sqlite.prepare(`INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at,deleted_at)
+      VALUES(?,?,'private-key','image/png',4,2,2,?,'2026-10-01','2099-01-01',?)`).run(photo,learner,'0'.repeat(64),null);
+    db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload,'$.attachment','optional') WHERE lesson_id=? AND item_id='i3'").run(lesson);
+    await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'',attachmentIds:[photo]}}},now);
+    const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+    if (mode==='deleted') db.sqlite.prepare("UPDATE attachments SET deleted_at='2026-11-01' WHERE id=?").run(photo);
+    const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}},UPLOADS:{get:async()=>({size:4,arrayBuffer:async()=>new Uint8Array([1,2,3,4]).buffer})}};
+    if(mode==='disabled') await setAiControls(db,env,subject,{openaiEnabled:false,ttsEnabled:true},'admin');
+    const job=await queueSubmission(db,env,learner,sub.id,new Date());
+    let calls=0,acks=0,captured;
+    const batch={messages:[{body:{jobId:job.id},ack:()=>acks++,retry:()=>assert.fail('unexpected retry')}]};
+    await consumeOpenAi(batch,env,()=> 'fixture',async (_url,request)=>{
+      calls++;
+      captured=JSON.parse(request.body);
+      if (mode==='limit') return Response.json({error:{}},{status:503});
+      const context=JSON.parse(captured.input[0].content[0].text.split('\n')[2]);
+      const a=context.attempts[0];
+      const result={contract:'assess-result/1',contextHash:context.contextHash,summary:'Chấm bài thử',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Xem lại cách chia động từ.',correction:'',errors:[{skillId:a.skills[0],label:'Lỗi thử',category:'application',evidence:'Paul mögen'}],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null,usage:{model:'fake',inputTokens:0,outputTokens:0,ms:0}};
+      return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+    });
+    if (captured) {
+      const body=captured, content=body.input[0].content;
+      assert.equal(body.model,'gpt-6-luna');
+      assert.equal(content[1].image_url,'data:image/png;base64,AQIDBA==');
+      assert(!JSON.stringify(body).includes(learner));
+      assert(!JSON.stringify(body).includes('Test adult'));
+      assert(!JSON.stringify(body).includes('Học thử'));
+      assert(!JSON.stringify(body).includes('/api/automation'));
+      assert.match(content[0].text,/Người học/);
+    }
+    assert.equal(acks,1);
+    assert.equal(calls,mode==='child'?1:mode==='limit'?2:0);
+    if(mode==='limit') assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').get(job.id).openai_calls,2);
+    const saved=await readJob(db,job.id);
+    if(mode==='child') {
+      assert.equal(saved.status,'succeeded',saved.error);
+      const [feedback]=await readLessonSubmissions(db,learner,lesson);
+      assert.match(feedback.attempts[0].feedback,/chưa đối chiếu được với bài viết tay/);
+      const grade=db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(JSON.parse(saved.outcome).gradeIds[0]);
+      assert.equal(JSON.parse(grade.errors)[0].unverified,true);
+    }
+    if(mode==='deleted') { assert.equal(saved.status,'failed'); assert.match(saved.error,/xoá|hết hạn/); }
+    if(mode==='disabled') assert.equal(saved.status,'queued');
+  }
+});

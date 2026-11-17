@@ -506,7 +506,7 @@ function wholeLessonSchema(schema) {
 
 export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt, renderAudio, prepareAudio } = {}) {
   const context = await hub.context(lease);
-  if (qwen.name === 'openai' && (
+  if (qwen.name === 'openai' && !qwen.queueVision && (
     context.learner?.role !== 'adult' ||
     (context.subjects ?? [context.subject]).some(subject => subject?.sensitivity !== 'normal') ||
     (context.attempts ?? []).some(attempt => attempt.attachments?.length)
@@ -528,14 +528,20 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     const generatedSchema = generationSchema(lease.kind, context, contract.json);
     const openAiWholeLesson = qwen.name === 'openai' && lease.kind === 'plan' && !context.adaptive?.listening?.max;
     const schema = openAiWholeLesson ? wholeLessonSchema(generatedSchema) : generatedSchema;
-    let promptContext = lease.kind === 'plan' ? compactPlanContext(context, PLAN_CONTEXT_BYTES, entry => log({ jobId: lease.jobId, ...entry })) : context;
+    let promptContext = lease.kind === 'plan' ? compactPlanContext(context, PLAN_CONTEXT_BYTES, entry => log({ jobId: lease.jobId, ...entry })) : structuredClone(context);
+    if (qwen.queueVision) {
+      const { displayName, ref } = context.learner;
+      const names = [displayName, ...(qwen.privateNames ?? [])].filter(n => n && n !== 'Người học');
+      const clean = value => Array.isArray(value) ? value.map(clean) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'url').map(([key, entry]) => [key, clean(entry)])) : typeof value === 'string' ? names.reduce((text, n) => text.replaceAll(n, '[người học]'), value.replaceAll(ref ?? '\u0000', '[id riêng]')) : value;
+      promptContext = clean(promptContext);
+    }
     if (context.purpose === 'recheck') {
       const { role, explainLanguage, displayName, ref } = context.learner;
       const name = displayName && displayName !== 'Người học' ? new RegExp(`(?<![\\p{L}\\p{N}])${displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'gu') : null;
       const redact = value => Array.isArray(value) ? value.map(redact) : value && typeof value === 'object'
         ? Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, redact(entry)]))
         : typeof value === 'string' ? (name ? value.replaceAll(ref ?? '\u0000', '[id riêng]').replace(name, '[người học]') : value.replaceAll(ref ?? '\u0000', '[id riêng]')) : value;
-      promptContext = redact({ ...context, learner: { role, explainLanguage } });
+      promptContext = redact({ ...promptContext, learner: { role, explainLanguage } });
     }
     if(context.roadmapProtocol===2&&context.purpose==='request'){
       // Keep the learning evidence, but avoid giving the model old exercises to imitate.
