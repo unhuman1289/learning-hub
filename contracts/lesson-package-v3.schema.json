@@ -2435,6 +2435,10 @@
           }
         ]
       }
+    },
+    "gradingMode": {
+      "type": "string",
+      "const": "whole-lesson"
     }
   },
   "required": [

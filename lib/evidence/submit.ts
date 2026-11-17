@@ -116,14 +116,19 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   const [lesson, rate, { results: all = [] }, { results: latest = [] }] = await Promise.all([
     db
     .prepare(
-      `SELECT l.subject_id,l.draft,l.draft_revision,l.support,l.kind,l.completed_at,s.sensitivity FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version IN ('2','3')`,
+      `SELECT l.subject_id,l.payload,l.draft,l.draft_revision,l.support,l.listen_log,l.kind,l.completed_at,s.sensitivity,
+        (SELECT json_type(preferences,'$.replaceAudioWithText') FROM learner_settings WHERE user_id=l.user_id) AS text_preference
+        FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.package_version IN ('2','3')`,
     )
     .bind(lessonId, learnerId)
     .first<{
       subject_id: string;
+      payload: string;
       draft: string;
       draft_revision: number;
       support: string;
+      listen_log: string;
+      text_preference: string | null;
       kind: string;
       completed_at: string | null;
       sensitivity: 'normal' | 'clinical' | 'child_dev';
@@ -138,23 +143,37 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     .all<{ item_id: string; stage: string; payload: string; skill_ids: string; activity: string }>(),
     db
     .prepare(
-      `SELECT a.item_id,a.id,a.attempt_no,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.status,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
        WHERE a.lesson_id=? AND a.learner_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
     )
     .bind(lessonId, learnerId)
-    .all<{ item_id: string; id: string; attempt_no: number; support: string; result: string | null; correction: string | null }>(),
+    .all<{ item_id: string; id: string; attempt_no: number; answer: string; status: string; support: string; result: string | null; correction: string | null }>(),
   ]);
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
   if (lesson.completed_at) throw new ApiError(409, 'Bỏ dấu đã học trước khi nộp sửa lại.');
   if (lesson.draft_revision !== input.draftRevision) throw new ApiError(409, 'Nháp đã thay đổi. Lưu lại nháp trước khi nộp.');
   if ((rate?.n ?? 0) >= 30) throw new ApiError(429, 'Bạn vừa nộp nhiều lần. Thử lại sau một phút.');
-  const selected = all.filter((row) => (!input.stage || row.stage === input.stage) && (!input.itemIds || input.itemIds.includes(row.item_id)));
+  const wholeLesson = JSON.parse(lesson.payload).gradingMode === 'whole-lesson';
+  if (wholeLesson && (input.stage || input.itemIds))
+    throw new ApiError(400, 'Bài này cần nộp cả lượt ở cuối bài.');
+  if (wholeLesson && latest.some(attempt => attempt.status === 'pending'))
+    throw new ApiError(409, 'Lượt trước đang chờ chấm.');
+  let selected = all.filter((row) => (!input.stage || row.stage === input.stage) && (!input.itemIds || input.itemIds.includes(row.item_id)));
   if (!selected.length || (input.itemIds && selected.length !== input.itemIds.length))
     throw new ApiError(400, 'Câu không thuộc bài hoặc giai đoạn này.');
   if (input.answers && Object.keys(input.answers).some(item => !all.some(row => row.item_id === item)))
     throw new ApiError(400, 'Nháp có câu không thuộc bài này.');
   const draft = input.answers ?? JSON.parse(lesson.draft) as DraftAnswers,
     support = JSON.parse(lesson.support) as Record<string, RevealLevel>;
+  const plays = JSON.parse(lesson.listen_log) as Record<string, number>;
+  if (wholeLesson) {
+    selected = selected.filter(row => {
+      const previous = latest.find(attempt => attempt.item_id === row.item_id);
+      return !previous || (draft[row.item_id]?.answer ?? '') !== previous.answer ||
+        (support[row.item_id] === 'solution' && previous.support !== 'solution');
+    });
+    if (!selected.length) throw new ApiError(400, 'Chưa có câu mới hoặc câu đã sửa để nộp.');
+  }
   const id = makeId('subm_'),
     stamp = now.toISOString();
   const gate = 'EXISTS(SELECT 1 FROM submissions WHERE id=?)';
@@ -162,7 +181,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     db
       .prepare(
         `INSERT OR IGNORE INTO submissions(id,learner_id,lesson_id,stage,client_submission_id,request_hash,status,created_at)
- SELECT ?,?,?,?,?,?,'grading',? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=? AND user_id=? AND draft_revision=? AND support=? AND completed_at IS NULL)
+ SELECT ?,?,?,?,?,?,'grading',? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=? AND user_id=? AND draft_revision=? AND support=? AND listen_log=? AND completed_at IS NULL
+   AND (SELECT json_type(preferences,'$.replaceAudioWithText') FROM learner_settings WHERE user_id=?) IS ?)
  AND (SELECT COUNT(*) FROM submissions WHERE learner_id=? AND created_at>?)<30`,
       )
       .bind(
@@ -177,6 +197,9 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         learnerId,
         input.draftRevision,
         lesson.support,
+        lesson.listen_log,
+        learnerId,
+        lesson.text_preference,
         learnerId,
         since,
       ),
@@ -191,7 +214,10 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     const item = JSON.parse(row.payload) as LessonItemAny,
       answer = draft[row.item_id]?.answer ?? '',
       photos = draft[row.item_id]?.attachmentIds ?? [];
-    if (!hasLessonAnswer(item.input, answer) && !photos.length) throw new ApiError(400, `Chưa có bài làm cho câu ${row.item_id}.`);
+    const answered = hasLessonAnswer(item.input, answer) && !(item.input === 'code' && answer === item.starter);
+    const skip = wholeLesson && support[row.item_id] === 'solution' && (item.input === 'short' || !answered);
+    if (wholeLesson && photos.length) throw new ApiError(400, 'Bài này chỉ nhận câu trả lời văn bản.');
+    if (!skip && !(wholeLesson ? answered : hasLessonAnswer(item.input, answer)) && !photos.length) throw new ApiError(400, `Chưa có bài làm cho câu ${row.item_id}.`);
     if (item.attachment === 'required' && !photos.length) throw new ApiError(400, `Câu ${row.item_id} cần ảnh bài làm.`);
     if (item.attachment === 'none' && photos.length) throw new ApiError(400, `Câu ${row.item_id} không nhận ảnh.`);
     if (containsContactDetails(answer) || containsPossibleClinicalIdentifier(answer, lesson.sensitivity))
@@ -207,11 +233,12 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     // Only a correction actually shown (or a manually revealed solution) counts as solution support.
     const shownCorrection = previous?.correction && previous.result !== 'correct' && !hiddenCorrection(previous, support).correctionHidden;
     const itemSupport = shownCorrection ? 'solution' : (support[row.item_id] ?? 'none');
+    const stimulus = item.audio && lesson.text_preference !== 'true' && plays[row.item_id] > 0 ? 'audio' : 'text';
     const attemptId = makeId('att_'),
       gradeId = makeId('gr_'),
       number = (previous?.attempt_no ?? 0) + 1;
     const key = item.key;
-    const grade = key && answer.trim()
+    const grade = skip ? { result: 'incorrect', score: 0, feedback: 'Đã xem đáp án.' } : key && answer.trim()
       ? key.type === 'choice' || key.type === 'numeric' || key.type === 'text' || key.type === 'dictation'
         ? autoGrade(key, answer, item.audio?.lang) : autoGradeStructured(key, answer)
       : null;
@@ -219,8 +246,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     statements.push(
       db
         .prepare(
-          `INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,retry_of,answer,attachment_ids,support,context,status,current_grade_id,day,created_at)
- SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${gate}`,
+          `INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,retry_of,answer,attachment_ids,support,context,status,current_grade_id,day,created_at,stimulus)
+ SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE ${gate}`,
         )
         .bind(
           attemptId,
@@ -241,6 +268,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
           grade ? gradeId : null,
           berlinDay(now),
           stamp,
+          stimulus,
           id,
         ),
     );

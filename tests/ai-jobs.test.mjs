@@ -7,8 +7,10 @@ import { refreshSkills } from '../lib/learner-model/nightly.ts';
 import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
+import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { processJob } from '../integrations/home-runner/job.mjs';
+import { openAiEngine } from '../integrations/home-runner/openai.mjs';
 import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
 import { readLessonSubmissions, submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
@@ -709,6 +711,19 @@ async function gradedWrong() {
 }
 const disputeInput = { reason: 'answer_correct', message: 'Mình nghĩ đáp án a cũng đúng.', recheck: true };
 
+test('a dispute queues recheck when the old answer has only an unresolved skill key', async () => {
+  const { db, attempt } = await gradedWrong();
+  try {
+    db.sqlite.prepare('UPDATE attempts SET skill_ids=? WHERE id=?').run('["key:legacy"]', attempt.id);
+    const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+    assert.equal(dispute.status, 'rechecking');
+    assert.equal((await readJob(db, dispute.jobId)).ref_id, dispute.id);
+    assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'disputed');
+  } finally {
+    db.sqlite.close();
+  }
+});
+
 test('a dispute takes the answer out of the rules at once and cannot be opened twice', async () => {
   const { db, attempt } = await gradedWrong();
   const before = db.sqlite.prepare('SELECT attempts_total FROM skill_states').get().attempts_total;
@@ -781,6 +796,53 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   db.sqlite.close();
 });
 
+
+for (const decision of ['upheld', 'overturned']) {
+  test(`Terra recheck fixture persists ${decision} through the runner and D1 validator`, async () => {
+    const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();
+    try {
+      const originalGrade = db.sqlite.prepare('SELECT grade_id FROM disputes WHERE id=?').get(dispute.id).grade_id;
+      const explanation = decision === 'upheld' ? 'Giữ điểm theo đáp án đã công bố.' : result.recheckDecision.explanation;
+      const fixture = { ...result, grades: decision === 'upheld' ? [] : result.grades, recheckDecision: { decision, explanation } };
+      let calls = 0;
+      const engine = openAiEngine({ apiKey: 'fixture', kind: 'assess', purpose: 'recheck', fetcher: async (_url, options) => {
+        calls++;
+        const body = JSON.parse(options.body);
+        assert.equal(body.model, 'gpt-6.1-terra');
+        assert.match(body.instructions, /`upheld`[^\n]+`grades: \[\]`/);
+        assert.match(body.instructions, /`overturned`[^\n]+đúng một `grade`/);
+        return Response.json({ status: 'completed', model: body.model, output: [{ type: 'message', content: [
+          { type: 'output_text', text: JSON.stringify(fixture) },
+        ] }] });
+      } });
+      const hub = {
+        context: async () => ({ ...context, learner: { ...context.learner, role: 'adult' } }),
+        result: async (current, draft, dryRun) => {
+          const saved = await applyResult(db, client, current.jobId, current.leaseToken, draft, dryRun, now);
+          return { status: saved.status, body: saved };
+        },
+        state: async id => ({ status: (await readJob(db, id)).status }),
+        fail: async (_lease, reason) => assert.fail(reason),
+      };
+      const processed = await processJob(hub, { ...lease, kind: 'assess', purpose: 'recheck' }, engine);
+      assert.equal(processed.status, 'succeeded');
+      assert.equal(calls, 1);
+      const saved = await readJob(db, job.id);
+      const row = db.sqlite.prepare('SELECT status,resolved_by,resolution_note,resolution_grade_id FROM disputes WHERE id=?').get(dispute.id);
+      const attemptRow = db.sqlite.prepare('SELECT status,current_grade_id FROM attempts WHERE id=?').get(attempt.id);
+      assert.equal(row.status, decision);
+      assert.equal(row.resolved_by, 'ai');
+      assert.equal(row.resolution_note, explanation);
+      assert.equal(attemptRow.status, 'graded');
+      assert.equal(JSON.parse(saved.usage).model, 'gpt-6.1-terra');
+      assert.deepEqual(JSON.parse(saved.outcome).gradeIds, decision === 'upheld' ? [] : [row.resolution_grade_id]);
+      assert.equal(attemptRow.current_grade_id, decision === 'upheld' ? originalGrade : row.resolution_grade_id);
+      assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, decision === 'upheld' ? 1 : 2);
+    } finally {
+      db.sqlite.close();
+    }
+  });
+}
 
 test('three rejected recheck submissions send the dispute to a person and preserve the existing grade', async () => {
   const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();
@@ -1216,14 +1278,20 @@ test('v3 planning requires runner support and does not write a new lesson after 
   }
 });
 
-test('a capable runner saves a scoped stable opening roadmap and placement lesson', async () => {
+test('a Deutsch notebook outside the TTS pilot saves its roadmap and places from text evidence', async () => {
   const { db, lesson: openLesson } = await assigned();
   db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(openLesson);
   const notebook = await createSubject(db, learner, learner, parseSubjectInput({
     title: 'Deutsch mới', goal: 'Đặt lịch làm việc, trình độ A2',
   }), now);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
-  const [lease] = await leaseJobs(db, client, {...input, capabilities:['lesson-v3','roadmap-v2']}, 'test', now);
+  const bucket = { head: async () => null };
+  const ttsSubjectIds = openAiTtsSubjects({ ENVIRONMENT: 'staging', UPLOADS: bucket, OPENAI_API_KEY: 'fixture-key',
+    OPENAI_SUBJECT_IDS: notebook.id + ',' + subject, OPENAI_TTS_SUBJECT_IDS: subject });
+  assert.deepEqual(ttsSubjectIds, [subject]);
+  const [lease] = await leaseJobs(db, client, {
+    ...input, capabilities: ['lesson-v3', 'roadmap-v2', 'tts'], ttsVoices: openAiGermanVoices,
+  }, 'test', now);
   assert.equal(lease.jobId, job.id);
   const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
   assert.equal(context.roadmapProtocol, 2);
@@ -1246,10 +1314,11 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     framework:{key:'de-cefr',levelFrom:'A2.1'}};
   lesson.targetSkills = skills.slice(0,5).map(ref);
   lesson.items.forEach((item,i)=>{item.skills=[ref(skills[i%5])];});
-  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now);
+  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now,undefined,bucket,ttsSubjectIds);
   assert.equal(saved.status,200,JSON.stringify(saved));
-  const steps=db.sqlite.prepare('SELECT id,requires FROM roadmap_steps WHERE learner_id=? AND subject_id=? ORDER BY ord').all(learner,notebook.id);
+  const steps=db.sqlite.prepare('SELECT id,requires,skill_ids,listening FROM roadmap_steps WHERE learner_id=? AND subject_id=? ORDER BY ord').all(learner,notebook.id);
   assert.equal(steps.length,5);
+  assert(steps.every(step=>step.listening===0));
   assert.match(steps[0].id,/^rs_[a-f0-9]{20}$/);
   assert.deepEqual(JSON.parse(steps[1].requires),[steps[0].id]);
   const placed=db.sqlite.prepare('SELECT id,step_role,updated FROM learning_lessons WHERE subject_id=?').get(notebook.id);
@@ -1277,8 +1346,8 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     grade.run('gr-'+id,id,i===2?'incorrect':'correct',i===2?0:1,now.toISOString());
   }
   await completeLesson(db,learner,placed.id,true,placed.updated,new Date(now.getTime()+1));
-  assert.deepEqual(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(notebook.id).map(row=>row.status),
-    ['placed','placed','planned','planned','planned']);
+  const statuses=()=>db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(notebook.id).map(row=>row.status);
+  assert.deepEqual(statuses(), ['placed','placed','planned','planned','planned']);
 
   const later=new Date(now.getTime()+2000);
   const request=await createRequest(db,{},learner,learner,parseRequest({
@@ -1300,10 +1369,10 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     if(item.rubric)item.rubric=item.rubric.map(criterion=>({...criterion,skill:skillId}));
   });
   extension.explorations=[{requestId:request.id,subjectId:notebook.id,action:'assign',reason:'Luyện bước đã qua',lesson:practice}];
-  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later);
+  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later,undefined,bucket,ttsSubjectIds);
   assert.equal(more.status,200,JSON.stringify(more));
   assert.equal(more.outcome.extraLessonIds.length,1);
-  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n,8);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=0').get(notebook.id).n,8);
   assert.equal(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE id=?').get(steps[0].id).status,'placed');
   for (const valid of [true,false]) {
     const stamp=new Date(later.getTime()+(valid?1000:2000));
@@ -1327,4 +1396,18 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     assert.equal((await applyResult(db,client,pending.jobId,pending.leaseToken,payload,false,stamp)).replayed,true);
   }
   db.sqlite.close();
+});
+
+test('staging OpenAI dispatch and claim are scoped to the selected notebook and exact queued job', async () => {
+  const db = seed();
+  const sent = [];
+  const bindings = { ENVIRONMENT: 'staging', OPENAI_SUBJECT_IDS: subject, AI_QUEUE: { send: async body => sent.push(body) } };
+  const scheduled = await enqueue(db, bindings, { learnerId: learner, subjectId: subject, kind: 'plan', purpose: 'daily' }, now);
+  const other = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
+  assert.deepEqual(sent, [{ jobId: scheduled.id }]);
+  const [legacy] = await leaseJobs(db, client, { ...input, excludeSubjectIds: [subject] }, 'staging', now);
+  assert.equal(legacy.jobId, other.id);
+  const [selected] = await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject], capabilities: ['lesson-v3', 'adaptive-plan'] }, 'staging', now);
+  assert.equal(selected.jobId, scheduled.id);
+  assert.deepEqual(await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject] }, 'staging', now), []);
 });

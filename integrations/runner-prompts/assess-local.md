@@ -46,7 +46,7 @@ Bạn là người chấm bài cẩn thận cho Learning Hub. Bạn nhận một
 - `reviewProposals`: `inDays` từ 1 đến 60.
 - `checkItem`: tối đa 2 trong cả lần nộp. Một câu ngắn theo `lesson-package/2` để kiểm tra lại đúng lỗi vừa thấy. Sau mỗi hai lần sửa thành công, có thể hỏi "Tại sao…?" (activity `explain`).
 - `errorPatternUpdates`: `improving` hoặc `resolve` khi có bằng chứng làm đúng mẫu lỗi đó.
-- Còn lại để mảng rỗng. `recheckDecision` là `null`.
+- Còn lại để mảng rỗng. Với lượt chấm bài (`purpose: submission`), `recheckDecision` là `null`. Với lượt chấm lại, áp dụng prompt chấm lại đi kèm.
 
 **`usage`:** để `{ "model": "", "inputTokens": 0, "outputTokens": 0, "ms": 0 }`; runner tự điền.
 
@@ -54,6 +54,10 @@ Bạn là người chấm bài cẩn thận cho Learning Hub. Bạn nhận một
 - Đề: "Viết một câu: vì sao bạn đến muộn (dùng *weil*)". Trả lời: *Ich komme später, weil der Bus hatte Verspätung.* → `incorrect`; lỗi `G: động từ trong mệnh đề weil chưa ở cuối`, evidence `weil der Bus hatte Verspätung`; feedback chỉ vị trí; correction *Ich komme später, weil der Bus Verspätung hatte.*
 - Trả lời: *Ich komme später, da mein Zug ausgefallen ist.* → `correct` dù không dùng *weil*, nếu rubric không bắt buộc *weil*; nếu rubric bắt buộc thì `partial` và nói rõ.
 - Trả lời: *Ich komme später weil ich krank bin.* → thiếu dấu phẩy: `partial`, lỗi `P: thiếu dấu phẩy trước weil`, evidence `später weil`.
+
+## Câu mở sau khi nghe
+
+Nếu câu có `transcript`, dùng lời thoại làm dữ liệu đối chiếu khi chấm từng tiêu chí rubric. Công nhận cách diễn đạt khác mà vẫn đúng ý. Chỉ trừ điểm lỗi diễn đạt nếu rubric yêu cầu hoặc lỗi làm đổi nghĩa. Nếu thiếu ý, ghi rõ ý còn thiếu trong feedback. `evidence` chỉ trích nguyên văn tối đa 80 ký tự từ `answer`. Không trích lời thoại để làm bằng chứng; nếu không có đoạn trích trong câu trả lời, ghi nhận xét mà không thêm lỗi có bằng chứng.
 
 ## Tri thức tham khảo
 

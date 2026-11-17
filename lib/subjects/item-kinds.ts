@@ -16,3 +16,12 @@ export function itemPolicy(framework?: string): { kinds: ItemKind[]; minimum: nu
     return { kinds: ['choice', 'short', 'long', 'cloze', 'table', 'label'], minimum: 2, codeKnowledge: true };
   return { kinds: ['choice', 'short', 'long'], minimum: 1, codeKnowledge: true };
 }
+
+export function listeningLanguage(framework?: string) {
+ switch(framework){
+  case 'de-cefr': return 'de-DE';
+  case 'zh-hsk': return 'zh-CN';
+  case 'en-cefr': return 'en-US';
+  default: return undefined;
+ }
+}

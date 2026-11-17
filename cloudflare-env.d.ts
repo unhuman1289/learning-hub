@@ -9,6 +9,9 @@ declare namespace Cloudflare {
     AI_COST_ALERT_USD?:string;
     AI_PRICE_TABLE?:string;
     AI_QUEUE?:Queue;
+    OPENAI_API_KEY?: string;
+    OPENAI_SUBJECT_IDS?: string;
+    OPENAI_TTS_SUBJECT_IDS?: string;
     ASSETS?: Fetcher;
     DB?: D1Database;
     BUCKET?: R2Bucket;

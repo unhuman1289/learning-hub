@@ -8,6 +8,8 @@ import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
 import { itemPolicy } from '../lib/subjects/item-kinds.ts';
 import { DEFAULT_LIMITS } from '../lib/subjects/sql.ts';
 import { parseSubmission, submitLesson } from '../lib/evidence/submit.ts';
+import { recordListeningPlay, recordSupport, reveal, revealListening } from '../lib/lesson-v2/actions.ts';
+import { setListeningVoice, updateSettings } from '../lib/learners/settings.ts';
 import { memoryDb } from './d1-adapter.mjs';
 
 const german = { type: 'dictation', text: 'Wir gehen nach Hause.', ignore: ['case', 'punctuation'] };
@@ -112,33 +114,103 @@ test('listening validates bands, answer types and dialogue privacy', () => {
   assert.ok(itemPolicy('zh-hsk').kinds.includes('order'));
 });
 
-test('D1 submission saves dictation feedback and partial credit', async () => {
+async function listeningLesson(t, items = [item]) {
   const db = memoryDb();
   const learnerId = 'listening-demo';
   const subjectId = 'sub_88888888888888888888';
   const now = new Date('2026-11-14T12:00:00Z');
   const stamp = now.toISOString();
-  try {
-    db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,1,1,1,'learner','active')")
-      .run(learnerId, 'Học thử', 'listening@example.test');
-    db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,limits,created_by,created_at,updated_at) VALUES(?,?,?,'skill','active',?,?,?,?)")
-      .run(subjectId, learnerId, 'Deutsch thử', JSON.stringify(DEFAULT_LIMITS), learnerId, stamp, stamp);
-    const parsed = validateLessonPackage(lesson([item]), { adaptive: true });
-    assert.deepEqual(parsed.issues, []);
-    const id = await insertLessonV2(db, { learnerId, subjectId, day: '2026-11-14', lesson: parsed.lesson, now });
-    const before = await readLessonV2(db, learnerId, id);
-    assert.ok(!('lines' in before.items[0].audio));
-    assert.ok(!('solution' in before.items[0].revealed));
-    const submitted = await submitLesson(db, learnerId, id, parseSubmission({
-      clientSubmissionId: crypto.randomUUID(), draftRevision: 0,
-      answers: { i1: { answer: 'Wir gehen Hause.' } },
-    }), now);
-    assert.equal(submitted.status, 'graded');
-    assert.equal(submitted.attempts[0].result, 'partial');
-    assert.equal(submitted.attempts[0].score, 0.75);
-    assert.match(submitted.attempts[0].feedback, /Thiếu: nach/);
-    assert.equal(autoGrade({ ...german, text: 'Wort' }, 'viele andere ganz falsche Wörter').score, 0);
-  } finally {
-    db.sqlite.close();
-  }
+  t.after(() => db.sqlite.close());
+  db.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,1,1,1,'learner','active')")
+    .run(learnerId, 'Học thử', 'listening@example.test');
+  db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,limits,created_by,created_at,updated_at) VALUES(?,?,?,'skill','active',?,?,?,?)")
+    .run(subjectId, learnerId, 'Deutsch thử', JSON.stringify(DEFAULT_LIMITS), learnerId, stamp, stamp);
+  const parsed = validateLessonPackage(lesson([item]), { adaptive: true });
+  assert.deepEqual(parsed.issues, []);
+  const id = await insertLessonV2(db, { learnerId, subjectId, day: '2026-11-14', lesson: lesson(items), now });
+  return { db, id, learnerId, subjectId, now };
+}
+
+test('D1 submission saves dictation feedback and partial credit', async t => {
+  const { db, id, learnerId, now } = await listeningLesson(t);
+  const before = await readLessonV2(db, learnerId, id);
+  assert.ok(!('lines' in before.items[0].audio));
+  assert.ok(!('solution' in before.items[0].revealed));
+  const submitted = await submitLesson(db, learnerId, id, parseSubmission({
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 0,
+    answers: { i1: { answer: 'Wir gehen Hause.' } },
+  }), now);
+  assert.equal(submitted.status, 'graded');
+  assert.equal(submitted.attempts[0].result, 'partial');
+  assert.equal(submitted.attempts[0].score, 0.75);
+  assert.match(submitted.attempts[0].feedback, /Thiếu: nach/);
+  assert.equal(autoGrade({ ...german, text: 'Wort' }, 'viele andere ganz falsche Wörter').score, 0);
+});
+
+const attempt = (db, itemId) => ({ ...db.sqlite.prepare('SELECT support,stimulus FROM attempts WHERE item_id=?').get(itemId) });
+const submit = (db, learnerId, id, now, itemId, draftRevision) => submitLesson(db, learnerId, id, parseSubmission({
+  clientSubmissionId: crypto.randomUUID(), draftRevision, itemIds: [itemId],
+  answers: { [itemId]: { answer: german.text } },
+}), now);
+
+test('slow, excess plays and transcript use monotonic support without authored hints', async t => {
+  const listen = { ...item, hints: [], audio: { ...audio, maxPlays: 1 } };
+  const { db, id, learnerId, now } = await listeningLesson(t, [listen, listen, listen, listen, listen]);
+  const play = (itemId, slow) => recordListeningPlay(db, learnerId, id, itemId, slow);
+  const open = (itemId, level) => revealListening(db, learnerId, id, itemId, level);
+  await assert.rejects(reveal(db, learnerId, id, 'i1', 'hint1'), { status: 400 });
+  assert.deepEqual(await open('i1', 'slow'), { support: 'hint1' });
+  const concurrent = await Promise.all([play('i2'), play('i2')]);
+  assert.deepEqual(concurrent.map(result => result.plays).sort(), [1, 2]);
+  assert.equal(concurrent.find(result => result.plays === 2).support, 'hint1');
+  assert.deepEqual(await open('i2', 'transcript'), { transcript: german.text, support: 'hint2' });
+  assert.equal((await play('i2', true)).support, 'hint2');
+  assert.equal((await play('i3')).support, undefined);
+  assert.equal((await play('i4', true)).support, 'hint1');
+  await Promise.all([
+    recordSupport(db, learnerId, id, 'i5', 'hint1'),
+    recordSupport(db, learnerId, id, 'i5', 'solution'),
+  ]);
+  assert.equal(await recordSupport(db, learnerId, id, 'i5', 'hint2'), 'solution');
+
+  assert.deepEqual((await readLessonV2(db, learnerId, id)).listen_log, { i2: 3, i3: 1, i4: 1 });
+  await submit(db, learnerId, id, now, 'i2', 0);
+  await submit(db, learnerId, id, now, 'i3', 1);
+  assert.equal((await open('i3', 'transcript')).transcript, german.text);
+  assert.equal((await readLessonV2(db, learnerId, id)).items[2].revealed.hints.length, 0);
+  const support = JSON.parse(db.sqlite.prepare('SELECT support FROM learning_lessons WHERE id=?').get(id).support);
+  assert.equal(support.i3, undefined);
+  assert.deepEqual(attempt(db, 'i2'), { support: 'hint2', stimulus: 'audio' });
+  assert.deepEqual(attempt(db, 'i3'), { support: 'none', stimulus: 'audio' });
+
+  await updateSettings(db, learnerId, { preferences: { replaceAudioWithText: true } }, now);
+  await submit(db, learnerId, id, now, 'i4', 2);
+  assert.deepEqual(attempt(db, 'i4'), { support: 'hint1', stimulus: 'text' });
+  await updateSettings(db, learnerId, { preferences: { replaceAudioWithText: false } }, now);
+  await submit(db, learnerId, id, now, 'i1', 3);
+  assert.deepEqual(attempt(db, 'i1'), { support: 'hint1', stimulus: 'text' });
+});
+
+test('voice saves only its preference alongside child role and accessibility choice', async t => {
+  const { db, learnerId, now } = await listeningLesson(t);
+  await updateSettings(db, learnerId, { dailyTargetMinutes: 30, preferences: { replaceAudioWithText: true } }, now);
+  db.sqlite.prepare("UPDATE learner_settings SET role='child' WHERE user_id=?").run(learnerId);
+  await setListeningVoice(db, learnerId, 'm', now);
+  const row = db.sqlite.prepare('SELECT role,daily_target_minutes,preferences FROM learner_settings WHERE user_id=?').get(learnerId);
+  assert.equal(row.role, 'child');
+  assert.equal(row.daily_target_minutes, 30);
+  assert.deepEqual(JSON.parse(row.preferences), { replaceAudioWithText: true, listeningVoice: 'm' });
+});
+
+test('recomputation saves secure listening from real graded submissions on separate Berlin days', async t => {
+  const { db, id, learnerId, subjectId } = await listeningLesson(t, [{ ...item, skills: ['listening-skill'] }, { ...item, skills: ['listening-skill'] }]);
+  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,origin,created_at,updated_at)
+     VALUES('listening-skill',?,?,'listen','Nghe','user','t','t')`).run(subjectId, learnerId);
+  const state = () => JSON.parse(db.sqlite.prepare("SELECT listening FROM skill_states WHERE skill_id='listening-skill'").get().listening);
+  await recordListeningPlay(db, learnerId, id, 'i1');
+  await submit(db, learnerId, id, new Date('2026-10-24T21:59:59Z'), 'i1', 0);
+  assert.deepEqual(state(), { level: 'emerging', days: ['2026-10-24'] });
+  await recordListeningPlay(db, learnerId, id, 'i2');
+  await submit(db, learnerId, id, new Date('2026-10-24T22:00:00Z'), 'i2', 1);
+  assert.deepEqual(state(), { level: 'secure', days: ['2026-10-24', '2026-10-25'] });
 });

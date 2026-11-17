@@ -3,7 +3,7 @@ import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../..
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
 import { itemPolicy } from "../../subjects/item-kinds.ts";
-import { validateLessonPackage } from '../../lesson-v2/validate.ts';
+import { listeningIssues, validateLessonPackage } from '../../lesson-v2/validate.ts';
 import { newLessonId, promptHash } from '../../lesson-v2/store.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { containsContactDetails } from '../../automation/privacy.ts';
@@ -80,8 +80,12 @@ export async function prepareExplorations(
     }
     const explore = !subjectId,
       targetId = subjectId ?? (await exploreSubjectId(job.learner_id));
+    const listening = context.adaptive?.listening;
+    const draftIssues = listeningIssues(e.lesson.items, listening, known?.framework?.key);
+    for (const problem of draftIssues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
+    if (draftIssues.length) continue;
     const audio = await resolveLessonAudio(db, e.lesson, context.tts, audioBucket);
-    const checked = validateLessonPackage(audio.lesson, {
+    const checked = validateLessonPackage(audio.lesson, { listening,
       maxDifficulty: context.adaptive?.difficulty?.max ?? known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
       minDifficulty:context.adaptive?.difficulty?.min,
       sensitivity: known?.sensitivity ?? 'normal',

@@ -1,10 +1,12 @@
+import { openAiGermanVoices } from '../../audio/openai-voices.ts';
 import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {applyRoadmapChanges,listSteps} from '../../roadmap/store.ts';
+import { listeningLanguage } from '../../subjects/item-kinds.ts';
 import {frameworkFor,inferFramework} from '../../roadmap/frameworks.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
-import { validateLessonPackage } from '../../lesson-v2/validate.ts';
+import { listeningIssues, validateLessonPackage } from '../../lesson-v2/validate.ts';
 import { promptHash, newLessonId } from '../../lesson-v2/store.ts';
 import { cutoffFor } from '../../daily-policy.ts';
 import { addDays, clampMastery } from '../../learner-model/rules.ts';
@@ -13,7 +15,7 @@ import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
-export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>) {
+export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>, ttsSubjectIds: readonly string[] = []) {
   const errors: ValidationIssue[] = [],
     statements: ReturnType<EvidenceDb['prepare']>[] = [],
     applyGuards: ReturnType<EvidenceDb['prepare']>[] = [],
@@ -46,9 +48,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       continue;
     }
     const current = await db
-      .prepare('SELECT revision,status,ai_enabled FROM subjects WHERE id=? AND learner_id=?')
+      .prepare('SELECT revision,status,ai_enabled,framework FROM subjects WHERE id=? AND learner_id=?')
       .bind(s.subjectId, job.learner_id)
-      .first<{ revision: number; status: string; ai_enabled: number }>();
+      .first<{ revision: number; status: string; ai_enabled: number; framework: string | null }>();
     const slot = await db
       .prepare(
         "SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND completed_at IS NULL ORDER BY assigned_date DESC,updated DESC LIMIT 1",
@@ -258,13 +260,19 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             ),
         );
     }
+    const selected = initial || (task === 'replan' && !deferReplan)
+      ? (setup?.framework ? frameworkFor(setup.framework,c.title,c.goal,c.curriculum) : inferFramework(c.title,c.goal,c.curriculum))
+      : undefined;
+    const stepFramework = current.framework ? c.framework?.key : selected?.key ?? c.framework?.key;
+    const language = listeningLanguage(stepFramework);
+    const requireListening = ttsSubjectIds.includes(s.subjectId) && !!language && Object.hasOwn(openAiGermanVoices, language);
     let resultingSteps: Awaited<ReturnType<typeof listSteps>>|undefined;
     if(modern&&(s.openingSteps||s.roadmapChanges?.length)){
       try{
         const changes=s.openingSteps?s.openingSteps.map(step=>({op:'append' as const,step})):s.roadmapChanges!;
         const edit=await applyRoadmapChanges(db,{learnerId:job.learner_id,subjectId:s.subjectId,changes,jobId:job.id,
           stamp:now.toISOString(),gate,bind:gateValues,resolveSkill:ref=>{const id=resolve(ref);return id&&skillMap.get(id)?.status!=='retired'?id:undefined;},
-          initialize:!!s.openingSteps,replan:task==='replan',
+          initialize:!!s.openingSteps,replan:task==='replan',requireListening,
           mastered:new Set(c.skills.filter(skill=>skill.mastery==='demonstrated').map(skill=>skill.skillId))});
         resultingSteps=edit.steps;
         statements.push(...edit.statements);
@@ -276,8 +284,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         if(task==='replan')statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
       }catch(error){issue(path+'/roadmapChanges','roadmap',String((error as Error).message).slice(0,300));}
     }
-    if(initial||task==='replan'&&!deferReplan){
-      const selected=setup?.framework?frameworkFor(setup.framework,c.title,c.goal,c.curriculum):inferFramework(c.title,c.goal,c.curriculum);
+    if(selected){
       statements.push(db.prepare(`UPDATE subjects SET framework=coalesce(framework,?),topic_key=coalesce(topic_key,?) WHERE id=? AND learner_id=? AND ${gate}`)
         .bind(JSON.stringify(selected),selected.topicKey,s.subjectId,job.learner_id,...gateValues));
     }
@@ -288,8 +295,12 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
+      const listening = context.adaptive?.listening;
+      const draftIssues = listeningIssues(packageInput.items, listening, c.framework?.key);
+      for (const problem of draftIssues) issue(path + '/' + field + problem.path, problem.code, problem.message);
+      if (draftIssues.length) continue;
       const audio = await resolveLessonAudio(db, packageInput, context.tts, audioBucket);
-      const checked = validateLessonPackage(audio.lesson, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
+      const checked = validateLessonPackage(audio.lesson, { listening, maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       if(modern&&checked.lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))

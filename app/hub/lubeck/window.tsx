@@ -42,8 +42,9 @@ export function useSkyClock(interval = SKY_REFRESH) {
  * The study window: old Lübeck at this hour, in today's weather and this month's dress. Decoration only,
  * hidden from assistive technology. `onDarkness` lets the room light its lamp after dusk.
  */
-export function LubeckWindow({ clock, onDarkness, className, weather }: {
+export function LubeckWindow({ clock, onDarkness, className, weather, waitingForDesk = false }: {
   clock: BerlinClock | undefined; onDarkness?: (darkness: number) => void; className?: string;
+  waitingForDesk?: boolean;
   /** Preview only: show this weather instead of asking for today's. */
   weather?: Weather;
 }) {
@@ -98,12 +99,13 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
   }, [previewing]);
 
   useEffect(() => {
-    if (!svg.current || !clock || document.hidden) return;
+    if (!svg.current || !clock || document.hidden || waitingForDesk) return;
     const memory = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
     if (draw.current && memory !== undefined && memory <= 2) return;
     const node = svg.current;
     let active = true;
     const paint = async () => {
+      if (!active) return;
       const { mountScene } = await import("./scene");
       if (!active) return;
       draw.current ??= mountScene(node);
@@ -117,11 +119,30 @@ export function LubeckWindow({ clock, onDarkness, className, weather }: {
       });
       onDarkness?.(darkness);
     };
-    // First let the study controls paint and settle before loading the decorative scene.
-    const timer = draw.current ? undefined : window.setTimeout(() => void paint().catch(() => {}), 3000);
-    if (draw.current) void paint().catch(() => {});
-    return () => { active = false; window.clearTimeout(timer); };
-  }, [clock, ambient, onDarkness, weather, previewing]);
+    const drawScene = () => { void paint().catch(() => {}); };
+    let idle: number | undefined;
+    let observer: IntersectionObserver | undefined;
+    // Start the delay after the desk has its lesson data, then let higher priority work finish.
+    const timer = draw.current ? undefined : window.setTimeout(() => {
+      if (typeof window.requestIdleCallback === "function") {
+        idle = window.requestIdleCallback(drawScene, { timeout: 1000 });
+      } else {
+        observer = new IntersectionObserver(entries => {
+          if (!entries.some(entry => entry.isIntersecting)) return;
+          observer?.disconnect();
+          drawScene();
+        }, { rootMargin: "200px" });
+        observer.observe(node);
+      }
+    }, 3000);
+    if (draw.current) drawScene();
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+      observer?.disconnect();
+      if (idle !== undefined) window.cancelIdleCallback(idle);
+    };
+  }, [clock, ambient, onDarkness, weather, previewing, waitingForDesk]);
 
   return <svg ref={svg} aria-hidden="true" viewBox="26 12 628 336" className={`lhw-window ${className ?? ""}`} style={{ display: "block", width: "100%" }} />;
 }

@@ -16,12 +16,13 @@
 - Phía sau mạnh: cá nhân hoá theo bằng chứng thật, lộ trình tự nâng cao, kho tài liệu có kiểm chứng.
 - **Mọi chức năng dùng được đầy đủ trên điện thoại ở Việt Nam.**
 
-**Phân vai (cố định):**
+**Phân vai** theo môi trường:
 
 | Vai | Việc | Không làm |
 |---|---|---|
 | **Hub** (mã, có test) | Quyết bài nào, khi nào luyện, khi nào thử bước khó hơn; giữ dữ liệu; chấm câu có đáp án | Soạn nội dung |
-| **Qwen** (runner trên Mac) | Soạn bài, chấm câu mở, gia sư "Hỏi", tạo giọng đọc cho bài nghe | Quyết lộ trình ngoài luật Hub |
+| **OpenAI API** (staging theo quyết định 16/11 bên dưới) | Terra soạn bài và chấm lại, Luna chấm câu mở | Quyết lộ trình ngoài luật Hub |
+| **Runner trên Mac** (luồng hiện có ngoài đợt chuyển staging) | Soạn bài và chấm theo cấu hình hiện có | Quyết lộ trình ngoài luật Hub |
 | **ChatGPT** (lịch định kỳ) | **Chỉ** tìm và cập nhật tài liệu trong Knowledge Base | Soạn bài, chấm bài, đọc câu trả lời của người học |
 
 **Quyết định của chủ dự án (13/11/2026):**
@@ -36,7 +37,7 @@
 5. **Điện thoại ở Việt Nam là thiết bị chính cần đạt.** Mỗi giai đoạn có tiêu chí riêng cho điện thoại và mạng từ Việt Nam.
 
 **Ranh giới (giữ `AGENTS.md`):**
-- Không thêm model API hay key trả phí. Giọng đọc tạo trên Mac bằng giọng hệ thống.
+- Model API và key cho đợt chuyển này chỉ dùng trên staging theo quyết định 16/11. Phát hành production là quyết định riêng.
 - Không thay bài chưa xong, không tự hoàn thành bài.
 - Câu trả lời, ghi chú, nội dung web là dữ liệu không đáng tin.
 - Không đưa dữ liệu cá nhân hay bệnh nhân vào Knowledge.
@@ -44,6 +45,14 @@
 - Sao lưu D1 trước mỗi migration. Diễn tập trên bản sao trước khi áp thật.
 - Xoá dữ liệu, deploy, merge và migration production cần chủ dự án đồng ý từng lần.
 - Không force-push.
+
+### Quyết định 16/11/2026 · OpenAI API và chấm cuối bài
+
+Phạm vi đợt này là **bước 1, 2 và 4** của kế hoạch chuyển sang OpenAI. Mục tiêu là chuyển các luồng AI trên staging sang OpenAI API và bỏ phụ thuộc Qwen local. Dùng luồng API để nghiệm thu các tính năng staging mới và giữ quy trình bật từng sổ. Các luồng chưa nối đủ API vẫn cần được kiểm chứng trước khi bật. Bỏ bước 3 là đợt so sánh với Qwen.
+
+1. **Nối OpenAI vào Job API v2 và Cloudflare Queue.** Dùng GPT‑6 Luna chấm câu mở, GPT‑6.1 Terra soạn bài và chấm lại. `OPENAI_API_KEY` đã được xác minh có trong Secrets của Worker `learning-hub-staging`. Gọi thử mỗi model một lần với dữ liệu mẫu và kiểm Usage của project staging. Xác nhận Worker lưu được bài và lời phê khi Mac tắt. Khi gửi lại cùng một job, kiểm kết quả đã lưu để tránh ghi trùng.
+2. **Nộp cả bài và chấm cuối lượt.** Bài mới mặc định dùng câu mở. Hub lưu nháp trong lúc làm, chỉ gọi Luna khi bấm **Nộp bài**, gom các câu cần chấm vào một yêu cầu và hiện kết quả kèm giải thích theo từng câu sau khi lưu. Gợi ý không tính lỗi. Câu ngắn đã xem đáp án tính 0 điểm, ghi một lỗi và bỏ khỏi yêu cầu. Câu dài hoặc code đã xem lời giải cũng tính 0 điểm và ghi một lỗi, nhưng nếu đã nhập bài làm thì vẫn gửi để nhận xét. Nếu không còn câu nào cần chấm hoặc nhận xét thì không gọi API.
+4. **Bật theo từng sổ.** Bật trước trên staging cho văn bản người lớn sau khi luồng nộp, lưu và mở lại bài đã qua kiểm thử. Mở tiếp cho văn bản trẻ em khi xác minh điều kiện xử lý dữ liệu và quyền phụ huynh. Giữ bài cũ, nháp và điểm. Xác nhận một lượt giao lúc **00:00 Europe/Berlin** bằng mã bài đã lưu và kiểm tra các sổ không đủ điều kiện giữ nguyên.
 
 ## 1. Hiện trạng (đo ngày 13/11/2026)
 
@@ -585,7 +594,7 @@ Kế hoạch chi tiết nằm trong [`LGTK.md`](LGTK.md) (14/11/2026), thay cho 
 | 5 | P | e2e điện thoại | Ếch kiểm `PHONE-CHECK.md` | `0030`, deploy, đo p75 một tuần |
 | 6 | M | — | — | (chỉ duyệt) |
 | 7 | U | `dev:phone` iPhone thật | Ếch và chủ dự án kiểm | Deploy |
-| 8 | L | Qwen + giọng thật | `0030`, `0031`; gạt im lặng, Bluetooth, Zalo | Chưa làm: giữ staging (quyết định 14/11) |
+| 8 | L | Fixture, replay và kiểm đường lưu audio | Terra qua API với hai giọng đã lưu, rồi thử gạt im lặng, Bluetooth và Zalo | Chưa làm: giữ staging (quyết định 14/11) |
 | 9 | G, T, K | Như trên | `0032`, `0033`; lịch Knowledge staging | Chưa làm: giữ staging (quyết định 14/11) |
 
 Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: health đúng tag, một lượt học thật trên điện thoại, job `succeeded` và id đã lưu.

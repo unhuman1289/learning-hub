@@ -56,7 +56,7 @@ export function stripOptionalNulls(schema, value) {
     const branch = union.find((s) => s.type !== 'null' && accepts(s, value)) ?? union.find((s) => s.type !== 'null');
     return stripOptionalNulls(branch, value);
   }
-  if (Array.isArray(value)) return value.map((v) => stripOptionalNulls(schema.items, v));
+  if (Array.isArray(value)) return value.map((v, index) => stripOptionalNulls(schema.prefixItems?.[index] ?? schema.items, v));
   const out = {};
   const required = new Set(schema.required ?? []);
   for (const [key, v] of Object.entries(value)) {

@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
+import { queueSubmission } from '../lib/ai-jobs/queue.ts';
 import { autoGrade } from '../lib/evidence/autograde.ts';
 import { evidenceStrength } from '../lib/evidence/strength.ts';
 import { parseSubmission, submitLesson, readSubmission } from '../lib/evidence/submit.ts';
@@ -316,4 +317,46 @@ test('two-step correction: the fix stays hidden after a first wrong answer until
   assert.deepEqual(hiddenCorrection(first, { i3: 'solution' }), { correctionHidden: false });
   assert.deepEqual(hiddenCorrection(first, { i3: 'hint2' }), { correction: null, correctionHidden: true });
   assert.deepEqual(hiddenCorrection({ ...first, result: null }, {}), { correctionHidden: false });
+});
+
+test('whole-lesson mode rejects per-question submission and skips revealed short answers', async () => {
+  const { db } = await seed();
+  const lesson = {
+    ...fixture,
+    contract: 'lesson-package/3',
+    knowledge: [],
+    gradingMode: 'whole-lesson',
+    items: fixture.items.map(item => ({
+      ...item,
+      key: undefined,
+      choices: undefined,
+      input: 'short',
+      attachment: 'none',
+      hints: ['Hãy đọc lại câu.'],
+      rubric: [{ criterion: 'Đúng ý', points: 1 }],
+    })),
+  };
+  const id = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-12', slot: 'extra', lesson });
+  assert.equal(await status(submitLesson(db, 'learner', id, input(0))), 400);
+  const first = lesson.items[0].id;
+  const second = lesson.items[1].id;
+  await reveal(db, 'learner', id, first, 'solution');
+  await reveal(db, 'learner', id, second, 'hint1');
+  const answers = Object.fromEntries(lesson.items.slice(1).map(item => [item.id, { answer: 'Antwort' }]));
+  const packet = parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, answers });
+  const submitted = await submitLesson(db, 'learner', id, packet);
+  assert.equal(submitted.attempts.length, lesson.items.length);
+  assert.equal(submitted.attempts.find(attempt => attempt.item_id === first).score, 0);
+  assert.equal(submitted.attempts.find(attempt => attempt.item_id === second).support, 'hint1');
+  assert.equal(submitted.attempts.find(attempt => attempt.item_id === second).status, 'pending');
+  assert.equal((await submitLesson(db, 'learner', id, packet)).replayed, true);
+
+  const skippedId = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-13', slot: 'extra', lesson });
+  for (const item of lesson.items) await reveal(db, 'learner', skippedId, item.id, 'solution');
+  const skipped = await submitLesson(db, 'learner', skippedId, parseSubmission({
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 0,
+  }));
+  assert.equal(skipped.status, 'graded');
+  assert.ok(skipped.attempts.every(attempt => attempt.result === 'incorrect' && attempt.score === 0));
+  assert.equal(await queueSubmission(db, {}, 'learner', skipped.id), null);
 });

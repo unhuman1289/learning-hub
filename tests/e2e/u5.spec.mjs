@@ -1,8 +1,8 @@
 import { readFile } from 'node:fs/promises';
-import { gzipSync } from 'node:zlib';
 import { expect, test } from '@playwright/test';
 import { runFake } from '../../scripts/fake-runner.mjs';
 import { shapeNetwork, timeFromTap } from './network.mjs';
+import { routeMetrics } from './route-metrics.mjs';
 
 const desk = page => page.getByRole('region', { name: 'Bài tiếp theo' });
 const flow = page => page.locator('.lesson-flow');
@@ -19,27 +19,6 @@ function checkTime(info, metric, ms, localLimit) {
 const turnSettled = page => expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn');
 const openLesson = page => desk(page).getByRole('listitem').filter({ hasText: 'Deutsch' })
   .getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
-
-function routeMetrics(page) {
-  const origin = new URL(page.url()).origin;
-  const api = [], files = new Set();
-  const collect = request => {
-    const url = new URL(request.url());
-    if (url.origin !== origin || request.method() !== 'GET') return;
-    if (url.pathname.startsWith('/api/')) api.push(url.pathname);
-    if (url.pathname.endsWith('.js')) files.add(url.href);
-  };
-  page.on('request', collect);
-  return async () => {
-    page.off('request', collect);
-    const sizes = await Promise.all([...files].map(async url => {
-      const response = await fetch(url);
-      expect(response.ok).toBe(true);
-      return gzipSync(Buffer.from(await response.arrayBuffer())).length;
-    }));
-    return { api, gzip: sizes.reduce((sum, bytes) => sum + bytes, 0), chunks: [...files].map((url, i) => [new URL(url).pathname.split("/").at(-1), sizes[i]]) };
-  };
-}
 
 async function noOverflow(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
@@ -70,7 +49,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const warmMs = await page.evaluate(() => performance.now());
   checkTime(info, 'desk-warm', warmMs, 3000);
   const deskStats = await warm();
-  expect(deskStats.gzip).toBeLessThanOrEqual(180_000);
+  expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
   expect(deskStats.api.length).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
@@ -207,6 +186,46 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(page.getByRole('link', { name: /Mở bài|Làm tiếp/ }).first()).toBeVisible();
 
   console.log(JSON.stringify({ project: info.project.name, coldMs, warmMs, firstMs, gradeMs, desk: deskStats, lesson: lessonStats, notebook: notebookStats }));
+});
+
+test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', async ({ page }) => {
+  const manifest = JSON.parse(await readFile('dist/client/.vite/manifest.json', 'utf8'));
+  const scene = '/' + manifest['app/hub/lubeck/scene.ts'].file;
+  await page.goto('/');
+  await page.getByRole('button', { name: /Ếch thử/ }).tap();
+  await expect(openLesson(page)).toBeVisible();
+
+  let sceneRequested = false;
+  const watchScene = request => {
+    if (new URL(request.url()).pathname === scene) sceneRequested = true;
+  };
+  let todayRequested = false;
+  let releaseToday;
+  const heldToday = new Promise(resolve => { releaseToday = resolve; });
+  await page.route(url => url.pathname === '/api/today', async route => {
+    todayRequested = true;
+    await heldToday;
+    await route.continue();
+  });
+  await page.clock.install();
+  page.on('request', watchScene);
+  try {
+    await page.goto('/');
+    await expect.poll(() => todayRequested).toBe(true);
+    await expect(page.locator('.lhw-window')).toHaveCount(1);
+    await page.clock.runFor(4500);
+    await expect(openLesson(page)).toHaveCount(0);
+    expect(sceneRequested).toBe(false);
+
+    releaseToday();
+    await expect(openLesson(page)).toBeVisible();
+    await page.clock.runFor(4500);
+    await expect.poll(() => sceneRequested).toBe(true);
+    await expect(page.locator('.lhw-window [data-p=front]')).toHaveCount(1);
+  } finally {
+    releaseToday();
+    page.off('request', watchScene);
+  }
 });
 
 const lessonHeading = page => flow(page).locator('[data-lesson-heading]');

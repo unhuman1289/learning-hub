@@ -1,90 +1,44 @@
-import { readFile } from 'node:fs/promises';
-import { gzipSync } from 'node:zlib';
+import { ASSISTED_LESSONS, LISTENING_LESSON, TRANSCRIPT, VOICE_HASHES } from './fixtures/listening.mjs';
 import { expect, test } from '@playwright/test';
+import { routeMetrics } from './route-metrics.mjs';
 
-const lessonUrl = '/api/lessons/les_00000000000000000007';
+const lessonUrl = '/api/lessons/' + LISTENING_LESSON;
 const itemUrl = lessonUrl + '/items/i1';
-const transcript = 'Können wir uns am Montag um zehn Uhr treffen? Ja, das passt gut.';
-const voiceSrc = { f: '/api/audio/demo-f', m: '/api/audio/demo-m' };
-const audio = { lang: 'de-DE', rate: 1, maxPlays: 2, durationMs: 4939, transcript: 'after_answer', src: voiceSrc };
-const fixture = await readFile(new URL('./fixtures/listening-demo.m4a', import.meta.url));
+const voiceSrc = { f: '/api/audio/' + VOICE_HASHES.f, m: '/api/audio/' + VOICE_HASHES.m };
 
 test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, context, browserName }, info) => {
-  const scriptUrls = new Set();
-  const watchDesk = request => {
-    const url = new URL(request.url());
-    if (url.origin === new URL(page.url()).origin && url.pathname.endsWith('.js')) scriptUrls.add(url.href);
-  };
   await page.goto('/');
   await page.getByRole('button', { name: /Người học thử/ }).tap();
-  await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
-  page.on('request', watchDesk);
-  await page.reload();
-  const lesson = page.getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
+  const desk = page.getByRole('region', { name: 'Bài tiếp theo' });
+  const lesson = desk.getByRole('link', { name: /Mở bài|Học tiếp/ }).first();
   await expect(lesson).toBeVisible();
-  await page.waitForLoadState('networkidle');
-  page.off('request', watchDesk);
-  const sizes = await Promise.all([...scriptUrls].map(async url => {
-    const response = await context.request.get(url);
-    expect(response.ok()).toBe(true);
-    return gzipSync(await response.body()).length;
-  }));
-  const bytes = sizes.reduce((sum, size) => sum + size, 0);
-  expect(bytes).toBeGreaterThan(0);
-  expect(bytes).toBeLessThanOrEqual(180_000);
-  console.log(`${info.project.name}: desk JS gzip ${bytes} B`);
 
-  let missingSource = false;
-  let submitted = false;
-  let plays = 0;
-  let slowReveals = 0;
+  const deskSnapshot = routeMetrics(page);
+  await page.goto('/');
+  await expect(lesson).toBeVisible();
+  // Use the same cutoff as U5: stop collecting when the desk's next lesson is visible.
+  const { gzip, chunks } = await deskSnapshot();
+  console.log(JSON.stringify({ project: info.project.name, desk: { gzip, chunks } }));
+  expect(gzip).toBeGreaterThan(0);
+  expect(gzip).toBeLessThanOrEqual(180_000);
+
   let failMaleAudio = true;
   const heardRequests = [];
-  const transcripts = [];
-  // Keep the real demo lesson, answer submission and profile API. Inject the L2 reader metadata.
-  await page.route(url => url.pathname === lessonUrl || url.pathname === lessonUrl + '/feedback', async route => {
-    const response = await route.fetch();
-    const data = await response.json();
-    for (const item of data.lesson?.items ?? []) {
-      if (item.id === 'i1') {
-        item.prompt = 'Bạn nghe thấy họ hẹn nhau lúc nào?';
-        item.audio = missingSource ? { ...audio, src: undefined } : audio;
-      }
-      if (item.id === 'i2') item.audio = { ...audio, src: { f: '/api/audio/next-f', m: '/api/audio/next-m' } };
-    }
-    await route.fulfill({ response, json: data });
+  const plays = [];
+  page.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    if (path.startsWith('/api/audio/')) heardRequests.push({ url: path, status: response.status() });
+    if (path === itemUrl + '/plays' && response.ok()) plays.push(response.request().postDataJSON().slow);
   });
-  await page.route('**/api/audio/*', async route => {
-    const url = new URL(route.request().url()).pathname;
-    const range = route.request().headers().range?.match(/^bytes=(\d+)-(\d*)$/);
-    if (url === voiceSrc.m && failMaleAudio) return route.abort('failed');
-    const start = range ? Number(range[1]) : 0;
-    const end = range?.[2] ? Math.min(Number(range[2]), fixture.length - 1) : fixture.length - 1;
-    const status = range ? 206 : 200;
-    heardRequests.push({ url, status });
-    await route.fulfill({
-      status,
-      contentType: 'audio/mp4',
-      body: fixture.subarray(start, end + 1),
-      headers: {
-        'Accept-Ranges': 'bytes',
-        ...(range && { 'Content-Range': `bytes ${start}-${end}/${fixture.length}` }),
-      },
-    });
-  });
-  await page.route('**' + itemUrl + '/plays', async route => {
-    plays++;
-    await route.fulfill({ status: 404 });
-  });
-  await page.route('**' + itemUrl + '/reveal', async route => {
-    const { level } = route.request().postDataJSON();
-    if (level === 'slow') {
-      slowReveals++;
-      return route.fulfill({ status: 404 });
-    }
-    transcripts.push(submitted);
-    await route.fulfill({ json: { transcript } });
-  });
+  await page.route('**' + voiceSrc.m, route => failMaleAudio ? route.abort('failed') : route.continue());
+  const clips = await Promise.all(Object.values(voiceSrc).map(async src => {
+    const clip = await context.request.get(src, { headers: { Range: 'bytes=0-4095' } });
+    expect(clip.status()).toBe(206);
+    expect(clip.headers()['content-range']).toMatch(/^bytes 0-4095\/\d+$/);
+    return clip.body();
+  }));
+  expect(clips[0].equals(clips[1])).toBe(false);
+  const savedPlays = async () => (await (await context.request.get(lessonUrl)).json()).lesson.listen_log.i1;
 
   await lesson.tap();
   await expect(page.getByRole('button', { name: 'Bắt đầu bài' })).toBeVisible();
@@ -97,7 +51,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   const media = article.locator('audio');
   await expect(media).toHaveAttribute('preload', 'none');
   await expect.poll(() => heardRequests).toEqual(expect.arrayContaining([
-    { url: voiceSrc.f, status: 206 }, { url: '/api/audio/next-f', status: 206 },
+    { url: voiceSrc.f, status: 206 }, { url: '/api/audio/' + VOICE_HASHES.next, status: 206 },
   ]));
   await expect(article.getByText('Còn 2 lượt nghe')).toBeVisible();
   const screenshot = async (name) => {
@@ -121,7 +75,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await screenshot('02-dang-phat');
   if (simulated) await media.dispatchEvent('ended');
   await expect(article.getByText('Còn 1 lượt nghe')).toBeVisible();
-  await expect.poll(() => plays).toBe(1);
+  await expect.poll(savedPlays).toBe(1);
 
   const voiceButton = article.getByRole('button', { name: 'Nam', exact: true });
   await voiceButton.tap();
@@ -138,7 +92,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await play.tap();
   const retry = article.getByRole('button', { name: 'Phát lại', exact: true });
   await expect(retry).toBeVisible();
-  expect(plays).toBe(1);
+  expect(await savedPlays()).toBe(1);
   failMaleAudio = false;
   if (simulated) await media.evaluate(node => {
     node.play = async () => { node.dispatchEvent(new Event('playing')); };
@@ -148,14 +102,15 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
   if (simulated) await media.dispatchEvent('ended');
   await expect(article.getByText('Còn 1 lượt nghe')).toBeVisible();
-  expect(plays).toBe(1);
+  expect(await savedPlays()).toBe(1);
 
   await article.getByRole('button', { name: 'Chậm hơn' }).tap();
   await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
   expect(await media.evaluate(node => [node.playbackRate, node.preservesPitch])).toEqual([0.8, true]);
   if (simulated) await media.dispatchEvent('ended');
   await expect(article.getByRole('button', { name: 'Nghe thêm (tính là gợi ý)' })).toBeVisible();
-  await expect.poll(() => [plays, slowReveals]).toEqual([2, 1]);
+  await expect.poll(() => plays).toEqual([false, true]);
+  expect(await savedPlays()).toBe(2);
   await screenshot('03-het-luot');
 
   const reveal = article.getByRole('button', { name: 'Xem lời thoại', exact: true }).first();
@@ -163,17 +118,18 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   const confirm = article.getByRole('alertdialog');
   await expect(confirm).toBeVisible();
   await confirm.getByRole('button', { name: 'Huỷ' }).tap();
-  expect(transcripts).toEqual([]);
-  await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill('Montag um zehn Uhr.');
+  await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toHaveCount(0);
+  await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
   const saved = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/submissions') && response.ok());
   await article.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
-  await saved;
-  submitted = true;
+  const { submission } = await (await saved).json();
+  expect(submission.attempts[0].support).toBe('hint1');
   await expect(article.getByRole('button', { name: /Kiểm tra lại/ })).toBeVisible();
+  const postAnswer = page.waitForResponse(response => response.url().endsWith(itemUrl + '/reveal') && response.ok());
   await reveal.tap();
+  expect(await (await postAnswer).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint1' });
   await expect(confirm).toHaveCount(0);
-  await expect(article.getByText(transcript, { exact: true })).toBeVisible();
-  expect(transcripts).toEqual([true]);
+  await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
   await screenshot('04-loi-thoai');
 
   // Exercise the real profile form and the reader's text-only setting.
@@ -190,7 +146,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await expect(page.getByRole('button', { name: 'Sao chép liên kết' })).toBeVisible();
   const previous = page.getByRole('button', { name: 'Trang trước' });
   await previous.tap();
-  await expect(article.getByText(transcript, { exact: true })).toBeVisible();
+  await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
   await expect(media).toHaveCount(0);
   const preferences = (await (await context.request.get(settingsUrl)).json()).settings.preferences;
   expect(preferences.listeningVoice).toBe('m');
@@ -199,9 +155,101 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   expect((await context.request.patch(settingsUrl, {
     headers: { origin }, data: { preferences: { ...preferences, replaceAudioWithText: false } },
   })).ok()).toBe(true);
-  missingSource = true;
   await page.reload();
   await previous.tap();
-  await expect(article.getByText('Âm thanh chưa sẵn sàng', { exact: true })).toBeVisible();
-  await expect(article.getByRole('textbox', { name: 'Bài làm của bạn' })).toBeEditable();
+  await expect(article.getByRole('button', { name: 'Nghe thêm (tính là gợi ý)' })).toBeVisible();
+  await expect(media).toHaveAttribute('src', voiceSrc.m);
+  expect(await savedPlays()).toBe(2);
+
+  await page.getByRole('button', { name: 'Trang sau: Câu 2', exact: true }).tap();
+  await expect(article.getByRole('heading')).toHaveAttribute('data-question-number', '2');
+  const before = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/items/i2/reveal') && response.ok());
+  await reveal.tap();
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole('button', { name: 'Xem lời thoại', exact: true }).tap();
+  expect(await (await before).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint2' });
+  await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
+  await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
+  const second = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/submissions') && response.ok());
+  await article.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
+  expect((await (await second).json()).submission.attempts).toEqual([
+    expect.objectContaining({ item_id: 'i2', support: 'hint2' }),
+  ]);
 });
+
+test('a child can save their own voice and cannot change other settings', async ({ page, context }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Ếch thử/ }).tap();
+  await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
+  const request = context.request;
+  const headers = { origin: new URL(page.url()).origin };
+  const settings = '/api/learners/me/settings';
+  const voice = '/api/learners/me/voice';
+  const before = (await (await request.get(settings)).json()).settings;
+  expect(before.role).toBe('child');
+  expect((await request.post(voice, { headers, data: { voice: 'm' } })).ok()).toBe(true);
+  expect((await request.post(voice, { headers, data: { voice: 'f', replaceAudioWithText: true } })).status()).toBe(400);
+  expect((await request.post('/api/learners/demo-adult/voice', { headers, data: { voice: 'm' } })).status()).toBe(404);
+  const expected = { ...before, preferences: { ...before.preferences, listeningVoice: 'm' } };
+  const readSettings = async () => (await (await request.get(settings)).json()).settings;
+  const patch = () => request.patch(settings, { headers, data: { preferences: { replaceAudioWithText: true } } });
+  let forbidden = await patch();
+  // Wrangler can restart the local worker between requests. Check the saved settings
+  // before repeating this denied write, and still require the application to return 403.
+  if (forbidden.status() === 503 && (await forbidden.text()).includes('Your worker restarted mid-request')) {
+    expect(await readSettings()).toEqual(expected);
+    forbidden = await patch();
+  }
+  expect(forbidden.status(), await forbidden.text()).toBe(403);
+  expect(await readSettings()).toEqual(expected);
+});
+
+for (const { id, mode, level } of ASSISTED_LESSONS) {
+  test(`saves ${level} listening support before ${mode} submission`, async ({ page, context }) => {
+    await page.goto('/');
+    await page.getByRole('button', { name: /Người học thử/ }).tap();
+    await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
+    await page.goto('/?bai2=' + id);
+    await page.getByRole('button', { name: 'Bắt đầu bài' }).tap();
+    const article = page.locator('article.lesson-item');
+    const media = article.locator('audio');
+    // Hold playback open so the submission provably precedes the assisted replay's end.
+    await media.evaluate(node => {
+      node.play = async () => { node.dispatchEvent(new Event('playing')); };
+    });
+    await article.getByRole('button', { name: 'Phát âm thanh', exact: true }).tap();
+    await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
+    await media.dispatchEvent('ended');
+    await expect(article.getByText(level === 'slow' ? 'Còn 1 lượt nghe' : 'Đã hết lượt nghe', { exact: true })).toBeVisible();
+    await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
+
+    const url = '/api/lessons/' + id;
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    const reveal = page.waitForRequest(request => new URL(request.url()).pathname === url + '/items/i1/reveal');
+    await page.route('**' + url + '/items/i1/reveal', async route => {
+      await held;
+      await route.continue();
+    });
+    const replay = article.getByRole('button', { name: level === 'slow' ? 'Chậm hơn' : 'Nghe thêm (tính là gợi ý)', exact: true });
+    await replay.tap();
+    try {
+      expect((await reveal).postDataJSON()).toEqual({ level });
+      await expect(article.getByText('Đang ghi lượt nghe…', { exact: true })).toBeVisible();
+      await expect(article.getByText('Đang phát', { exact: true })).toHaveCount(0);
+    } finally {
+      release();
+    }
+    await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
+
+    if (mode === 'whole-lesson') await page.getByRole('button', { name: 'Sang Tổng kết' }).tap();
+    const saved = page.waitForResponse(response => response.url().endsWith(url + '/submissions') && response.request().method() === 'POST');
+    await page.getByRole('button', { name: mode === 'whole-lesson' ? 'Nộp bài' : 'Kiểm tra', exact: true }).tap();
+    const response = await saved;
+    const result = await response.json();
+    expect(response.status(), result.error).toBe(200);
+    expect(result.submission.attempts).toEqual([expect.objectContaining({ item_id: 'i1', support: 'hint1' })]);
+    const { lesson } = await (await context.request.get(url)).json();
+    expect(lesson.listen_log).toEqual({ i1: 1 });
+  });
+}

@@ -9,22 +9,28 @@ export type ListeningItem = {
   readOnly: boolean;
 };
 
-async function post(item: ListeningItem, action: "plays" | "reveal", body?: { level: "slow" | "transcript" }) {
+async function post(item: ListeningItem, action: "plays" | "reveal", body: { slow: boolean } | { level: "slow" | "extra" | "transcript" }) {
   if (item.readOnly) return null;
   const path = `/api/lessons/${encodeURIComponent(item.lessonId)}/items/${encodeURIComponent(item.itemId)}/${action}`;
   const response = await fetch(path, {
     method: "POST",
     keepalive: true,
-    ...(body && { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
   });
-  // L3 may not be available on the current deployment yet.
-  if (response.status === 404) return null;
   if (!response.ok) throw new Error("Chưa ghi được lượt nghe.");
   return response;
 }
 
-export async function recordPlay(item: ListeningItem, helped: boolean) {
-  await Promise.all([post(item, "plays"), helped && post(item, "reveal", { level: "slow" })]);
+export async function recordPlay(item: ListeningItem, slow: boolean) {
+  const response = await post(item, "plays", { slow });
+  if (!response) return null;
+  const { plays } = await response.json() as { plays: number };
+  return plays;
+}
+
+export async function recordPlaybackSupport(item: ListeningItem, level: "slow" | "extra") {
+  await post(item, "reveal", { level });
 }
 
 export async function revealTranscript(item: ListeningItem) {

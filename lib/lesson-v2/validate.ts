@@ -1,4 +1,4 @@
-import { itemPolicy, isMathFramework, type ItemKind } from '../subjects/item-kinds.ts';
+import { itemPolicy, isMathFramework, listeningLanguage, type ItemKind } from '../subjects/item-kinds.ts';
 import { lessonPackageV2 } from '../contracts/lesson-items.ts';
 import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
@@ -18,6 +18,7 @@ export type ValidateOptions = {
   subjectTitle?: string;
   frameworkKey?: string;
   itemKinds?: ItemKind[];
+  listening?: { min: number; max: number };
 };
 
 /** D20: items per lesson written by an AI runner, and at most four open answers so grading stays quick. */
@@ -89,6 +90,29 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
   return issues;
 }
 
+/** A leased quota applies to both the drafted lesson and the questions that can actually be saved. */
+export function listeningIssues(items: readonly LessonItemAny[], range: ValidateOptions['listening'], framework?: string): LessonIssue[] {
+  if (!range) return [];
+  const count = items.filter(item => item.audio).length;
+  if (count < range.min || count > range.max)
+    return [{ path: '/items', code: 'listening_count', message: `Bài cần ${range.min}–${range.max} câu nghe (hiện có ${count}).` }];
+  const lang = listeningLanguage(framework);
+  const wordsOnly = (text: string) => text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const issues: LessonIssue[] = [];
+  for (const [index, item] of items.entries()) {
+    if (!item.audio) continue;
+    if (item.audio.lang !== lang)
+      issues.push({ path: `/items/${index}/audio/lang`, code: 'listening_language', message: 'Cần dùng đúng ngôn ngữ của sổ.' });
+    const prompt = wordsOnly(item.prompt);
+    if (item.audio.lines.some(line => {
+      const dialogue = wordsOnly(line.text);
+      return dialogue && (lang === 'zh-CN' ? prompt.includes(dialogue) : ` ${prompt} `.includes(` ${dialogue} `));
+    }))
+      issues.push({ path: `/items/${index}/prompt`, code: 'listening_prompt', message: 'Đề câu nghe không được chép nguyên lượt thoại.' });
+  }
+  return issues;
+}
+
 /** Validates a lesson package; returns the parsed package when there are no issues. */
 export function validateLessonPackage(
   input: unknown,
@@ -153,8 +177,9 @@ export function validateLessonPackage(
         `A ${lesson.template === 'reading' ? 'reading' : lesson.kind} lesson has ${low}–${high} items (it has ${lesson.items.length}).`,
       );
     const open = items.filter((item) => !item.key).length;
-    if (open > AI_MAX_OPEN_ITEMS)
-      issue('/items', 'size_limit', `At most ${AI_MAX_OPEN_ITEMS} open-answer items per lesson (it has ${open}); give the others a key.`);
+    const limit = lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson' ? 8 : AI_MAX_OPEN_ITEMS;
+    if (open > limit)
+      issue('/items', 'size_limit', `At most ${limit} open-answer items per lesson (it has ${open}).`);
   }
   if (review && !options.adaptive && lesson.estMinutes > 20) issue('/estMinutes', 'schema', 'A review set takes at most 20 minutes.');
 
@@ -197,8 +222,10 @@ export function validateLessonPackage(
       issues.push({path:`/items/${index}/difficulty`,code:'difficulty_limit',message:'Câu quá dễ cho bước này.'});
   });
 
+  issues.push(...listeningIssues(items, options.listening, options.frameworkKey));
   const listeningItems = items.filter(item => item.audio);
-  if (listeningItems.length && !listeningItems.some(item => item.key))
+  const wholeLessonWithoutQuota = !options.listening && lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson';
+  if (!wholeLessonWithoutQuota && listeningItems.length && !listeningItems.some(item => item.key))
     issue('/items', 'schema', 'Bài có câu nghe cần ít nhất một câu nghe chấm tự động.');
   if (items.filter(item => item.key?.type === 'dictation').length > 2)
     issue('/items', 'size_limit', 'Mỗi bài có tối đa hai câu chính tả.');

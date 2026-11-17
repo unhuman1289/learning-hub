@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { probeTts } from './tts.mjs';
 import { createHub } from './hub.mjs';
+import { openAiEngine } from './openai.mjs';
 import { qwenEngine } from './engines.mjs';
 import { processJob } from './job.mjs';
 import { mirrorDue, mirrorHistory } from './mirror.mjs';
@@ -39,6 +40,7 @@ export function loadConfig(file = join(homedir(), '.config/learning-hub/home-run
         ([k]) =>
           k.startsWith('HUB_') ||
           k.startsWith('QWEN_') ||
+          k === 'OPENAI_API_KEY' ||
           k.startsWith('RUNNER_') ||
           k.startsWith('DRIVE_'),
       ),
@@ -65,9 +67,10 @@ export function leaseRequest(qwen, { daily = false, ttsVoices = {} } = {}) {
     purposes: ['submission', 'recheck', 'request', 'initial', ...(daily ? ['daily'] : [])],
     triggers: ['on_demand', 'deferred', ...(daily ? ['scheduled'] : [])],
     max: 1,
+    ...(qwen.subjectIds ? { subjectIds: qwen.subjectIds } : {}),
     capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(qwen.vision ? ['vision'] : []), ...(tts ? ['tts'] : [])],
     ...(tts ? { ttsVoices } : {}),
-    runner: { name: 'home-runner', version: VERSION, model: 'qwen' },
+    runner: { name: 'home-runner', version: VERSION, model: qwen.name === 'openai' ? 'openai' : 'qwen' },
   };
 }
 
@@ -79,9 +82,10 @@ export async function runOnce(hub, qwen, { daily = false, ttsVoices, signal } = 
   if (signal?.aborted) return { idle: true };
   const [lease] = await hub.lease(leaseRequest(qwen, { daily, ttsVoices }));
   if (!lease) return { idle: true };
+  const engine = qwen.forLease ? qwen.forLease(lease) : qwen;
   const awake = process.platform === 'darwin' ? spawn('caffeinate', ['-i', '-w', String(process.pid)], { stdio: 'ignore' }) : null;
   try {
-    return await processJob(hub, lease, qwen, { log });
+    return await processJob(hub, lease, engine, { log });
   } finally {
     awake?.kill();
   }
@@ -94,6 +98,26 @@ export function buildFromConfig(config) {
     accessClientId: config.HUB_ACCESS_CLIENT_ID,
     accessClientSecret: config.HUB_ACCESS_CLIENT_SECRET,
   });
+  if (config.RUNNER_ENGINE === 'openai') {
+    const url = new URL(config.HUB_BASE_URL);
+    if (url.origin !== 'https://learning-hub-staging.tranvu-812.workers.dev' &&
+      !['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)) {
+      throw new Error('OpenAI pilot requires a local or staging Hub.');
+    }
+    const subjectIds = [...new Set((config.RUNNER_SUBJECT_IDS ?? '').split(',').map(id => id.trim()).filter(Boolean))];
+    if (!subjectIds.length || subjectIds.length > 20 || subjectIds.some(id => !/^sub_[0-9a-f]{20}$/.test(id))) {
+      throw new Error('OpenAI pilot requires explicit demo subject IDs.');
+    }
+    if (!config.OPENAI_API_KEY?.trim()) throw new Error('Missing OpenAI project API key.');
+    const engine = {
+      name: 'openai',
+      vision: false,
+      subjectIds,
+      available: async () => true,
+      forLease: lease => openAiEngine({ apiKey: config.OPENAI_API_KEY, kind: lease.kind, purpose: lease.purpose }),
+    };
+    return { hub, qwen: engine, daily: config.RUNNER_DAILY === '1' };
+  }
   const qwen = qwenEngine({
     baseUrl: config.QWEN_BASE_URL,
     model: config.QWEN_MODEL ?? 'qwen/qwen3.6-35b-a3b',
@@ -117,7 +141,7 @@ async function main() {
       .filter(Boolean),
   };
   for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => stop.abort());
-  const ttsVoices = await probeTts(config.RUNNER_TTS_VOICES);
+  const ttsVoices = qwen.name === 'openai' ? {} : await probeTts(config.RUNNER_TTS_VOICES);
   log({ event: 'start', version: VERSION, hub: new URL(config.HUB_BASE_URL).origin, ttsLanguages: Object.keys(ttsVoices) });
   while (!stop.signal.aborted) {
     let delay;

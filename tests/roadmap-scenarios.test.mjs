@@ -7,7 +7,7 @@ import {memoryDb} from './d1-adapter.mjs';
 import {createSubject,updateSubject} from '../lib/subjects/service.ts';
 import {parseSubjectInput,parseSubjectPatch} from '../lib/subjects/policy.ts';
 import {frameworkFor} from '../lib/roadmap/frameworks.ts';
-import {decideNext,passesChallenge,placeSteps,stepStatus} from '../lib/roadmap/progress.ts';
+import {decideNext,passesChallenge,placeSteps,stepStatus,roadmapProgressWrite} from '../lib/roadmap/progress.ts';
 import {listSteps,applyRoadmapChanges} from '../lib/roadmap/store.ts';
 import {checkCoverage} from '../lib/roadmap/coverage.ts';
 import {readRoadmapProgress} from '../lib/roadmap/report.ts';
@@ -128,4 +128,74 @@ test('0024 backfills only valid own steps with intact prerequisites and passes i
     {roadmap_step_id:'mine:s1',step_role:'intro'});
   assert.equal(sqlite.prepare('PRAGMA integrity_check').get().integrity_check,'ok');
   assert.deepEqual(sqlite.prepare('PRAGMA foreign_key_check').all(),[]);
+});
+
+test('new Deutsch steps require listening evidence and the legacy step keeps its gate', async t => {
+  const db = memoryDb();
+  t.after(() => db.sqlite.close());
+  const { id } = await newSubject(db, 'adult', 'Deutsch', 'Học A2');
+  seedStep(db, 'adult', id, 'step', 'Wortstellung', 'word-order');
+  const append = title => ({ op: 'append', step: {
+    title, objective: 'Đặt câu theo lời thoại', situation: '', skills: ['word-order'], requires: [], band: 2, kind: 'new',
+  } });
+  const writerInput = {
+    learnerId: 'adult', subjectId: id, jobId: 'l4', stamp, gate: '1=1', bind: [],
+    resolveSkill: skillId => skillId, requireListening: true, mastered: new Set(['word-order']),
+  };
+  const edit = await applyRoadmapChanges(db, {
+    ...writerInput, changes: [{ op: 'revise', stepId: 'step', fields: { objective: 'Đặt câu' } }, append('Satzmelodie')],
+  });
+  await db.batch(edit.statements);
+  const [legacy, added] = await listSteps(db, 'adult', id);
+  assert.equal(legacy.listening, 0);
+  assert.equal(added.listening, 1);
+  db.sqlite.prepare("UPDATE roadmap_steps SET status='passed' WHERE id=?").run(legacy.id);
+  db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,origin,created_at,updated_at)
+    VALUES('word-order',?,'adult','word-order','Wortstellung','user',?,?)`).run(id, stamp, stamp);
+  db.sqlite.prepare(`INSERT INTO skill_states(skill_id,learner_id,subject_id,mastery,mastery_ceiling,
+    dim_knowledge,dim_recognition,dim_application,dim_retention,attempts_total,evidence_hash,recompute_token,updated_at)
+    VALUES('word-order','adult',?,'demonstrated','demonstrated',3,3,3,3,1,'h','x',?)`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,kind,roadmap_step_id,step_role)
+    VALUES('lesson','adult',?,'{}','2026-11-12',?,'3','new','step','practice')`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,
+    difficulty,auto_gradable,prompt_hash,origin,payload,created_at)
+    VALUES('lesson','i1','adult',?,'independent','apply','short','["word-order"]',1,1,'h','plan','{}',?)`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO submissions(id,learner_id,lesson_id,client_submission_id,request_hash,status,created_at)
+    VALUES('sub','adult','lesson','client','h','graded',?)`).run(stamp);
+  db.sqlite.prepare(`INSERT INTO attempts(id,submission_id,learner_id,lesson_id,item_id,subject_id,skill_ids,activity,attempt_no,
+    answer,support,context,status,current_grade_id,day,created_at)
+    VALUES('attempt','sub','adult','lesson','i1',?,'["word-order"]','apply',1,'ok','none','lesson','graded','grade','2026-11-12',?)`).run(id, stamp);
+  db.sqlite.prepare(`INSERT INTO grades(id,attempt_id,grader,result,score,feedback,correction,errors,created_at)
+    VALUES('grade','attempt','auto','correct',1,'','','[]',?)`).run(stamp);
+  for (const [stepId, listening, expected] of [
+    [added.id, null, 'practising'], [added.id, { level: 'emerging', days: ['2026-11-12'] }, 'practising'],
+    [added.id, { level: 'secure', days: ['2026-11-11', '2026-11-12'] }, 'passed'], [legacy.id, null, 'passed'],
+  ]) {
+    db.sqlite.prepare("UPDATE learning_lessons SET roadmap_step_id=? WHERE id='lesson'").run(stepId);
+    db.sqlite.prepare("UPDATE roadmap_steps SET status='practising',passed_via=NULL,passed_at=NULL WHERE id=?").run(stepId);
+    db.sqlite.prepare("UPDATE skill_states SET listening=? WHERE skill_id='word-order'").run(listening ? JSON.stringify(listening) : null);
+    const step = (await listSteps(db, 'adult', id)).find(step => step.id === stepId);
+    const mastered = new Set(['word-order']);
+    const secure = listening?.level === 'secure' ? mastered : new Set();
+    assert.equal(stepStatus(step, mastered, [row('word-order')], true, secure), expected);
+    await roadmapProgressWrite(db, 'adult', 'lesson', new Date(stamp)).run();
+    assert.equal((await listSteps(db, 'adult', id)).find(step => step.id === stepId).status, expected);
+
+    const replanned = await applyRoadmapChanges(db, { ...writerInput, replan: true, changes: [append('Satzakzent')] });
+    assert.equal(replanned.steps.at(-1).status, listening?.level === 'secure' ? 'passed' : 'planned');
+  }
+});
+
+test('listening quotas follow the roadmap mode and the target skills’ listening evidence', () => {
+  const planned = { id: 'step', title: 'Hẹn giờ', skills: ['time'], status: 'planned', requires: [], band: 2 };
+  const practising = { ...planned, status: 'practising' };
+  const listening = { completedLessons: 2, observedSkills: new Set() };
+  const practice = { ...state([practising]), listening };
+  assert.deepEqual(decideNext({ ...state([planned]), listening }).listening, { min: 1, max: 2 });
+  assert.deepEqual(decideNext(practice).listening, { min: 2, max: 3 });
+  assert.deepEqual(decideNext({ ...practice, listening: { ...listening, completedLessons: 3 } }).listening, { min: 3, max: 4 });
+  assert.deepEqual(decideNext({ ...practice, listening: { completedLessons: 3, observedSkills: new Set(['time']) } }).listening, { min: 2, max: 3 });
+  assert.deepEqual(decideNext({ ...practice, independentSkills: new Set(['time']) }).listening, { min: 2, max: 6 });
+  assert.deepEqual(decideNext({ ...practice, skills: [{ ...skill('time'), nextReviewDay: '2026-11-01' }] }).listening, { min: 1, max: 2 });
+  assert.deepEqual(decideNext(state([practising])).listening, { min: 0, max: 0 });
 });

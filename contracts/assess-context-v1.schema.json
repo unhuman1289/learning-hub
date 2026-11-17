@@ -282,6 +282,33 @@
             "type": "string",
             "maxLength": 5000
           },
+          "transcript": {
+            "minItems": 1,
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "speaker": {
+                  "type": "string",
+                  "enum": [
+                    "a",
+                    "b"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                }
+              },
+              "required": [
+                "speaker",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
           "skills": {
             "maxItems": 3,
             "type": "array",

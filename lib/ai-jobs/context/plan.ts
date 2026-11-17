@@ -1,7 +1,7 @@
 import {coverageState,stepQuery} from '../../roadmap/coverage.ts';
 import {listSteps} from '../../roadmap/store.ts';
 import {decideNext,roadmapSignals} from '../../roadmap/progress.ts';
-import { itemPolicy } from "../../subjects/item-kinds.ts";
+import { itemPolicy, listeningLanguage } from "../../subjects/item-kinds.ts";
 import {frameworks,inferFramework} from '../../roadmap/frameworks.ts';
 import { contextExcerpt } from '../../knowledge/service.ts';
 import { decideAdaptivePlan } from '../adaptive.ts';
@@ -88,13 +88,25 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       sensitivity = s.sensitivity as 'normal' | 'clinical' | 'child_dev',
       data = await skillContext(db, job.learner_id, id);
     const steps=await listSteps(db,job.learner_id,id);
+    const framework = s.framework ? JSON.parse(String(s.framework)) as ReturnType<typeof inferFramework> : inferFramework(String(s.title),String(s.opening_brief??s.goal??""),String(s.curriculum??""));
+    const lang = listeningLanguage(framework.key);
     const legacyRoadmap=JSON.parse(String(s.roadmap??'[]'));
     if (job.adaptive) {
       const requested=requestMetadata?.metadata?JSON.parse(requestMetadata.metadata):{};
       const mode=requested.mode??'practice';
+      let listening;
+      if (roadmapV2 && lang && tts?.languages.includes(lang) && tts.voices[lang]) {
+        const [completed, observed] = await Promise.all([
+          db.prepare('SELECT count(*) AS n FROM learning_lessons WHERE user_id=? AND subject_id=? AND completed_at IS NOT NULL')
+            .bind(job.learner_id, id).first<{ n: number }>(),
+          db.prepare("SELECT skill_id FROM skill_states WHERE learner_id=? AND subject_id=? AND json_extract(listening,'$.level') <> 'none'")
+            .bind(job.learner_id, id).all<{ skill_id: string }>(),
+        ]);
+        listening = { completedLessons: completed?.n ?? 0, observedSkills: new Set(observed.results?.map(row => row.skill_id)) };
+      }
       context.adaptive = roadmapV2
         ? decideNext({steps,skills:data.skills,errors:data.errors,...await roadmapSignals(db,job.learner_id,id,job.learning_day),
-            day:job.learning_day,daily:job.purpose==='daily',requestMode:mode,requestedStepId:requested.stepId,maxDifficulty:JSON.parse(String(s.limits)).maxDifficulty??3,replan:s.roadmap_replan===1})
+            listening,day:job.learning_day,daily:job.purpose==='daily',requestMode:mode,requestedStepId:requested.stepId,maxDifficulty:JSON.parse(String(s.limits)).maxDifficulty??3,replan:s.roadmap_replan===1})
         : await decideAdaptivePlan(db, job.learner_id, id, job.learning_day, job.purpose === 'daily', mode,
             steps.length?steps.filter(step=>step.status==='planned'):legacyRoadmap, data.skills, data.errors);
     }
@@ -163,7 +175,6 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       .bind(job.learner_id, id, from, job.learner_id, id, from, job.learner_id, id, from, job.learner_id, id)
       .first<{ aiGraded: number; disputed: number; overturned: number; keyIssues: number }>();
     const {results: reflections=[]} = await db.prepare('SELECT submission_id,lesson_id,difficulty,usefulness,minutes,note,updated_at FROM lesson_reflections WHERE learner_id=? AND subject_id=? ORDER BY updated_at DESC LIMIT 10').bind(job.learner_id,id).all<Record<string,unknown>>();
-    const framework = s.framework ? JSON.parse(String(s.framework)) as ReturnType<typeof inferFramework> : inferFramework(String(s.title),String(s.opening_brief??s.goal??""),String(s.curriculum??""));
     const { maxDifficulty, allowNewTopics, maxNewSkillsPerWeek, itemKinds } = JSON.parse(String(s.limits));
     list.push({
       framework: {key:framework.key,label:safeText(framework.label,sensitivity),
