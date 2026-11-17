@@ -94,8 +94,11 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
         if (!cancelled) module.prefetchLesson(ownerId, viewing.id, prefetchId);
       });
     };
-    const idle = window.requestIdleCallback ? window.requestIdleCallback(run) : window.setTimeout(run, 2000);
-    return () => { cancelled = true; if (window.cancelIdleCallback) window.cancelIdleCallback(idle); else clearTimeout(idle); };
+    let idle = 0;
+    const delay = window.setTimeout(() => {
+      idle = window.requestIdleCallback ? window.requestIdleCallback(run) : window.setTimeout(run, 0);
+    }, 2000);
+    return () => { cancelled = true; clearTimeout(delay); if (window.cancelIdleCallback) window.cancelIdleCallback(idle); else clearTimeout(idle); };
   }, [hub2, prefetchId, ownerId, viewing.id, shelf.offline]);
   useEffect(() => {
     if (ownDeskReady) return rumAfterPaint("desk", rumNavigationStart("desk"));

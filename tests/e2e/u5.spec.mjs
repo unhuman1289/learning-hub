@@ -89,7 +89,10 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   checkTime(info, 'first-question', firstMs, 2000);
   const lessonStats = await lessonSnapshot();
   expect(lessonStats.api).toContain(lessonURL);
-  expect(lessonStats.api.length).toBeLessThanOrEqual(2);
+  // A prefetch that is still in flight when tapped may overlap the fresh read.
+  expect(lessonStats.api.filter(path => path === lessonURL).length).toBeLessThanOrEqual(2);
+  expect(lessonStats.api.filter(path => path === lessonURL + "/tutor").length).toBeLessThanOrEqual(1);
+  expect(lessonStats.api.every(path => path === lessonURL || path === lessonURL + "/tutor"), JSON.stringify(lessonStats.api)).toBe(true);
   await noOverflow(page);
 
   const field = flow(page).getByRole('textbox', { name: 'Bài làm của bạn' }).first();
@@ -311,6 +314,8 @@ async function edgesClearOfControls(page) {
 }
 
 test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, context, browserName }, testInfo) => {
+  // Exercise the first-visit introduction and hint without an automatic jump to a prefetched question.
+  await page.addInitScript(() => Object.defineProperty(navigator, 'connection', { configurable: true, value: Object.assign(new EventTarget(), { saveData: true }) }));
   await page.goto('/');
   // A profile the test above has not used, so this is still its first lesson.
   await page.getByRole('button', { name: /Người học thử/ }).tap();
