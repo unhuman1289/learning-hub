@@ -198,7 +198,7 @@ export function LessonItem({
             {hasVietnameseTyping(value.answer) && <p role="status" className="text-sm text-muted">Có dấu tiếng Việt. Bạn thử đổi sang bàn phím tiếng Đức.</p>}
           </>}
         </div>
-      ) : <StructuredInput item={item} value={value.answer} disabled={locked} focusLine={focusLine}
+      ) : <StructuredInput item={item} value={value.answer} disabled={locked} focusLine={focusLine} active={active}
         onChange={answer => onChange({ ...value, answer })} />}
       {item.attachment !== "none" && (
         <div className="text-sm">

@@ -135,10 +135,11 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
     if (await summary.isVisible()) break;
     // The turn starts after a lazy import, so wait for the sheet to be replaced
     // instead of racing the next tap against a page that is about to unmount.
-    const sheet = flow(page).locator('.lesson-flow-page');
+    await flow(page).locator('.lesson-flow-page[data-e2e-turned-from]').evaluateAll(sheets => sheets.forEach(sheet => delete sheet.dataset.e2eTurnedFrom));
+    const sheet = flow(page).locator('.lesson-flow-page:visible');
     await sheet.evaluate(element => { element.dataset.e2eTurnedFrom = ''; });
     await nextEdge(page).tap();
-    await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
+    await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]:visible')).toHaveCount(0);
     await turnSettled(page);
   }
   await expect(flow(page).getByRole('heading', { name: 'Tổng kết bài' })).toBeVisible();
@@ -250,7 +251,7 @@ const questionHeading = page => flow(page).locator('[data-question-number]:visib
 
 /** A one-finger horizontal drag on the page, as touch events (React listens on the lesson root). */
 async function swipe(page, dx, { release = true, at = 0.75 } = {}) {
-  await page.locator('.lesson-flow-page').evaluate((sheet, { dx, release, at }) => {
+  await page.locator('.lesson-flow-page:visible').evaluate((sheet, { dx, release, at }) => {
     const { left, width, top, height } = sheet.getBoundingClientRect();
     const y = top + Math.min(height, innerHeight - top) * at;
     const x = left + width / 2;
@@ -386,6 +387,8 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await turnSettled(page);
 
   // Keyboard: the edge takes visible focus, curls further, and Enter turns the page.
+  const draftField = flow(page).getByRole('textbox', { name: 'Bài làm của bạn' }).first();
+  await draftField.fill('Bản nháp được giữ lại.');
   const forward = nextEdge(page);
   await forward.focus();
   if (browserName === 'chromium') {
@@ -396,13 +399,32 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     await expect.poll(() => forward.locator('[data-curl]').evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThan(30);
   }
   const before = await questionHeading(page).getAttribute('data-question-number');
+  const preparedPage = flow(page).locator('[data-question-page]:not([data-active])').first();
+  await expect(preparedPage).toHaveAttribute('aria-hidden', 'true');
+  expect(await preparedPage.evaluate(node => node.inert)).toBe(true);
+  const preparedHandle = await preparedPage.elementHandle();
+  await preparedPage.evaluate(node => { node.dataset.testPreparedInstance = 'same'; });
+  await watchTurnWindows(page);
   await page.keyboard.press('Enter');
   await expect(flow(page).locator(`[data-question-number="${before}"]`)).not.toBeVisible();
+  if (browserName === 'chromium') await expectSameWindow(page);
   await turnSettled(page);
+  await expect(flow(page).locator('[data-question-page][data-active][data-test-prepared-instance="same"]')).toBeVisible();
+  expect(await preparedHandle.evaluate(node => node.isConnected && !node.inert && !node.hasAttribute('aria-hidden'))).toBe(true);
   await expect(page.locator(':focus')).not.toHaveAttribute('data-turn-edge');
   await page.keyboard.press('ArrowLeft');
   await turnSettled(page);
   await expect(flow(page).locator(`[data-question-number="${before}"]`)).toBeVisible();
+  await expect(draftField).toHaveValue('Bản nháp được giữ lại.');
+  await draftField.fill('');
+  // Reduced motion uses the same prepared page switch without an animation.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await nextEdge(page).tap();
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).not.toBeVisible();
+  await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn');
+  await previousEdge(page).tap();
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
 
   // Remembered in the profile: the hint stays away after a reload.
   await page.reload();
@@ -477,19 +499,22 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
       await turn();
       await expect(page.locator('html')).toHaveAttribute('data-lesson-turn', /.+/);
       await turnSettled(page);
-      const { tasks, frames, start, end, origin, prepared } = await page.evaluate(() => {
+      const { tasks, frames, start, end, origin, prepared, callback } = await page.evaluate(() => {
         window.__turnFrames.push(...window.__turnFrameObserver.takeRecords().map(entry => ({
           ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
         })));
         return { tasks: window.__longTasks, frames: window.__turnFrames,
           start: performance.getEntriesByName('turn:start').at(-1)?.startTime,
           end: performance.getEntriesByName('turn:end').at(-1)?.startTime, origin: location.origin,
-          prepared: performance.getEntriesByName('turn:prepared').length };
+          prepared: performance.getEntriesByName('turn:prepared').length,
+          callback: performance.getEntriesByName('turn:update', 'measure').at(-1)?.duration };
       });
       console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
       expect(start, 'turn start mark').toBeDefined();
       expect(end, 'turn end mark').toBeDefined();
       expect(prepared, 'prepared question turn').toBe(1);
+      console.log(JSON.stringify({ metric: 'turn-callback-ms', ms: callback }));
+      expect(callback, 'prepared turn callback').toBeLessThan(8);
       const blockingFrames = frames.filter(frame => hubLongFrame(frame, start, end, origin));
       console.log(JSON.stringify({ metric: 'turn-hub-long-frames', frames: blockingFrames }));
       expect(blockingFrames, 'Hub-attributed long animation frame during a turn').toEqual([]);

@@ -76,10 +76,11 @@ test('Quản trị tắt gia sư, trẻ em hỏi qua SSE và người giám hộ
   const heading = page.getByRole('heading', { name: 'Tổng kết bài' });
   const flow = page.locator('.lesson-flow');
   for (let index = 0; index < 20 && !await heading.isVisible(); index++) {
-    const sheet = flow.locator('.lesson-flow-page');
+    await flow.locator('.lesson-flow-page[data-e2e-turned-from]').evaluateAll(sheets => sheets.forEach(sheet => delete sheet.dataset.e2eTurnedFrom));
+    const sheet = flow.locator('.lesson-flow-page:visible');
     await sheet.evaluate(element => { element.dataset.e2eTurnedFrom = ''; });
     await flow.getByRole('button', { name: /^(Bắt đầu bài|Trang sau: Câu [\d–]+|Sang Tổng kết)$/ }).tap();
-    await expect(flow.locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
+    await expect(flow.locator('.lesson-flow-page[data-e2e-turned-from]:visible')).toHaveCount(0);
     await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn', /.+/);
   }
   const remarks = page.getByRole('region', { name: 'Nhận xét của gia sư' });

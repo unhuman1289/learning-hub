@@ -44,7 +44,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await expect(page.getByRole('button', { name: 'Bắt đầu bài' })).toBeVisible();
   expect(heardRequests).toHaveLength(0);
   await page.getByRole('button', { name: 'Bắt đầu bài' }).tap();
-  const article = page.locator('article.lesson-item');
+  const article = page.locator('article.lesson-item:visible');
   const play = article.getByRole('button', { name: 'Phát âm thanh' });
   await expect(play).toBeVisible();
   expect((await play.boundingBox()).height).toBeGreaterThanOrEqual(56);
@@ -207,7 +207,7 @@ for (const { id, mode, level } of ASSISTED_LESSONS) {
     await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
     await page.goto('/?bai2=' + id);
     await page.getByRole('button', { name: 'Bắt đầu bài' }).tap();
-    const article = page.locator('article.lesson-item');
+    const article = page.locator('article.lesson-item:visible');
     const media = article.locator('audio');
     // Hold playback open so the submission provably precedes the assisted replay's end.
     await media.evaluate(node => {

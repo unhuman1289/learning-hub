@@ -18,9 +18,10 @@ async function turnUntil(page, target, direction = /^(Bắt đầu bài|Trang sa
     await expect(corner).toBeVisible();
     // The turn loads lazily, so wait for the sheet to be replaced, not only for the turn flag;
     // otherwise the next tap lands on the new page and turns one page too far.
-    await visiblePage(page).locator('.lesson-flow-page').evaluate(sheet => { sheet.dataset.e2eTurnedFrom = ''; });
+    await visiblePage(page).locator('.lesson-flow-page[data-e2e-turned-from]').evaluateAll(sheets => sheets.forEach(sheet => delete sheet.dataset.e2eTurnedFrom));
+    await visiblePage(page).locator('.lesson-flow-page:visible').evaluate(sheet => { sheet.dataset.e2eTurnedFrom = ''; });
     await corner.tap();
-    await expect(visiblePage(page).locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
+    await expect(visiblePage(page).locator('.lesson-flow-page[data-e2e-turned-from]:visible')).toHaveCount(0);
     await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn', /.+/);
   }
   await expect(target).toBeVisible();

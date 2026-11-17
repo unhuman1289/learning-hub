@@ -29,10 +29,11 @@ export function turnPrepared(leaf: HTMLElement, outgoing: HTMLElement, incoming:
   mark("prepared");
   const old = leaf.getBoundingClientRect();
   const nextBottom = old.top + heights.next;
+  const frameBottom = old.top + Math.max(heights.old, heights.next);
   let from = Math.max(0, old.top), to = Math.min(innerHeight, old.top + heights.old, nextBottom);
   if (to - from < 2 * REST_CURL) { from = Math.max(0, old.top); to = Math.max(Math.min(innerHeight, old.bottom), from + 2 * REST_CURL); }
   const values = [px(old.width), px(heights.old), px((corner === "top" ? from : to) - old.top), px(Math.max(REST_CURL, curl)),
-    px(2 * Math.ceil(Math.hypot(old.width, heights.old)) + 2), clip(old.top, old.top + heights.old, from, to), clip(old.top, nextBottom, from, to)];
+    px(2 * Math.ceil(Math.hypot(old.width, heights.old)) + 2), clip(old.top, frameBottom, from, to), clip(old.top, frameBottom, from, to)];
   const swap = () => {
     mark("update-start");
     html.dataset.lessonTurnIn = "";
