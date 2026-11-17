@@ -91,7 +91,7 @@ async function staging(target, applyMigrations) {
     verifyStagingHealth('Hub staging', stagingOrigin, candidate.commit, { d1: 'connected' }),
     verifyStagingHealth('MCP staging', stagingMcpOrigin, candidate.commit),
   ]);
-  run(process.execPath, ['scripts/staging-smoke.mjs', stagingOrigin, '--household']);
+  run(process.execPath, ['scripts/staging-smoke.mjs', stagingOrigin, '--household', '--mcp=' + stagingMcpOrigin]);
   console.log('Hub and MCP staging are serving ' + candidate.commit + '.');
 }
 
