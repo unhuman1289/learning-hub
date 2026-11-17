@@ -376,6 +376,11 @@ Bàn học đang ở 177/180 KB, chỉ còn 3 KB dư. Mục tiêu ≤ 150 KB.
 ### F6. Mượt khi thao tác
 
 - Giữ test tác vụ dài ≤ 50 ms khi lật trang và khi gõ.
+- **F6.1 (Claude, 17/11):** lỗi đỏ chập chờn trên Pixel‑7 CI không tái hiện ở local (30/30 đạt). Các long task ghi được không có attribution script.
+  - Bước 1: thu một Chromium performance trace trên CI khi lỗi tái hiện, tối đa 10 lượt dispatch.
+  - Bước 2: nếu trace cho thấy việc nặng nằm trong code của Hub, sửa và giữ cổng như cũ.
+  - Bước 3: nếu không, đổi cổng chặn CI thành "không có LoAF > 50 ms có script attribution từ bundle của Hub trong lúc lật". Long task thô vẫn đo và ghi vào log làm số liệu, nhưng không chặn.
+  - Ngưỡng 50 ms giữ nguyên; độ mượt thật đo trên máy thật ở PHONE-CHECK.
 - `content-visibility: auto` cho danh sách dài (lịch sử sổ).
 - `startTransition` cho chuyển trang và lọc.
 - Theo dõi INP p75 < 200 ms.
