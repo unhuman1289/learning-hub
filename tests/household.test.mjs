@@ -62,6 +62,10 @@ test('access gate: people with a valid assertion pass; missing, foreign or servi
 test('profile mode removes account routes and leaves automation to its own auth', async () => {
   const env = { HOUSEHOLD_GATE: 'access', ACCESS_TEAM_DOMAIN: 'family.cloudflareaccess.com', APP_ACCESS_AUD: 'aud-app' };
   assert.equal((await householdGuard(req('/api/auth/sign-in/email', { method: 'POST' }), env)).status, 404);
+  assert.equal((await householdGuard(req('/api/auth/sign-up/email', { method: 'POST' }), { HOUSEHOLD_GATE: 'passphrase' })).status, 404);
+  const register = await householdGuard(req('/register'), { HOUSEHOLD_GATE: 'passphrase' });
+  assert.equal(register.status, 302);
+  assert.equal(register.headers.get('location'), 'https://learn.example/');
   const login = await householdGuard(req('/login'), env);
   assert.equal(login.status, 302);
   assert.equal(login.headers.get('location'), 'https://learn.example/');
