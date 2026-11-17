@@ -1,0 +1,12 @@
+.tutor-pet { display:inline-grid; place-items:center; flex:none; width:48px; height:52px; }
+.tutor-pet-window { display:block; width:48px; height:52px; overflow:hidden; }
+.tutor-pet-strip { display:block; max-width:none; width:calc(var(--frames) * 48px); height:52px; animation:tutor-frames var(--duration) steps(var(--frames)) infinite; }
+.tutor-pet-once { animation-name:tutor-frames-once; animation-timing-function:steps(calc(var(--frames) - 1)); animation-iteration-count:1; animation-fill-mode:forwards; }
+.tutor-pet-offline { animation:tutor-umbrella-intro 360ms steps(3) 1 forwards, tutor-umbrella-loop 360ms steps(3) 360ms infinite; }
+.tutor-pet-fallback { width:48px; height:48px; border:2px solid #765342; border-radius:50%; background:#f8e4bf; color:#493026; font-size:24px; text-align:center; }
+.tutor-pet-fallback[hidden] { display:none; }
+@keyframes tutor-frames { to { transform:translateX(calc(var(--frames) * -48px)); } }
+@keyframes tutor-frames-once { to { transform:translateX(calc((var(--frames) - 1) * -48px)); } }
+@keyframes tutor-umbrella-intro { to { transform:translateX(-144px); } }
+@keyframes tutor-umbrella-loop { from { transform:translateX(-144px); } to { transform:translateX(-288px); } }
+@media (prefers-reduced-motion:reduce) { .tutor-pet-strip { animation:none; } }

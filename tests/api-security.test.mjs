@@ -44,7 +44,8 @@ test('every standalone API route is authenticated or explicitly public/disabled'
     if (name === 'profiles/route.ts') {
       assert.match(source, /householdMode\(env\)/);
       const worker = readFileSync(new URL('../build/worker.ts', import.meta.url), 'utf8');
-      assert.match(worker, /await householdGuard\(request, env\).*handler.fetch/);
+      assert.match(worker, /await householdGuard\(request, env\)/);
+      assert.ok(worker.indexOf('await householdGuard(request, env)') < worker.indexOf('return tutorSprite(request, env.UPLOADS)'));
       continue;
     }
     if (serviceRoutes.has(name)) {
