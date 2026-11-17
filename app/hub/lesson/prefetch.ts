@@ -6,9 +6,12 @@ type Entry = { owner: string; learner: string | null; id: string; at: number; va
 let entry: Entry | undefined;
 let request: AbortController | undefined;
 let hiddenAt = 0;
+let expiry: ReturnType<typeof setTimeout> | undefined;
 
 function clear() {
   entry = undefined;
+  clearTimeout(expiry);
+  expiry = undefined;
   request?.abort();
   request = undefined;
 }
@@ -25,6 +28,8 @@ if (typeof window !== "undefined") {
 export function takePrefetched(owner: string, learner: string | null, id: string): unknown {
   const value = entry;
   entry = undefined;
+  clearTimeout(expiry);
+  expiry = undefined;
   if (!value || value.owner !== owner || value.learner !== learner || value.id !== id || Date.now() - value.at >= MAX_AGE || (hiddenAt && document.hidden && Date.now() - hiddenAt >= MAX_AGE)) return undefined;
   return value.value;
 }
@@ -41,6 +46,9 @@ export function prefetchLesson(owner: string, learner: string | null, id: string
   void import("../lesson-v2/reader").catch(() => {});
   void fetch(`/api/lessons/${encodeURIComponent(id)}?${query}`, { cache: "no-store", signal: controller.signal })
     .then(async response => response.ok ? response.json() : undefined)
-    .then(value => { if (value && !controller.signal.aborted && !document.hidden) entry = { owner, learner, id, at: Date.now(), value }; })
+    .then(value => { if (value && !controller.signal.aborted && !document.hidden) {
+      entry = { owner, learner, id, at: Date.now(), value };
+      expiry = setTimeout(clear, MAX_AGE);
+    } })
     .catch(() => {});
 }

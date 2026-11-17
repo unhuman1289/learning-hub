@@ -442,3 +442,56 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     }
   }
 });
+
+test.describe('F3 tải trước màn bài', () => {
+  test.use({ serviceWorkers: 'block' });
+  test('hiện câu trước khi xác nhận, rồi dùng bản nháp mới từ server', async ({ page, context }, info) => {
+    await page.goto('/');
+    const prefetched = page.waitForResponse(r => /\/api\/lessons\/[^/?]+\?view=reader/.test(r.url()) && r.ok());
+    await page.getByRole('button', { name: /Ếch thử/ }).tap();
+    await expect(openLesson(page)).toBeVisible();
+    await prefetched;
+    await page.waitForLoadState('networkidle');
+    const href = await openLesson(page).getAttribute('href');
+    const id = new URL(href, page.url()).searchParams.get('bai2');
+    const url = '/api/lessons/' + id;
+    const origin = new URL(page.url()).origin;
+    const read = await context.request.get(url);
+    const { lesson } = await read.json();
+    const item = lesson.items.find(i => i.input === 'short');
+    const updated = await context.request.put(url + '/draft', { headers: { origin }, data: { revision: lesson.draftRevision, answers: { [item.id]: { answer: 'Neu' } } } });
+    expect(updated.ok()).toBeTruthy();
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    await page.route(u => u.pathname === url && u.searchParams.get('view') === 'reader', async route => { await held; await route.continue(); });
+    try {
+      const firstMs = await timeFromTap(openLesson(page), firstQuestion(page));
+      console.log(JSON.stringify({ project: info.project.name, metric: 'prefetched-first-question', ms: firstMs }));
+      expect(firstMs).toBeLessThan(300);
+      await expect(page.getByText('Đang cập nhật…')).toBeVisible();
+      const inputs = flow(page).locator('input, textarea');
+      if (await inputs.count()) await expect(inputs.first()).toBeDisabled();
+      release();
+      await expect(page.getByText('Đang cập nhật…')).toHaveCount(0);
+      const unlockMs = await page.evaluate(() => performance.now() - performance.getEntriesByName('phone-check-start').at(-1).startTime);
+      console.log(JSON.stringify({ project: info.project.name, metric: 'prefetched-unlock', ms: unlockMs }));
+      if (!(await flow(page).getByRole('textbox', { name: 'Bài làm của bạn' }).count())) {
+        await nextEdge(page).tap();
+        await turnSettled(page);
+      }
+      await expect(flow(page).getByRole('textbox', { name: 'Bài làm của bạn' }).first()).toHaveValue('Neu');
+      await expect(flow(page).getByRole('textbox', { name: 'Bài làm của bạn' }).first()).toBeEnabled();
+    } finally { release(); }
+  });
+
+  test('saveData không tải trước JSON bài', async ({ page }) => {
+    await page.addInitScript(() => Object.defineProperty(navigator, 'connection', { configurable: true, value: { saveData: true, effectiveType: '4g' } }));
+    const requests = [];
+    page.on('request', r => { if (/\/api\/lessons\/[^/?]+\?view=reader/.test(r.url())) requests.push(r.url()); });
+    await page.goto('/');
+    await page.getByRole('button', { name: /Người học thử/ }).tap();
+    await expect(desk(page).getByRole('link', { name: /Mở bài|Học tiếp/ }).first()).toBeVisible();
+    await page.waitForTimeout(3000);
+    expect(requests).toEqual([]);
+  });
+});

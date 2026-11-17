@@ -11,6 +11,7 @@ import { rumAfterPaint } from "../rum";
 import { useRunnerStatus, type RunnerStatus } from "../runner-status";
 import type { SubmissionView } from "../lesson-v2/feedback";
 import { readOfflineDraft, writeOfflineDraft } from "../lesson-v2/offline-draft";
+import { takePrefetched } from "./prefetch";
 
 export function waitingForFeedback(submission?: SubmissionView) {
   return !!submission && submission.attempts.some(attempt =>
@@ -27,6 +28,7 @@ type PendingSubmission = {
   answers?: DraftAnswers;
 };
 export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
+type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; pageEdgeHint?: boolean };
 class RequestError extends Error {
   constructor(
     message: string,
@@ -54,12 +56,14 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   onLoaded?: (id: string, subject: string, study: StudyDay) => void;
   onCompleted?: () => Promise<void>;
 }) {
-  const [lesson, setLesson] = useState<Lesson | null>(null);
-  const [answers, setAnswers] = useState<DraftAnswers>({}),
+  const [prefetched] = useState(() => takePrefetched(ownerId, learner, id) as ReaderPayload | undefined);
+  const [verification, setVerification] = useState<"loading" | "failed" | null>(prefetched ? "loading" : null);
+  const [lesson, setLesson] = useState<Lesson | null>(prefetched?.lesson ?? null);
+  const [answers, setAnswers] = useState<DraftAnswers>(prefetched?.lesson.draft ?? {}),
     [error, setError] = useState(""),
     [state, setState] = useState(""),
     [busy, setBusy] = useState(false),
-    [history,setHistory]=useState<SubmissionView[]>([]),
+    [history,setHistory]=useState<SubmissionView[]>(prefetched?.submissions ?? []),
     [feedbackError,setFeedbackError]=useState(""),
     [pending, setPending] = useState<string | null>(null);
   const revision = useRef(0),
@@ -73,7 +77,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     readonly = learner !== null,
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
-  const [child, setChild] = useState(false);
+  const [child, setChild] = useState(prefetched?.child ?? false);
   const [pageEdgeHint, setPageEdgeHint] = useState(false);
   const [initialRunner, setInitialRunner] = useState<RunnerStatus | null>(null);
   const submissionKey = cacheKey + ":submission";
@@ -86,7 +90,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     ready.current = false;
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
-    json<{ lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; pageEdgeHint?: boolean }>(url + "?" + query)
+    json<ReaderPayload>(url + "?" + query)
       .then(({ lesson: result, submissions, child, runner, study, pageEdgeHint }) => {
         if (generation.current !== version) return;
         setChild(child);
@@ -136,15 +140,16 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         setLesson(result);
         onLoaded?.(result.id, result.subjectId, study);
         setState(JSON.stringify(next) === saved.current ? "" : "Chưa lưu");
+        setVerification(null);
       })
       .catch((e) => {
-        if (generation.current === version) setError(e.message);
+        if (generation.current === version) { setError(prefetched ? "Chưa cập nhật được bài. Kiểm tra kết nối rồi mở lại bài; bản đang xem chỉ để đọc." : e.message); if (prefetched) setVerification("failed"); }
       });
     return () => {
       generation.current = version + 1;
       ready.current = false;
     };
-  }, [url, suffix, cacheKey, readonly, onLoaded, submissionKey]);
+  }, [url, suffix, cacheKey, readonly, onLoaded, submissionKey, prefetched]);
   const refreshFeedback=useCallback(async()=>{
     const version=generation.current;
     try{
@@ -381,7 +386,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, error, feedbackError, state,
+    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
     waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };
