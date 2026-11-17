@@ -1,6 +1,7 @@
 "use client";
 
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { changeOfflineProfile } from "./hub/offline-client";
 import { SketchIcon } from "./hub/sketch-icons";
 import { ProfileControls } from "../components/profile-controls";
 import { Beam, HouseLogo } from "../components/notebook/house";
@@ -31,13 +32,14 @@ const AdminView = lazy(() => import("./hub/pages").then(module => ({ default: mo
 
 export default function Home({ userId, userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userId: string; userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
+  useEffect(() => { if (profileMode && !localStorage.getItem("lh-offline-profile")) void changeOfflineProfile(userId).catch(() => {}); }, [profileMode, userId]);
   const { route: requested, go, ready: routeReady } = useRoute();
   const workspace = useWorkspace(!hub2Enabled);
   const daily = useDaily(null, !hub2Enabled || requested.view === "admin" || requested.view === "notebook");
   // Whose shelf the desk shows: the signed-in account, or (guardian/admin) another learner, read-only.
   const [viewingId, setViewingId] = useState<string | null>(null);
   const viewedDaily = useDaily(viewingId, !hub2Enabled && viewingId !== null);
-  const shelf = useShelf(viewingId, hub2Enabled && requested.view === "desk", routeReady && (!hub2Enabled || requested.view === "desk" || requested.view === "notebook"));
+  const shelf = useShelf(viewingId, hub2Enabled && requested.view === "desk", routeReady && (!hub2Enabled || requested.view === "desk" || requested.view === "notebook"), userId);
   // An old notebook address shows the same notebook's book; the address bar follows without adding history.
   const route = (hub2Enabled ? bookForLegacy(requested, shelf.subjects) : null) ?? requested;
   useEffect(() => {

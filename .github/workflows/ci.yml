@@ -52,6 +52,10 @@ jobs:
       - run: npm run build
       - name: Test the built Worker
         run: node scripts/e2e-diagnostics.mjs u5 npm run test:e2e:u5
+      - name: Test offline desk and profile changes
+        run: node scripts/e2e-diagnostics.mjs f2 npm run test:e2e:u5
+        env:
+          F2_E2E: '1'
       - name: Test listening on both phones
         run: node scripts/e2e-diagnostics.mjs listening npm run test:e2e:listening
       - name: Test tutor on both phones

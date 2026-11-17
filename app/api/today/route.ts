@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     });
     return Response.json(
       { ...today, subjects, learners, adaptiveSubjects, preparing, gradingWaits },
-      { headers: { ...headers, "Server-Timing": timing.header() } },
+      { headers: { ...headers, "Server-Timing": timing.header(), "X-LH-Profile": user.id } },
     );
   } catch (e) {
     return apiFailure(e, 'Chưa tải được việc học hôm nay.', headers);

@@ -197,6 +197,9 @@ test('a child can save their own voice and cannot change other settings', async 
   expect(await readSettings()).toEqual(expected);
 });
 
+test.describe('giữ yêu cầu hỗ trợ nghe', () => {
+  // Route must hold the request before it reaches the server.
+  test.use({ serviceWorkers: 'block' });
 for (const { id, mode, level } of ASSISTED_LESSONS) {
   test(`saves ${level} listening support before ${mode} submission`, async ({ page, context }) => {
     await page.goto('/');
@@ -246,3 +249,4 @@ for (const { id, mode, level } of ASSISTED_LESSONS) {
     expect(lesson.listen_log).toEqual({ i1: 1 });
   });
 }
+});

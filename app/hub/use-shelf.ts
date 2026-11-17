@@ -33,7 +33,8 @@ type TodayData = {
 };
 
 /** Keep a shelf snapshot scoped to its learner, including the desk payload when on the desk. */
-export function useShelf(learner: string | null, desk: boolean, ready: boolean) {
+export function useShelf(learner: string | null, desk: boolean, ready: boolean, profileId: string) {
+  const [offline, setOffline] = useState(false);
   const [learners, setLearners] = useState<LearnerSummary[]>([]);
   const [snapshot, setSnapshot] = useState<{ learner: string | null; subjects: ShelfSubject[]; today?: TodayData }>();
   const [failure, setFailure] = useState<{ learner: string | null; message: string }>();
@@ -51,7 +52,9 @@ export function useShelf(learner: string | null, desk: boolean, ready: boolean) 
     try {
       if (desk) {
         params.set("hour", String(new Date().getHours()));
-        const data = await readJson<TodayData>(await fetch(`/api/today?${params}`, init), "Chưa tải được bàn học.");
+        const response = await fetch(`/api/today?${params}`, { ...init, headers: { "X-LH-Profile": profileId } });
+        const data = await readJson<TodayData>(response, "Chưa tải được bàn học.");
+        setOffline(response.headers.get("X-LH-Offline") === "1");
         if (signal.aborted) return;
         setLearners(data.learners);
         setSnapshot({ learner, subjects: data.subjects, today: data });
@@ -64,7 +67,7 @@ export function useShelf(learner: string | null, desk: boolean, ready: boolean) 
     } catch {
       if (!signal.aborted) setFailure({ learner, message: desk ? "Chưa tải được bàn học." : "Chưa tải được kệ sách." });
     }
-  }, [desk, learner]);
+  }, [desk, learner, profileId]);
 
   useEffect(() => {
     if (!ready) return;
@@ -119,7 +122,7 @@ export function useShelf(learner: string | null, desk: boolean, ready: boolean) 
   }, [learner]);
 
   const self = learners.find((item) => item.relation === "self") ?? null;
-  return { learner, learners, self, subjects: current?.subjects ?? null, today: desk ? current?.today : undefined, error, load, create, update };
+  return { offline, learner, learners, self, subjects: current?.subjects ?? null, today: desk ? current?.today : undefined, error, load, create, update };
 }
 
 export type ShelfApi = ReturnType<typeof useShelf>;
