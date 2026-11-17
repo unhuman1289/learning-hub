@@ -37,6 +37,14 @@ export async function runnerStatus(db: EvidenceDb, clientId: string, now = new D
 export async function maintainJobs(db: EvidenceDb, now = new Date()) {
   const stamp = now.toISOString();
   await db.batch([
+    db.prepare(`UPDATE disputes SET status='needs_human' WHERE status='rechecking' AND EXISTS (
+      SELECT 1 FROM ai_jobs j WHERE j.ref_id=disputes.id AND j.learner_id=disputes.learner_id
+      AND j.purpose='recheck' AND j.status='leased' AND j.lease_client_id='openai-staging'
+      AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL)`).bind(stamp),
+    db.prepare(`UPDATE ai_jobs SET status='failed',error='Không hoàn tất được công việc sau khi gọi AI.',
+      finished_at=?,updated_at=?,lease_token_sha256=NULL,lease_expires_at=NULL
+      WHERE status='leased' AND lease_client_id='openai-staging' AND lease_expires_at<=?
+      AND openai_calls>=2 AND apply_token IS NULL`).bind(stamp, stamp, stamp),
     db
       .prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=?")
       .bind(stamp, stamp, stamp),

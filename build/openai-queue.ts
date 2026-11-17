@@ -43,6 +43,24 @@ function contentIssues(event: string, issues: unknown[] = []) {
   });
 }
 
+// A terminated Worker cannot execute a catch block. The scheduled sweep fences
+// expired leases with exhausted model budgets before attempting redispatch.
+export async function failExpiredOpenAiJobs(db: NonNullable<Cloudflare.Env['DB']>, now = new Date()) {
+  const stamp = now.toISOString();
+  await db.batch([
+    db.prepare(`UPDATE disputes SET status='needs_human' WHERE status='rechecking' AND EXISTS (
+      SELECT 1 FROM ai_jobs j WHERE j.ref_id=disputes.id AND j.learner_id=disputes.learner_id
+        AND j.purpose='recheck' AND j.status='leased' AND j.lease_client_id=?
+        AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL)`)
+      .bind(client.id, stamp),
+    db.prepare(`UPDATE ai_jobs SET status='failed',error='Không hoàn tất được công việc sau khi gọi AI.',
+      finished_at=?,updated_at=?,lease_token_sha256=NULL,lease_expires_at=NULL
+      WHERE status='leased' AND lease_client_id=? AND lease_expires_at<=?
+        AND openai_calls>=2 AND apply_token IS NULL`)
+      .bind(stamp, stamp, client.id, stamp),
+  ]);
+}
+
 export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch, tutorPrompt = '') {
   const { DB: db, OPENAI_API_KEY: apiKey, UPLOADS: bucket } = env;
   const subjectIds = db ? await aiSubjects(db, env) : [];
@@ -74,6 +92,8 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       message.retry({ delaySeconds: 60 });
       continue;
     }
+    let ownedLeaseHash: string | null = null;
+    let stage = 'lease';
     try {
       const tts = job.kind === 'plan' && ttsSubjectIds.includes(job.subject_id);
       const [lease] = await leaseJobs(db, client, {
@@ -91,6 +111,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       }
       const token = lease.leaseToken;
       const active = await leasedJob(db, client, id, token);
+      ownedLeaseHash = active.lease_token_sha256;
       let speechLimit = false;
       const logAudioFailure = (event: string, details: object) => console.warn(JSON.stringify({
         component: 'openai-queue-tts', jobId: id, leaseCount: active.lease_count, event, ...details,
@@ -105,6 +126,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
         context: async () => JSON.parse(active.context_snapshot!),
         heartbeat: async () => heartbeat(db, client, id, token),
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
+          stage = dry ? 'validate_result' : 'save_result';
           const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket, ttsSubjectIds);
           return { status: response.status, body: response };
         },
@@ -114,7 +136,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
         },
         fail: async (_lease: unknown, _reason: string, retryable: boolean) => {
           const count = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
-          return failLeasedJob(db, await leasedJob(db, client, id, token), retryable && (count?.openai_calls ?? 0) < 2);
+          return failLeasedJob(db, await leasedJob(db, client, id, token), retryable && (count?.openai_calls ?? 0) === 0);
         },
       }, lease, engine, {
         getPrompt,
@@ -154,16 +176,36 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
           event: 'queue_failed', status: current.status, ...(detail ? { detail } : {}) }));
       }
       if (current?.status === 'queued') message.retry({ delaySeconds: 30 });
+      else if (current?.status === 'leased') throw new Error('Job remained leased after processing.');
       else message.ack();
     } catch {
-      // A delivery can be repeated. Lease and result hashes remain the write boundary.
-      message.retry({ delaySeconds: 60 });
+      console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, event: 'queue_exception', stage }));
+      // A result write can have committed despite a lost response. Read it first;
+      // only fail our own still-active, unclaimed lease, never a saved result.
+      try {
+        const current = await readJob(db, id);
+        if (current?.status === 'succeeded' || current?.status === 'failed' || current?.status === 'expired' || current?.status === 'cancelled') {
+          message.ack();
+        } else if (current?.status === 'leased' && ownedLeaseHash && current.lease_token_sha256 === ownedLeaseHash) {
+          const count = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
+          if ((count?.openai_calls ?? 0) > 0) {
+            await failLeasedJob(db, current, false);
+            await db.prepare("UPDATE ai_jobs SET error='Không hoàn tất được công việc sau khi gọi AI.' WHERE id=? AND status='failed'").bind(id).run();
+            message.ack();
+          } else message.retry({ delaySeconds: 60 });
+        } else message.retry({ delaySeconds: 60 });
+      } catch {
+        // A transient D1 failure leaves the delivery retryable; never guess the result.
+        message.retry({ delaySeconds: 60 });
+      }
     }
   }
 }
 
 export async function redispatchOpenAi(env: Cloudflare.Env, now: Date) {
-  if (!env.DB || !env.AI_QUEUE || !env.OPENAI_API_KEY) return;
+  if (!env.DB) return;
+  await failExpiredOpenAiJobs(env.DB, now);
+  if (!env.AI_QUEUE || !env.OPENAI_API_KEY) return;
   const subjectIds = await aiSubjects(env.DB, env);
   if (!subjectIds.length) return;
   const { results } = await env.DB.prepare(
