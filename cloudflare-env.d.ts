@@ -10,6 +10,7 @@ declare namespace Cloudflare {
     AI_PRICE_TABLE?:string;
     AI_QUEUE?:Queue;
     OPENAI_API_KEY?: string;
+    OPENAI_SPEECH_MAX_PER_JOB?: string;
     HOUSEHOLD_LIMITER?: RateLimit;
     OPENAI_ENABLED?: string;
     OPENAI_SUBJECT_IDS?: string;

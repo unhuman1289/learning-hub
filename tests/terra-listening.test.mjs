@@ -96,6 +96,7 @@ test('Terra API fixture and Queue delivery replay save a Deutsch lesson with fou
   await run();
   const saved = await readJob(db, job.job_id);
   assert.equal(saved.status, 'succeeded', saved.error);
+  assert.equal(db.sqlite.prepare('SELECT speech_calls FROM ai_jobs WHERE id=?').get(job.job_id).speech_calls, 12);
   assert.equal(saved.runner && JSON.parse(saved.runner).name, 'openai-staging');
   const steps = db.sqlite.prepare('SELECT title,listening FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(subject.id);
   assert.equal(steps.length, 6);
@@ -203,4 +204,59 @@ test('Speech permits at most two fetches for the same sentence and voice',async 
   const call=()=>speech(audio,audio.lines[0],OPENAI_VOICE_PREFIX+'marin','fake',fetcher,AbortSignal.timeout(1000),{path:'/fixture',variant:'f'},db,job.job_id);
   await assert.rejects(call);await assert.rejects(call);await assert.rejects(call);
   assert.equal(calls,2);assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_speech_calls').get().openai_calls,2);
+});
+
+test('concurrent Speech turns reserve at most the job budget across deliveries', async t => {
+  const { db, env, job } = await setupTerraFixture(t);
+  await initializeAiControls(db, env);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='leased' WHERE id=?").run(job.job_id);
+  let calls = 0;
+  const fetcher = async () => { calls++; await new Promise(resolve => setTimeout(resolve, 5)); return new Response(aac); };
+  const call = index => {
+    const audio = { lang: 'de-DE', rate: 0.8, lines: [{ speaker: 'a', text: 'Fixture ' + index }] };
+    return speech(audio, audio.lines[0], OPENAI_VOICE_PREFIX + 'marin', 'fake', fetcher,
+      AbortSignal.timeout(1000), { path: '/fixture', variant: 'f' }, db, job.job_id, 6);
+  };
+  const result = await Promise.allSettled(Array.from({ length: 20 }, (_, index) => call(index)));
+  assert.equal(result.filter(entry => entry.status === 'fulfilled').length, 6);
+  assert.equal(calls, 6);
+  assert.equal(db.sqlite.prepare('SELECT speech_calls FROM ai_jobs WHERE id=?').get(job.job_id).speech_calls, 6);
+  await assert.rejects(call(21), error => error.diagnostic?.code === 'speech_job_limit');
+  assert.equal(calls, 6);
+});
+
+test('Queue stops Speech at a configured job limit without saving an incomplete lesson', async t => {
+  const { db, env, job, run, objects } = await setupTerraFixture(t);
+  env.OPENAI_SPEECH_MAX_PER_JOB = '1';
+  await run();
+  const row = db.sqlite.prepare('SELECT status,speech_calls,error FROM ai_jobs WHERE id=?').get(job.job_id);
+  assert.equal(row.status, 'failed');
+  assert.equal(row.speech_calls, 1);
+  assert.match(row.error, /Chưa tạo được âm thanh/);
+  assert.equal(db.sqlite.prepare('SELECT sum(openai_calls) n FROM ai_speech_calls').get().n, 1);
+  assert.equal(objects.size, 0);
+  await run();
+  assert.equal(db.sqlite.prepare('SELECT speech_calls FROM ai_jobs WHERE id=?').get(job.job_id).speech_calls, 1);
+});
+
+test('Speech job limit defaults to 12 and rejects invalid configuration', async () => {
+  const { speechJobLimit } = await import('../build/openai-tts.ts');
+  assert.equal(speechJobLimit(undefined), 12);
+  assert.equal(speechJobLimit('6'), 6);
+  for (const invalid of ['', '0', '-1', '1.5', 'abc', 'Infinity']) assert.throws(() => speechJobLimit(invalid));
+});
+
+test('concurrent attempts for the same sentence keep the per-file limit', async t => {
+  const { db, env, job } = await setupTerraFixture(t);
+  await initializeAiControls(db, env);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='leased' WHERE id=?").run(job.job_id);
+  const audio = { lang: 'de-DE', rate: 0.8, lines: [{ speaker: 'a', text: 'Guten Tag' }] };
+  let calls = 0;
+  const fetcher = async () => { calls++; return new Response(aac); };
+  const call = () => speech(audio, audio.lines[0], OPENAI_VOICE_PREFIX + 'marin', 'fake', fetcher,
+    AbortSignal.timeout(1000), { path: '/fixture', variant: 'f' }, db, job.job_id, 12);
+  const result = await Promise.allSettled(Array.from({ length: 10 }, call));
+  assert.equal(result.filter(entry => entry.status === 'fulfilled').length, 2);
+  assert.equal(calls, 2);
+  assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_speech_calls').get().openai_calls, 2);
 });
