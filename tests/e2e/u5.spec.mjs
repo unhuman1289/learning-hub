@@ -420,6 +420,21 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     });
     await page.evaluate(diag => {
       window.__e2eTurnDiag = true;
+      window.__turnLayoutReads = [];
+      if (diag) {
+        for (const [prototype, name] of [[Element.prototype, 'getBoundingClientRect'], [Element.prototype, 'scrollIntoView'], [HTMLElement.prototype, 'focus']]) {
+          const original = prototype[name];
+          prototype[name] = function (...args) {
+            const start = performance.now();
+            try { return original.apply(this, args); }
+            finally {
+              if (document.documentElement.dataset.lessonTurn) window.__turnLayoutReads.push({
+                name, start, duration: performance.now() - start, stack: new Error().stack,
+              });
+            }
+          };
+        }
+      }
       window.__turnDiagnosticTasks = [];
       if (diag) new PerformanceObserver(list => window.__turnDiagnosticTasks.push(...list.getEntries().map(entry => entry.toJSON())))
         .observe({ type: 'longtask', buffered: true });
@@ -483,7 +498,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
         }
       }
       if (process.env.E2E_DIAG === '1') {
-        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, frames: window.__turnFrames, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
+        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, frames: window.__turnFrames, reads: window.__turnLayoutReads, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
         const diagnosticPath = testInfo.outputPath('turn-diagnostics.json');
         await writeFile(diagnosticPath, JSON.stringify(diagnostics, null, 2));
         await testInfo.attach('turn-diagnostics', { path: diagnosticPath, contentType: 'application/json' });
