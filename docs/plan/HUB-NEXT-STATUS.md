@@ -28,7 +28,7 @@ Khung staging #196–#198 đã đóng lúc 18:09 Europe/Berlin ngày 17/11.
 
 Khung staging L7 job kẹt đã đóng lúc 18:58 Europe/Berlin ngày 17/11.
 
-staging: deploy T2.1 phần 1 (#199), không migration, đến 21:30 Europe/Berlin
+Khung staging T2.1 phần 1 đã đóng lúc 19:46 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -36,7 +36,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `14a1785d2d284edea5cae3d3c1d8a5a71c341c5c` | Deploy 17/11 lúc 18:58 Berlin sau khi gộp job OpenAI không còn kẹt leased [#200](https://github.com/unhuman1289/learning-hub/pull/200); smoke đạt. Lúc 18:09 sau khi gộp trần Speech theo job [#196](https://github.com/unhuman1289/learning-hub/pull/196) (đã sao lưu D1, áp `0035_speech_job_limit.sql`), phương án trong ngữ cảnh chấm lại [#197](https://github.com/unhuman1289/learning-hub/pull/197), gia sư bớt truy vấn D1 [#198](https://github.com/unhuman1289/learning-hub/pull/198). Smoke household đạt. Lúc 17:29 thêm log tutor-timing [#195](https://github.com/unhuman1289/learning-hub/pull/195). Trước đó 16:56 thêm log tutor-timing [#195](https://github.com/unhuman1289/learning-hub/pull/195). Trước đó 16:56 sau khi gộp F2 [#189](https://github.com/unhuman1289/learning-hub/pull/189), F6 [#190](https://github.com/unhuman1289/learning-hub/pull/190), AI mặc định bật [#191](https://github.com/unhuman1289/learning-hub/pull/191). Không migration. Smoke household đạt, Hub và MCP cùng SHA. OpenAI và TTS bật cho mọi sổ (kể cả trẻ em) trừ khi Quản trị tắt. |
+| Staging | `3e10af11e5932f30b4d1820f178bf77a95957087` | Deploy 17/11 lúc 19:46 Berlin sau khi gộp T2.1 phần 1 [#199](https://github.com/unhuman1289/learning-hub/pull/199) (mốc con, 14 → 10 lượt D1); lần đầu lỗi API Cloudflare 10013, chạy lại đạt; smoke đạt. L7 nghiệm thu AAC đạt [#193](https://github.com/unhuman1289/learning-hub/pull/193), chờ iPhone thật. Lúc 18:58 sau khi gộp job OpenAI không còn kẹt leased [#200](https://github.com/unhuman1289/learning-hub/pull/200); smoke đạt. Lúc 18:09 sau khi gộp trần Speech theo job [#196](https://github.com/unhuman1289/learning-hub/pull/196) (đã sao lưu D1, áp `0035_speech_job_limit.sql`), phương án trong ngữ cảnh chấm lại [#197](https://github.com/unhuman1289/learning-hub/pull/197), gia sư bớt truy vấn D1 [#198](https://github.com/unhuman1289/learning-hub/pull/198). Smoke household đạt. Lúc 17:29 thêm log tutor-timing [#195](https://github.com/unhuman1289/learning-hub/pull/195). Trước đó 16:56 thêm log tutor-timing [#195](https://github.com/unhuman1289/learning-hub/pull/195). Trước đó 16:56 sau khi gộp F2 [#189](https://github.com/unhuman1289/learning-hub/pull/189), F6 [#190](https://github.com/unhuman1289/learning-hub/pull/190), AI mặc định bật [#191](https://github.com/unhuman1289/learning-hub/pull/191). Không migration. Smoke household đạt, Hub và MCP cùng SHA. OpenAI và TTS bật cho mọi sổ (kể cả trẻ em) trừ khi Quản trị tắt. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
