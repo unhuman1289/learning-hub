@@ -22,7 +22,7 @@ Khung staging A1 đã đóng lúc 13:48 Europe/Berlin ngày 17/11.
 
 Khung staging F2/F6/AI mặc định đã đóng lúc 16:56 Europe/Berlin ngày 17/11.
 
-staging: deploy T2 đo thời gian (#195), không migration, đến 21:00 Europe/Berlin
+Khung staging T2 đo thời gian đã đóng lúc 17:29 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -30,7 +30,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `0163dfe850a4507146d79cac6aef3edd48e33c0e` | Deploy 17/11 lúc 16:56 Berlin sau khi gộp F2 [#189](https://github.com/unhuman1289/learning-hub/pull/189), F6 [#190](https://github.com/unhuman1289/learning-hub/pull/190), AI mặc định bật [#191](https://github.com/unhuman1289/learning-hub/pull/191). Không migration. Smoke household đạt, Hub và MCP cùng SHA. OpenAI và TTS bật cho mọi sổ (kể cả trẻ em) trừ khi Quản trị tắt. |
+| Staging | `61d7665f378c5a006e83dff9bf53a2e1200a8b46` | Deploy 17/11 lúc 17:29 Berlin thêm log tutor-timing [#195](https://github.com/unhuman1289/learning-hub/pull/195). Trước đó 16:56 sau khi gộp F2 [#189](https://github.com/unhuman1289/learning-hub/pull/189), F6 [#190](https://github.com/unhuman1289/learning-hub/pull/190), AI mặc định bật [#191](https://github.com/unhuman1289/learning-hub/pull/191). Không migration. Smoke household đạt, Hub và MCP cùng SHA. OpenAI và TTS bật cho mọi sổ (kể cả trẻ em) trừ khi Quản trị tắt. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
