@@ -412,6 +412,11 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     // On a 4× slower CPU a turn must not block the main thread for more than 50 ms.
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const tracing = process.env.E2E_DIAG === '1';
+    if (tracing) await cdp.send('Tracing.start', {
+      categories: 'devtools.timeline,v8.execute,disabled-by-default-devtools.timeline',
+      transferMode: 'ReturnAsStream',
+    });
     await page.evaluate(diag => {
       window.__e2eTurnDiag = diag;
       window.__turnDiagnosticTasks = [];
@@ -427,6 +432,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
       new PerformanceObserver(list => window.__longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration))))
         .observe({ type: 'longtask' });
     }, process.env.E2E_DIAG === '1');
+    let turnFailed = false;
     try {
     for (const turn of [() => nextEdge(page).tap(), () => previousEdge(page).tap()]) {
       await page.evaluate(() => { window.__longTasks.length = 0; });
@@ -437,7 +443,28 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
       console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
       expect(Math.max(0, ...tasks), 'long task during a turn').toBeLessThanOrEqual(50);
     }
+    } catch (error) {
+      turnFailed = true;
+      throw error;
     } finally {
+      if (tracing) {
+        const completed = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
+        await cdp.send('Tracing.end');
+        const { stream } = await completed;
+        const chunks = [];
+        let eof = false;
+        while (!eof) {
+          const part = await cdp.send('IO.read', { handle: stream });
+          chunks.push(Buffer.from(part.data, part.base64Encoded ? 'base64' : 'utf8'));
+          eof = part.eof;
+        }
+        await cdp.send('IO.close', { handle: stream });
+        if (turnFailed) {
+          const tracePath = testInfo.outputPath('turn-performance-trace.json');
+          await writeFile(tracePath, Buffer.concat(chunks));
+          await testInfo.attach('turn-performance-trace', { path: tracePath, contentType: 'application/json' });
+        }
+      }
       if (process.env.E2E_DIAG === '1') {
         const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, frames: window.__turnFrames, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
         const diagnosticPath = testInfo.outputPath('turn-diagnostics.json');
