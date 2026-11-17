@@ -26,6 +26,8 @@ Khung staging T2 đo thời gian đã đóng lúc 17:29 Europe/Berlin ngày 17/1
 
 Khung staging #196–#198 đã đóng lúc 18:09 Europe/Berlin ngày 17/11.
 
+staging: deploy L7 job kẹt (#200), không migration, đến 21:00 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
