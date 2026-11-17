@@ -1,6 +1,8 @@
 const base = process.argv[2] ?? process.env.STAGING_URL;
 const locked = process.argv.includes('--locked');
 const household = process.argv.includes('--household');
+// Staging serves MCP from its own Worker; production serves /mcp from the Hub.
+const mcpOrigin = process.argv.find((arg) => arg.startsWith('--mcp='))?.slice('--mcp='.length);
 if (!base) throw new Error('Pass the staging workers.dev URL.');
 
 const url = new URL(base);
@@ -40,7 +42,9 @@ if (household) {
   const register = await request('/register');
   const signup = await request('/api/auth/sign-up/email', { method: 'POST', headers: { Origin: url.origin, 'Content-Type': 'application/json' }, body: '{}' });
   const automation = await request('/api/automation/v2/jobs/lease', { method: 'POST' });
-  const mcp = await request('/mcp', { method: 'POST' });
+  const mcp = mcpOrigin
+    ? await fetch(new URL('/mcp', mcpOrigin), { method: 'POST', redirect: 'manual' })
+    : await request('/mcp', { method: 'POST' });
   if (page.status !== 200 || wrong.status !== 401 || privateApi.status !== 401 || register.status !== 302 || signup.status !== 404) throw Error('Household gate or registration check failed.');
   if (![400, 401, 403, 405].includes(automation.status) || ![400, 401, 403, 405].includes(mcp.status)) throw Error('Automation or MCP did not reach its own authentication boundary.');
   console.log(JSON.stringify({ mode: 'household', health: health.status, d1: healthBody.d1, page: page.status, wrong: wrong.status, privateApi: privateApi.status, register: register.status, signup: signup.status, automation: automation.status, mcp: mcp.status }));
