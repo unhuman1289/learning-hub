@@ -417,6 +417,12 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
       window.__turnDiagnosticTasks = [];
       if (diag) new PerformanceObserver(list => window.__turnDiagnosticTasks.push(...list.getEntries().map(entry => entry.toJSON())))
         .observe({ type: 'longtask', buffered: true });
+      window.__turnFrames = [];
+      if (diag && PerformanceObserver.supportedEntryTypes.includes('long-animation-frame')) {
+        new PerformanceObserver(list => window.__turnFrames.push(...list.getEntries().map(entry => ({
+          ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
+        })))).observe({ type: 'long-animation-frame', buffered: true });
+      }
       window.__longTasks = [];
       new PerformanceObserver(list => window.__longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration))))
         .observe({ type: 'longtask' });
@@ -433,7 +439,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     }
     } finally {
       if (process.env.E2E_DIAG === '1') {
-        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
+        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, frames: window.__turnFrames, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
         const diagnosticPath = testInfo.outputPath('turn-diagnostics.json');
         await writeFile(diagnosticPath, JSON.stringify(diagnostics, null, 2));
         await testInfo.attach('turn-diagnostics', { path: diagnosticPath, contentType: 'application/json' });
