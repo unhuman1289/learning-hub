@@ -164,7 +164,7 @@ test('0032 restores tutor turns and applies the enabled default to a pre-0032 ba
   assert.deepEqual(older.prepare('SELECT * FROM tutor_turns').all(), []);
 });
 
-test('onTutorTurn records hint1 before submission, including items without hints', { skip: 'Connect recordSupport after L3 merges' }, async t => {
+test('onTutorTurn records hint1 before submission, including items without hints', async t => {
   const { db, ask, lessonId } = await setup(t);
   db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload, '$.hints', json('[]')) WHERE lesson_id=? AND item_id='i1'").run(lessonId);
   assert.equal((await ask()).status, 202);

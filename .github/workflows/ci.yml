@@ -43,3 +43,5 @@ jobs:
         run: npm run test:e2e:u5
       - name: Test listening on both phones
         run: npm run test:e2e:listening
+      - name: Test tutor on both phones
+        run: npm run test:e2e -- --config playwright.tutor.config.mjs

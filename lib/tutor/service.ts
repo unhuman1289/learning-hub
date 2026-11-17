@@ -48,7 +48,12 @@ export async function openTutorTurn(db: Db, learnerId: string, input: TutorQuest
   if (!result.meta.changes) {
     throw new ApiError(409, 'Chỉ có thể chờ một câu trả lời mỗi lần và hỏi tối đa 20 lượt trong một bài.');
   }
-  await onTutorTurn(db, { learnerId, lessonId: input.lessonId, itemId: input.itemId });
+  try {
+    await onTutorTurn(db, { learnerId, lessonId: input.lessonId, itemId: input.itemId });
+  } catch (error) {
+    await db.prepare("UPDATE tutor_turns SET status='failed' WHERE id=? AND status=?").bind(id, status).run();
+    throw error;
+  }
   return { id, status, relayInput };
 }
 

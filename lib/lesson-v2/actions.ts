@@ -109,9 +109,9 @@ async function writeSupport(db: Db, learnerId: string, lessonId: string, itemId:
 }
 
 /** Records support even for items with no authored hints. */
-export async function recordSupport(db: Db, learnerId: string, lessonId: string, itemId: string, level: RevealLevel) {
+export async function recordSupport(db: Db, learnerId: string, lessonId: string, itemId: string, level: RevealLevel, beforeAnswer = false) {
   await readItem(db, learnerId, lessonId, itemId);
-  return writeSupport(db, learnerId, lessonId, itemId, level);
+  return writeSupport(db, learnerId, lessonId, itemId, level, beforeAnswer);
 }
 
 export async function revealListening(db: Db, learnerId: string, lessonId: string, itemId: string, level: 'slow' | 'extra' | 'transcript') {
