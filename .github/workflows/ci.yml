@@ -3,7 +3,9 @@ on:
   # One run per change: PRs run on pull_request; only the integration and main branches run on push.
   push:
     branches: [main, codex/hub-next-wip]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
+    paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
 permissions:
   contents: read
