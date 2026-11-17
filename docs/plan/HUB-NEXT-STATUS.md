@@ -18,6 +18,8 @@ Khung L4 đã đóng sau lượt Cổng Q ngày 16/11. Đã khôi phục danh s�
 
 Khung #174 đã đóng sau lượt chẩn đoán Cổng Q ngày 17/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
 
+staging: T1 #168 và migration 0032, đến 09:41 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
@@ -50,10 +52,10 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) và chẩn đoán [#174](https://github.com/unhuman1289/learning-hub/pull/174) đã lên staging. Cổng Q **chưa đạt**. Job mới `job_270ea5f60cb745919924` thất bại sau một lượt thuê vì Speech API trả HTTP 401, với 0 bài và 0 tệp audio đã lưu. | Xác minh quyền gọi Speech của key thuộc project OpenAI staging trước lượt thử khác. [Biên bản L4](status/L4.md) ghi đường dẫn trường và bằng chứng. |
 | L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. | L6 chờ L4. Dùng bài nghe đã lưu qua API để thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
 | G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
-| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đang mở. | Nối ghi `hint1` sau L3. T2 còn kiểm WebSocket qua Access. Sau đó làm T3–T5. |
+| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đã gộp tại `c0d240f`, ghi `hint1` qua L3. Bản sao riêng D1 staging trước `0032` đã được xác nhận. | Áp `0032_tutor.sql`, deploy và kiểm Hub/MCP trước khi bàn giao T2. |
 | K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2 còn xác nhận OAuth staging đủ 11 công cụ và lịch riêng. K3 kiểm kết quả lượt đầu. |
 
-**Migration tiếp theo.** [#168](https://github.com/unhuman1289/learning-hub/pull/168) đề xuất dùng `0032` cho T1 và chuyển G3 sang `0033`. Xác nhận thứ tự khi gộp. Phạm vi LGTK chỉ đến staging.
+**Migration tiếp theo.** T1 dùng `0032_tutor.sql`. G3 dùng `0033`. Phạm vi LGTK chỉ đến staging.
 
 ## Chờ chủ dự án
 
