@@ -1,5 +1,6 @@
 import { tutorAnswer } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
+import { SentenceFilter } from './leak.ts';
 import { tutorContext } from './context.ts';
 
 export const TUTOR_BUSY = 'Gia sư đang bận, câu trả lời sẽ có trong bài';
@@ -79,7 +80,12 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
   if (!claimed) return 'claimed' as const;
   emit('turn',{id,status:'streaming'});
   const abort=new AbortController();
-  let firstMs:number|undefined, answer='', inputTokens:number|undefined, outputTokens:number|undefined, completed=false;
+  let firstMs:number|undefined, answer='', rawLength=0, leakBlocked=false, inputTokens:number|undefined, outputTokens:number|undefined, completed=false;
+  const filter = new SentenceFilter(data.answerFragments, (text, blocked) => {
+    answer += text;
+    if (blocked) { leakBlocked=true; emit('blocked',{}); }
+    emit('delta',{text,blocked});
+  });
   let timer=setTimeout(()=>abort.abort(),Math.max(0,timeoutMs-(Date.now()-started)));
   try {
     phase=Date.now();
@@ -106,9 +112,9 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
           console.info(JSON.stringify({component:'tutor-timing',turnId:id,first_token_ms:firstMs,...timing,...(preTiming ?? {})}));
           clearTimeout(timer); timer=setTimeout(()=>abort.abort(),60000);
         }
-        answer+=entry.delta;
-        if ([...answer].length>2000 || answer.includes('\0')) throw new Error('Response too long');
-        emit('delta',{text:entry.delta});
+        rawLength += [...entry.delta].length;
+        if (rawLength>2000 || entry.delta.includes('\0')) throw new Error('Response too long');
+        filter.push(entry.delta);
       }
       if (entry.type==='response.completed') {
         const response=entry.response as {status?:string;usage?:{input_tokens?:number;output_tokens?:number}}|undefined;
@@ -117,13 +123,14 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
       }
       if (entry.type==='response.failed' || entry.type==='error' || entry.type==='response.incomplete' || entry.type==='response.refusal.delta') throw new Error('Incomplete response');
     }
+    filter.finish();
     const parsed=tutorAnswer.safeParse(answer);
     if (!completed || !parsed.success || firstMs===undefined) throw new Error('Incomplete response');
-    const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
+    const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,leak_blocked=max(leak_blocked,?),first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
       WHERE id=? AND status='streaming' AND attempt_token=? AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
         JOIN lesson_items i ON i.lesson_id=l.id AND i.item_id=tutor_turns.item_id WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NULL AND coalesce(s.tutor_enabled,1)=1 AND i.flag IS NOT 'item_void'
         AND NOT EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=0) AND ?=1)`)
-      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
+      .bind(parsed.data,Number(leakBlocked),firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
     if (!saved.meta.changes) {
       await db.prepare("UPDATE tutor_turns SET status='blocked',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=?").bind(id,token).run();
       emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); return 'ineligible' as const;
@@ -131,7 +138,7 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     emit('done',{id,status:'answered'}); return 'answered' as const;
   } catch {
     abort.abort();
-    const saved=await db.prepare("UPDATE tutor_turns SET status=CASE WHEN openai_calls>=2 THEN 'failed' ELSE 'queued' END,attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=? RETURNING status").bind(id,token).first<{status:string}>();
+    const saved=await db.prepare("UPDATE tutor_turns SET status=CASE WHEN openai_calls>=2 THEN 'failed' ELSE 'queued' END,leak_blocked=max(leak_blocked,?),attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=? RETURNING status").bind(Number(leakBlocked),id,token).first<{status:string}>();
     if (saved?.status==='failed') { emit('error',{id,status:'failed',message:'Đã thử 2 lần nhưng chưa nhận được câu trả lời.'}); return 'failed' as const; }
     if (saved) { emit('queued',{id,status:'queued',message:TUTOR_BUSY}); return 'queued' as const; }
     return 'claimed' as const;
