@@ -32,7 +32,7 @@ Khung staging T2.1 phần 1 đã đóng lúc 19:46 Europe/Berlin ngày 17/11.
 
 Khung staging T3 đã đóng lúc 22:42 Europe/Berlin ngày 17/11.
 
-staging: deploy T3b nhân vật gia sư (#205), không migration, sprite đã tải lên R2 staging, đến 01:30 Europe/Berlin
+staging: deploy T3b nhân vật gia sư (#205), không migration, sprite đã tải lên R2 staging, đến 23:59 Europe/Berlin
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
