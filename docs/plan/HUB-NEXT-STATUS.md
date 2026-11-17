@@ -22,6 +22,8 @@ Khung staging A1 đã đóng lúc 13:48 Europe/Berlin ngày 17/11.
 
 Khung staging F2/F6/AI mặc định đã đóng lúc 16:56 Europe/Berlin ngày 17/11.
 
+staging: deploy T2 đo thời gian (#195), không migration, đến 21:00 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
