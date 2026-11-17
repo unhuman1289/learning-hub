@@ -24,6 +24,9 @@ async function noOverflow(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 }
 
+test.describe('luồng U5 với lỗi mạng mô phỏng', () => {
+  // Playwright must intercept both submission attempts, including the automatic retry.
+  test.use({ serviceWorkers: 'block' });
 test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp theo', async ({ page, context, browserName }, info) => {
   await page.goto('/');
   const select = page.getByRole('button', { name: /Ếch thử/ });
@@ -116,7 +119,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
   await card.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
   const retry = card.getByRole('button', { name: 'Thử lại', exact: true });
-  await expect(retry).toBeVisible();
+  await expect(retry).toBeEnabled();
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
   failSubmission = false;
   const gradeMs = await timeFromTap(retry, card.getByRole('status').filter({ hasText: /Đúng/ }).first());
@@ -192,6 +195,8 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(page.getByRole('link', { name: /Mở bài|Làm tiếp/ }).first()).toBeVisible();
 
   console.log(JSON.stringify({ project: info.project.name, coldMs, warmMs, firstMs, gradeMs, desk: deskStats, lesson: lessonStats, notebook: notebookStats }));
+});
+
 });
 
 test.describe('cửa sổ chờ dữ liệu', () => {
