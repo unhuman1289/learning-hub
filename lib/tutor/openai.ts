@@ -54,7 +54,7 @@ async function* records(body:ReadableStream<Uint8Array>) {
   } finally { await reader.cancel().catch(()=>{}); }
 }
 
-export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt:string, emit:Emit, fetcher:Fetcher=fetch, timeoutMs=10000, startedAt=Date.now()) {
+export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt:string, emit:Emit, fetcher:Fetcher=fetch, timeoutMs=10000, startedAt=Date.now(), preTiming?: {body_ms:number;access_ms:number;notebook_ms:number;open_turn_ms:number}) {
   const timing = {pre_answer_ms:Math.max(0,Date.now()-startedAt), eligibility_ms:0, recovery_ms:0, context_ms:0, claim_ms:0, recheck_ms:0, count_ms:0, openai_first_ms:0};
   let phase=Date.now();
   const eligible = await tutorEligible(db,id,env);
@@ -103,7 +103,7 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
           firstMs=Date.now()-started;
           timing.openai_first_ms=Date.now()-openaiStarted;
           // Durations and the opaque turn ID only: never log prompts, learner data or credentials.
-          console.info(JSON.stringify({component:'tutor-timing',turnId:id,first_token_ms:firstMs,...timing}));
+          console.info(JSON.stringify({component:'tutor-timing',turnId:id,first_token_ms:firstMs,...timing,...(preTiming ?? {})}));
           clearTimeout(timer); timer=setTimeout(()=>abort.abort(),60000);
         }
         answer+=entry.delta;

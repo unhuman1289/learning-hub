@@ -74,3 +74,30 @@ test('backup restores tutor turns with usage and older snapshots with defaults',
  const old=memoryDb();t.after(()=>old.sqlite.close());old.sqlite.exec(buildRestoreSql(snapshot));
  assert.equal(old.sqlite.prepare('SELECT input_tokens FROM tutor_turns').get().input_tokens,null);
 });
+
+test('tutor timing reports the pre-answer phases without learner content',async t=>{
+ const {ask}=await setup(t);const entries=[];const original=console.info;
+ console.info=x=>{try{entries.push(JSON.parse(x))}catch{}};
+ try { assert.match(await (await ask()).text(),/event: done/); } finally { console.info=original; }
+ const log=entries.find(entry=>entry.component==='tutor-timing');assert.ok(log);
+ for(const key of ['body_ms','access_ms','notebook_ms','open_turn_ms']) assert.ok(Number.isFinite(log[key]) && log[key]>=0,key);
+ assert.doesNotMatch(JSON.stringify(log),/Private Name|private@example\.test|Em nên bắt đầu/);
+});
+
+test('counts D1 calls on a successful tutor request before the model call',async t=>{
+ const {db,lessonId}=await setup(t);let calls=0;const counted={...db,prepare(sql){const base=db.prepare(sql);const s={bind(...args){base.bind(...args);return s},async first(){calls++;return base.first()},async all(){calls++;return base.all()},async run(){calls++;return base.run()}};return s},async batch(stmts){calls++;return db.batch(stmts.map(s=>s._base??s))}};
+ // Statements passed to batch must retain the adapter's SQL metadata.
+ counted.prepare=sql=>{const base=db.prepare(sql),s={_base:base,bind(...args){base.bind(...args);return s},async first(){calls++;return base.first()},async all(){calls++;return base.all()},async run(){calls++;return base.run()}};return s};
+ let beforeFetch=0;
+ const req=new Request(origin+'/api/tutor',{method:'POST',headers:{Origin:origin},body:JSON.stringify({lessonId,itemId:'i1',question:'Gợi ý?'})});
+ const response=await postTutor(req,learner,()=>counted,{env:{ENVIRONMENT:'local',APP_ENV:'local',OPENAI_ENABLED:'true',OPENAI_API_KEY:'fixture'},prompt:'fixture',fetcher:async (...args)=>{beforeFetch=calls;return fakeTutorOpenAi(...args)}});
+ assert.match(await response.text(),/event: done/);
+ assert.equal(beforeFetch,10);
+});
+
+test('atomic tutor support preserves stronger help',async t=>{
+ const {db,ask,lessonId}=await setup(t);
+ db.sqlite.prepare('UPDATE learning_lessons SET support=? WHERE id=?').run(JSON.stringify({i1:'solution'}),lessonId);
+ assert.match(await (await ask()).text(),/event: done/);
+ assert.equal(db.sqlite.prepare("SELECT json_extract(support,'$.i1') AS level FROM learning_lessons WHERE id=?").get(lessonId).level,'solution');
+});

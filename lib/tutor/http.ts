@@ -1,6 +1,5 @@
 import type { Viewer } from '../access.ts';
 import { apiFailure } from '../api-error.ts';
-import { aiSubjectEnabled } from '../ai-controls.ts';
 import { answerTutor, dispatchTutor } from './openai.ts';
 import { tutorQuestion } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
@@ -9,32 +8,42 @@ import { openTutorTurn, readTutorTurns } from './service.ts';
 
 export async function postTutor(req: Request, user: Viewer | null, storage: () => EvidenceDb, openai: {env: Cloudflare.Env; prompt:string; fetcher?:typeof fetch}) {
   const startedAt=Date.now();
+  const timing={body_ms:0,access_ms:0,notebook_ms:0,open_turn_ms:0};
+  let phase=Date.now();
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401, headers: privateHeaders });
   if (req.headers.get('origin') !== new URL(req.url).origin) {
     return Response.json({ error: 'Origin rejected' }, { status: 403, headers: privateHeaders });
   }
   try {
     const input = tutorQuestion.safeParse(await req.json());
+    timing.body_ms=Date.now()-phase;
     if (!input.success) {
       return Response.json({ error: 'Chọn câu trong bài và nhập câu hỏi tối đa 500 ký tự.' }, { status: 400, headers: privateHeaders });
     }
     const db = storage();
+    phase=Date.now();
     const learnerId = await lessonTarget(db, user, req, input.data.lessonId, 'edit_work');
+    timing.access_ms=Date.now()-phase;
     if (learnerId instanceof Response) return learnerId;
 
     {
-      const settings = await db.prepare(`SELECT l.subject_id,coalesce(s.role,'adult') AS role FROM learning_lessons l
-        LEFT JOIN learner_settings s ON s.user_id=l.user_id WHERE l.id=? AND l.user_id=?`).bind(input.data.lessonId,learnerId)
-        .first<{subject_id:string;role:string}>();
-      if (!settings || !(await aiSubjectEnabled(db, openai.env, settings.subject_id)))
+      phase=Date.now();
+      const settings = await db.prepare(`SELECT l.subject_id FROM learning_lessons l
+        JOIN subjects s ON s.id=l.subject_id LEFT JOIN ai_subject_controls c ON c.subject_id=s.id
+        WHERE l.id=? AND l.user_id=? AND coalesce(c.openai_enabled,1)=1`).bind(input.data.lessonId,learnerId)
+        .first<{subject_id:string}>();
+      if (!settings || openai.env.OPENAI_ENABLED !== 'true')
         return Response.json({error:'Gia sư chưa được bật cho sổ này.'}, {status:403,headers:privateHeaders});
+      timing.notebook_ms=Date.now()-phase;
+      phase=Date.now();
       const turn = await openTutorTurn(db, learnerId, input.data, false);
+      timing.open_turn_ms=Date.now()-phase;
       const encoder=new TextEncoder(); let cancelled=false;
       const stream=new ReadableStream<Uint8Array>({
         async start(controller) {
           const emit=(event:string,data:object) => { if (!cancelled) try { controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); } catch { cancelled=true; } };
           try {
-            const state=await answerTutor(db,openai.env,turn.id,openai.prompt,emit,openai.fetcher,10000,startedAt);
+            const state=await answerTutor(db,openai.env,turn.id,openai.prompt,emit,openai.fetcher,10000,startedAt,timing);
             if (state==='queued') await dispatchTutor(openai.env,turn.id).catch(()=>console.error('Tutor queue dispatch failed; turn retained.'));
             if (state==='ineligible') { await db.prepare("UPDATE tutor_turns SET status='blocked' WHERE id=? AND status='queued'").bind(turn.id).run(); emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); }
           } catch { emit('error',{message:'Mở lại để xem trạng thái câu hỏi.'}); }
