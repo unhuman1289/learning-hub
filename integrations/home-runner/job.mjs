@@ -532,7 +532,8 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     if (qwen.queueVision) {
       const { displayName, ref } = context.learner;
       const names = [displayName, ...(qwen.privateNames ?? [])].filter(n => n && n !== 'Người học');
-      const clean = value => Array.isArray(value) ? value.map(clean) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'url').map(([key, entry]) => [key, clean(entry)])) : typeof value === 'string' ? names.reduce((text, n) => text.replaceAll(n, '[người học]'), value.replaceAll(ref ?? '\u0000', '[id riêng]')) : value;
+      const patterns = names.map(n => new RegExp(`(?<![\\p{L}\\p{N}])${n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'gu'));
+      const clean = value => Array.isArray(value) ? value.map(clean) : value && typeof value === 'object' ? Object.fromEntries(Object.entries(value).filter(([key]) => key !== 'url').map(([key, entry]) => [key, clean(entry)])) : typeof value === 'string' ? patterns.reduce((text, pattern) => text.replace(pattern, '[người học]'), value.replaceAll(ref ?? '\u0000', '[id riêng]')) : value;
       promptContext = clean(promptContext);
     }
     if (context.purpose === 'recheck') {

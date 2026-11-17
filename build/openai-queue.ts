@@ -136,10 +136,12 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       const identity = await db.prepare('SELECT name FROM user WHERE id=?').bind(job.learner_id).first<{name:string}>();
       engine.privateNames = [job.learner_id, identity?.name].filter((name): name is string => !!name);
       const photos = (snapshot.attempts ?? []).flatMap((a: {attachments: {attachmentId: string; expired: boolean}[]}) => a.attachments);
-      let photoError: string | null = null;
+      const attachmentCount = job.kind === 'assess' ? await db.prepare("SELECT coalesce(sum(json_array_length(attachment_ids)),0) AS n FROM attempts WHERE learner_id=? AND id IN (SELECT value FROM json_each(?))").bind(job.learner_id, JSON.stringify((snapshot.attempts ?? []).map((a: {attemptId:string}) => a.attemptId))).first<{n:number}>() : null;
+      let photoError: string | null = attachmentCount && attachmentCount.n !== photos.length ? 'Có quá nhiều ảnh hoặc ảnh không còn; không thể chấm bài.' : null;
       const photoData = new Map<string, {mime: string; base64: string}>();
       let totalBytes = 0;
       for (const photo of photos) {
+        if (photoError) break;
         const row = await db.prepare('SELECT r2_key,mime,bytes FROM attachments WHERE id=? AND learner_id=? AND deleted_at IS NULL AND expires_at>?').bind(photo.attachmentId, job.learner_id, new Date().toISOString()).first<{r2_key:string;mime:string;bytes:number}>();
         if (photo.expired || !row || !bucket) { photoError = 'Ảnh đã bị xoá hoặc hết hạn; không thể chấm bài.'; break; }
         if (row.bytes > 3000000 || !['image/jpeg','image/png','image/webp'].includes(row.mime)) { photoError = 'Ảnh quá lớn hoặc định dạng không được hỗ trợ; không thể chấm bài.'; break; }

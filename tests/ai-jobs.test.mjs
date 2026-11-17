@@ -1544,6 +1544,9 @@ test('Queue sends a child photo as private image data and stops if the photo is 
     const saved=await readJob(db,job.id);
     if(mode==='child') {
       assert.equal(saved.status,'succeeded',saved.error);
+      db.sqlite.prepare("INSERT INTO guardians VALUES('guardian',?,'admin','2026-11-18')").run(learner);
+      const {canAccessLearner}=await import('../lib/access.ts');
+      assert.equal(await canAccessLearner(db,{id:'guardian'},learner,'read_work'),true);
       const [feedback]=await readLessonSubmissions(db,learner,lesson);
       assert.match(feedback.attempts[0].feedback,/chưa đối chiếu được với bài viết tay/);
       const grade=db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(JSON.parse(saved.outcome).gradeIds[0]);
