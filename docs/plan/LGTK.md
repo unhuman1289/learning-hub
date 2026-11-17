@@ -206,12 +206,14 @@ Ghi vào `status/D.md`. Nếu trượt, mở bước sửa riêng.
 - Queue tự thử lại tối đa 3 lần, còn lượt gia sư lỗi được xếp lại hàng mà không có trần, nên không bảo đảm được luật "tối đa 2 lượt gọi thật".
 
 **Việc:**
-- Bật/tắt AI và TTS theo từng sổ trong Quản trị → Sổ, lưu ở D1 (dùng cờ `ai_enabled` sẵn có, thêm cờ TTS nếu cần), có nhật ký ai đổi, lúc nào. Đọc lại được qua API quản trị.
+- Bật/tắt OpenAI và TTS theo từng sổ trong Quản trị → Sổ, lưu ở bảng riêng chỉ quản trị sửa được (`ai_subject_controls`), có nhật ký ai đổi, lúc nào. **Không dùng `subjects.ai_enabled`**: cờ đó điều khiển lịch bài hằng ngày và người học tự sửa được (phát hiện của chat A1 ngày 17/11). Đọc lại được qua API quản trị.
 - Giữ một công tắc tổng `OPENAI_ENABLED` ở `vars` của `wrangler.jsonc`, không dùng secret. Nếu D1 chưa có cờ nào, Worker chép một lần danh sách từ secret cũ `OPENAI_SUBJECT_IDS`/`OPENAI_TTS_SUBJECT_IDS` vào D1 và ghi nhật ký. Sau đó không đọc hai secret này nữa.
 - Sau deploy, chủ dự án bật AI và TTS cho sổ QA L4 trong Quản trị (cần PIN quản lý). Sổ QA người lớn để bật thường trực trên staging, nên nghiệm thu không cần đổi rồi khôi phục cấu hình.
-- Trần cứng số lần gọi OpenAI, đếm trong D1, không dựa vào số lần thử lại của Queue:
-  - mỗi job soạn, chấm, chấm lại, hiệu chuẩn tối đa 2 lần gọi;
-  - mỗi lượt gia sư tối đa 2 lần thử, sau đó `failed` với lời báo thật.
+- Trần cứng số lần gọi OpenAI, đếm trong D1 **ngay trước mỗi lời gọi API** (một lần Queue giao job có thể gọi engine nhiều lần, ví dụ khi sửa JSON). Tăng bộ đếm bằng một câu `UPDATE … WHERE calls < trần`; không tăng được thì không gọi:
+  - mỗi job soạn, chấm, chấm lại, hiệu chuẩn tối đa 2 lời gọi model;
+  - mỗi lượt gia sư tối đa 2 lời gọi;
+  - Speech có trần riêng: mỗi tệp âm thanh (một câu, một giọng) tối đa 2 lời gọi.
+  Hết trần thì job hoặc lượt kết thúc `failed` với lời báo thật.
 - Ghi số lần gọi vào job hoặc lượt gia sư, hiện trong Quản trị.
 
 **Xong khi:** test cho trần gọi (Queue giao lại lần 3 thì không gọi API) và cho bật/tắt theo sổ; gộp, deploy staging; Claude đọc lại cờ trong D1 sau lần chép từ secret.
