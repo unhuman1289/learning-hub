@@ -232,6 +232,7 @@ Ghi vào `status/D.md`. Nếu trượt, mở bước sửa riêng.
   - chọn hồ sơ bằng id;
   - không tạo tài khoản email nữa.
 - Kiểm `/register` và đăng ký bằng email không còn mở trên staging.
+- Giới hạn số lần nhập sai mật khẩu ở `POST /api/household`: tối đa 10 lần sai mỗi IP trong 10 phút, sau đó trả 429. Mật khẩu staging chỉ dài tối thiểu 10 ký tự (quyết định 17/11), nên cần chặn thử dò trên URL công khai.
 - Test và e2e local giữ nguyên dữ liệu demo.
 
 **Việc của Claude khi deploy:**
@@ -240,7 +241,7 @@ Ghi vào `status/D.md`. Nếu trượt, mở bước sửa riêng.
 - sao lưu D1, deploy, kiểm smoke ở chế độ `household`.
 
 **Việc của chủ dự án:**
-- đặt `HOUSEHOLD_PASSPHRASE_SHA256` cho staging bằng lệnh ở `docs/ops/local-grader-setup.md` (đổi `--env production` thành `--env staging`). Nên dùng mật khẩu khác production, vì công cụ QA sẽ đọc mật khẩu staging từ `private-data`;
+- đặt `HOUSEHOLD_PASSPHRASE_SHA256` cho staging bằng lệnh ở `docs/ops/local-grader-setup.md` (đổi `--env production` thành `--env staging`, độ dài tối thiểu 10 ký tự, nên là chuỗi ngẫu nhiên). Nên dùng mật khẩu khác production, vì công cụ QA sẽ đọc mật khẩu staging từ `private-data`;
 - lưu mật khẩu đó vào `private-data/staging-household.txt` trên Mac;
 - sau deploy, vào Chế độ quản lý, đặt PIN quản lý và tạo các hồ sơ giống production.
 
