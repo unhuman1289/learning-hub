@@ -48,7 +48,8 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
+export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
+  ownerId: string;
   name: string;
   go: (route: Route) => void;
   daily: DailyApi;
@@ -82,6 +83,20 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   }, [today]);
   const data = shelf.today;
   const ownDeskReady = hub2 && !readOnly && !!data;
+  const prefetchId = data?.items.find(item => item.lessonId)?.lessonId;
+  useEffect(() => {
+    if (!hub2 || !prefetchId || shelf.offline) return;
+    let cancelled = false;
+    const run = () => {
+      const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+      if (cancelled || document.hidden || connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "")) return;
+      void import("./lesson/prefetch").then(module => {
+        if (!cancelled) module.prefetchLesson(ownerId, viewing.id, prefetchId);
+      });
+    };
+    const idle = window.requestIdleCallback ? window.requestIdleCallback(run) : window.setTimeout(run, 2000);
+    return () => { cancelled = true; if (window.cancelIdleCallback) window.cancelIdleCallback(idle); else clearTimeout(idle); };
+  }, [hub2, prefetchId, ownerId, viewing.id, shelf.offline]);
   useEffect(() => {
     if (ownDeskReady) return rumAfterPaint("desk", rumNavigationStart("desk"));
   }, [ownDeskReady]);

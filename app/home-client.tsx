@@ -131,6 +131,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
         {routeReady && route.view === "desk" && (
           <Desk
             name={name}
+            ownerId={userId}
             go={go}
             daily={viewingId ? viewedDaily : daily}
             shelf={shelf}
