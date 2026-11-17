@@ -1,3 +1,4 @@
+import tutorPrompt from '../integrations/runner-prompts/tutor.md?raw';
 import planPrompt from '../integrations/runner-prompts/plan-request.md?raw';
 import assessPrompt from '../integrations/runner-prompts/assess-local.md?raw';
 import recheckPrompt from '../integrations/runner-prompts/assess-recheck.md?raw';
@@ -51,9 +52,9 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
 }
 
 export default {
-  queue(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env) {
+  queue(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env) {
     return consumeOpenAi(batch, env, (kind, purpose) =>
-      kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt);
+      kind === 'plan' ? planPrompt : purpose === 'recheck' ? assessPrompt + '\n\n' + recheckPrompt : assessPrompt, fetch, tutorPrompt);
   },
   async fetch(request: Request, env: Cloudflare.Env, ctx: ExecutionContext) {
     const guarded = standaloneRequestGuard(request, env) ?? hub2Guard(request, env);
