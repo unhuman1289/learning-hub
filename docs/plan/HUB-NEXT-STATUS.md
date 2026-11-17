@@ -18,7 +18,7 @@ Khung L4 đã đóng sau lượt Cổng Q ngày 16/11. Đã khôi phục danh s�
 
 Khung #174 đã đóng sau lượt chẩn đoán Cổng Q ngày 17/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
 
-staging: T1 #168 và migration 0032, đến 09:41 Europe/Berlin
+Khung staging T1 đã đóng. Đã sao lưu D1 trước `0032_tutor.sql`, áp migration, kiểm cùng SHA Hub/MCP và smoke đạt lúc 08:59 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -26,7 +26,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `e8221b073660d60c9dcee4afdf8ceda5d326d203` | [Deploy #174 ngày 17/11 lúc 07:01 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/44027908662). Hub và MCP cùng SHA, D1 kết nối, smoke đạt cả sau khi khôi phục cấu hình QA. Không có migration chờ. |
+| Staging | `a44cda211fceb6c7ca9e833cefa23d28f1c77c96` | [Deploy T1 ngày 17/11 lúc 08:59 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/44042671794). Hub và MCP cùng SHA, D1 kết nối, đã áp `0032_tutor.sql` và smoke đạt. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -52,10 +52,10 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) và chẩn đoán [#174](https://github.com/unhuman1289/learning-hub/pull/174) đã lên staging. Cổng Q **chưa đạt**. Job mới `job_270ea5f60cb745919924` thất bại sau một lượt thuê vì Speech API trả HTTP 401, với 0 bài và 0 tệp audio đã lưu. | Xác minh quyền gọi Speech của key thuộc project OpenAI staging trước lượt thử khác. [Biên bản L4](status/L4.md) ghi đường dẫn trường và bằng chứng. |
 | L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. | L6 chờ L4. Dùng bài nghe đã lưu qua API để thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
 | G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
-| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đã gộp tại `c0d240f`, ghi `hint1` qua L3. Bản sao riêng D1 staging trước `0032` đã được xác nhận. | Áp `0032_tutor.sql`, deploy và kiểm Hub/MCP trước khi bàn giao T2. |
+| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đã gộp tại `c0d240f` và lên staging với `0032_tutor.sql`. T1 ghi `hint1` qua L3. [Biên bản](status/T1.md) | Giao T2 nối đường truyền và xác nhận WebSocket qua Access trên staging. Sau đó làm T3–T5. |
 | K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2 còn xác nhận OAuth staging đủ 11 công cụ và lịch riêng. K3 kiểm kết quả lượt đầu. |
 
-**Migration tiếp theo.** T1 dùng `0032_tutor.sql`. G3 dùng `0033`. Phạm vi LGTK chỉ đến staging.
+**Migration tiếp theo.** `0032_tutor.sql` đã áp trên staging. G3 dùng `0033`. Phạm vi LGTK chỉ đến staging.
 
 ## Chờ chủ dự án
 
