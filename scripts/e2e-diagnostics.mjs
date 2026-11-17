@@ -1,7 +1,7 @@
 // Diagnostic wrapper: capture Wrangler debug output and file metadata, never file contents.
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
-import { mkdir, readdir, stat, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const [label, ...command] = process.argv.slice(2);
@@ -39,6 +39,9 @@ if (process.env.E2E_DIAG !== '1') {
   }
   const code = await new Promise((resolve, reject) => { child.on('error', reject); child.on('close', code => resolve(code ?? 1)); });
   await new Promise(resolve => log.end(resolve));
+  // The next Playwright suite clears outputDir. Preserve each suite's attachments first.
+  try { await cp('private-data/playwright', join(dir, 'playwright'), { recursive: true }); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
   const after = { dist: await snapshot('dist'), wrangler: await snapshot('.wrangler') };
   const changes = {};
   for (const root of ['dist', 'wrangler']) {
