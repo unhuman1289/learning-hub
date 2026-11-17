@@ -434,6 +434,18 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
             }
           };
         }
+        for (const name of ['offsetWidth', 'offsetHeight', 'offsetTop', 'offsetLeft']) {
+          const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name);
+          Object.defineProperty(HTMLElement.prototype, name, { ...descriptor, get() {
+            const start = performance.now();
+            try { return descriptor.get.call(this); }
+            finally {
+              if (document.documentElement.dataset.lessonTurn) window.__turnLayoutReads.push({
+                name, start, duration: performance.now() - start, stack: new Error().stack,
+              });
+            }
+          } });
+        }
       }
       window.__turnDiagnosticTasks = [];
       if (diag) new PerformanceObserver(list => window.__turnDiagnosticTasks.push(...list.getEntries().map(entry => entry.toJSON())))
