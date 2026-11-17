@@ -73,21 +73,12 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
 
   useEffect(() => {
     if (!direction && target === first) return;
-    const position = () => {
-      const section = root.current;
-      const heading = section?.querySelector<HTMLElement>(`[data-question-number="${target}"]`) ??
-        section?.querySelector<HTMLElement>("[data-lesson-heading]");
-      if (direction) heading?.focus({ preventScroll: true });
-      if (target !== first) heading?.scrollIntoView({ block: "start" });
-      else if (section && section.getBoundingClientRect().top < 85) section.scrollIntoView({ block: "start" });
-    };
-    // flushSync runs effects inside the view-transition callback. Focus and layout reads
-    // there force style/layout before the new snapshot; position after the turn instead.
-    if (document.documentElement.dataset.lessonTurn) {
-      document.addEventListener("lesson-turn-finished", position, { once: true });
-      return () => document.removeEventListener("lesson-turn-finished", position);
-    }
-    position();
+    const section = root.current;
+    const heading = section?.querySelector<HTMLElement>(`[data-question-number="${target}"]`) ??
+      section?.querySelector<HTMLElement>("[data-lesson-heading]");
+    if (direction) heading?.focus({ preventScroll: true });
+    if (target !== first) heading?.scrollIntoView({ block: "start" });
+    else if (section && section.getBoundingClientRect().top < 85) section.scrollIntoView({ block: "start" });
   }, [direction, first, target]);
 
   const edges = useRef(new Map<string, HTMLElement>());

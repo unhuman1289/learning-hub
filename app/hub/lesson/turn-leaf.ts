@@ -64,6 +64,5 @@ export function turnLeaf(id: string, direction: "next" | "previous", update: () 
     delete html.dataset.lessonTurnIn;
     delete html.dataset.lessonFold;
     geometry.forEach(name => html.style.removeProperty(name));
-    document.dispatchEvent(new Event("lesson-turn-finished"));
   });
 }
