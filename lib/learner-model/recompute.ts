@@ -10,7 +10,7 @@ export async function skillEvidence(db: EvidenceDb, learnerId: string, skillId: 
   const { results = [] } = await db
     .prepare(
       `SELECT a.id,a.submission_id,a.created_at,a.activity,a.support,a.attempt_no,a.status,a.context,a.stimulus,i.stage,i.flag,
- g.result,g.errors,coalesce((SELECT d.errors FROM attempt_diagnoses d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1),'[]') AS diagnoses FROM attempts a JOIN grades g ON g.id=a.current_grade_id
+ g.result,g.errors,CASE WHEN g.grader='auto' THEN coalesce((SELECT d.errors FROM attempt_diagnoses d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1),'[]') ELSE '[]' END AS diagnoses FROM attempts a JOIN grades g ON g.id=a.current_grade_id
  JOIN lesson_items i ON i.lesson_id=a.lesson_id AND i.item_id=a.item_id
  WHERE a.learner_id=? AND EXISTS(SELECT 1 FROM json_each(a.skill_ids) WHERE value=?) ORDER BY a.created_at,a.id`,
     )

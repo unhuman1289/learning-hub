@@ -1,10 +1,11 @@
+import { gradingQuality } from '../lib/quality.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
 import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-jobs/queue.ts';
 import { refreshSkills } from '../lib/learner-model/nightly.ts';
-import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
+import { createDispute, escalateDispute, resolveDispute, listDisputes, listDisputesNeedingHuman } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
 import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
@@ -793,6 +794,29 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   // One AI recheck per answer: the next dispute goes to a person.
   const again = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(again.status, 'needs_human');
+  db.sqlite.close();
+});
+
+
+test('guardian decision replaces an effective AI recheck and retains both grading histories', async () => {
+  const { db, attempt, dispute, lease, job, result } = await automaticRecheck();
+  await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+  const quality = await gradingQuality(db, learner, now);
+  assert.equal(quality[0].rechecksWeek, 1);
+  assert.equal(quality[0].changedWeek, 1);
+  assert.equal(quality[0].changeRateWeek, 1);
+  const review = (await listDisputesNeedingHuman(db)).find(d => d.id === dispute.id);
+  assert.equal(review.grade.result, 'incorrect');
+  assert.equal(review.recheckGrade.result, 'correct');
+  assert.equal((await listDisputes(db, learner)).find(d => d.id === dispute.id).recheckGrade.result, 'correct');
+  const aiGrade = db.sqlite.prepare('SELECT current_grade_id FROM attempts WHERE id=?').get(attempt.id).current_grade_id;
+  await resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'set', result: 'partial', score: 0.5, feedback: 'Một phần đúng.', note: '' }, new Date(now.getTime() + 1000));
+  const current = db.sqlite.prepare('SELECT g.id,g.result,g.grader FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?').get(attempt.id);
+  assert.equal(current.result, 'partial');
+  assert.equal(current.grader, 'guardian');
+  assert.equal(db.sqlite.prepare('SELECT superseded_by FROM grades WHERE id=?').get(aiGrade).superseded_by, current.id);
+  assert.equal((await listDisputes(db, learner)).find(d => d.id === dispute.id).recheckGrade.result, 'correct');
+  await assert.rejects(resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'keep', note: '' }, now), e => e.status === 409);
   db.sqlite.close();
 });
 
