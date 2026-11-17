@@ -6,8 +6,6 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-staging: deploy #174 và chạy một job Terra Cổng Q, đến 07:45 Europe/Berlin
-
 Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ thuộc Qwen local theo [quyết định 16/11](HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài). Queue OpenAI và chế độ nộp cả bài hiện mới bật cho sổ demo người lớn **QA H5 Deutsch**. Bài nghe còn cần nối TTS vào luồng API.
 
 Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
@@ -18,13 +16,15 @@ Khung sửa và nghiệm thu **Chấm sai?** trên QA H5 Deutsch đã đóng sau
 
 Khung L4 đã đóng sau lượt Cổng Q ngày 16/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
 
+Khung #174 đã đóng sau lượt chẩn đoán Cổng Q ngày 17/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `2e89c2ede4cc6251d870122f7cc4d42600a6fb79` | [Deploy L4 ngày 16/11 lúc 21:54 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/43954237673). Hub và MCP cùng SHA, D1 kết nối, smoke đạt cả sau khi khôi phục cấu hình QA. Không có migration chờ. |
+| Staging | `e8221b073660d60c9dcee4afdf8ceda5d326d203` | [Deploy #174 ngày 17/11 lúc 07:01 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/44027908662). Hub và MCP cùng SHA, D1 kết nối, smoke đạt cả sau khi khôi phục cấu hình QA. Không có migration chờ. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -47,7 +47,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). PHONE-CHECK bước 8–9 đạt trên staging. Chủ dự án bỏ qua thử thiết bị thật |
 | U6 mép sổ | [#160](https://github.com/unhuman1289/learning-hub/pull/160), [#161](https://github.com/unhuman1289/learning-hub/pull/161) và #169 đã lên staging. Bản ghép local `808fb91` đạt 6/6 e2e. CI sau khi gộp cũng không ghi nhận tác vụ dài trong hai lần lật ở CPU chậm 4×. | Biên bản U6 ở commit local `639186a`. Năm tệp sửa thử được giữ riêng. Chủ dự án còn duyệt trên iPhone thật. |
 | Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp và deploy. CI sau khi gộp đo 176.993 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | [Kết quả CI](https://github.com/unhuman1289/learning-hub/actions/runs/43797525717). |
-| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) đã gộp và deploy. Cổng Q **chưa đạt**. Job Terra `job_cd4492c55613493d90b9` kết thúc `failed` sau hai lượt thuê, với 0 bài và 0 tệp audio đã lưu. | [Biên bản L4](status/L4.md) ghi lỗi trước TTS và lỗi tạo hoặc lưu audio. Cần chẩn đoán trước lượt xác minh tiếp theo. |
+| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) và chẩn đoán [#174](https://github.com/unhuman1289/learning-hub/pull/174) đã lên staging. Cổng Q **chưa đạt**. Job mới `job_270ea5f60cb745919924` thất bại sau một lượt thuê vì Speech API trả HTTP 401, với 0 bài và 0 tệp audio đã lưu. | Xác minh quyền gọi Speech của key thuộc project OpenAI staging trước lượt thử khác. [Biên bản L4](status/L4.md) ghi đường dẫn trường và bằng chứng. |
 | L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. | L6 chờ L4. Dùng bài nghe đã lưu qua API để thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
 | G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
 | T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đang mở. | Nối ghi `hint1` sau L3. T2 còn kiểm WebSocket qua Access. Sau đó làm T3–T5. |
