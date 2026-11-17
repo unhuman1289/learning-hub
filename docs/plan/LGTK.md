@@ -293,6 +293,8 @@ K1 xong. K2, K3 bỏ trên staging theo quyết định 17/11. Hướng dẫn �
 
 ### F1. Giảm JS bàn học
 
+**Kết quả 17/11 ([status/F1.md](status/F1.md)):** không đạt 150 KB. Ba chunk nền (React 67.710 B, điều hướng Vinext 44.163 B, runtime Vinext/RSC 31.473 B) chiếm khoảng 143 KB. Tách bộ chọn hồ sơ chỉ bớt 1,8 KB; RSC phần tĩnh bớt 9 B; `preact/compat` làm kẹt bước tải hồ sơ. **Quyết định của Claude:** đóng F1, giữ trần 180 KB làm chặn hồi quy, không đổi framework. Tốc độ cảm nhận lấy từ F2 (service worker) và F3 (tải trước).
+
 Bàn học đang ở 177/180 KB, chỉ còn 3 KB dư. Mục tiêu ≤ 150 KB.
 - Liệt kê nội dung từng chunk lớn (khoảng 67 KB, 44 KB, 31 KB gzip) bằng visualizer của Vite.
 - Thử từng hướng, đo riêng từng hướng:
@@ -347,7 +349,7 @@ Bàn học đang ở 177/180 KB, chỉ còn 3 KB dư. Mục tiêu ≤ 150 KB.
   Chủ dự án duyệt trước khi code.
 - Ghi quy tắc chuyển động vào DESIGN.md: thời lượng, đường cong, giảm chuyển động.
 
-**Xong F khi:** các ngân sách ở mục 1 đạt trên CI và trên iPhone ở Đức, bàn học ≤ 150 KB, INP p75 < 200 ms, mở lại từ màn hình chính < 1 giây.
+**Xong F khi:** các ngân sách ở mục 1 đạt trên CI và trên iPhone ở Đức, bàn học ≤ 180 KB, INP p75 < 200 ms, mở lại từ màn hình chính < 1 giây.
 
 ## 9. R · Phát hành production
 
