@@ -12,6 +12,8 @@ Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ th
 
 Khung staging đợt 1 bản 2 (L7, F0, G4, T2, migration `0034`) đã đóng lúc 11:03 Europe/Berlin ngày 17/11.
 
+staging: nghiệm thu đợt 1 (G4, L7, T2, F0) trên `b3ba509`, không deploy; chỉ đổi tạm `OPENAI_SUBJECT_IDS`/`OPENAI_TTS_SUBJECT_IDS` cho sổ QA rồi khôi phục, đến 15:00 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
