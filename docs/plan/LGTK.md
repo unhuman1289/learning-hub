@@ -64,7 +64,7 @@ Các luồng chờ AI chưa có số đo: **Nộp bài → có lời phê** (Lun
 | Đợt | Bước chạy song song | Điều kiện |
 |---|---|---|
 | 1 | **T2** gia sư gọi OpenAI trực tiếp · **G4** chấm lại · **L7** âm thanh nén · **F0** đo đủ | Đã gộp và lên staging `b3ba509` (17/11) |
-| 1b | **A1** điều khiển AI an toàn | Chặn nghiệm thu G4, L7, T2 và chạy thật G3. Làm trước đợt 2 |
+| 1b | **A1** điều khiển AI an toàn · **H1** cổng gia đình trên staging | A1 chặn nghiệm thu G4, L7, T2 và chạy thật G3. H1 làm trước khi chuyển repo sang public. Hai bước không sửa chung tệp |
 | 1 | **D** kiểm giao bài 00:00 (Claude làm, chỉ đọc) · **N** máy thật ở Đức (chủ dự án) | Song song |
 | 2 | **T3** chặn lộ đáp án và giao diện Hỏi · **G3** hiệu chuẩn · **F1** giảm JS | Sau T2 (T3), sau F0 (F1) |
 | 3 | **T4** nghiệm thu gia sư · **G5** chấm bài ảnh · **F2** service worker · **F3** tải trước bài kế tiếp | Sau T3; G5 sau quyết định dữ liệu (mục 11) |
@@ -215,6 +215,37 @@ Ghi vào `status/D.md`. Nếu trượt, mở bước sửa riêng.
 
 **Xong khi:** test cho trần gọi (Queue giao lại lần 3 thì không gọi API) và cho bật/tắt theo sổ; gộp, deploy staging; Claude dựng lại danh sách sổ bật AI trong D1 và kiểm khớp với trước.
 
+### H1. Cổng gia đình trên staging, giống production
+
+**Quyết định 17/11/2026:** staging dùng mật khẩu chung, chọn hồ sơ và PIN như production (`HOUSEHOLD_GATE=passphrase`). Không dùng đăng ký và xác minh email. Làm xong thì chuyển repo sang public.
+
+**Việc (chat Codex):**
+- `wrangler.jsonc`, khối staging: thêm `"HOUSEHOLD_GATE": "passphrase"`. Giữ nguyên các cấu hình khác.
+- `scripts/staging-smoke.mjs`: thêm chế độ `household`:
+  - `/household` trả 200;
+  - mật khẩu sai trả 401;
+  - API cần đăng nhập trả 401 khi chưa qua cổng;
+  - health trả 200;
+  - đường automation và MCP vẫn chạy như production.
+- Công cụ QA trên staging (`prepare-h5-qa.mjs`, `staging-openai-smoke.mjs`, PHONE-CHECK chạy với staging):
+  - qua cổng bằng mật khẩu đọc từ `private-data/staging-household.txt`, không in ra log;
+  - chọn hồ sơ bằng id;
+  - không tạo tài khoản email nữa.
+- Kiểm `/register` và đăng ký bằng email không còn mở trên staging.
+- Test và e2e local giữ nguyên dữ liệu demo.
+
+**Việc của Claude khi deploy:**
+- đặt secret `PROFILE_COOKIE_SECRET` ngẫu nhiên;
+- đặt `HOUSEHOLD_LEGACY_PROFILE_IDS` gồm các tài khoản QA hiện có, để các sổ QA (H5 Deutsch, L4) thành hồ sơ;
+- sao lưu D1, deploy, kiểm smoke ở chế độ `household`.
+
+**Việc của chủ dự án:**
+- đặt `HOUSEHOLD_PASSPHRASE_SHA256` cho staging bằng lệnh ở `docs/ops/local-grader-setup.md` (đổi `--env production` thành `--env staging`). Nên dùng mật khẩu khác production, vì công cụ QA sẽ đọc mật khẩu staging từ `private-data`;
+- lưu mật khẩu đó vào `private-data/staging-household.txt` trên Mac;
+- sau deploy, vào Chế độ quản lý, đặt PIN quản lý và tạo các hồ sơ giống production.
+
+**Xong khi:** smoke chế độ `household` đạt trong workflow deploy; chủ dự án vào được bằng mật khẩu và PIN; sổ QA vẫn mở được; runner và MCP staging vẫn trả lời.
+
 ### N. Máy thật ở Đức
 
 Chủ dự án làm:
@@ -354,7 +385,7 @@ Sau khi các đợt 1–4 đạt. Đây là phác thảo. Kế hoạch chi tiế
 | 3 | R0 | Production dùng OpenAI cho mọi luồng AI và tắt runner Qwen trên Mac | Có, vì staging đã chạy và nghiệm thu theo OpenAI |
 | 4 | R0 | Hạn mức chi tiêu OpenAI mỗi tháng cho production | Chủ dự án đặt con số, Claude ước từ số token của G3, T4, F0 |
 | 5 | F0 | Cấp quyền Workers Observability cho token Cloudflare dùng khi đo (API truy vấn telemetry yêu cầu quyền Write) | Cần cho số đo CPU từng route. Có thể bỏ qua: thời gian server đã đo được |
-| 6 | Bây giờ | GitHub Actions ngừng chạy từ 17/11 vì thanh toán hoặc giới hạn chi tiêu | Chủ dự án sửa trong GitHub → Settings → Billing & plans. Không có CI thì không gộp và không deploy staging bằng workflow |
+| 6 | Đã xử lý 17/11 | GitHub Actions ngừng chạy vì thanh toán | Chủ dự án lên GitHub Pro; CI chạy lại. Chuyển repo sang public sau H1 (quyết định 17/11) để Actions miễn phí. Audit 17/11: không có key hay mật khẩu thật trong 465 commit, PR, comment và issue. Lịch sử có email cơ quan và một gmail, chủ dự án chấp nhận. Từ 17/11 commit trong repo dùng email noreply của GitHub |
 
 ## 12. Điều phối
 

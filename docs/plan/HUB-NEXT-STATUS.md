@@ -14,7 +14,7 @@ Khung staging đợt 1 bản 2 (L7, F0, G4, T2, migration `0034`) đã đóng l�
 
 Khung nghiệm thu đợt 1 đã đóng ngày 17/11 mà chưa nghiệm thu được G4, L7, T2: không đọc lại được secret allowlist và Queue không có trần số lần gọi. Cần bước A1 (LGTK mục 6). F0 đã đo được thời gian server.
 
-**Chặn:** GitHub Actions không chạy từ 17/11 ("recent account payments have failed or your spending limit needs to be increased"). Không có CI và không chạy được workflow deploy staging cho đến khi chủ dự án sửa thanh toán.
+GitHub Actions chạy lại sau khi chủ dự án lên GitHub Pro (17/11). Repo chuyển sang public sau bước H1 (cổng gia đình trên staging).
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
