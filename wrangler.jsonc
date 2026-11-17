@@ -38,6 +38,7 @@
       "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "staging",
+        "OPENAI_ENABLED": "true",
         "APP_ENV": "staging",
         "APP_VERSION": "hub2-adaptive-roadmap-2026-11-12",
         "DEPLOYMENT_ID": "learning-hub-staging",

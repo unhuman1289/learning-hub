@@ -1,10 +1,10 @@
-import { openAiSubjects } from '../ai-jobs/queue.ts';
+import { aiSubjects } from '../ai-controls.ts';
 import { tutorAnswer } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { tutorContext } from './context.ts';
 
 export const TUTOR_BUSY = 'Gia sư đang bận, câu trả lời sẽ có trong bài';
-type Bindings = { ENVIRONMENT?:string; APP_ENV?:string; OPENAI_SUBJECT_IDS?:string; OPENAI_API_KEY?:string; AI_QUEUE?:{send(body:unknown):Promise<unknown>} };
+type Bindings = { ENVIRONMENT?:string; APP_ENV?:string; OPENAI_ENABLED?:string; OPENAI_SUBJECT_IDS?:string; OPENAI_TTS_SUBJECT_IDS?:string; OPENAI_API_KEY?:string; AI_QUEUE?:{send(body:unknown):Promise<unknown>} };
 type Emit = (event:string, data:object) => void;
 type Fetcher = typeof fetch;
 
@@ -17,7 +17,7 @@ export async function tutorEligible(db:EvidenceDb, id:string, env:Bindings) {
     .first<{subject_id:string;role:string;completed_at:string|null;enabled:number;flag:string|null}>();
   if (!row || row.completed_at || !row.enabled || row.flag === 'item_void') return false;
   return env.ENVIRONMENT === 'local' && env.APP_ENV === 'local' ||
-    (env.ENVIRONMENT === 'staging' && row.role === 'adult' && openAiSubjects(env).includes(row.subject_id));
+    (env.ENVIRONMENT === 'staging' && row.role === 'adult' && (await aiSubjects(db, env)).includes(row.subject_id));
 }
 
 export async function dispatchTutor(env:Bindings, id:string) {
@@ -95,8 +95,8 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
       WHERE id=? AND status='streaming' AND attempt_token=? AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
         JOIN lesson_items i ON i.lesson_id=l.id AND i.item_id=tutor_turns.item_id WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NULL AND coalesce(s.tutor_enabled,1)=1 AND i.flag IS NOT 'item_void'
-        AND (?=1 OR (coalesce(s.role,'adult')='adult' AND l.subject_id IN (SELECT value FROM json_each(?)))))`)
-      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,env.ENVIRONMENT==='local' && env.APP_ENV==='local' ? 1 : 0,JSON.stringify(openAiSubjects(env))).run();
+        AND (?=1 OR (coalesce(s.role,'adult')='adult' AND EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=1) AND ?=1)))`)
+      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,env.ENVIRONMENT==='local' && env.APP_ENV==='local' ? 1 : 0,Number(env.OPENAI_ENABLED==='true')).run();
     if (!saved.meta.changes) {
       await db.prepare("UPDATE tutor_turns SET status='blocked',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=?").bind(id,token).run();
       emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); return 'ineligible' as const;

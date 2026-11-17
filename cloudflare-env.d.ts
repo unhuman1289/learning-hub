@@ -11,6 +11,7 @@ declare namespace Cloudflare {
     AI_QUEUE?:Queue;
     OPENAI_API_KEY?: string;
     HOUSEHOLD_LIMITER?: RateLimit;
+    OPENAI_ENABLED?: string;
     OPENAI_SUBJECT_IDS?: string;
     OPENAI_TTS_SUBJECT_IDS?: string;
     ASSETS?: Fetcher;
