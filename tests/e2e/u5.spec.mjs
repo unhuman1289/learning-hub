@@ -53,7 +53,10 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const deskStats = await warm();
   expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
-  expect(deskStats.api.length, JSON.stringify(deskStats.api)).toBeLessThanOrEqual(2);
+  // WebKit can report the ambient request twice with a service worker. Keep
+  // the desk API budget strict while allowing that duplicate observation.
+  expect(deskStats.api.filter(path => path !== "/api/ambient"), JSON.stringify(deskStats.api)).toEqual(["/api/today"]);
+  expect(deskStats.api.filter(path => path === "/api/ambient").length).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
 
   // Give the demo lesson a saved draft so the desk continues directly at a question.
