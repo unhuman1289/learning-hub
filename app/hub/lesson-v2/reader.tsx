@@ -1,6 +1,6 @@
 "use client";
 
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 const Tutor = lazy(() => import("../lesson/tutor"));
 import { feedbackForItems } from "../../../lib/feedback-history";
 import { formatChemicalText, isChemistryNotebook } from "../../../lib/chemistry";
@@ -25,6 +25,8 @@ import { knowledgeBlocks } from "./figures";
 import { sheetBlocks } from "./sheet";
 import { LessonReflection } from "./reflection";
 
+if (typeof performance !== "undefined") performance.mark("f3:reader-evaluated");
+
 export function LessonReader({
   id, ownerId, correction = false, learner, drafts, onLoaded, onCompleted, go,
 }: {
@@ -37,8 +39,21 @@ export function LessonReader({
   go: (route: Route) => void;
   onCompleted?: () => Promise<void>;
 }) {
+  performance.mark("f3:reader-render-start");
   const session = useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCompleted });
   const { lesson, child, answers, history, readonly, busy, pending, error, feedbackError, state } = session;
+  const [grouped, setGrouped] = useState(false);
+  useEffect(() => {
+    if (!session.hadPrefetch) return;
+    let idle = 0;
+    let secondFrame = 0;
+    const frame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        idle = window.requestIdleCallback ? window.requestIdleCallback(() => setGrouped(true)) : window.setTimeout(() => setGrouped(true), 0);
+      });
+    });
+    return () => { cancelAnimationFrame(frame); cancelAnimationFrame(secondFrame); if (window.cancelIdleCallback) window.cancelIdleCallback(idle); else clearTimeout(idle); };
+  }, [session.hadPrefetch]);
   const hasListening = lesson?.items.some(item => !!item.audio) ?? false;
   const settings = useListeningSettings(ownerId, hasListening && !readonly && !session.verification);
   const [listeningPlays, setListeningPlays] = useState<Record<string, number>>({});
@@ -75,6 +90,7 @@ export function LessonReader({
     <LessonNotes lesson={lesson} formatText={formatText} />
   </details>;
 
+  performance.mark("f3:reader-render-ready");
   return <Book id={lesson.subjectId} title={subject} page="lesson" go={go} focusedLesson>
     {session.verification === "loading" && <p role="status" className="mb-1 text-sm text-oak-ink">Đang cập nhật…</p>}
     {readonly && <p className="mb-1 font-hand text-lg text-oak-ink">Bạn đang xem bài của người học.</p>}
@@ -83,8 +99,8 @@ export function LessonReader({
     </p>}
     {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
     {hasListening && <ListeningBrowserNotice />}
-    <LessonFlow initialItem={initialItem} groups={lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
-      locked={busy || !!pending || !!session.verification} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump) => {
+    <LessonFlow initialItem={initialItem} groups={session.hadPrefetch && !grouped ? lesson.items.map((_, i) => [i + 1]) : lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
+      locked={busy || !!pending || !!session.verification || (session.hadPrefetch && !grouped)} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump) => {
         if (index === 0) return <>
           <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
           <p className="mt-3">{lesson.objective}</p>

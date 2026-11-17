@@ -157,7 +157,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
           <p aria-live="off" className="min-h-7 font-hand text-lg text-accent">{data?.greeting.cheer}</p>
           {viewing.learners.length > 1 && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem bàn của
-              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
+              <select value={viewing.id ?? ""} onChange={(event) => { window.dispatchEvent(new Event("lh:profile-change")); viewing.set(event.target.value || null); }} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
                 {viewing.learners.map((item) => (
                   <option key={item.id} value={item.relation === "self" ? "" : item.id}>{item.relation === "self" ? `${item.name} (tôi)` : item.name}</option>
                 ))}

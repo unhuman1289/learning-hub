@@ -97,6 +97,7 @@ export function useRoute() {
   }, []);
 
   const go = useCallback((next: Route) => {
+    if (next.view === "lesson") performance.mark("f3:go");
     markNavigation(next);
     const href = routeHref(next);
     if (href !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.pushState({}, "", href);
@@ -105,7 +106,7 @@ export function useRoute() {
       window.scrollTo({ top: 0 });
     };
     const doc = document as ViewTransitionDocument;
-    if (!doc.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if ((next.view === "lesson" && document.documentElement.dataset.prefetchedLesson === next.id) || !doc.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       update();
       return;
     }
