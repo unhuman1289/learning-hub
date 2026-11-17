@@ -20,6 +20,13 @@ export async function aiSubjects(db: EvidenceDb, env: AiControlBindings, tts = f
   return results.map(row => row.subject_id);
 }
 
+export async function aiSubjectEnabled(db: EvidenceDb, env: AiControlBindings, subjectId: string) {
+  if (env.OPENAI_ENABLED !== 'true') return false;
+  const row = await db.prepare(`SELECT 1 AS enabled FROM subjects s LEFT JOIN ai_subject_controls c ON c.subject_id=s.id
+    WHERE s.id=? AND coalesce(c.openai_enabled,1)=1`).bind(subjectId).first<{enabled:number}>();
+  return !!row;
+}
+
 export async function setAiControls(db: EvidenceDb, env: AiControlBindings, subjectId: string, values: {openaiEnabled: boolean; ttsEnabled: boolean}, actor: string) {
   await initializeAiControls(db, env);
   const now = new Date().toISOString();

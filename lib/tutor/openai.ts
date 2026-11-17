@@ -71,7 +71,7 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
   try {
     if (!await tutorEligible(db,id,env)) throw new Error('Ineligible');
     if (!env.OPENAI_API_KEY || Date.now()-started>=timeoutMs) throw new Error('Unavailable');
-    const counted=await db.prepare("UPDATE tutor_turns SET openai_calls=openai_calls+1 WHERE id=? AND status='streaming' AND attempt_token=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM learning_lessons l JOIN ai_subject_controls c ON c.subject_id=l.subject_id WHERE l.id=tutor_turns.lesson_id AND c.openai_enabled=1)").bind(id,token).run();
+    const counted=await db.prepare("UPDATE tutor_turns SET openai_calls=openai_calls+1 WHERE id=? AND status='streaming' AND attempt_token=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN ai_subject_controls c ON c.subject_id=l.subject_id WHERE l.id=tutor_turns.lesson_id AND coalesce(c.openai_enabled,1)=1)").bind(id,token).run();
     if (!counted.meta.changes) throw new Error('Call limit');
     const response=await fetcher('https://api.openai.com/v1/responses', {method:'POST',
       headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
@@ -97,8 +97,8 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
       WHERE id=? AND status='streaming' AND attempt_token=? AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
         JOIN lesson_items i ON i.lesson_id=l.id AND i.item_id=tutor_turns.item_id WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NULL AND coalesce(s.tutor_enabled,1)=1 AND i.flag IS NOT 'item_void'
-        AND (?=1 OR coalesce(s.role,'adult')='adult') AND EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=1) AND ?=1)`)
-      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.ENVIRONMENT==='local' && env.APP_ENV==='local'),Number(env.OPENAI_ENABLED==='true')).run();
+        AND NOT EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=0) AND ?=1)`)
+      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
     if (!saved.meta.changes) {
       await db.prepare("UPDATE tutor_turns SET status='blocked',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=?").bind(id,token).run();
       emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); return 'ineligible' as const;

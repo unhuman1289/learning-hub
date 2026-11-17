@@ -25,7 +25,6 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
   const objects = new Map();
   const env = {
     OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', DB: db, OPENAI_API_KEY: 'fixture-key',
-    OPENAI_SUBJECT_IDS: subject.id, OPENAI_TTS_SUBJECT_IDS: subject.id,
     UPLOADS: {
       async put(key, bytes, options) {
         if (put) return put();

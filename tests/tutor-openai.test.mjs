@@ -12,7 +12,7 @@ const subject='sub_aaaaaaaaaaaaaaaaaaaa';
 async function setup(t) {
   const db=memoryDb(); t.after(()=>db.sqlite.close());
   db.sqlite.exec(`INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES('u','Private Name','private@example.test',1,1,1,'learner','active');
-    INSERT INTO learner_settings(user_id,updated,role,display_name) VALUES('u','t','adult','Ếch');
+    INSERT INTO learner_settings(user_id,updated,role,display_name) VALUES('u','t','child','Ếch');
     INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('${subject}','u','Deutsch','skill','active','u','t','t');`);
   const lessonId=await insertLessonV2(db,{learnerId:'u',subjectId:subject,day:'2026-11-17',lesson:fixture});
   const env={OPENAI_ENABLED:'true',ENVIRONMENT:'staging',OPENAI_SUBJECT_IDS:subject,OPENAI_API_KEY:'fake'};
@@ -28,7 +28,7 @@ test('streamed Luna request sends only the current exercise and saves tokens bef
     request={url,...JSON.parse(options.body)}; return fakeTutorOpenAi();
   });
   assert.equal(result,'answered'); assert.equal(request.model,'gpt-6-luna'); assert.equal(request.stream,true); assert.equal(request.store,false);
-  assert.equal(request.input.includes('SECRET-OTHER'),false); assert.equal(request.input.includes('Private Name'),false);
+  assert.equal(request.input.includes('SECRET-OTHER'),false); assert.equal(request.input.includes('Private Name'),false); assert.equal(request.input.includes('private@example.test'),false);
   const input=JSON.parse(request.input); assert.equal(input.nickname,'Ếch'); assert.equal(input.draft,'draft'); assert.match(input.question,/email redacted/);
   assert.equal('key' in input,false); assert.equal('solution' in input,false);
   assert.deepEqual(events.map(x=>x.type),['turn','delta','delta','done']);
@@ -58,11 +58,11 @@ test('submission or admin disable while generating cannot write an answer',async
   assert.equal(events.includes('done'),false);
 });
 
-test('staging only permits adult profiles in the enabled notebooks',async t=>{
+test('staging permits children in enabled notebooks and respects the switch',async t=>{
   const {db,env,create}=await setup(t);const turn=await create();
   assert.equal(await tutorEligible(db,turn.id,env),true);
   db.sqlite.prepare("UPDATE learner_settings SET role='child'").run();
-  assert.equal(await tutorEligible(db,turn.id,env),false);
+  assert.equal(await tutorEligible(db,turn.id,env),true);
   assert.equal(await tutorEligible(db,turn.id,{...env,ENVIRONMENT:'local',APP_ENV:'local'}),true);
   db.sqlite.prepare("UPDATE learner_settings SET role='adult'").run();
   assert.equal(await tutorEligible(db,turn.id,{...env,OPENAI_ENABLED:'false'}),false);

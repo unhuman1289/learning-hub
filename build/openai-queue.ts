@@ -77,7 +77,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
     try {
       const tts = job.kind === 'plan' && ttsSubjectIds.includes(job.subject_id);
       const [lease] = await leaseJobs(db, client, {
-        kinds: [job.kind], subjectIds, jobId: id, textOnly: true, max: 1,
+        kinds: [job.kind], subjectIds: [job.subject_id], jobId: id, textOnly: true, max: 1,
         capabilities: ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', ...(tts ? ['tts'] : [])],
         ...(tts ? { ttsVoices: openAiGermanVoices } : {}),
         runner: { name: 'openai-staging', version: '1', model: 'openai' },
@@ -97,7 +97,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       }));
       const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher, beforeFetch: async () => {
         const counted = await db.prepare(`UPDATE ai_jobs SET openai_calls=openai_calls+1 WHERE id=? AND openai_calls<2
-          AND status='leased' AND lease_token_sha256=? AND EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id AND openai_enabled=1)`)
+          AND status='leased' AND lease_token_sha256=? AND NOT EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id AND openai_enabled=0)`)
           .bind(id, active.lease_token_sha256).run();
         if (!counted.meta.changes) throw new Error('Đã hết giới hạn 2 lần gọi hoặc quyền sử dụng đã thay đổi.');
       } });
