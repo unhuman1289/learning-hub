@@ -112,8 +112,10 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
           const current = await readJob(db, id);
           return { status: current?.status, outcome: current?.outcome ? JSON.parse(current.outcome) : null };
         },
-        fail: async (_lease: unknown, _reason: string, retryable: boolean) =>
-          failLeasedJob(db, await leasedJob(db, client, id, token), retryable),
+        fail: async (_lease: unknown, _reason: string, retryable: boolean) => {
+          const count = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
+          return failLeasedJob(db, await leasedJob(db, client, id, token), retryable && (count?.openai_calls ?? 0) < 2);
+        },
       }, lease, engine, {
         getPrompt,
         ...(tts && bucket ? { prepareAudio: async (context: Parameters<typeof uploadOpenAiPlanAudio>[0],

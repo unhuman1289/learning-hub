@@ -15,7 +15,7 @@ async function setup(t) {
     INSERT INTO learner_settings(user_id,updated,role,display_name) VALUES('u','t','adult','Ếch');
     INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('${subject}','u','Deutsch','skill','active','u','t','t');`);
   const lessonId=await insertLessonV2(db,{learnerId:'u',subjectId:subject,day:'2026-11-17',lesson:fixture});
-  const env={ENVIRONMENT:'staging',OPENAI_SUBJECT_IDS:subject,OPENAI_API_KEY:'fake'};
+  const env={OPENAI_ENABLED:'true',ENVIRONMENT:'staging',OPENAI_SUBJECT_IDS:subject,OPENAI_API_KEY:'fake'};
   const create=(now=new Date())=>openTutorTurn(db,'u',{lessonId,itemId:'i1',question:'test@example.test'},false,now);
   return {db,lessonId,env,create};
 }
@@ -65,7 +65,7 @@ test('staging only permits adult profiles in the enabled notebooks',async t=>{
   assert.equal(await tutorEligible(db,turn.id,env),false);
   assert.equal(await tutorEligible(db,turn.id,{...env,ENVIRONMENT:'local',APP_ENV:'local'}),true);
   db.sqlite.prepare("UPDATE learner_settings SET role='adult'").run();
-  assert.equal(await tutorEligible(db,turn.id,{...env,OPENAI_SUBJECT_IDS:''}),false);
+  assert.equal(await tutorEligible(db,turn.id,{...env,OPENAI_ENABLED:'false'}),false);
 });
 
 test('sixty turns are counted per Berlin day across lessons, including DST',async t=>{
@@ -102,4 +102,14 @@ test('queue retries an upstream failure without treating it as a saved answer',a
   await consumeOpenAi({messages:[msg]}, {...env,DB:db},()=>'',async()=>new Response(null,{status:503}),'prompt');
   assert.equal(msg.retried,true); assert.notEqual(msg.acked,true);
   assert.equal(db.sqlite.prepare('SELECT status FROM tutor_turns WHERE id=?').get(turn.id).status,'queued');
+});
+
+test('replayed tutor deliveries stop after two actual calls',async t=>{
+  const {db,env,create}=await setup(t);const turn=await create();let calls=0;
+  const fail=async()=>{calls++;return new Response(null,{status:503});};
+  const message=()=>({body:{tutorTurnId:turn.id},ack(){this.acked=true},retry(){this.retried=true}});
+  const first=message(), second=message(), third=message();
+  for(const m of [first,second,third]) await consumeOpenAi({messages:[m]},{...env,DB:db},()=>'',fail,'prompt');
+  assert.equal(calls,2);assert.equal(second.acked,true);assert.equal(third.acked,true);
+  assert.deepEqual({...db.sqlite.prepare('SELECT status,openai_calls FROM tutor_turns WHERE id=?').get(turn.id)},{status:'failed',openai_calls:2});
 });

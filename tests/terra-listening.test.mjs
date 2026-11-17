@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { consumeOpenAi } from '../build/openai-queue.ts';
+import { speech } from '../build/openai-tts.ts';
+import { initializeAiControls } from '../lib/ai-controls.ts';
+import { OPENAI_VOICE_PREFIX } from '../lib/audio/openai-voices.ts';
 import { playAudio } from '../lib/audio/playback.ts';
 import { readLessonV2 } from '../lib/lesson-v2/store.ts';
 import { aacDurationMs } from '../lib/audio/aac.ts';
@@ -21,7 +24,7 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
   const job = db.sqlite.prepare('SELECT job_id FROM learner_requests WHERE id=?').get(request.id);
   const objects = new Map();
   const env = {
-    ENVIRONMENT: 'staging', DB: db, OPENAI_API_KEY: 'fixture-key',
+    OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', DB: db, OPENAI_API_KEY: 'fixture-key',
     OPENAI_SUBJECT_IDS: subject.id, OPENAI_TTS_SUBJECT_IDS: subject.id,
     UPLOADS: {
       async put(key, bytes, options) {
@@ -164,7 +167,7 @@ test('Queue logs safe stages, codes and paths for the L4 failure modes', async t
       entry.jobId === job.job_id && entry.leaseCount === 1 &&
       Object.entries(expected).every(([key, value]) => JSON.stringify(entry[key]) === JSON.stringify(value))),
     JSON.stringify(captured));
-    const canRetry = expected.event === 'audio_validation_error';
+    const canRetry = false;
     assert.equal(captured.some(entry => entry.event === 'queue_failed'), !canRetry);
     assert.deepEqual(delays, canRetry ? [30] : []);
     const serialized = JSON.stringify(captured);
@@ -175,4 +178,25 @@ test('Queue logs safe stages, codes and paths for the L4 failure modes', async t
     assert.equal(db.sqlite.prepare('SELECT count(*) n FROM audio_assets').get().n, 0);
     assert.equal(objects.size, 0);
   });
+});
+
+test('two repair calls in one delivery exhaust the job and further deliveries make no calls', async t=>{
+  const {db,job,run,counts}=await setupTerraFixture(t,{mutate:lesson=>{lesson.items[0].audio.rate=1;},retry:()=>{}});
+  await run();
+  assert.equal(counts().terraCalls,2);
+  const row=db.sqlite.prepare('SELECT status,openai_calls,error FROM ai_jobs WHERE id=?').get(job.job_id);
+  assert.equal(row.status,'failed');assert.equal(row.openai_calls,2);assert.match(row.error,/2 lần/);
+  await run();await run();assert.equal(counts().terraCalls,2);
+});
+
+
+test('Speech permits at most two fetches for the same sentence and voice',async t=>{
+  const {db,env,job}=await setupTerraFixture(t);
+  await initializeAiControls(db,env);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='leased' WHERE id=?").run(job.job_id);
+  let calls=0;const fetcher=async()=>{calls++;return new Response(null,{status:503});};
+  const audio={lang:'de-DE',rate:0.8,lines:[{speaker:'a',text:'Guten Tag'}]};
+  const call=()=>speech(audio,audio.lines[0],OPENAI_VOICE_PREFIX+'marin','fake',fetcher,AbortSignal.timeout(1000),{path:'/fixture',variant:'f'},db,job.job_id);
+  await assert.rejects(call);await assert.rejects(call);await assert.rejects(call);
+  assert.equal(calls,2);assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_speech_calls').get().openai_calls,2);
 });

@@ -16,7 +16,7 @@ export async function tutorEligible(db:EvidenceDb, id:string, env:Bindings) {
     LEFT JOIN learner_settings s ON s.user_id=t.learner_id WHERE t.id=?`).bind(id)
     .first<{subject_id:string;role:string;completed_at:string|null;enabled:number;flag:string|null}>();
   if (!row || row.completed_at || !row.enabled || row.flag === 'item_void') return false;
-  return row.role === 'adult' && (await aiSubjects(db, env)).includes(row.subject_id);
+  return (row.role === 'adult' || env.ENVIRONMENT === 'local' && env.APP_ENV === 'local') && (await aiSubjects(db, env)).includes(row.subject_id);
 }
 
 export async function dispatchTutor(env:Bindings, id:string) {
@@ -96,8 +96,8 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
       WHERE id=? AND status='streaming' AND attempt_token=? AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
         JOIN lesson_items i ON i.lesson_id=l.id AND i.item_id=tutor_turns.item_id WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NULL AND coalesce(s.tutor_enabled,1)=1 AND i.flag IS NOT 'item_void'
-        AND coalesce(s.role,'adult')='adult' AND EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=1) AND ?=1)`)
-      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
+        AND (?=1 OR coalesce(s.role,'adult')='adult') AND EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=1) AND ?=1)`)
+      .bind(parsed.data,firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.ENVIRONMENT==='local' && env.APP_ENV==='local'),Number(env.OPENAI_ENABLED==='true')).run();
     if (!saved.meta.changes) {
       await db.prepare("UPDATE tutor_turns SET status='blocked',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=?").bind(id,token).run();
       emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); return 'ineligible' as const;
