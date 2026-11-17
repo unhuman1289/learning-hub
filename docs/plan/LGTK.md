@@ -173,6 +173,8 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 
 ### T3. Chặn lộ đáp án và giao diện Hỏi
 
+**Ghi chú 17/11:** `leak_blocked` giữ nguyên dạng cờ 0/1, nghĩa là lượt có ít nhất một câu bị chặn. Không cần migration.
+
 **Chặn ở Worker:**
 - Gom các đoạn thành câu trước khi gửi xuống trình duyệt.
 - Câu chứa đáp án (`accepted`, lựa chọn đúng, `solution`, đã chuẩn hoá như G1) thì bị bỏ. Thay bằng "(Gia sư không đưa đáp án)" và tăng `leak_blocked`.
@@ -196,17 +198,22 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 
 ### T3b. Nhân vật gia sư
 
-Sau khi T3 có `TutorPet`. Sheet gốc: `private-data/tutor-sprite/sheet-v1.webp` ở checkout chính (ngoài Git). Khung 8 cột × 11 hàng, mỗi ô khoảng 168 × 182 px, nền trong suốt.
+Sau khi T3 có `TutorPet`. Dùng **sheet v2** do Claude chuẩn hoá ngày 17/11: `private-data/tutor-sprite/sheet-v2.webp` (kèm `manifest.json` và `review.png`) ở checkout chính, ngoài Git.
+- 8 cột × 17 hàng, ô 192 × 208 px, nền trong suốt.
+- Mọi khung cùng chiều cao nhân vật (150 px), cùng đường chân (y = 198) và căn giữa theo thân. Sheet v2 gộp sheet gốc v1 với sheet bổ sung.
 
-Các hàng: 1 đứng chớp mắt (6 khung), 2 chạy phải (8), 3 chạy trái (8), 4 vẫy tay (4), 5 nhảy mừng (5), 6 nhắm mắt chắp tay (8), 7 dang tay giải thích (6), 8 chống cằm (6), 9 nghiêng đầu (6), 10 nhìn quanh (8), 11 nói (8).
+Các hàng, theo thứ tự và số khung:
+`idle` 6, `run_right` 8, `run_left` 8, `wave` 4, `jump` 5, `rest` 8, `explain` 6, `think` 6, `tilt` 6, `look` 8, `talk` 8, `cover_mouth` 6, `point_up` 6, `nod` 6, `sleep` 6, `umbrella` 6, `sit` 6.
 
 Gán state:
-- `idle` → 1; `cheer` → 5, chạy một lượt; `enter` → 3; `leave` → 2; `greet` → 4;
-- `listen` → 9; `think` → 8; `talk` → 11, xen với 7;
-- `busy` → 6; `blocked`, `offline`, `limit` tạm dùng 10 hoặc 6 cho đến khi có hàng mới (lắc đầu, cầm ô, ngủ gật).
+- `idle` → `sit`; sau 20 giây không có thao tác thì `idle` hoặc `look`;
+- `cheer` → `jump`, chạy một lượt; `enter` → `run_left`; `leave` → `run_right`; `greet` → `wave`;
+- `listen` → `tilt`; `think` → `think`; `talk` → `talk`, xen với `explain`; chỉ vào đề dùng `point_up`;
+- `blocked` → `cover_mouth`, chạy một lượt rồi về `talk`; người học tự sửa đúng → `nod`;
+- `busy` → `rest`; `offline` → `umbrella` (3 khung đầu chạy một lượt, sau đó lặp 3 khung cuối); `limit` → `sleep`.
 
 Việc:
-- Script `scripts/tutor-sprite.mjs`: cắt sheet thành từng hàng WebP 2×, mỗi hàng ≤ 30 KB, và ghi `manifest.json` (hàng, số khung, kích thước). Đầu ra nằm trong `private-data/`, không commit.
+- Script `scripts/tutor-sprite.mjs`: đọc sheet v2 và manifest, cắt thành từng hàng WebP, mỗi hàng ≤ 40 KB. Đầu ra nằm trong `private-data/`, không commit.
 - Worker phục vụ `/api/tutor/sprite/<tên>.webp` từ R2 `UPLOADS` dưới khoá `assets/tutor/v1/`, sau cổng gia đình, có `Cache-Control` dài và ETag. Claude tự tải ảnh lên R2 staging sau khi gộp.
 - `TutorPet` hoạt hình bằng CSS `steps()` theo manifest. Chỉ tải hàng đang cần; preload hàng `idle` khi mở bài. Khi giảm chuyển động thì đứng yên ở khung 1. Ảnh có `aria-hidden`; tải lỗi thì hiện chỗ giữ tĩnh, không vỡ bố cục.
 - e2e: đổi state thì đổi hàng; giảm chuyển động thì không có animation; JS bàn học không tăng.
