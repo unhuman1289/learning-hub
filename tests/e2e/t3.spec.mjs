@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test';
 test.use({serviceWorkers:'block',reducedMotion:'reduce'});
 test('tấm gia sư: trẻ em, nghĩ, stream, chặn, mất mạng, bận và giới hạn',async ({page})=>{
   let remaining=20, limit='lesson'; const requestedRows=[];
-  await page.route('**/api/tutor/sprite/*.webp', route => { requestedRows.push(new URL(route.request().url()).pathname.split('/').pop()); return route.fulfill({status:200, contentType:'image/webp', body:Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA','base64')}); });
+  await page.route('**/api/tutor/sprite/v2/*.webp', route => { requestedRows.push(new URL(route.request().url()).pathname.split('/').pop()); return route.fulfill({status:200, contentType:'image/webp', body:Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA','base64')}); });
   await page.route('**/api/lessons/*/tutor',route=>route.fulfill({json:{turns:[],enabled:true,remaining,limit}}));
   await page.addInitScript(() => {
     const original=window.fetch.bind(window);
@@ -31,8 +31,8 @@ test('tấm gia sư: trẻ em, nghĩ, stream, chặn, mất mạng, bận và gi
   await lesson.tap();
   const flow=page.locator('.lesson-flow');
   await flow.getByRole('button',{name:'Bắt đầu bài'}).click({force:true});
-  const trigger=page.getByRole('button',{name:'Hỏi gia sư về câu này'}).first(); await expect(trigger).toBeVisible(); await expect(trigger.locator('[data-pet-row]')).toHaveAttribute('data-pet-row','sit'); await trigger.tap();
-  const panel=page.getByRole('region',{name:'Trò chuyện với gia sư'}); const input=panel.getByRole('textbox',{name:'Câu hỏi của bạn'});
+  const trigger=page.getByRole('button',{name:'Hỏi gia sư về câu này'}).first(); await expect(trigger).toBeVisible(); await expect(trigger.locator('[data-pet-row]')).toHaveAttribute('data-pet-row','sit'); await expect(trigger.locator('.tutor-pet')).toHaveCSS('width','88px'); await expect(trigger.locator('.tutor-pet')).toHaveCSS('height','95px'); await trigger.tap();
+  const panel=page.getByRole('region',{name:'Trò chuyện với gia sư'}); await expect(panel.locator('.tutor-pet')).toHaveCSS('width','96px'); await expect(panel.locator('.tutor-pet')).toHaveCSS('height','104px'); const input=panel.getByRole('textbox',{name:'Câu hỏi của bạn'});
   await expect(input).toBeFocused(); await expect(panel.locator('[data-pet-row]')).toHaveAttribute('data-pet-row','tilt'); expect(requestedRows.indexOf('wave.webp')).toBeGreaterThanOrEqual(0); expect(requestedRows.indexOf('point_up.webp')).toBeGreaterThan(requestedRows.indexOf('wave.webp')); await expect(panel.getByText('Còn 20 lượt hỏi trong bài này')).toBeVisible(); await expect(panel.getByText('Chỉ hỏi về câu này. Bố mẹ đọc được mọi câu hỏi và trả lời.')).toBeVisible();
   await expect(panel.locator('.tutor-pet-strip')).toHaveCSS('animation-name','none');
   await page.emulateMedia({reducedMotion:'no-preference'});
@@ -52,7 +52,7 @@ test('tấm gia sư: trẻ em, nghĩ, stream, chặn, mất mạng, bận và gi
 
 for (const asked of [false, true]) {
   test(`Kiểm tra đúng sau khi ${asked ? 'đã hỏi' : 'chưa hỏi'} gia sư`, async ({page, context}) => {
-    await page.route('**/api/tutor/sprite/*.webp', route => route.fulfill({status:200, contentType:'image/webp', body:Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA','base64')}));
+    await page.route('**/api/tutor/sprite/v2/*.webp', route => route.fulfill({status:200, contentType:'image/webp', body:Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA','base64')}));
     await page.route('**/api/lessons/*/tutor', route=>route.fulfill({json:{turns:asked ? [{id:'turn-1',item_id:'i2',question:'Gợi ý?',answer:'Hãy thử.',status:'answered'}] : [{id:'other',item_id:'i1',question:'Câu khác',answer:'Gợi ý',status:'answered'}],enabled:true,remaining:19,limit:'lesson'}}));
     await page.goto('/'); await page.getByRole('button',{name:/Ếch thử/}).tap();
     const link=page.getByRole('region',{name:'Bài tiếp theo'}).getByRole('listitem').filter({hasText:'Deutsch'}).getByRole('link',{name:/Mở bài|Học tiếp/}).first();
@@ -70,3 +70,14 @@ for (const asked of [false, true]) {
     await expect(trigger.locator('[data-pet-row]')).toHaveAttribute('data-pet-row','sit');
   });
 }
+
+
+test('sprite ở góc trang người lớn', async ({page})=>{
+  await page.route('**/api/tutor/sprite/v2/*.webp', route=>route.fulfill({status:200,contentType:'image/webp',body:Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA','base64')}));
+  await page.route('**/api/lessons/*/tutor',route=>route.fulfill({json:{turns:[],enabled:true,remaining:20,limit:'lesson'}}));
+  await page.goto('/'); await page.getByRole('button',{name:/Người học thử/}).tap();
+  const lesson=page.getByRole('region',{name:'Bài tiếp theo'}).getByRole('link',{name:/Mở bài|Học tiếp/}).first(); await lesson.tap();
+  await page.locator('.lesson-flow').getByRole('button',{name:'Bắt đầu bài'}).click({force:true});
+  const pet=page.getByRole('button',{name:'Hỏi gia sư về câu này'}).first().locator('.tutor-pet');
+  await expect(pet).toHaveCSS('width','72px'); await expect(pet).toHaveCSS('height','78px');
+});
