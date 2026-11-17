@@ -18,6 +18,8 @@ GitHub Actions chạy lại sau khi chủ dự án lên GitHub Pro (17/11). Repo
 
 Khung staging H1 đã đóng lúc 12:32 Europe/Berlin ngày 17/11.
 
+staging: deploy A1 (#188) với migration `0033`, đến 15:00 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
