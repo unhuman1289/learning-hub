@@ -168,6 +168,8 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 
 **T2.1:** gom các lượt đọc/ghi D1 trên đường trả lời gia sư (đọc body và kiểm, quyền và sổ, tạo lượt, eligibility, recovery, context, claim, recheck, count) thành 1–2 `db.batch` hoặc truy vấn gộp. Giữ nguyên kiểm quyền, cổng sổ bị tắt, trần 2 lời gọi và bảo vệ cuộc đua với nộp bài.
 
+**Đóng T2.1 (Claude, 17/11 tối):** phần 1 ([#199](https://github.com/unhuman1289/learning-hub/pull/199)) giảm từ 14 xuống 10 lượt D1. Trung vị 3 lượt trên staging: Hub trước OpenAI 432 ms, OpenAI đến token đầu 3.293 ms (đã dùng `reasoning.effort: none`, prompt khoảng 250 token), tổng 3.744 ms. Phần 2 chỉ bớt thêm khoảng 130 ms, tức 4% thời gian chờ, nên không làm. Chấp nhận 432 ms. Cảm giác nhanh do T3 lo: hiện "Đang nghĩ…" ngay khi gửi, chữ chảy dần. Nếu sau này OpenAI đến token đầu p75 vượt 5 s trên 20 lượt thật, xem xét model nhỏ hơn cho gia sư.
+
 ### T3. Chặn lộ đáp án và giao diện Hỏi
 
 **Chặn ở Worker:**
