@@ -11,8 +11,8 @@ if (staging && !oldFile) throw Error('Staging requires a private bridge secrets 
 const old = staging ? JSON.parse(readFileSync(oldFile, 'utf8')) : null;
 if (staging && (!Array.isArray(old.workerClients) || old.environment !== 'staging')) throw Error('Wrong bridge configuration environment.');
 const suffix = randomBytes(10).toString('hex'),
-  owner = 'qa-h5-' + suffix,
-  other = owner + '-other',
+  owner = staging ? 'prf_' + suffix : 'qa-h5-' + suffix,
+  other = staging ? 'prf_' + randomBytes(10).toString('hex') : owner + '-other',
   subject = 'sub_' + suffix,
   folder = 'private-data/h5-qa-' + suffix,
   password = randomBytes(32).toString('base64url'),
@@ -26,8 +26,8 @@ const stamp = Date.now(),
 for (const id of [owner, other]) {
   db.sqlite
     .prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'QA H5',?,1,?,?,'learner','active')")
-    .run(id, id + '@example.test', stamp, stamp);
-  db.sqlite
+    .run(id, staging ? 'profile+' + id + '@local.invalid' : id + '@example.test', stamp, stamp);
+  if (!staging) db.sqlite
     .prepare("INSERT INTO account(id,account_id,provider_id,user_id,password,created_at,updated_at) VALUES(?,?,'credential',?,?,?,?)")
     .run(id, id, id, await hashPassword(password), stamp, stamp);
 }
@@ -78,9 +78,7 @@ write('manifest.json', {
   learnerId: owner,
   learnerIds: [owner, other],
   subjectId: subject,
-  email: owner + '@example.test',
-  otherEmail: other + '@example.test',
-  password,
+  ...(staging ? {} : { email: owner + '@example.test', otherEmail: other + '@example.test', password }),
   credentials,
 });
 write(

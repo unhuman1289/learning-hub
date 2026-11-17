@@ -73,13 +73,13 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
     } catch (error) {
       failures.push(number);
       const message = error instanceof Error ? error.message : String(error);
-      const secrets = credentialsFile ? Object.values(JSON.parse(await readFile(credentialsFile, 'utf8'))) : [];
+      const secrets = credentialsFile ? [await readFile('private-data/staging-household.txt', 'utf8').then(v => v.replace(/\r?\n$/, ''))] : [];
       results[number] = { pass: false, times: measurements[number], error: secrets.reduce((text, secret) => text.replaceAll(secret, '[ẩn]'), message).slice(0, 1200) };
     } finally {
       if (dir) {
         await page.screenshot({
           path: join(dir, String(number).padStart(2, '0') + '.png'),
-          mask: [page.getByLabel('Email', { exact: true }), page.getByLabel('Mật khẩu', { exact: true })],
+          mask: [page.getByLabel('Email', { exact: true }), page.getByLabel('Mật khẩu gia đình', { exact: true })],
           timeout: 5000,
         }).catch(() => {});
       }
@@ -91,13 +91,15 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
     await step(1, async () => {
       await page.goto('/');
       if (credentialsFile) {
-        const { email, password } = JSON.parse(await readFile(credentialsFile, 'utf8'));
-        await page.getByLabel('Email', { exact: true }).fill(email);
-        await page.getByLabel('Mật khẩu', { exact: true }).fill(password);
-        const signedIn = page.waitForResponse(response =>
-          response.url().endsWith('/api/auth/sign-in/email') && response.request().method() === 'POST');
-        await page.getByRole('button', { name: 'Đăng nhập', exact: true }).tap();
-        expect((await signedIn).status(), 'email sign-in HTTP').toBe(200);
+        const { profileId } = JSON.parse(await readFile(credentialsFile, 'utf8'));
+        const password = (await readFile('private-data/staging-household.txt', 'utf8')).replace(/\r?\n$/, '');
+        await page.getByLabel('Mật khẩu gia đình', { exact: true }).fill(password);
+        const entered = page.waitForResponse(response => response.url().endsWith('/api/household') && response.request().method() === 'POST');
+        await page.getByRole('button', { name: 'Vào nhà' }).tap();
+        expect([302, 303]).toContain((await entered).status());
+        const selectedProfile = await page.request.post('/api/profiles', { headers: { Origin: new URL(baseURL).origin }, data: { action: 'select', id: profileId } });
+        expect(selectedProfile.status(), 'profile selection HTTP').toBe(200);
+        await page.goto('/');
       } else {
         await page.getByRole('button', { name: /Ếch thử/ }).tap();
       }

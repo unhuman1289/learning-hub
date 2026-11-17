@@ -1,5 +1,6 @@
 const base = process.argv[2] ?? process.env.STAGING_URL;
 const locked = process.argv.includes('--locked');
+const household = process.argv.includes('--household');
 if (!base) throw new Error('Pass the staging workers.dev URL.');
 
 const url = new URL(base);
@@ -29,6 +30,20 @@ if (locked) {
   if (home.status !== 200 || !body.includes('The learning app stays private until sign-in is ready.')) throw new Error('Locked staging page was not served.');
   if (state.status !== 404 || asset.status !== 404) throw new Error('Locked staging exposed a private route or app assets.');
   console.log(JSON.stringify({ mode: 'locked', url: url.origin, health: health.status, d1: healthBody.d1, learningRun: [oldRunGet.status, oldRunPost.status], state: state.status, clientManifest: asset.status }));
+  process.exit(0);
+}
+
+if (household) {
+  const page = await request('/household');
+  const wrong = await request('/api/household', { method: 'POST', headers: { Origin: url.origin }, body: new URLSearchParams({ passphrase: 'incorrect-smoke-' + crypto.randomUUID() }) });
+  const privateApi = await request('/api/today');
+  const register = await request('/register');
+  const signup = await request('/api/auth/sign-up/email', { method: 'POST', headers: { Origin: url.origin, 'Content-Type': 'application/json' }, body: '{}' });
+  const automation = await request('/api/automation/v2/jobs/lease', { method: 'POST' });
+  const mcp = await request('/mcp', { method: 'POST' });
+  if (page.status !== 200 || wrong.status !== 401 || privateApi.status !== 401 || register.status !== 302 || signup.status !== 404) throw Error('Household gate or registration check failed.');
+  if (![400, 401, 403, 405].includes(automation.status) || ![400, 401, 403, 405].includes(mcp.status)) throw Error('Automation or MCP did not reach its own authentication boundary.');
+  console.log(JSON.stringify({ mode: 'household', health: health.status, d1: healthBody.d1, page: page.status, wrong: wrong.status, privateApi: privateApi.status, register: register.status, signup: signup.status, automation: automation.status, mcp: mcp.status }));
   process.exit(0);
 }
 

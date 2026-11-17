@@ -5,15 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
-import { hashPassword } from 'better-auth/crypto';
+import { householdLogin } from './staging-household.mjs';
 import { memoryDb } from '../tests/d1-adapter.mjs';
 import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 
 if (!process.argv.includes('--execute-staging')) throw Error('Pass --execute-staging to create a synthetic QA notebook.');
+// A1 must provide a bounded, per-notebook opt-in before this can safely call real models.
+throw Error('Real OpenAI smoke is paused until A1 provides bounded calls and per-notebook opt-in.');
 const origin = 'https://learning-hub-staging.tranvu-812.workers.dev';
 const nonce = randomBytes(10).toString('hex');
-const owner = 'qa-openai-' + nonce, subject = 'sub_' + nonce, lessonId = 'les_' + nonce;
-const password = randomBytes(32).toString('base64url');
+const owner = 'prf_' + nonce, subject = 'sub_' + nonce, lessonId = 'les_' + nonce;
 const directory = mkdtempSync(join(tmpdir(), 'hub-openai-smoke-'));
 const sqlite = memoryDb();
 const stamp = Date.now();
@@ -39,9 +40,7 @@ try {
   assert.equal(health.commit, process.env.EXPECTED_STAGING_COMMIT, 'expected new staging commit');
 
   sqlite.sqlite.prepare("INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,'QA OpenAI',?,1,?,?,'learner','active')")
-    .run(owner, owner + '@example.test', stamp, stamp);
-  sqlite.sqlite.prepare("INSERT INTO account(id,account_id,provider_id,user_id,password,created_at,updated_at) VALUES(?,?,'credential',?,?,?,?)")
-    .run(owner, owner, owner, await hashPassword(password), stamp, stamp);
+    .run(owner, 'profile+' + owner + '@local.invalid', stamp, stamp);
   sqlite.sqlite.prepare("INSERT INTO learner_settings(user_id,daily_target_minutes,updated,role,display_name,preferences) VALUES(?,60,?,'adult','QA','{}')")
     .run(owner, time);
   sqlite.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES(?,?,'QA Deutsch','skill','active',?,?,?)")
@@ -61,19 +60,13 @@ try {
     lesson: { ...fixture, contract: 'lesson-package/3', gradingMode: 'whole-lesson', knowledge: [], targetSkills: [skill], reasonRefs: [], items } });
 
   let seed = '';
-  for (const table of ['user', 'account', 'learner_settings', 'subjects', 'skills', 'learning_lessons', 'lesson_items']) {
+  for (const table of ['user', 'learner_settings', 'subjects', 'skills', 'learning_lessons', 'lesson_items']) {
     for (const row of sqlite.sqlite.prepare('SELECT * FROM ' + table).all())
       seed += 'INSERT INTO ' + table + ' (' + Object.keys(row).join(',') + ') VALUES (' + Object.values(row).map(quote).join(',') + ');\n';
   }
   remote(seed);
   seeded = true;
-  wrangler(['secret', 'put', 'OPENAI_SUBJECT_IDS', '--config', 'wrangler.jsonc', '--env', 'staging'], subject);
-
-  const signIn = await fetch(origin + '/api/auth/sign-in/email', { method: 'POST',
-    headers: { origin, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: owner + '@example.test', password }) });
-  assert.equal(signIn.status, 200, 'demo sign-in');
-  const cookie = signIn.headers.getSetCookie().map(value => value.split(';')[0]).join('; ');
+  const cookie = await householdLogin(origin, owner);
   const request = async (path, body) => {
     const response = await fetch(origin + path, {
       method: body === undefined ? 'GET' : 'POST',

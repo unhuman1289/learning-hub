@@ -1,6 +1,6 @@
 # Kiểm tra Learning Hub trên điện thoại
 
-Dùng bản staging với một hồ sơ thử. Ghi thiết bị, trình duyệt, loại mạng và giờ thử. Dùng Safari trên iPhone, Chrome trên Android, rồi mở lại trong Zalo hoặc Messenger nếu có. Thử Wi-Fi và 4G.
+Dùng bản staging với một hồ sơ thử. Qua cổng gia đình bằng mật khẩu staging và chọn hồ sơ thử; không đăng ký email. Với Playwright, đặt mật khẩu trong `private-data/staging-household.txt`, `PHONE_CREDENTIALS` trỏ tới JSON riêng có `profileId`, và đặt `PHONE_COMMIT`, `PHONE_ARTIFACTS` cùng `PHONE_BASE_URL`. Giữ tệp và ảnh trong vùng riêng. Ghi thiết bị, trình duyệt, loại mạng và giờ thử. Dùng Safari trên iPhone, Chrome trên Android, rồi mở lại trong Zalo hoặc Messenger nếu có. Thử Wi-Fi và 4G.
 
 1. Mở Hub, chọn hồ sơ và kiểm tra vào lại sau khi đóng trình duyệt.
 2. Cuộn bàn học, mở một sổ từ gáy sổ và kiểm tra màn hình có cuộn ngang không.
