@@ -12,7 +12,9 @@ Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ th
 
 Khung staging đợt 1 bản 2 (L7, F0, G4, T2, migration `0034`) đã đóng lúc 11:03 Europe/Berlin ngày 17/11.
 
-staging: nghiệm thu đợt 1 (G4, L7, T2, F0) trên `b3ba509`, không deploy; chỉ đổi tạm `OPENAI_SUBJECT_IDS`/`OPENAI_TTS_SUBJECT_IDS` cho sổ QA rồi khôi phục, đến 15:00 Europe/Berlin
+Khung nghiệm thu đợt 1 đã đóng ngày 17/11 mà chưa nghiệm thu được G4, L7, T2: không đọc lại được secret allowlist và Queue không có trần số lần gọi. Cần bước A1 (LGTK mục 6). F0 đã đo được thời gian server.
+
+**Chặn:** GitHub Actions không chạy từ 17/11 ("recent account payments have failed or your spending limit needs to be increased"). Không có CI và không chạy được workflow deploy staging cho đến khi chủ dự án sửa thanh toán.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 

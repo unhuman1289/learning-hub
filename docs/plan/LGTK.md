@@ -63,7 +63,8 @@ Các luồng chờ AI chưa có số đo: **Nộp bài → có lời phê** (Lun
 
 | Đợt | Bước chạy song song | Điều kiện |
 |---|---|---|
-| 1 | **T2** gia sư gọi OpenAI trực tiếp · **G4** chấm lại · **L7** âm thanh nén · **F0** đo đủ | Bắt đầu ngay. Không sửa chung tệp |
+| 1 | **T2** gia sư gọi OpenAI trực tiếp · **G4** chấm lại · **L7** âm thanh nén · **F0** đo đủ | Đã gộp và lên staging `b3ba509` (17/11) |
+| 1b | **A1** điều khiển AI an toàn | Chặn nghiệm thu G4, L7, T2 và chạy thật G3. Làm trước đợt 2 |
 | 1 | **D** kiểm giao bài 00:00 (Claude làm, chỉ đọc) · **N** máy thật ở Đức (chủ dự án) | Song song |
 | 2 | **T3** chặn lộ đáp án và giao diện Hỏi · **G3** hiệu chuẩn · **F1** giảm JS | Sau T2 (T3), sau F0 (F1) |
 | 3 | **T4** nghiệm thu gia sư · **G5** chấm bài ảnh · **F2** service worker · **F3** tải trước bài kế tiếp | Sau T3; G5 sau quyết định dữ liệu (mục 11) |
@@ -197,6 +198,22 @@ AGENTS.md yêu cầu: giao bài chỉ coi là thành công khi đã đọc lại
 - xác nhận các sổ không đủ điều kiện giữ nguyên bài cũ.
 
 Ghi vào `status/D.md`. Nếu trượt, mở bước sửa riêng.
+
+### A1. Điều khiển AI an toàn
+
+**Vì sao:** nghiệm thu đợt 1 bị chặn ngày 17/11 vì hai lý do.
+- Danh sách sổ bật OpenAI nằm trong secret `OPENAI_SUBJECT_IDS` và `OPENAI_TTS_SUBJECT_IDS`. Secret không đọc lại được, nên không đổi tạm rồi khôi phục chính xác được.
+- Queue tự thử lại tối đa 3 lần, còn lượt gia sư lỗi được xếp lại hàng mà không có trần, nên không bảo đảm được luật "tối đa 2 lượt gọi thật".
+
+**Việc:**
+- Bật/tắt AI và TTS theo từng sổ trong Quản trị → Sổ, lưu ở D1 (dùng cờ `ai_enabled` sẵn có, thêm cờ TTS nếu cần), có nhật ký ai đổi, lúc nào. Đọc lại được qua API quản trị.
+- Giữ một công tắc tổng `OPENAI_ENABLED` ở `vars` của `wrangler.jsonc`, không dùng secret. Bỏ `OPENAI_SUBJECT_IDS` và `OPENAI_TTS_SUBJECT_IDS` sau khi đã chép giá trị hiện hành sang D1. Claude đọc danh sách từ các job OpenAI đã chạy để dựng lại giá trị.
+- Trần cứng số lần gọi OpenAI, đếm trong D1, không dựa vào số lần thử lại của Queue:
+  - mỗi job soạn, chấm, chấm lại, hiệu chuẩn tối đa 2 lần gọi;
+  - mỗi lượt gia sư tối đa 2 lần thử, sau đó `failed` với lời báo thật.
+- Ghi số lần gọi vào job hoặc lượt gia sư, hiện trong Quản trị.
+
+**Xong khi:** test cho trần gọi (Queue giao lại lần 3 thì không gọi API) và cho bật/tắt theo sổ; gộp, deploy staging; Claude dựng lại danh sách sổ bật AI trong D1 và kiểm khớp với trước.
 
 ### N. Máy thật ở Đức
 
@@ -336,7 +353,8 @@ Sau khi các đợt 1–4 đạt. Đây là phác thảo. Kế hoạch chi tiế
 | 2 | Trước T4, G5 | Cho phép gửi văn bản và ảnh của **trẻ em** tới OpenAI (gia sư, chấm câu mở, chấm ảnh), với biệt danh và giám hộ đọc được | Quyết sau khi đọc chính sách dữ liệu API của OpenAI cho project. Đến lúc đó chỉ bật cho người lớn |
 | 3 | R0 | Production dùng OpenAI cho mọi luồng AI và tắt runner Qwen trên Mac | Có, vì staging đã chạy và nghiệm thu theo OpenAI |
 | 4 | R0 | Hạn mức chi tiêu OpenAI mỗi tháng cho production | Chủ dự án đặt con số, Claude ước từ số token của G3, T4, F0 |
-| 5 | F0 | Cấp quyền đọc Workers Observability cho token Cloudflare dùng khi đo | Cần cho số đo CPU từng route |
+| 5 | F0 | Cấp quyền Workers Observability cho token Cloudflare dùng khi đo (API truy vấn telemetry yêu cầu quyền Write) | Cần cho số đo CPU từng route. Có thể bỏ qua: thời gian server đã đo được |
+| 6 | Bây giờ | GitHub Actions ngừng chạy từ 17/11 vì thanh toán hoặc giới hạn chi tiêu | Chủ dự án sửa trong GitHub → Settings → Billing & plans. Không có CI thì không gộp và không deploy staging bằng workflow |
 
 ## 12. Điều phối
 

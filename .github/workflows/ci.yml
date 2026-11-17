@@ -1,7 +1,10 @@
 name: Learning Hub CI
 on:
+  # One run per change: PRs run on pull_request; only the integration and main branches run on push.
   push:
+    branches: [main, codex/hub-next-wip]
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
