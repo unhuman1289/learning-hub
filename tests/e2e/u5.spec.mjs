@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { runFake } from '../../scripts/fake-runner.mjs';
 import { shapeNetwork, timeFromTap } from './network.mjs';
@@ -294,7 +294,7 @@ async function edgesClearOfControls(page) {
   for (const edge of edges) for (const control of controls) expect(overlaps(edge, control), JSON.stringify({ edge, control })).toBe(false);
 }
 
-test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, context, browserName }) => {
+test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, context, browserName }, testInfo) => {
   await page.goto('/');
   // A profile the test above has not used, so this is still its first lesson.
   await page.getByRole('button', { name: /Người học thử/ }).tap();
@@ -396,11 +396,16 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     // On a 4× slower CPU a turn must not block the main thread for more than 50 ms.
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
-    await page.evaluate(() => {
+    await page.evaluate(diag => {
+      window.__e2eTurnDiag = diag;
+      window.__turnDiagnosticTasks = [];
+      if (diag) new PerformanceObserver(list => window.__turnDiagnosticTasks.push(...list.getEntries().map(entry => entry.toJSON())))
+        .observe({ type: 'longtask', buffered: true });
       window.__longTasks = [];
       new PerformanceObserver(list => window.__longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration))))
         .observe({ type: 'longtask' });
-    });
+    }, process.env.E2E_DIAG === '1');
+    try {
     for (const turn of [() => nextEdge(page).tap(), () => previousEdge(page).tap()]) {
       await page.evaluate(() => { window.__longTasks.length = 0; });
       await turn();
@@ -410,6 +415,14 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
       console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
       expect(Math.max(0, ...tasks), 'long task during a turn').toBeLessThanOrEqual(50);
     }
-    await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    } finally {
+      if (process.env.E2E_DIAG === '1') {
+        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
+        const diagnosticPath = testInfo.outputPath('turn-diagnostics.json');
+        await writeFile(diagnosticPath, JSON.stringify(diagnostics, null, 2));
+        await testInfo.attach('turn-diagnostics', { path: diagnosticPath, contentType: 'application/json' });
+      }
+      await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+    }
   }
 });

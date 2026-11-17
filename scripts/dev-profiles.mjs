@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, createWriteStream, mkdirSync } from 'node:fs';
+import { join } from 'node:path';
 import './wrangler-env.mjs';
 
 const config = JSON.parse(readFileSync('.wrangler/demo-runner.json', 'utf8'));
@@ -25,7 +26,18 @@ const args = [
   '--var', 'GRADER_CLIENT_ID:' + client.id,
   '--var', 'AUTOMATION_CLIENTS:' + JSON.stringify([client]),
 ];
-const server = spawn(process.execPath, args, { stdio: 'inherit' });
+const diagnostics = process.env.E2E_DIAG === '1';
+const server = spawn(process.execPath, args, { stdio: diagnostics ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
+if (diagnostics) {
+  const dir = join('private-data', 'e2e-diagnostics', process.env.E2E_DIAG_LABEL ?? 'local');
+  mkdirSync(dir, { recursive: true });
+  const log = createWriteStream(join(dir, `wrangler-${port}.log`));
+  for (const [input, output] of [[server.stdout, process.stdout], [server.stderr, process.stderr]]) {
+    input.on('data', chunk => { output.write(chunk); log.write(chunk); });
+  }
+  server.on('close', () => log.end());
+}
+
 server.on('error', error => {
   console.error(error.message);
   process.exitCode = 1;

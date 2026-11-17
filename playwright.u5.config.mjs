@@ -23,6 +23,6 @@ export default defineConfig({
     { name: 'pixel-7', use: { ...devices['Pixel 7'], defaultBrowserType: 'chromium' } },
   ].map((project, index) => ({
     ...project,
-    use: { ...project.use, baseURL: 'http://127.0.0.1:' + (5226 + index), viewport: { ...project.use.viewport, width: 390 }, deviceScaleFactor: 1 },
+    use: { ...project.use, trace: process.env.E2E_DIAG === '1' && project.name === 'pixel-7' ? 'retain-on-failure' : 'off', baseURL: 'http://127.0.0.1:' + (5226 + index), viewport: { ...project.use.viewport, width: 390 }, deviceScaleFactor: 1 },
   })),
 });

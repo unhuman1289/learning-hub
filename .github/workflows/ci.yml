@@ -7,6 +7,11 @@ on:
   pull_request:
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
+    inputs:
+      e2e_diag:
+        description: Capture E2E diagnostics
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -35,6 +40,7 @@ jobs:
     timeout-minutes: 15
     env:
       WRANGLER_SEND_METRICS: 'false'
+      E2E_DIAG: ${{ inputs.e2e_diag && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -45,8 +51,18 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - run: npm run build
       - name: Test the built Worker
-        run: npm run test:e2e:u5
+        run: node scripts/e2e-diagnostics.mjs u5 npm run test:e2e:u5
       - name: Test listening on both phones
-        run: npm run test:e2e:listening
+        run: node scripts/e2e-diagnostics.mjs listening npm run test:e2e:listening
       - name: Test tutor on both phones
-        run: npm run test:e2e -- --config playwright.tutor.config.mjs
+        run: node scripts/e2e-diagnostics.mjs tutor npm run test:e2e -- --config playwright.tutor.config.mjs
+      - name: Upload E2E diagnostics on failure
+        if: failure() && env.E2E_DIAG == '1'
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            private-data/e2e-diagnostics/
+            private-data/playwright/
+          if-no-files-found: warn
+          retention-days: 7
