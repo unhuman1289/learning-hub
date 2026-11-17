@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { finishRum, rumNow } from "../rum";
 import { words } from "../words";
 import { apiJson } from "../api";
 import { clockTime, pencilLink } from "../paper-bits";
@@ -38,6 +39,7 @@ export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, cur
   const [attempt, setAttempt] = useState<Input>();
   const inflight = useRef(false);
   const personalButton = useRef<HTMLButtonElement>(null);
+  const timings = useRef(new Map<string, number>());
   const seen = useRef(new Set(initial.filter(row => row.resultLessonId).map(row => row.id)));
   const query = new URLSearchParams({ subjectId, ...(learner ? { learner } : {}) });
   const listUrl = "/api/requests?" + query.toString();
@@ -51,7 +53,11 @@ export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, cur
         const { requests } = await apiJson<{ requests: RequestRow[] }>(listUrl);
         if (!active) return;
         if (requests.some(row => row.resultLessonId && !seen.current.has(row.id))) onSaved();
-        requests.forEach(row => { if (row.resultLessonId) seen.current.add(row.id); });
+        requests.forEach(row => {
+          const started = timings.current.get(row.id);
+          if (row.resultLessonId && started !== undefined) { finishRum("lesson_ready", started); timings.current.delete(row.id); }
+          if (row.resultLessonId) seen.current.add(row.id);
+        });
         setRows(current(requests, Date.now(), currentLessonId));
       } catch (cause) {
         if (active) setError((cause as Error).message);
@@ -73,9 +79,14 @@ export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, cur
     setBusy(true);
     setError("");
     const input = replay ?? { mode, subjectId, clientRequestId: crypto.randomUUID(), note: mode === "personal" ? note.trim() : "" };
+    const started = rumNow();
     setAttempt(input);
     try {
       const { request } = await apiJson<{ request: RequestRow }>(postUrl, { method: "POST", json: input });
+      if (!replay) {
+        if (request.resultLessonId) finishRum("lesson_ready", started);
+        else timings.current.set(request.id, started);
+      }
       setRows(shown => [request, ...shown.filter(row => actionFor(row.mode) !== mode)]);
       setAttempt(undefined);
       if (mode === "personal") { setPersonal(false); setNote(""); personalButton.current?.focus(); }

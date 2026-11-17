@@ -26,6 +26,8 @@ function flushRum() {
 
 // Call with performance.now() from the initiating action. For audio, finish
 // from the playing event. For tutoring, finish when the first text is visible.
+export function rumNow() { return performance.now(); }
+
 export function finishRum(screen: RumScreen, started: number) {
   const ms = Math.round(performance.now() - started);
   if (!navigator.sendBeacon || !Number.isFinite(ms) || ms < 0 || ms > rumMaxMs) return;
@@ -55,4 +57,29 @@ export function rumAfterPaint(screen: RumScreen, started: number, onMeasured?: (
   }
   document.addEventListener("visibilitychange", cleanup);
   return cleanup;
+}
+
+// Report one page-lifetime INP estimate. Event Timing groups entries by
+// interactionId; retain the slowest 50 and discard one outlier per 50 interactions.
+export function observeInp() {
+  if (typeof PerformanceObserver === "undefined" || !PerformanceObserver.supportedEntryTypes?.includes("event")) return;
+  const interactions = new Map<number, number>();
+  let count = 0;
+  const observer = new PerformanceObserver(list => {
+    for (const entry of list.getEntries() as (PerformanceEntry & { interactionId: number })[]) {
+      if (!entry.interactionId) continue;
+      if (!interactions.has(entry.interactionId)) count++;
+      interactions.set(entry.interactionId, Math.max(interactions.get(entry.interactionId) ?? 0, entry.duration));
+    }
+  });
+  try { observer.observe({ type: "event", buffered: true, durationThreshold: 40 } as PerformanceObserverInit); }
+  catch { return; }
+  const report = () => {
+    const values = [...interactions.values()].sort((a, b) => b - a);
+    if (values.length) finishRum("inp", performance.now() - values[Math.min(values.length - 1, Math.floor(((performance as Performance & { interactionCount?: number }).interactionCount ?? count) / 50))]);
+    observer.disconnect();
+    flushRum();
+  };
+  window.addEventListener("pagehide", report, { once: true });
+  return () => { observer.disconnect(); window.removeEventListener("pagehide", report); };
 }

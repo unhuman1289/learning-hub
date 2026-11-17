@@ -155,6 +155,14 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setLesson(current=>current?{...current,items:value.lesson.items,stages:value.lesson.stages}:current);
     }catch(e){if(generation.current===version)setFeedbackError((e as Error).message);}
   },[url,suffix]);
+  const feedbackStarted = useRef<{ submissionId: string; at: number } | null>(null);
+  useEffect(() => {
+    const timing = feedbackStarted.current;
+    const entry = timing && history.find(item => item.id === timing.submissionId);
+    if (!timing || !entry || !entry.attempts.length || !entry.attempts.every(attempt => !!attempt.result)) return;
+    feedbackStarted.current = null;
+    return rumAfterPaint("submit_feedback", timing.at);
+  }, [history]);
   const gradeStarted = useRef<{ submissionId: string; at: number } | null>(null);
   useEffect(() => {
     const timing = gradeStarted.current;
@@ -306,6 +314,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         && response.submission.attempts.every(attempt => attempt.result)) {
         gradeStarted.current = { submissionId: response.submission.id, at: started };
       }
+      if (itemId === "whole-lesson" && !response.submission.replayed) feedbackStarted.current = { submissionId: response.submission.id, at: started };
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
       if (input.answers) {
         revision.current = response.draftRevision;

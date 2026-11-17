@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { startRumNavigation } from "./rum.ts";
+import { observeInp, startRumNavigation } from "./rum.ts";
 import { findStaticTrack, isTrack, type TrackId } from "./model.ts";
 
 export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "tai-lieu";
@@ -77,6 +77,7 @@ const deskRoute: Route = { view: "desk" };
 
 /** Address-bar routing inside the signed-in page, so lessons can be resumed and shared. */
 export function useRoute() {
+  useEffect(() => observeInp(), []);
   const [matched, setRoute] = useState<Route | null>(null);
   const route = matched ?? deskRoute;
   const current = useRef(route);
