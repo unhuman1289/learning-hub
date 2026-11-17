@@ -8,7 +8,8 @@ import { refreshSkills } from '../lib/learner-model/nightly.ts';
 import { createDispute, escalateDispute, resolveDispute, listDisputes, listDisputesNeedingHuman } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
-import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
+import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
+import { aiSubjects } from '../lib/ai-controls.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { processJob } from '../integrations/home-runner/job.mjs';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
@@ -1310,8 +1311,8 @@ test('a Deutsch notebook outside the TTS pilot saves its roadmap and places from
   }), now);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
   const bucket = { head: async () => null };
-  const ttsSubjectIds = openAiTtsSubjects({ ENVIRONMENT: 'staging', UPLOADS: bucket, OPENAI_API_KEY: 'fixture-key',
-    OPENAI_SUBJECT_IDS: notebook.id + ',' + subject, OPENAI_TTS_SUBJECT_IDS: subject });
+  const ttsSubjectIds = await aiSubjects(db, { OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', UPLOADS: bucket, OPENAI_API_KEY: 'fixture-key',
+    OPENAI_SUBJECT_IDS: notebook.id + ',' + subject, OPENAI_TTS_SUBJECT_IDS: subject }, true);
   assert.deepEqual(ttsSubjectIds, [subject]);
   const [lease] = await leaseJobs(db, client, {
     ...input, capabilities: ['lesson-v3', 'roadmap-v2', 'tts'], ttsVoices: openAiGermanVoices,
@@ -1425,7 +1426,7 @@ test('a Deutsch notebook outside the TTS pilot saves its roadmap and places from
 test('staging OpenAI dispatch and claim are scoped to the selected notebook and exact queued job', async () => {
   const db = seed();
   const sent = [];
-  const bindings = { ENVIRONMENT: 'staging', OPENAI_SUBJECT_IDS: subject, AI_QUEUE: { send: async body => sent.push(body) } };
+  const bindings = { OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', OPENAI_SUBJECT_IDS: subject, AI_QUEUE: { send: async body => sent.push(body) } };
   const scheduled = await enqueue(db, bindings, { learnerId: learner, subjectId: subject, kind: 'plan', purpose: 'daily' }, now);
   const other = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
   assert.deepEqual(sent, [{ jobId: scheduled.id }]);

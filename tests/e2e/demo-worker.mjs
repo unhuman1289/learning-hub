@@ -8,6 +8,12 @@ const state = process.env.LEARNING_HUB_DEMO_STATE;
 if (!state?.startsWith('.wrangler/e2e-')) throw new Error('Expected an isolated local E2E database.');
 accessSync('dist/server/wrangler.json');
 process.env.LEARNING_HUB_LOCAL_STATE = state;
+runLocalD1(['execute', 'learning-hub', '--command', `
+ INSERT OR IGNORE INTO ai_subject_controls(subject_id,openai_enabled,tts_enabled,updated_by,updated_at)
+ SELECT id,1,0,'e2e-fixture','2026-01-01T00:00:00Z' FROM subjects WHERE id='sub_55555555555555555555';
+ INSERT OR IGNORE INTO ai_control_initialization(id,initialized_at) VALUES(1,'2026-01-01T00:00:00Z');
+`]);
+process.env.E2E_AI_CONTROLS='1';
 // The fixture starts with several open lessons. Give the fake runner room for one more.
 runLocalD1(['execute', 'learning-hub', '--command',
   "UPDATE learner_settings SET daily_target_minutes=120 WHERE user_id='demo-ech'"]);

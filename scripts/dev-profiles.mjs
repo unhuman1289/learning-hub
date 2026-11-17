@@ -25,6 +25,7 @@ const args = [
   '--var', 'GRADER_CLIENT_ID:' + client.id,
   '--var', 'AUTOMATION_CLIENTS:' + JSON.stringify([client]),
 ];
+if (process.env.E2E_AI_CONTROLS === '1') args.push('--var', 'OPENAI_ENABLED:true');
 const server = spawn(process.execPath, args, { stdio: 'inherit' });
 server.on('error', error => {
   console.error(error.message);

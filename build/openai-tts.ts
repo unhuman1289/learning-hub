@@ -26,7 +26,7 @@ export class QueueAudioError extends Error {
   }
 }
 
-async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice: string, apiKey: string,
+export async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice: string, apiKey: string,
   fetcher: typeof fetch, signal: AbortSignal, location: Pick<AudioDiagnostic, 'path' | 'variant'>, db?: EvidenceDb, jobId?: string) {
   const speechError = (code: string, httpStatus?: number) => new QueueAudioError({
     ...location, stage: 'speech_api', code, ...(httpStatus !== undefined ? { httpStatus } : {}),

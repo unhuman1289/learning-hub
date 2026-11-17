@@ -20,7 +20,7 @@ async function setup(t) {
   const lessonId=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-15',lesson:fixture});
   const queue=[];
   const ask=({user=learner,query='',referer=origin,fetcher=fakeTutorOpenAi,...data}={})=>postTutor(new Request(origin+'/api/tutor'+query,{method:'POST',headers:{Origin:referer},body:JSON.stringify({lessonId,itemId:'i1',question:'Em nên bắt đầu thế nào?',...data})}),user,()=>db,
-    {env:{ENVIRONMENT:'local',APP_ENV:'local',OPENAI_API_KEY:'fixture',AI_QUEUE:{send:async body=>queue.push(body)}},prompt:'fixture',fetcher});
+    {env:{ENVIRONMENT:'local',APP_ENV:'local',OPENAI_ENABLED:'true',OPENAI_SUBJECT_IDS:subjectId,OPENAI_API_KEY:'fixture',AI_QUEUE:{send:async body=>queue.push(body)}},prompt:'fixture',fetcher});
   const history=(viewer=learner,query='')=>getTutor(new Request(origin+'/api/lessons/'+lessonId+'/tutor'+query),viewer,()=>db,lessonId);
   return {db,ask,history,lessonId,queue};
 }
