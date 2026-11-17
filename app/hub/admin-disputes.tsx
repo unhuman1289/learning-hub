@@ -96,5 +96,39 @@ export function AdminGradingQuality({ readNames }: { readNames: ReadLearnerNames
     setRetry(value => value + 1);
   }}>Thử lại</button></p>;
   if (!data) return <p role="status">Đang tải chất lượng chấm…</p>;
-  return <QualityTable rows={data.quality} names={data.names} />;
+  return <><CalibrationPanel /><QualityTable rows={data.quality} names={data.names} /></>;
+}
+
+
+type CalibrationJob = {id:string; status:string; calls:number; error:string | null};
+type CalibrationRow = {id:string; created_at:string; model:string; n:number; agreement:number; evidence_not_verbatim:number; injection_shifted:number; input_tokens:number; output_tokens:number};
+function CalibrationPanel() {
+  const [data,setData] = useState<{job:CalibrationJob | null; calibrations:CalibrationRow[]} | null>(null);
+  const [error,setError] = useState('');
+  const [busy,setBusy] = useState(false);
+  const load = useCallback(async () => {
+    try {setData(await apiJson('/api/admin/calibration'));setError('');}
+    catch {setError('Chưa tải được trạng thái hiệu chuẩn.');}
+  },[]);
+  useEffect(() => {void Promise.resolve().then(load);},[load]);
+  useLiveRefresh(load,true,5000);
+  const start = async () => {
+    setBusy(true);setError('');
+    try {await apiJson('/api/admin/calibration',{method:'POST'});await load();}
+    catch {await load();setError('Chưa xác nhận được lượt hiệu chuẩn. Vui lòng kiểm tra trạng thái trước khi thử lại.');}
+    finally {setBusy(false);}
+  };
+  const active = data?.job && ['queued','leased'].includes(data.job.status);
+  return <section className="mb-6 grid gap-3">
+    <h3 className="font-print text-xl">Hiệu chuẩn</h3>
+    <button type="button" className={buttonClass('secondary')} disabled={busy || !data || !!active} onClick={start}>Chạy hiệu chuẩn</button>
+    {!data && !error && <p role="status">Đang tải…</p>}
+    {active && <p role="status">Đang hiệu chuẩn ({data.job!.calls}/8 lượt gọi).</p>}
+    {data?.job?.status === 'succeeded' && <p role="status">Đã hoàn tất hiệu chuẩn.</p>}
+    {data?.job?.status === 'failed' && <p role="alert">Hiệu chuẩn chưa hoàn tất. {data.job.error}</p>}
+    {error && <p role="alert">{error}</p>}
+    {data && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Thời gian</th><th>Model</th><th>Đồng thuận</th><th>Bằng chứng sai</th><th>Injection lệch</th><th>Token vào / ra</th></tr></thead>
+      <tbody>{data.calibrations.map(row => <tr key={row.id}><td>{new Intl.DateTimeFormat('vi-VN',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(row.created_at))}</td><td>{row.model}</td><td>{(row.agreement*100).toFixed(1)}% ({row.n} câu)</td><td>{row.evidence_not_verbatim}</td><td>{row.injection_shifted}</td><td>{row.input_tokens} / {row.output_tokens}</td></tr>)}</tbody></table>
+      {!data.calibrations.length && <p>Chưa có lượt hiệu chuẩn hoàn tất.</p>}</div>}
+  </section>;
 }
