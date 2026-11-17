@@ -1,3 +1,4 @@
+import type { EvidenceDb } from '../lib/evidence/submit.ts';
 import { audioVariant } from '../lib/audio/hash.mjs';
 import { ApiError } from '../lib/api-error.ts';
 import { AudioStorageError, type uploadAudio } from '../lib/audio/upload.ts';
@@ -26,10 +27,18 @@ export class QueueAudioError extends Error {
 }
 
 async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice: string, apiKey: string,
-  fetcher: typeof fetch, signal: AbortSignal, location: Pick<AudioDiagnostic, 'path' | 'variant'>) {
+  fetcher: typeof fetch, signal: AbortSignal, location: Pick<AudioDiagnostic, 'path' | 'variant'>, db?: EvidenceDb, jobId?: string) {
   const speechError = (code: string, httpStatus?: number) => new QueueAudioError({
     ...location, stage: 'speech_api', code, ...(httpStatus !== undefined ? { httpStatus } : {}),
   });
+  if (db) {
+    const bytes = new TextEncoder().encode(JSON.stringify([OPENAI_SPEECH_MODEL,audio.lang,audio.rate,voice,line.text,'aac']));
+    const digest = await crypto.subtle.digest('SHA-256',bytes);
+    const hash = Array.from(new Uint8Array(digest), x=>x.toString(16).padStart(2,'0')).join('');
+    await db.prepare('INSERT OR IGNORE INTO ai_speech_calls(hash,openai_calls) VALUES(?,0)').bind(hash).run();
+    const count = await db.prepare("UPDATE ai_speech_calls SET openai_calls=openai_calls+1 WHERE hash=? AND openai_calls<2 AND EXISTS(SELECT 1 FROM ai_jobs j JOIN ai_subject_controls c ON c.subject_id=j.subject_id WHERE j.id=? AND j.status='leased' AND c.openai_enabled=1 AND c.tts_enabled=1)").bind(hash,jobId).run();
+    if (!count.meta.changes) throw speechError('speech_call_limit');
+  }
   let response;
   try {
     response = await fetcher('https://api.openai.com/v1/audio/speech', {
@@ -77,7 +86,7 @@ type Upload = (req: Request, hash: string) => ReturnType<typeof uploadAudio>;
 
 export async function uploadOpenAiPlanAudio(
   context: PlanContext, result: PlanResult, apiKey: string, upload: Upload,
-  fetched: Set<string>, log: (entry: { variant: string; ms: number; count: number }) => void, fetcher = fetch,
+  fetched: Set<string>, log: (entry: { variant: string; ms: number; count: number }) => void, fetcher = fetch, db?: EvidenceDb, jobId?: string,
 ) {
   const drafts = [
     ...result.subjects.flatMap((entry, index) => (['primaryLesson', 'reviewSet'] as const)
@@ -126,7 +135,7 @@ export async function uploadOpenAiPlanAudio(
     for (let offset = 0; offset < turns.length; offset += 4) {
       const group = turns.slice(offset, offset + 4);
       const bytes = await Promise.all(group.map(({ audio, line, voice, path }) =>
-        speech(audio, line, voice, apiKey, fetcher, signal, { path, variant })));
+        speech(audio, line, voice, apiKey, fetcher, signal, { path, variant }, db, jobId)));
       group.forEach(({ hash }, index) => {
         const pieces = clips.get(hash) ?? [];
         pieces.push(bytes[index]);
