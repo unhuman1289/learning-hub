@@ -6,7 +6,9 @@ Bảng tổng hợp trên `codex/hub-next-wip`, cập nhật khi gộp PR. Chi t
 
 ## Môi trường
 
-Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ thuộc Qwen local theo [quyết định 16/11](HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài). Queue OpenAI và chế độ nộp cả bài hiện mới bật cho sổ demo người lớn **QA H5 Deutsch**. Bài nghe còn cần nối TTS vào luồng API.
+Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ thuộc Qwen local theo [quyết định 16/11](HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài). Queue OpenAI và chế độ nộp cả bài hiện mới bật cho sổ demo người lớn **QA H5 Deutsch**. Bài nghe đã chạy qua Terra và OpenAI Speech (L4).
+
+**Kế hoạch đang chạy:** [`LGTK.md`](LGTK.md) bản 2 ngày 17/11/2026. Claude lập plan, điều phối và cập nhật bảng này. Chat Codex chỉ ghi `status/<bước>.md` trên nhánh của mình.
 
 Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
 Khung kiểm thử OpenAI và nộp cả bài ngày 16/11 đã kết thúc lúc 05:00 Europe/Berlin.
@@ -17,8 +19,6 @@ Khung sửa và nghiệm thu **Chấm sai?** trên QA H5 Deutsch đã đóng sau
 Khung L4 đã đóng sau lượt Cổng Q ngày 16/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
 
 Khung #174 đã đóng sau lượt chẩn đoán Cổng Q ngày 17/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
-
-Khung staging T1 đã đóng. Đã sao lưu D1 trước `0032_tutor.sql`, áp migration, kiểm cùng SHA Hub/MCP và smoke đạt lúc 08:59 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -37,11 +37,11 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | E2 phát hành | Staging đã xác nhận SHA | [Kiểm tra E2](status/E2.md). Production hiện SHA sau lần phát hành có E2 |
 | E3 tách production | **Xong** | Gỡ `work/simpler-notebook-form` sau 24 giờ runner chạy ổn |
 | S chuẩn bị | **Xong** | Lưu trữ v1 ở bộ nhớ riêng; `AGENTS.md` đã duyệt và lưu tại `42badfc`; chủ dự án đã cho phép xoá v1 |
-| C bỏ ChatGPT soạn/chấm | Trên staging theo audit 13/11; WIP tại `6eeb62d` | Kiểm kết nối Knowledge có đăng nhập; production chờ đồng ý |
+| C bỏ ChatGPT soạn/chấm | Trên staging theo audit 13/11; WIP tại `6eeb62d` | Phần kết nối ChatGPT phục vụ lịch Knowledge theo quyết định K2/K3. Production chờ đồng ý. |
 | V1–V2 gỡ v1 | Trên staging theo audit 13/11 (API v1 trả 410, `0027` đã áp); WIP tại `ffe4ec4` | Production chờ đồng ý |
 | V3 một gói bài | Đã gộp [#147](https://github.com/unhuman1289/learning-hub/pull/147), đạt cổng Q local | [Kết quả V3](status/V3.md). Staging đã deploy. Chờ kiểm điện thoại |
 | P điện thoại | Có manifest, hỗ trợ bàn phím, nháp offline, `/api/today` gom và Playwright | [#165](https://github.com/unhuman1289/learning-hub/pull/165) đã sửa PHONE-CHECK ở local và đã lên staging. Còn chạy lại trên staging theo [PHONE-CHECK](status/PHONE.md). |
-| P3 đo tốc độ | Đạt trên Safari iPhone thật. Quản trị → Hệ thống khớp D1 ngày 16/11 Berlin cho `DE / phone / first_question`, 4 lượt, p75 824 ms. [#171](https://github.com/unhuman1289/learning-hub/pull/171) đã gộp [biên bản](status/P3-rum.md). | Gắn `audio_play` và `tutor_first_token` khi nghiệm thu L6/T5. |
+| P3 đo tốc độ | Đạt trên Safari iPhone thật. Quản trị → Hệ thống khớp D1 ngày 16/11 Berlin cho `DE / phone / first_question`, 4 lượt, p75 824 ms. [#171](https://github.com/unhuman1289/learning-hub/pull/171) đã gộp [biên bản](status/P3-rum.md). | Gắn `tutor_first_token` khi nghiệm thu T5. |
 | M mockup | **M1–M4 đã được chủ dự án duyệt ngày 14/11/2026** | [Bản mockup đã duyệt](../mockups/index.html) tại `35e8635` |
 | U1 bàn học | Đã gộp [#145](https://github.com/unhuman1289/learning-hub/pull/145) | [Kết quả U1](status/U1.md). Kiểm điện thoại |
 | U2–U4 | Đã gộp [#146](https://github.com/unhuman1289/learning-hub/pull/146), [#148](https://github.com/unhuman1289/learning-hub/pull/148), [#149](https://github.com/unhuman1289/learning-hub/pull/149) và deploy staging | [Bàn giao U](status/U.md). Chờ kiểm điện thoại, e2e và ngân sách mục 4.2. |
@@ -49,20 +49,25 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | U5 tốc độ | Đã gộp [#153](https://github.com/unhuman1289/learning-hub/pull/153), deploy staging | E2E CI đạt sau khi test chờ trang lật xong (`0536c21`). PHONE-CHECK bước 8–9 đạt trên staging. Chủ dự án bỏ qua thử thiết bị thật |
 | U6 mép sổ | [#160](https://github.com/unhuman1289/learning-hub/pull/160), [#161](https://github.com/unhuman1289/learning-hub/pull/161) và #169 đã lên staging. Bản ghép local `808fb91` đạt 6/6 e2e. CI sau khi gộp cũng không ghi nhận tác vụ dài trong hai lần lật ở CPU chậm 4×. | Biên bản U6 ở commit local `639186a`. Năm tệp sửa thử được giữ riêng. Chủ dự án còn duyệt trên iPhone thật. |
 | Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp và deploy. CI sau khi gộp đo 176.993 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | [Kết quả CI](https://github.com/unhuman1289/learning-hub/actions/runs/43797525717). |
-| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) và chẩn đoán [#174](https://github.com/unhuman1289/learning-hub/pull/174) đã lên staging. Cổng Q **chưa đạt**. Job mới `job_270ea5f60cb745919924` thất bại sau một lượt thuê vì Speech API trả HTTP 401, với 0 bài và 0 tệp audio đã lưu. | Xác minh quyền gọi Speech của key thuộc project OpenAI staging trước lượt thử khác. [Biên bản L4](status/L4.md) ghi đường dẫn trường và bằng chứng. |
-| L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. | L6 chờ L4. Dùng bài nghe đã lưu qua API để thử loa, im lặng, Bluetooth và Zalo trên máy thật. |
-| G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging. | G2 còn kiểm lời phê bài ảnh trên máy thật. Còn G3 hiệu chuẩn và G4 xử lý điểm khi chấm lại. |
-| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đã gộp tại `c0d240f` và lên staging với `0032_tutor.sql`. T1 ghi `hint1` qua L3. [Biên bản](status/T1.md) | Giao T2 nối đường truyền và xác nhận WebSocket qua Access trên staging. Sau đó làm T3–T5. |
-| K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2 còn xác nhận OAuth staging đủ 11 công cụ và lịch riêng. K3 kiểm kết quả lượt đầu. |
+| L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) và chẩn đoán [#174](https://github.com/unhuman1289/learning-hub/pull/174) đã lên staging. **Cổng Q đạt** với job Terra `job_b1d45c18202611170001`, bài `les_69f0a9037cc3007f1f45`, 2 câu nghe và 4 tệp WAV trả HTTP 206. | Log ghi 1.694 ms và 1.886 ms theo bản giọng cho cả bài. [Biên bản L4](status/L4.md) |
+| L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. **L6 đã nghiệm thu** sau PHONE-CHECK bước 10 trên hai máy thật. | Chủ dự án chốt L6 ngày 17/11 và bỏ phần `audio_play`, đo theo tuần và kiểm thử thêm. [Biên bản L6](status/L.md) |
+| G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging cho bài văn bản. | G3 hiệu chuẩn bằng engine đang chấm (`0033`), G4 chấm lại có hiệu lực, G5 chấm bài ảnh bằng OpenAI. Bỏ lượt thử ảnh mẫu qua client QA. |
+| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đã gộp và lên staging với `0032_tutor.sql`. | Thiết kế lại theo OpenAI: T2 Worker gọi OpenAI và stream SSE, T3 chặn lộ đáp án và giao diện Hỏi, T4 nghiệm thu. [#175](https://github.com/unhuman1289/learning-hub/pull/175) (relay qua Mac) không gộp; T2 lấy lại phần ngữ cảnh và SSE. |
+| K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2/K3 bỏ trên staging (17/11). [Hướng dẫn K2](status/K2.md) dùng lại ở bước R. |
+| L7 | Âm thanh đang lưu WAV (khoảng 48 KB/giây) | Lưu dạng nén từ Speech API (AAC hoặc Opus) |
+| D giao bài 00:00 | Chưa có biên bản đọc lại id bài với OpenAI | Claude đọc D1 staging sau một lượt 00:00 Berlin |
+| N máy thật ở Đức | #165 sửa PHONE-CHECK, chưa chạy lại trên staging | Chủ dự án chạy bước 1–9 và duyệt lật trang U6 |
+| F nhanh và mượt | Số đo CI: bàn học 4,6 s lần đầu (iPhone giả lập), 1,6 s có cache, câu đầu 1,1 s, JS 177/180 KB | F0–F7 theo LGTK mục 8. Không viết lại bằng Rust |
+| R phát hành production | Production ở `prod-20261113-1`, còn dùng Qwen, chưa áp `0026`–`0033` | Lập kế hoạch chi tiết sau đợt 4. Quyết định ở LGTK mục 11 |
 
-**Migration tiếp theo.** `0032_tutor.sql` đã áp trên staging. G3 dùng `0033`. Phạm vi LGTK chỉ đến staging.
+**Migration tiếp theo.** `0032_tutor.sql` đã áp trên staging. G3 dùng `0033`. Production chưa áp `0026`–`0033`; làm ở bước R.
 
 ## Chờ chủ dự án
 
-- Bạn và Ếch thử staging theo [PHONE-CHECK.md](../ops/PHONE-CHECK.md).
+- Chạy PHONE-CHECK bước 1–9 trên staging bằng iPhone ở Đức và duyệt lật trang U6 (bước N). Không thử ở Việt Nam (quyết định 17/11).
+- Các quyết định ở [LGTK mục 11](LGTK.md#11-chủ-dự-án-cần-quyết): quyền gộp và deploy staging của Claude, dữ liệu trẻ em với OpenAI, quyền đọc Workers Observability.
 - Review [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144) khi các bước sẵn sàng.
 
-Mỗi merge U2–U4 đạt 409 test, typecheck, lint, contracts:check, build và Qwen replay offline. Commit staging giữ bản sửa đăng nhập `lib/auth/runtime.ts` từ `codex/phone-fixes`. Chờ thử điện thoại thật và chạy job thật trên bản staging này.
 
 ## OpenAI staging · nghiệm thu 16/11/2026
 

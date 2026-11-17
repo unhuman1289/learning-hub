@@ -13,4 +13,4 @@ Dùng bản staging với một hồ sơ thử. Ghi thiết bị, trình duyệt
 9. Tạo một sổ thử và kiểm tra sổ xuất hiện trên kệ. Khi có bài đầu, mở bài từ chính sổ đó.
 10. Khi staging có bài nghe, kiểm tra phát với loa, gạt im lặng và tai nghe Bluetooth. Đo từ khi bấm đến khi nghe. Thử phát chậm và mở lời thoại.
 
-Mục tiêu từ Việt Nam là câu đầu dưới 5 giây, kiểm tra câu dưới 1,2 giây và phát âm thanh dưới 1 giây. Ghi mục nào chưa thử và lỗi nhìn thấy. Giữ nội dung bài làm và thông tin đăng nhập ngoài báo cáo.
+Mục tiêu (đo trên máy thật ở Đức; không thử ở Việt Nam theo quyết định 17/11/2026) là câu đầu dưới 5 giây, kiểm tra câu dưới 1,2 giây và phát âm thanh dưới 1 giây. Ghi mục nào chưa thử và lỗi nhìn thấy. Giữ nội dung bài làm và thông tin đăng nhập ngoài báo cáo.

@@ -1,6 +1,7 @@
 # Kế hoạch: Learning Hub gọn lại, bàn học thư thái, luyện nghe — dev tách production, dùng tốt trên điện thoại ở Việt Nam
 
-- **Người thực hiện:** Codex (mã), Claude (mockup giao diện), chủ dự án (duyệt, thao tác trên Mac và Cloudflare).
+- **Người thực hiện:** Codex (mã), Claude (lập plan, điều phối và mockup giao diện từ 17/11/2026), chủ dự án (duyệt, thao tác trên Mac và Cloudflare).
+- **Kế hoạch đang chạy:** [`LGTK.md`](LGTK.md) bản 2 (17/11/2026) cho L, G, T, K, tốc độ (F) và phát hành production (R). Khi khác với file này, `LGTK.md` thắng.
 - **Ngày lập:** 13/11/2026, bản 3 (sau audit phiên Codex tối 13/11). **Tiến độ:** xem `docs/plan/HUB-NEXT-STATUS.md`. Chi tiết tiến độ nằm trong `docs/plan/status/<bước>.md` trên nhánh của từng bước.
 - **Cách giao việc cho Codex:** mục 10. Đọc mục này trước khi bắt đầu một bước.
 - **Mã đã đọc:** `main` tại `38aa632` (đã có Adaptive Roadmap #139–#142 và Knowledge K1–K5).
@@ -243,6 +244,8 @@ Phạm vi đợt này là **bước 1, 2 và 4** của kế hoạch chuyển san
 
 ## 4. Chuẩn điện thoại ở Việt Nam (áp cho mọi giai đoạn)
 
+**Quyết định 17/11/2026:** không thử ở Việt Nam vì không có điều kiện. Các ngân sách dưới đây vẫn là chuẩn. Đo bằng mạng 4G giả lập trong CI (mục 4.7) và máy thật ở Đức. `/api/rum` vẫn ghi theo quốc gia nếu sau này có người dùng ở Việt Nam.
+
 ### 4.1. Thiết bị và trình duyệt cần đạt
 
 | Nhóm | Tối thiểu |
@@ -349,7 +352,7 @@ Mở trong Zalo hoặc Messenger mà đăng nhập hay phát âm thanh lỗi th�
    - Trình duyệt gửi `navigator.sendBeacon` với: tên màn hình, mốc thời gian (ms), loại kết nối (`navigator.connection.effectiveType` nếu có), lớp thiết bị (điện thoại/máy tính).
    - Server thêm quốc gia và colo từ `request.cf`.
    - Không gửi nội dung, câu trả lời hay id bài. Lưu gộp theo ngày vào bảng `perf_daily(day, screen, country, device, n, p50, p75, p95)` (cập nhật theo lô). Quản trị → Hệ thống hiện bảng p75 theo quốc gia.
-3. **Người thật:** mỗi giai đoạn có thay đổi giao diện, Ếch thử trên điện thoại của mình ở Việt Nam qua staging, theo danh sách 10 bước in trong `docs/ops/PHONE-CHECK.md`. Chủ dự án thử iPhone ở Đức.
+3. **Người thật:** mỗi giai đoạn có thay đổi giao diện, chủ dự án thử trên iPhone ở Đức qua staging, theo danh sách 10 bước trong `docs/ops/PHONE-CHECK.md`. Ếch thử khi có điều kiện, không bắt buộc (quyết định 17/11).
 
 ## 5. Giai đoạn và PR
 
@@ -574,14 +577,16 @@ Bắt đầu ngay khi M được duyệt, không chờ C, V, P lên production (
 - đạt ngân sách mục 4.2;
 - Ếch hoàn thành `PHONE-CHECK.md` trên staging.
 
-### L, G, T, K
+### L, G, T, K, F, R
 
-Kế hoạch chi tiết nằm trong [`LGTK.md`](LGTK.md) (14/11/2026), thay cho nội dung cũ của bốn mục này. Theo quyết định của chủ dự án ngày 14/11, cả bốn bước chỉ lên staging.
+Kế hoạch chi tiết nằm trong [`LGTK.md`](LGTK.md) bản 2 (17/11/2026). Mọi bước làm và nghiệm thu trên staging trước. Production đổi ở bước R.
 
-- **L · Luyện nghe:** câu hỏi kèm đoạn hội thoại do Mac đọc bằng giọng hệ thống, lưu R2. Gồm chấm chính tả theo từ, bằng chứng nghe riêng, Hub quyết số câu nghe. Migration `0031`.
-- **G · Chấm tin cậy hơn:** chuẩn hoá đáp án, bằng chứng trích nguyên văn, hiệu chuẩn hằng tuần bằng bộ câu chuẩn (`0032`), "Chấm sai?" chuyển người khi bất đồng.
-- **T · Gia sư "Hỏi":** Durable Object `TutorRelay`, runner trả lời từng đoạn qua WebSocket, trình duyệt nhận qua SSE. Chỉ gợi ý, 20 lượt mỗi bài (`0033`).
-- **K · ChatGPT chỉ cập nhật tài liệu:** lịch chủ nhật 02:00 Europe/Berlin với kết nối `hub:knowledge` trên staging.
+- **L · Luyện nghe:** xong L1–L6. Terra soạn câu nghe, OpenAI Speech tạo hai giọng, lưu R2. Còn L7: lưu âm thanh dạng nén thay cho WAV.
+- **G · Chấm tin cậy hơn:** G1, G2 xong. Còn G3 hiệu chuẩn hằng tuần chạy trong Worker bằng engine đang chấm (`0033`), G4 chấm lại có hiệu lực và hiện trong Cần xem, G5 chấm bài ảnh bằng OpenAI.
+- **T · Gia sư "Hỏi":** T1 xong (`0032`). Từ T2, Worker gọi OpenAI và stream về trình duyệt bằng SSE. Không dùng Durable Object và runner Mac nữa.
+- **K · Tài liệu Knowledge:** K1 xong. Bỏ lịch bảo trì trên staging.
+- **F · Nhanh và mượt:** đo đủ, giảm JS, service worker, tải trước bài kế tiếp, chờ AI dễ chịu hơn, vị trí Worker, chỉnh giao diện. Không viết lại bằng Rust (lý do trong LGTK mục 8).
+- **R · Phát hành production:** một đợt có diễn tập migration `0026`–`0033`, OpenAI project riêng và đường quay lại.
 
 ## 6. Phát hành từng giai đoạn
 
@@ -594,8 +599,8 @@ Kế hoạch chi tiết nằm trong [`LGTK.md`](LGTK.md) (14/11/2026), thay cho 
 | 5 | P | e2e điện thoại | Ếch kiểm `PHONE-CHECK.md` | `0030`, deploy, đo p75 một tuần |
 | 6 | M | — | — | (chỉ duyệt) |
 | 7 | U | `dev:phone` iPhone thật | Ếch và chủ dự án kiểm | Deploy |
-| 8 | L | Fixture, replay và kiểm đường lưu audio | Terra qua API với hai giọng đã lưu, rồi thử gạt im lặng, Bluetooth và Zalo | Chưa làm: giữ staging (quyết định 14/11) |
-| 9 | G, T, K | Như trên | `0032`, `0033`; lịch Knowledge staging | Chưa làm: giữ staging (quyết định 14/11) |
+| 8 | L | Fixture, replay và kiểm đường lưu audio | Terra qua API với hai giọng đã lưu; đã thử gạt im lặng, Bluetooth và Zalo | Bước R trong `LGTK.md` |
+| 9 | G, T, F | Adapter OpenAI giả, fixture | `0032`, `0033`; một lượt OpenAI thật cho mỗi thay đổi | Bước R trong `LGTK.md` |
 
 Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: health đúng tag, một lượt học thật trên điện thoại, job `succeeded` và id đã lưu.
 
@@ -633,6 +638,8 @@ Mỗi lần lên production đi qua `release.mjs production <tag>`. Sau đó: he
 6. Thứ tự sau Nghe: chạy code có test (Rust, Python) hay toán từng bước (Toán 7).
 
 ## 10. Cách giao việc cho Codex (sau audit 13/11)
+
+**Từ 17/11/2026:** Claude lập plan và điều phối theo `LGTK.md` mục 12. Chat Codex làm từng bước và không sửa các tệp plan. Các quy tắc dưới đây vẫn áp dụng cho từng chat Codex.
 
 **Audit phiên Codex 13/11, 13:41–22:39:**
 - 147 triệu token đầu vào, 450 lệnh cho 29 tin nhắn.
