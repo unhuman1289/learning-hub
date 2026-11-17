@@ -83,6 +83,7 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
     learner_settings: [{ user_id: 'vu', daily_target_minutes: 45, updated: 't' }],
   } };
   const copy = memoryDb({ through: "0025" }).sqlite;
+  copy.exec(read('0032_tutor.sql'));
   copy.exec(buildRestoreSql(old));
   assert.equal(copy.prepare("SELECT role FROM learner_settings WHERE user_id='vu'").get().role, 'adult');
   const now = 't';
@@ -93,6 +94,7 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
     tables[table] = copy.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row }));
   }
   const restored = memoryDb({ through: "0025" }).sqlite;
+  restored.exec(read('0032_tutor.sql'));
   restored.exec(buildRestoreSql({ format: 3, tables }));
   for (const [table, rows] of Object.entries(tables)) assert.deepEqual(restored.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row })), rows, table);
   copy.close(); restored.close();

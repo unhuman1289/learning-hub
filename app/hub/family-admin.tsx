@@ -78,6 +78,11 @@ function MemberRow({ member, members, nameOf, busy, send }: {
           <button type="submit" disabled={working || nickname === (member.displayName ?? "")} className={buttonClass("secondary", "min-h-11 px-3")}>Lưu</button>
         </form>
       </div>
+      <label className="flex min-h-11 w-fit items-center gap-2 text-sm">
+        <input type="checkbox" checked={member.tutorEnabled} disabled={working}
+          onChange={(event) => void send(`${member.id}:tutor`, { action: "tutor", userId: member.id, enabled: event.target.checked })} />
+        Cho phép dùng gia sư
+      </label>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted">Phụ huynh:</span>
         {member.guardianIds.length === 0 && <span className="text-muted">chưa có</span>}

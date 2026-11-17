@@ -1,4 +1,5 @@
 "use client";
+import type { TutorTurn } from "../../../lib/contracts/tutor";
 import { Stamp } from "../../../components/notebook/paper";
 import { useEffect, useState, type ReactNode } from "react";
 import type { LessonSummaryData } from "../../../lib/lesson-v2/summary";
@@ -67,6 +68,15 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
         <p className={pencil}>{data.minutes} phút học sổ này hôm nay{data.hintsUsed ? ` · ${data.hintsUsed} lần xem gợi ý` : ""}.</p>
         {data.needsPractice.length > 0 && <p>Nên luyện thêm: {data.needsPractice.map(skillLabel).join(", ")}.</p>}
         {data.comments.map(comment => <RedPen key={comment} className="mt-7">{comment}</RedPen>)}
+        {!!data.tutorTurns?.length && <section aria-label="Nhận xét của gia sư" className="mt-7">
+          <h2 className="font-hand text-xl">Nhận xét của gia sư</h2>
+          <ul className="space-y-3">
+            {data.tutorTurns.map(turn => <li key={turn.id} className="break-words">
+              <p className="whitespace-pre-wrap">{turn.question}</p>
+              <RedPen>{turn.answer ?? tutorStatus[turn.status]}</RedPen>
+            </li>)}
+          </ul>
+        </section>}
       </>}
       <div className="mt-5 flex flex-wrap items-center gap-3">
         {completed && <button type="button" disabled={opening} className={buttonClass("primary")} onClick={() => void openNext()}>
@@ -79,3 +89,11 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
     </section>
   );
 }
+
+const tutorStatus: Record<TutorTurn["status"], string> = {
+  queued: "Đang chờ gia sư.",
+  streaming: "Gia sư đang trả lời.",
+  answered: "Đã trả lời.",
+  failed: "Chưa trả lời được câu hỏi.",
+  blocked: "Không hiển thị gợi ý cho lượt này.",
+};

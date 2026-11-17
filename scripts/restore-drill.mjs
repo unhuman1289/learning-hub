@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { buildRestoreSql, columnsForSnapshotTable, restoreTargetTable, snapshotRowsForTarget } from '../lib/backup-contract.mjs';
+import { buildRestoreSql, columnsForSnapshotTable, restoreTargetTable, snapshotCell, snapshotRowsForTarget } from '../lib/backup-contract.mjs';
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, index, list) => {
   if (value.startsWith('--')) pairs.push([value.slice(2), list[index + 1]]);
@@ -30,7 +30,7 @@ try {
     }
     const actual = sqlite.prepare(`SELECT * FROM "${table}" ORDER BY rowid`).all();
     const sourceRows = snapshotRowsForTarget(snapshot, table) ?? expected;
-    const canonical = (row) => JSON.stringify(columns.map((column) => row[column] ?? (column === 'user_id' && ['learning_lessons', 'learning_slots'].includes(table) ? legacyOwnerId : null)));
+    const canonical = (row) => JSON.stringify(columns.map((column) => snapshotCell(table, row, column, legacyOwnerId) ?? null));
     const expectedRows = sourceRows.map(canonical).sort();
     const actualRows = actual.map(canonical).sort();
     if (JSON.stringify(expectedRows) !== JSON.stringify(actualRows)) {
