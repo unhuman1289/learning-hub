@@ -1,6 +1,6 @@
 "use client";
 
-export type QualityRow = { learnerId: string; subjectId: string; subjectTitle: string; days: 14 | 30; aiGraded: number; disputed: number; overturned: number; keyIssues: number };
+export type QualityRow = { learnerId: string; subjectId: string; subjectTitle: string; days: 14 | 30; aiGraded: number; disputed: number; overturned: number; keyIssues: number; rechecksWeek: number; changedWeek: number; changeRateWeek: number | null };
 
 /** Grading quality per notebook; `names` adds a learner column for the admin view. */
 export function QualityTable({ rows, names }: { rows: QualityRow[]; names?: Map<string, string> }) {
@@ -16,7 +16,7 @@ export function QualityTable({ rows, names }: { rows: QualityRow[]; names?: Map<
             <th scope="col" className="pr-3 text-right font-semibold">AI chấm</th>
             <th scope="col" className="pr-3 text-right font-semibold">Phản đối</th>
             <th scope="col" className="pr-3 text-right font-semibold">Bị lật</th>
-            <th scope="col" className="text-right font-semibold">Lỗi đáp án</th>
+            <th scope="col" className="pr-3 text-right font-semibold">Đổi điểm 7 ngày</th><th scope="col" className="text-right font-semibold">Lỗi đáp án</th>
           </tr>
         </thead>
         <tbody>
@@ -28,7 +28,7 @@ export function QualityTable({ rows, names }: { rows: QualityRow[]; names?: Map<
               <td className="pr-3 text-right">{row.aiGraded}</td>
               <td className="pr-3 text-right">{row.disputed}</td>
               <td className="pr-3 text-right">{row.overturned}</td>
-              <td className="text-right">{row.keyIssues}</td>
+              <td className="pr-3 text-right">{row.changeRateWeek === null ? "—" : `${Math.round(row.changeRateWeek * 100)}% (${row.changedWeek}/${row.rechecksWeek})`}</td><td className="text-right">{row.keyIssues}</td>
             </tr>
           ))}
         </tbody>

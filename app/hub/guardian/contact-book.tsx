@@ -36,12 +36,12 @@ export function ContactBook({ learner, name, subjects }: { learner: string; name
   useEffect(() => {
     let live = true;
     Promise.all([
-      apiJson<{ disputes: DisputeItem[] }>(`/api/disputes${learnerQuery(learner)}&status=open`),
+      apiJson<{ disputes: DisputeItem[] }>(`/api/disputes${learnerQuery(learner)}`),
       apiJson<{ quality: QualityRow[] }>(`/api/quality${learnerQuery(learner)}`),
     ])
       .then(([d, q]) => {
         if (!live) return;
-        setDisputes(d.disputes.filter((x) => x.status === "needs_human" || x.status === "open"));
+        setDisputes(d.disputes.filter((x) => x.status === "needs_human" || x.status === "open" || !!x.recheckGrade));
         setQuality(q.quality);
         setError("");
       })
