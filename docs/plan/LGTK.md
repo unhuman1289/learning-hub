@@ -31,7 +31,7 @@
 - Gọi OpenAI thật tối đa 2 lượt cho mỗi thay đổi. Dùng fixture và adapter giả trước. Mỗi lượt thật ghi job id, model và số token.
 - Lệnh chạy lâu chạy nền, kiểm lại sau ít nhất 60 giây.
 
-**Số migration:** `0030` P3, `0031` L, `0032` T1 đã áp trên staging. `0033` dành cho G3. Bước mới cần migration thì lấy số trống kế tiếp và báo Claude.
+**Số migration:** `0030` P3, `0031` L, `0032` T1, `0034` T2 đã áp trên staging. `0033` dành cho A1 (cờ AI theo sổ, đếm lần gọi). G3 lấy số trống kế tiếp khi mở PR. Bước mới cần migration thì lấy số trống kế tiếp và báo Claude.
 
 ## 1. Thực trạng ngày 17/11
 
@@ -93,7 +93,7 @@ L1–L6 xong. Chi tiết và bằng chứng: `status/L1.md` … `status/L5.md`, 
 
 G1, G2 xong cho bài văn bản. Không làm lượt thử ảnh mẫu của G2 nữa: bài ảnh chuyển sang G5, dùng engine chấm thật.
 
-### G3. Hiệu chuẩn hằng tuần bằng engine đang chấm (migration `0033`)
+### G3. Hiệu chuẩn hằng tuần bằng engine đang chấm (migration: số trống kế tiếp)
 
 Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, qua Queue, bằng đúng hàm và prompt Luna đang chấm thật.
 
@@ -207,13 +207,16 @@ Ghi vào `status/D.md`. Nếu trượt, mở bước sửa riêng.
 
 **Việc:**
 - Bật/tắt AI và TTS theo từng sổ trong Quản trị → Sổ, lưu ở D1 (dùng cờ `ai_enabled` sẵn có, thêm cờ TTS nếu cần), có nhật ký ai đổi, lúc nào. Đọc lại được qua API quản trị.
-- Giữ một công tắc tổng `OPENAI_ENABLED` ở `vars` của `wrangler.jsonc`, không dùng secret. Bỏ `OPENAI_SUBJECT_IDS` và `OPENAI_TTS_SUBJECT_IDS` sau khi đã chép giá trị hiện hành sang D1. Claude đọc danh sách từ các job OpenAI đã chạy để dựng lại giá trị.
+- Giữ một công tắc tổng `OPENAI_ENABLED` ở `vars` của `wrangler.jsonc`, không dùng secret. Nếu D1 chưa có cờ nào, Worker chép một lần danh sách từ secret cũ `OPENAI_SUBJECT_IDS`/`OPENAI_TTS_SUBJECT_IDS` vào D1 và ghi nhật ký. Sau đó không đọc hai secret này nữa.
+- Sau deploy, chủ dự án bật AI và TTS cho sổ QA L4 trong Quản trị (cần PIN quản lý). Sổ QA người lớn để bật thường trực trên staging, nên nghiệm thu không cần đổi rồi khôi phục cấu hình.
 - Trần cứng số lần gọi OpenAI, đếm trong D1, không dựa vào số lần thử lại của Queue:
   - mỗi job soạn, chấm, chấm lại, hiệu chuẩn tối đa 2 lần gọi;
   - mỗi lượt gia sư tối đa 2 lần thử, sau đó `failed` với lời báo thật.
 - Ghi số lần gọi vào job hoặc lượt gia sư, hiện trong Quản trị.
 
-**Xong khi:** test cho trần gọi (Queue giao lại lần 3 thì không gọi API) và cho bật/tắt theo sổ; gộp, deploy staging; Claude dựng lại danh sách sổ bật AI trong D1 và kiểm khớp với trước.
+**Xong khi:** test cho trần gọi (Queue giao lại lần 3 thì không gọi API) và cho bật/tắt theo sổ; gộp, deploy staging; Claude đọc lại cờ trong D1 sau lần chép từ secret.
+
+**Nghiệm thu trên staging sau H1:** qua cổng gia đình bằng `scripts/staging-household.mjs`. Trong worktree của chat, tạo symlink `private-data/staging-household.txt` trỏ tới tệp trong `work/learning-hub-hub-next/private-data/`, không chép, không in mật khẩu. Hồ sơ QA: QA H5 `qa-h5-9cb4019bcc11aec5da83`, QA L4 `qa-l4-35096ef0bea8615bd07c`, PHONE-CHECK `qa-phone-fc7d50f5400f2e72c3ec`.
 
 ### H1. Cổng gia đình trên staging, giống production
 
