@@ -56,3 +56,13 @@ test("daily nearest-rank percentiles merge distributions across concurrent batch
   assert.deepEqual(Object.keys(rows[0]), backupColumns.perf_daily);
   assert.deepEqual(snapshotRowsForTarget({ format: 4, tables: {} }, "perf_daily"), []);
 });
+
+ test("new performance milestones are accepted and aggregated without identifiers", async () => {
+  const db = memoryDb();
+  const samples = ["inp", "submit_feedback", "lesson_ready"].map(screen => ({ ...sample, screen, ms: 123.4 }));
+  const report = await readRum(request(JSON.stringify(samples)));
+  assert.deepEqual(report.samples.map(row => [row.screen, row.ms]), samples.map(row => [row.screen, 123]));
+  await recordRum(db, report, new Date("2026-11-17T12:00:00Z"));
+  assert.deepEqual(db.sqlite.prepare("SELECT screen, n, p50, p75 FROM perf_daily ORDER BY screen").all().map(row => ({...row})),
+    ["inp", "lesson_ready", "submit_feedback"].map(screen => ({ screen, n: 1, p50: 123, p75: 123 })));
+});

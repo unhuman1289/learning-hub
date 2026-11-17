@@ -14,6 +14,9 @@ type PerfRow = {
 };
 
 const screenLabels: Record<RumScreen, string> = {
+  inp: "Độ phản hồi thao tác (INP)",
+  submit_feedback: "Nộp bài đến lời phê",
+  lesson_ready: "Xin bài đến khi lưu",
   desk: "Mở bàn học",
   first_question: "Mở câu đầu",
   grade: "Chấm câu có đáp án",
