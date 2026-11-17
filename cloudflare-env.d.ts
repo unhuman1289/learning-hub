@@ -10,6 +10,7 @@ declare namespace Cloudflare {
     AI_PRICE_TABLE?:string;
     AI_QUEUE?:Queue;
     OPENAI_API_KEY?: string;
+    HOUSEHOLD_LIMITER?: RateLimit;
     OPENAI_SUBJECT_IDS?: string;
     OPENAI_TTS_SUBJECT_IDS?: string;
     ASSETS?: Fetcher;

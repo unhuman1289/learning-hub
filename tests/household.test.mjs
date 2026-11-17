@@ -171,3 +171,16 @@ test('family door uses a small script-free password form', async () => {
   assert.doesNotMatch(html, /<script/i);
   assert.ok(Buffer.byteLength(html) <= 6144);
 });
+
+test('passphrase attempts are rate limited per client', async () => {
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode('correct horse'))), (x) =>
+    x.toString(16).padStart(2, '0'),
+  ).join('');
+  const env = { HOUSEHOLD_GATE: 'passphrase', HOUSEHOLD_PASSPHRASE_SHA256: hash, PROFILE_COOKIE_SECRET: 'x'.repeat(32),
+    HOUSEHOLD_LIMITER: { limit: async ({ key }) => ({ success: key !== 'household:203.0.113.9' }) } };
+  const form = (ip) => new Request('https://learn.example/api/household', { method: 'POST',
+    headers: { Origin: 'https://learn.example', 'content-type': 'application/x-www-form-urlencoded', 'cf-connecting-ip': ip },
+    body: new URLSearchParams({ passphrase: 'correct horse' }) });
+  assert.equal((await householdGuard(form('203.0.113.9'), env)).status, 429);
+  assert.equal((await householdGuard(form('198.51.100.7'), env)).status, 303);
+});

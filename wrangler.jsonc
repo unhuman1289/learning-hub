@@ -79,6 +79,9 @@
           "*/5 * * * *"
         ]
       },
+      "ratelimits": [
+        { "name": "HOUSEHOLD_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } }
+      ],
       "queues": {
         "producers": [
           {

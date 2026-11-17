@@ -13,6 +13,8 @@ export type HouseholdBindings = {
   PROFILE_COOKIE_SECRET?: string;
   HOUSEHOLD_LEGACY_PROFILE_IDS?: string;
   HOUSEHOLD_PASSPHRASE_SHA256?: string;
+  /** Cloudflare rate-limit binding; caps passphrase attempts per client IP. */
+  HOUSEHOLD_LIMITER?: { limit(options: { key: string }): Promise<{ success: boolean }> };
   APP_ENV?: string;
   ENVIRONMENT?: string;
 };
@@ -166,6 +168,11 @@ async function acceptPassphrase(request: Request, b: HouseholdBindings) {
   const url = new URL(request.url);
   if (request.headers.get('origin') !== url.origin ||
       !request.headers.get('content-type')?.startsWith('application/x-www-form-urlencoded')) return passphrasePage('Yêu cầu không hợp lệ.', 403);
+  // Every attempt counts, so a public URL cannot be used to guess a short passphrase quickly.
+  const client = request.headers.get('cf-connecting-ip') ?? 'unknown';
+  if (b.HOUSEHOLD_LIMITER && !(await b.HOUSEHOLD_LIMITER.limit({ key: 'household:' + client })).success) {
+    return passphrasePage('Thử lại sau ít phút.', 429);
+  }
   const expected = b.HOUSEHOLD_PASSPHRASE_SHA256?.trim().toLowerCase();
   if (!b.PROFILE_COOKIE_SECRET || b.PROFILE_COOKIE_SECRET.length < 32 || !expected || !/^[a-f0-9]{64}$/.test(expected)) return passphrasePage('Cửa chưa sẵn sàng. Nhờ người quản lý xem giúp.', 503);
   const reader = request.body?.getReader();
