@@ -74,3 +74,12 @@ test('backup restores tutor turns with usage and older snapshots with defaults',
  const old=memoryDb();t.after(()=>old.sqlite.close());old.sqlite.exec(buildRestoreSql(snapshot));
  assert.equal(old.sqlite.prepare('SELECT input_tokens FROM tutor_turns').get().input_tokens,null);
 });
+
+test('tutor timing reports the pre-answer phases without learner content',async t=>{
+ const {ask}=await setup(t);const entries=[];const original=console.info;
+ console.info=x=>{try{entries.push(JSON.parse(x))}catch{}};
+ try { assert.match(await (await ask()).text(),/event: done/); } finally { console.info=original; }
+ const log=entries.find(entry=>entry.component==='tutor-timing');assert.ok(log);
+ for(const key of ['body_ms','access_ms','notebook_ms','open_turn_ms']) assert.ok(Number.isFinite(log[key]) && log[key]>=0,key);
+ assert.doesNotMatch(JSON.stringify(log),/Private Name|private@example\.test|Em nên bắt đầu/);
+});
