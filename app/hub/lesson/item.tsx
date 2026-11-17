@@ -11,6 +11,7 @@ import { germanCharacters, hasVietnameseTyping } from "../lesson-v2/keyboard";
 import { LessonAudio, type ListeningControls } from "./audio";
 import { StructuredInput } from "../lesson-v2/inputs/structured";
 export function LessonItem({
+  active = true,
   item,
   listening,
   number,
@@ -33,6 +34,7 @@ export function LessonItem({
   onReveal,
   formatText = (text:string)=>text,
 }: {
+  active?: boolean;
   formatText?:(text:string)=>string;
   item: ItemView;
   listening?: ListeningControls;
@@ -65,12 +67,14 @@ export function LessonItem({
   const result = useRef<HTMLDivElement>(null);
   const lastResult = useRef(feedbackResult);
   useEffect(() => {
+    if (!active) return;
     if (lastResult.current === feedbackResult) return;
     lastResult.current = feedbackResult;
     result.current?.scrollIntoView({ block: "nearest" });
-  }, [feedbackResult]);
+  }, [active, feedbackResult]);
 
   useEffect(() => {
+    if (!active) return;
     const viewport = window.visualViewport;
     const root = itemRoot.current;
     if (!viewport || !root) return;
@@ -87,7 +91,7 @@ export function LessonItem({
       viewport.removeEventListener("resize", position);
       viewport.removeEventListener("scroll", position);
     };
-  }, []);
+  }, [active]);
 
   function jumpToLine(line: number) {
     setShowFeedback(false);
@@ -110,7 +114,7 @@ export function LessonItem({
         <HintNote item={item} disabled={locked} onReveal={onReveal} formatText={formatText} />
       </div>
       {item.instructions && <p className="text-muted-paper">{formatText(item.instructions)}</p>}
-      {item.audio && (listening ? <LessonAudio audio={item.audio} {...listening} /> :
+      {item.audio && (listening ? <LessonAudio audio={item.audio} {...listening} active={active} /> :
         <p role="status" className="text-sm text-muted-paper">Đang mở phần nghe…</p>)}
       {item.input === "choice" ? (
         <fieldset aria-labelledby={"question-" + item.id}>
