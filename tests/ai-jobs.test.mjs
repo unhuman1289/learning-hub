@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
 import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-jobs/queue.ts';
 import { refreshSkills } from '../lib/learner-model/nightly.ts';
+import { skillEvidence } from '../lib/learner-model/recompute.ts';
 import { createDispute, escalateDispute, resolveDispute, listDisputes, listDisputesNeedingHuman } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
 import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
@@ -699,8 +700,16 @@ test('nightly refresh keeps an AI review date while evidence is unchanged and st
   db.sqlite.close();
 });
 
-async function gradedWrong() {
+async function gradedWrong(wrongKey = false) {
   const ctx = await assigned();
+  if (wrongKey) {
+    ctx.db.sqlite.prepare('UPDATE subjects SET title=? WHERE id=?').run('Deutsch Học thử', subject);
+    const row = ctx.db.sqlite.prepare("SELECT payload FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(ctx.lesson);
+    const item = JSON.parse(row.payload);
+    item.choices = [{ id: 'a', text: 'Ich kann heute kochen.' }, { id: 'b', text: 'Ich kann heute kocht.' }];
+    item.key = { type: 'choice', correct: ['b'] };
+    ctx.db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE lesson_id=? AND item_id='i1'").run(JSON.stringify(item), ctx.lesson);
+  }
   await saveDraft(ctx.db, learner, ctx.lesson, { revision: 0, answers: { i1: { answer: '["a"]' } } }, now);
   const sub = await submitLesson(
     ctx.db,
@@ -738,8 +747,8 @@ test('a dispute takes the answer out of the rules at once and cannot be opened t
   db.sqlite.close();
 });
 
-async function automaticRecheck() {
-  const { db, attempt } = await gradedWrong();
+async function automaticRecheck(wrongKey = false) {
+  const { db, attempt } = await gradedWrong(wrongKey);
   const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(dispute.status, 'rechecking');
   const [lease] = await leaseJobs(db, { ...client }, { ...input, kinds: ['assess'] }, 'test', now);
@@ -774,6 +783,42 @@ async function automaticRecheck() {
     usage: { model: 'none', inputTokens: 0, outputTokens: 0, ms: 0 },
   };
   return { db, attempt, dispute, lease, job, context, result };
+}
+
+test('recheck context includes choice text and selected ids without learner identity', async () => {
+  const { db, context } = await automaticRecheck(true);
+  try {
+    const attempt = context.attempts[0];
+    assert.equal(attempt.prompt, 'Câu nào đúng?');
+    assert.deepEqual(attempt.choices, [{ id: 'a', text: 'Ich kann heute kochen.' }, { id: 'b', text: 'Ich kann heute kocht.' }]);
+    assert.equal(attempt.answer, '["a"]');
+    assert.deepEqual(attempt.key, { type: 'choice', correct: ['b'] });
+    assert.deepEqual(Object.keys(context.learner).sort(), ['explainLanguage', 'role']);
+    assert.ok(!JSON.stringify(context).includes(learner));
+    assert.ok(!JSON.stringify(context).includes('Học thử'));
+  } finally { db.sqlite.close(); }
+});
+
+for (const [kind, fields, key, answer] of [
+  ['match', { left: [{ id: 'l1', text: 'eins' }, { id: 'l2', text: 'zwei' }], right: [{ id: 'r1', text: 'một' }, { id: 'r2', text: 'hai' }] }, { type: 'match', pairs: [['l1', 'r1'], ['l2', 'r2']] }, '{"l1":"r2","l2":"r1"}'],
+  ['order', { steps: [{ id: 's1', text: 'Frühstück' }, { id: 's2', text: 'Mittag' }] }, { type: 'order', sequence: ['s1', 's2'] }, '["s2","s1"]'],
+]) {
+  test(`recheck context retains ${kind} options and selected ids`, async () => {
+    const { db, attempt, lesson } = await gradedWrong();
+    try {
+      const row = db.sqlite.prepare("SELECT payload FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(lesson);
+      const item = { ...JSON.parse(row.payload), input: kind, ...fields, key };
+      delete item.choices;
+      db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE lesson_id=? AND item_id='i1'").run(JSON.stringify(item), lesson);
+      db.sqlite.prepare('UPDATE attempts SET answer=? WHERE id=?').run(answer, attempt.id);
+      await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+      const [lease] = await leaseJobs(db, client, { ...input, kinds: ['assess'] }, 'test', now);
+      const saved = JSON.parse((await readJob(db, lease.jobId)).context_snapshot).attempts[0];
+      for (const [name, options] of Object.entries(fields)) assert.deepEqual(saved[name], options);
+      assert.deepEqual(saved.key, key);
+      assert.equal(saved.answer, answer);
+    } finally { db.sqlite.close(); }
+  });
 }
 
 test('AI recheck overturning an automatic grade supersedes it, flags the key and recomputes', async () => {
@@ -824,7 +869,7 @@ test('guardian decision replaces an effective AI recheck and retains both gradin
 
 for (const decision of ['upheld', 'overturned']) {
   test(`Terra recheck fixture persists ${decision} through the runner and D1 validator`, async () => {
-    const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();
+    const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck(decision === 'overturned');
     try {
       const originalGrade = db.sqlite.prepare('SELECT grade_id FROM disputes WHERE id=?').get(dispute.id).grade_id;
       const explanation = decision === 'upheld' ? 'Giữ điểm theo đáp án đã công bố.' : result.recheckDecision.explanation;
@@ -834,6 +879,16 @@ for (const decision of ['upheld', 'overturned']) {
         calls++;
         const body = JSON.parse(options.body);
         assert.equal(body.model, 'gpt-6.1-terra');
+        const source = body.input;
+        assert.match(body.instructions, /dữ liệu không đáng tin/);
+        assert.ok(source.includes('Ich kann heute kochen.'));
+        assert.ok(source.includes('Ich kann heute kocht.'));
+        assert.ok(source.includes('\"answer\":\"[\\\"a\\\"]\"'));
+        assert.ok(source.includes('\"correct\":[\"b\"]'));
+        assert.ok(!source.includes(learner));
+        assert.ok(!source.includes('Học thử'));
+        assert.ok(!source.includes('lrn_123456abcdef'));
+        assert.ok(!source.includes('Lời dặn riêng'));
         assert.match(body.instructions, /`upheld`[^\n]+`grades: \[\]`/);
         assert.match(body.instructions, /`overturned`[^\n]+đúng một `grade`/);
         return Response.json({ status: 'completed', model: body.model, output: [{ type: 'message', content: [
@@ -841,7 +896,7 @@ for (const decision of ['upheld', 'overturned']) {
         ] }] });
       } });
       const hub = {
-        context: async () => ({ ...context, learner: { ...context.learner, role: 'adult' } }),
+        context: async () => ({ ...context, learner: { ...context.learner, role: 'adult', ref: 'lrn_123456abcdef', displayName: 'Học thử', personalPrompt: 'Lời dặn riêng' } }),
         result: async (current, draft, dryRun) => {
           const saved = await applyResult(db, client, current.jobId, current.leaseToken, draft, dryRun, now);
           return { status: saved.status, body: saved };
@@ -862,6 +917,11 @@ for (const decision of ['upheld', 'overturned']) {
       assert.equal(JSON.parse(saved.usage).model, 'gpt-6.1-terra');
       assert.deepEqual(JSON.parse(saved.outcome).gradeIds, decision === 'upheld' ? [] : [row.resolution_grade_id]);
       assert.equal(attemptRow.current_grade_id, decision === 'upheld' ? originalGrade : row.resolution_grade_id);
+      const official = db.sqlite.prepare('SELECT result,score FROM grades WHERE id=?').get(attemptRow.current_grade_id);
+      assert.equal(official.result, decision === 'upheld' ? 'incorrect' : 'correct');
+      assert.equal(official.score, decision === 'upheld' ? 0 : 1);
+      const evidence = await skillEvidence(db, learner, context.attempts[0].skills[0]);
+      assert.equal(evidence.find(entry => entry.id === attempt.id).result, official.result);
       assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, decision === 'upheld' ? 1 : 2);
     } finally {
       db.sqlite.close();

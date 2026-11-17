@@ -346,6 +346,10 @@ const assessmentAttempt = z
     transcript: audioSpec.shape.lines.optional(),
     skills: z.array(ref).max(3),
     prompt: text(2000),
+    choices: z.array(z.object({ id: text(30), text: text(300) }).strict()).max(6).optional(),
+    left: z.array(z.object({ id: text(30), text: text(150) }).strict()).max(8).optional(),
+    right: z.array(z.object({ id: text(30), text: text(150) }).strict()).max(8).optional(),
+    steps: z.array(z.object({ id: text(30), text: text(150) }).strict()).max(8).optional(),
     rubric: z
       .array(z.object({ criterion: text(200), points: z.number(), description: text(300).optional(), skill: ref.optional() }).strict())
       .nullable(),
@@ -369,7 +373,7 @@ export const assessContext = z
     purpose: z.enum(['submission', 'recheck']),
     contextHash: hash,
     knowledge,
-    learner,
+    learner: z.union([learner, learner.pick({ role: true, explainLanguage: true })]),
     subject: z
       .object({
         subjectId: z.string(),
