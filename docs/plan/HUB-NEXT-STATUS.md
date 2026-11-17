@@ -10,7 +10,7 @@ Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ th
 
 **Kế hoạch đang chạy:** [`LGTK.md`](LGTK.md) bản 2 ngày 17/11/2026. Claude lập plan, điều phối và cập nhật bảng này. Chat Codex chỉ ghi `status/<bước>.md` trên nhánh của mình.
 
-staging: deploy đợt 1 bản 2 (L7 #178, F0 #177, G4 #176, T2 #179) với migration `0034`, đến 12:00 Europe/Berlin
+Khung staging đợt 1 bản 2 (L7, F0, G4, T2, migration `0034`) đã đóng lúc 11:03 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -18,7 +18,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `a44cda211fceb6c7ca9e833cefa23d28f1c77c96` | [Deploy T1 ngày 17/11 lúc 08:59 Berlin](https://github.com/unhuman1289/learning-hub/actions/runs/44042671794). Hub và MCP cùng SHA, D1 kết nối, đã áp `0032_tutor.sql` và smoke đạt. |
+| Staging | `b3ba50933463f86d0dfde9a1bdda85add0c5c17b` | Deploy 17/11 lúc 11:02 Berlin ([workflow](https://github.com/unhuman1289/learning-hub/actions/runs/44060756757)) sau khi gộp #176–#179. Đã sao lưu D1 trước, áp `0034_tutor_openai.sql`, không còn migration chờ. Hub và MCP cùng SHA, D1 kết nối, smoke đạt. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -43,16 +43,16 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | Ngân sách bàn học | [#166](https://github.com/unhuman1289/learning-hub/pull/166) và [#169](https://github.com/unhuman1289/learning-hub/pull/169) đã gộp và deploy. CI sau khi gộp đo 176.993 B gzip trên iPhone 13 và Pixel 7 giả lập, ngưỡng 180.000 B. | [Kết quả CI](https://github.com/unhuman1289/learning-hub/actions/runs/43797525717). |
 | L1–L4 | L1 [#158](https://github.com/unhuman1289/learning-hub/pull/158), L2 [#164](https://github.com/unhuman1289/learning-hub/pull/164) và L3 [#167](https://github.com/unhuman1289/learning-hub/pull/167) đã gộp. L4 [#173](https://github.com/unhuman1289/learning-hub/pull/173) và chẩn đoán [#174](https://github.com/unhuman1289/learning-hub/pull/174) đã lên staging. **Cổng Q đạt** với job Terra `job_b1d45c18202611170001`, bài `les_69f0a9037cc3007f1f45`, 2 câu nghe và 4 tệp WAV trả HTTP 206. | Log ghi 1.694 ms và 1.886 ms theo bản giọng cho cả bài. [Biên bản L4](status/L4.md) |
 | L5–L6 | L5 [#172](https://github.com/unhuman1289/learning-hub/pull/172) đã gộp. [Biên bản local](status/L5.md) ghi 8/8 ca qua Worker/D1/R2 với API nghe thật. Bàn học đạt 176.805 B gzip trên hai cấu hình giả lập. **L6 đã nghiệm thu** sau PHONE-CHECK bước 10 trên hai máy thật. | Chủ dự án chốt L6 ngày 17/11 và bỏ phần `audio_play`, đo theo tuần và kiểm thử thêm. [Biên bản L6](status/L.md) |
-| G | G1 [#162](https://github.com/unhuman1289/learning-hub/pull/162) và G2 [#157](https://github.com/unhuman1289/learning-hub/pull/157) đã lên staging cho bài văn bản. | G3 hiệu chuẩn bằng engine đang chấm (`0033`), G4 chấm lại có hiệu lực, G5 chấm bài ảnh bằng OpenAI. Bỏ lượt thử ảnh mẫu qua client QA. |
-| T | T0 đạt trên local. T1 [#168](https://github.com/unhuman1289/learning-hub/pull/168) đã gộp và lên staging với `0032_tutor.sql`. | Thiết kế lại theo OpenAI: T2 Worker gọi OpenAI và stream SSE, T3 chặn lộ đáp án và giao diện Hỏi, T4 nghiệm thu. [#175](https://github.com/unhuman1289/learning-hub/pull/175) (relay qua Mac) không gộp; T2 lấy lại phần ngữ cảnh và SSE. |
+| G | G1, G2 trên staging cho bài văn bản. G4 [#176](https://github.com/unhuman1289/learning-hub/pull/176) trên staging: lần chấm lại có hiệu lực, hai lần chấm hiện trong Cần xem và sổ giám hộ, có tỉ lệ đổi điểm 7 ngày. | G4 còn nghiệm thu một ca đổi điểm trên QA H5 Deutsch. Còn G3 (`0033`), G5. |
+| T | T1 (`0032`) và T2 [#179](https://github.com/unhuman1289/learning-hub/pull/179) (`0034`) trên staging: Worker gọi Luna stream SSE, lượt lỗi hoặc quá 10 s vào Queue, trần 60 lượt/ngày, ghi token và `first_token_ms`. Chỉ bật cho hồ sơ người lớn trên sổ đã bật OpenAI. #175 đã đóng. | T2 còn một lượt thật đo chữ đầu < 2 s. Tiếp T3 chặn lộ đáp án và giao diện Hỏi, T4 nghiệm thu. |
 | K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2/K3 bỏ trên staging (17/11). [Hướng dẫn K2](status/K2.md) dùng lại ở bước R. |
-| L7 | Âm thanh đang lưu WAV (khoảng 48 KB/giây) | Lưu dạng nén từ Speech API (AAC hoặc Opus) |
+| L7 | [#178](https://github.com/unhuman1289/learning-hub/pull/178) trên staging: Speech API trả AAC (ADTS), lưu nguyên tệp nén. Fixture: AAC 9.551 B so với WAV 60.266 B | Nghiệm thu bằng một bài Terra mới trên QA L4: 4 tệp AAC trả 206, kích thước thật, nghe trên iPhone |
 | D giao bài 00:00 | Chưa có biên bản đọc lại id bài với OpenAI | Claude đọc D1 staging sau một lượt 00:00 Berlin |
 | N máy thật ở Đức | #165 sửa PHONE-CHECK, chưa chạy lại trên staging | Chủ dự án chạy bước 1–9 và duyệt lật trang U6 |
-| F nhanh và mượt | Số đo CI: bàn học 4,6 s lần đầu (iPhone giả lập), 1,6 s có cache, câu đầu 1,1 s, JS 177/180 KB | F0–F7 theo LGTK mục 8. Không viết lại bằng Rust |
+| F nhanh và mượt | F0 [#177](https://github.com/unhuman1289/learning-hub/pull/177) trên staging: Server-Timing cho route bài, RUM nhận `inp`, `submit_feedback`, `lesson_ready`. JS bàn học 177.288 B | Thu số đo staging cho F0. CPU p95 chờ quyền Workers Observability. Tiếp F1 giảm JS. Còn lỗi chập chờn: tác vụ dài khi lật trang trên Pixel 7 CI, Worker local trả 503 trong e2e |
 | R phát hành production | Production ở `prod-20261113-1`, còn dùng Qwen, chưa áp `0026`–`0033` | Lập kế hoạch chi tiết sau đợt 4. Quyết định ở LGTK mục 11 |
 
-**Migration tiếp theo.** `0032_tutor.sql` đã áp trên staging. G3 dùng `0033`. Production chưa áp `0026`–`0033`; làm ở bước R.
+**Migration tiếp theo.** Staging đã áp đến `0034_tutor_openai.sql`. G3 dùng `0033` (áp sau `0034` trên staging; bảng mới, không phụ thuộc). Production chưa áp `0026`–`0033`; làm ở bước R.
 
 ## Chờ chủ dự án
 
