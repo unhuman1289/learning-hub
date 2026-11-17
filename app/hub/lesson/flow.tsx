@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { RuledPage } from "../../../components/notebook/paper";
 import { rumAfterPaint, rumNavigationStart } from "../rum";
 import { lessonPageWindow } from "./page-window";
@@ -32,6 +32,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const questionStarted = useRef<number | undefined>(undefined);
   const measuredQuestion = useRef(false);
   const touch = useRef<{ x: number; y: number; corner: Corner } | null>(null);
+  const pageHeights = useRef(new Map<number, number>());
   const pages = [[0], ...groups, [count + 1]];
   const target = selected === "summary" ? count + 1 : selected;
   const index = Math.max(0, pages.findIndex(numbers => numbers.includes(target)));
@@ -39,6 +40,20 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const current = pages[index];
   const first = current[0];
   const question = index > 0 && !end;
+
+  useEffect(() => {
+    const leaf = paper.current;
+    if (!leaf) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        const number = Number((entry.target as HTMLElement).dataset.questionPage);
+        const height = entry.borderBoxSize[0]?.blockSize ?? entry.contentRect.height;
+        if (number && height > 0) pageHeights.current.set(number, height);
+      }
+    });
+    leaf.querySelectorAll<HTMLElement>("[data-question-page]").forEach(element => observer.observe(element));
+    return () => observer.disconnect();
+  }, [index, groups]);
 
   useEffect(() => {
     const started = questionStarted.current ?? (initialItem > 0 && initialItem <= count ? rumNavigationStart("first_question") : undefined);
@@ -58,8 +73,18 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
     };
     if (current.includes(next)) update();
     else {
-      void import("./turn-leaf").then(({ turnLeaf }) => {
-        if (document.getElementById(paperId)) turnLeaf(paperId, direction, update, curl, corner);
+      void import("./turn-leaf").then(({ turnLeaf, turnPrepared }) => {
+        const leaf = document.getElementById(paperId);
+        if (!leaf) return;
+        const nextFirst = groups.find(group => group.includes(next))?.[0];
+        const outgoing = leaf.querySelector<HTMLElement>(`[data-question-page="${first}"]`);
+        const incoming = nextFirst === undefined ? null : leaf.querySelector<HTMLElement>(`[data-question-page="${nextFirst}"]`);
+        const oldHeight = pageHeights.current.get(first);
+        const nextHeight = nextFirst === undefined ? undefined : pageHeights.current.get(nextFirst);
+        if (question && outgoing && incoming && oldHeight && nextHeight) {
+          turnPrepared(leaf, outgoing, incoming, { old: oldHeight, next: nextHeight }, direction,
+            () => startTransition(update), curl, corner);
+        } else turnLeaf(paperId, direction, update, curl, corner);
       }, () => {
         if (document.getElementById(paperId)) update();
       });
@@ -177,6 +202,8 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       if (event.animationName === "lesson-leaf-arrive" && paper.current) delete paper.current.dataset.fallbackTurn;
     }}>
       <span className="lesson-flow-curl" aria-hidden="true" />
+      {/* jump reads measurement refs only when a learner activates a control. */}
+      {/* eslint-disable-next-line react-hooks/refs */}
       {(question ? lessonPageWindow(groups, target) : [current]).map(numbers => {
         const active = numbers.includes(target);
         const pageFirst = numbers[0];

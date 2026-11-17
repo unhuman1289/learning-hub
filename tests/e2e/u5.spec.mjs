@@ -410,6 +410,10 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await expect(hint).toHaveCount(0);
 
   if (browserName === 'chromium') {
+    // Measure question-to-question turns, where the adjacent pages are prepared.
+    await nextEdge(page).tap();
+    await expect(questionHeading(page)).toBeVisible();
+    await turnSettled(page);
     // On a 4× slower CPU, gate long frames attributed to Hub scripts during the turn.
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
@@ -468,21 +472,24 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
         window.__turnFrames.length = 0;
         performance.clearMarks('turn:start');
         performance.clearMarks('turn:end');
+        performance.clearMarks('turn:prepared');
       });
       await turn();
       await expect(page.locator('html')).toHaveAttribute('data-lesson-turn', /.+/);
       await turnSettled(page);
-      const { tasks, frames, start, end, origin } = await page.evaluate(() => {
+      const { tasks, frames, start, end, origin, prepared } = await page.evaluate(() => {
         window.__turnFrames.push(...window.__turnFrameObserver.takeRecords().map(entry => ({
           ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
         })));
         return { tasks: window.__longTasks, frames: window.__turnFrames,
           start: performance.getEntriesByName('turn:start').at(-1)?.startTime,
-          end: performance.getEntriesByName('turn:end').at(-1)?.startTime, origin: location.origin };
+          end: performance.getEntriesByName('turn:end').at(-1)?.startTime, origin: location.origin,
+          prepared: performance.getEntriesByName('turn:prepared').length };
       });
       console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
       expect(start, 'turn start mark').toBeDefined();
       expect(end, 'turn end mark').toBeDefined();
+      expect(prepared, 'prepared question turn').toBe(1);
       const blockingFrames = frames.filter(frame => hubLongFrame(frame, start, end, origin));
       console.log(JSON.stringify({ metric: 'turn-hub-long-frames', frames: blockingFrames }));
       expect(blockingFrames, 'Hub-attributed long animation frame during a turn').toEqual([]);
