@@ -25,6 +25,7 @@
 | 17/11 | Claude lập plan và điều phối | Chat Codex Planning thôi sửa plan. Mục 12 |
 | 17/11 | **OpenAI và TTS mặc định bật cho mọi sổ trên staging, kể cả trẻ em.** Quản trị → Sổ tắt được từng sổ. Trẻ em chỉ gửi biệt danh, giám hộ đọc được mọi lời AI | Giải quyết quyết định 11.2. T4 và G5 không còn chờ. Bỏ chép danh sách cũ từ secret |
 | 17/11 | Claude được gộp PR vào `codex/hub-next-wip` và deploy staging khi CI đạt và bước nằm trong plan này | Production, xoá dữ liệu và đổi quyền vẫn cần chủ dự án |
+| 17/11 | **Duyệt M5: gia sư là một nhân vật nhỏ (sprite) để trò chuyện** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX)) | T3 làm tấm trò chuyện; T3b gắn nhân vật. Sprite không vào Git (repo public), nằm trong R2 sau cổng gia đình |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
@@ -176,15 +177,39 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 - Gom các đoạn thành câu trước khi gửi xuống trình duyệt.
 - Câu chứa đáp án (`accepted`, lựa chọn đúng, `solution`, đã chuẩn hoá như G1) thì bị bỏ. Thay bằng "(Gia sư không đưa đáp án)" và tăng `leak_blocked`.
 
-**Giao diện:**
-- Nút "Hỏi" trong `app/hub/lesson/item.tsx`, tải lazy.
-- Tấm trượt từ dưới lên, cao tối đa 55% màn hình, không che đề.
-- Đọc SSE bằng `fetch` + `ReadableStream`.
-- Mất kết nối thì hiện phần đã nhận và nút "Hỏi tiếp". Mở lại thì tải đủ bằng `GET /api/lessons/[id]/tutor`.
-- JS của bàn học không đổi. Nút và tấm trượt chỉ tải ở màn bài.
-- Mockup trạng thái tấm trượt do Claude làm trước, chủ dự án duyệt (M5).
+**Giao diện (theo M5 đã duyệt 17/11):**
+- Màn bài có nhân vật gia sư nhỏ ngồi ở góc chân trang, kèm bong bóng "Hỏi mình nhé!". Cả cụm là một `<button>` có nhãn "Hỏi gia sư về câu này". Sổ bị Quản trị tắt OpenAI thì không có nhân vật. Code nằm cạnh `app/hub/lesson/item.tsx`, tải lazy.
+- Chạm vào thì mở tấm trò chuyện trượt từ dưới lên, cao tối đa 55% màn hình, không che đề và phương án. Tấm không làm tối trang phía sau.
+- Đầu tấm có nhân vật, tên (mặc định "Gia sư nhỏ") và một dòng phụ. Người lớn: "Gợi hướng cho câu này, không nói đáp án." Trẻ em: "Chỉ hỏi về câu này. Bố mẹ đọc được mọi câu hỏi và trả lời."
+- Lời gia sư nằm trong bong bóng giấy trắng bên trái. Câu của người học là giấy nhớ vàng bên phải.
+- Lời chào khi mở viết sẵn, không gọi AI: "Chào bạn! Câu 3 có chỗ nào chưa rõ? Mình gợi hướng thôi, không nói đáp án đâu nhé." Kèm ba câu gợi ý, chạm vào thì điền vào ô hỏi.
+- Ngay khi gửi, trong vòng 100 ms, hiện bong bóng "Để mình nghĩ chút…" (`aria-live`). Nút Gửi đổi thành "Chờ chút" và bị khoá. Chữ chảy dần vào bong bóng.
+- Câu bị chặn hiện bằng mực đỏ: "(Chỗ này có đáp án, mình giữ lại nhé.)". Câu này thay cho câu cũ của Worker.
+- Mất kết nối: giữ phần đã nhận, hiện "Mất kết nối. Phần đã nghe vẫn được giữ." và nút "Hỏi tiếp". Mở lại thì tải đủ bằng `GET /api/lessons/[id]/tutor`.
+- Gia sư bận (`queued`): "Mình đang bận một chút. Câu trả lời sẽ có trong bài, bạn cứ làm câu khác rồi quay lại đọc nhé."
+- Hết lượt trong ngày: "Hôm nay mình đã trả lời đủ 20 lượt. Mai hỏi tiếp nhé!", ẩn ô hỏi. Dưới ô hỏi luôn có dòng "Còn N lượt hỏi hôm nay".
+- Hồ sơ trẻ em: dòng kẻ 36 px, chữ lớn hơn.
+- Ở T3, nhân vật là component `TutorPet({ state })` trong `app/hub/lesson/tutor-pet.tsx`, mới chỉ là chỗ giữ tĩnh. Các state: `idle`, `cheer`, `enter`, `greet`, `listen`, `think`, `talk`, `blocked`, `offline`, `busy`, `limit`, `leave`. T3b thay phần ruột.
+- JS của bàn học không đổi.
 
 **Xong khi:** e2e hỏi, nhận chữ từng đoạn, chạm giới hạn, mất mạng rồi hỏi tiếp, và một ca đáp án bị chặn.
+
+### T3b. Nhân vật gia sư
+
+Sau khi T3 có `TutorPet`. Sheet gốc: `private-data/tutor-sprite/sheet-v1.webp` ở checkout chính (ngoài Git). Khung 8 cột × 11 hàng, mỗi ô khoảng 168 × 182 px, nền trong suốt.
+
+Các hàng: 1 đứng chớp mắt (6 khung), 2 chạy phải (8), 3 chạy trái (8), 4 vẫy tay (4), 5 nhảy mừng (5), 6 nhắm mắt chắp tay (8), 7 dang tay giải thích (6), 8 chống cằm (6), 9 nghiêng đầu (6), 10 nhìn quanh (8), 11 nói (8).
+
+Gán state:
+- `idle` → 1; `cheer` → 5, chạy một lượt; `enter` → 3; `leave` → 2; `greet` → 4;
+- `listen` → 9; `think` → 8; `talk` → 11, xen với 7;
+- `busy` → 6; `blocked`, `offline`, `limit` tạm dùng 10 hoặc 6 cho đến khi có hàng mới (lắc đầu, cầm ô, ngủ gật).
+
+Việc:
+- Script `scripts/tutor-sprite.mjs`: cắt sheet thành từng hàng WebP 2×, mỗi hàng ≤ 30 KB, và ghi `manifest.json` (hàng, số khung, kích thước). Đầu ra nằm trong `private-data/`, không commit.
+- Worker phục vụ `/api/tutor/sprite/<tên>.webp` từ R2 `UPLOADS` dưới khoá `assets/tutor/v1/`, sau cổng gia đình, có `Cache-Control` dài và ETag. Claude tự tải ảnh lên R2 staging sau khi gộp.
+- `TutorPet` hoạt hình bằng CSS `steps()` theo manifest. Chỉ tải hàng đang cần; preload hàng `idle` khi mở bài. Khi giảm chuyển động thì đứng yên ở khung 1. Ảnh có `aria-hidden`; tải lỗi thì hiện chỗ giữ tĩnh, không vỡ bố cục.
+- e2e: đổi state thì đổi hàng; giảm chuyển động thì không có animation; JS bàn học không tăng.
 
 ### T4. Nghiệm thu gia sư trên staging
 
