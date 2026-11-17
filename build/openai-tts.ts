@@ -1,7 +1,8 @@
 import { audioVariant } from '../lib/audio/hash.mjs';
 import { ApiError } from '../lib/api-error.ts';
 import { AudioStorageError, type uploadAudio } from '../lib/audio/upload.ts';
-import { MAX_AUDIO_BYTES, pcmWav } from '../lib/audio/wav.ts';
+import { MAX_AUDIO_BYTES } from '../lib/audio/wav.ts';
+import { aacDurationMs } from '../lib/audio/aac.ts';
 import { OPENAI_SPEECH_MODEL, OPENAI_VOICE_PREFIX } from '../lib/audio/openai-voices.ts';
 import { containsContactDetails } from '../lib/automation/privacy.ts';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
@@ -40,7 +41,7 @@ async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice:
         input: line.text,
         instructions: 'Read the provided text verbatim in German, with clear, natural pronunciation. Do not add words.',
         speed: audio.rate,
-        response_format: 'pcm',
+        response_format: 'aac',
       }),
     });
   } catch {
@@ -59,7 +60,7 @@ async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice:
       if (chunk.done) break;
       if (size + chunk.value.length > MAX_AUDIO_BYTES) {
         await reader.cancel().catch(() => {});
-        throw new QueueAudioError({ ...location, stage: 'audio_format', code: 'pcm_size_limit' });
+        throw new QueueAudioError({ ...location, stage: 'audio_format', code: 'aac_size_limit' });
       }
       data.set(chunk.value, size);
       size += chunk.value.length;
@@ -67,8 +68,9 @@ async function speech(audio: AudioSpec, line: AudioSpec['lines'][number], voice:
   } finally {
     reader.releaseLock();
   }
-  if (!size || size % 2) throw new QueueAudioError({ ...location, stage: 'audio_format', code: 'pcm_invalid_length' });
-  return data.slice(0, size);
+  const bytes = data.slice(0, size);
+  if (!aacDurationMs(bytes.buffer)) throw new QueueAudioError({ ...location, stage: 'audio_format', code: 'aac_invalid' });
+  return bytes;
 }
 
 type Upload = (req: Request, hash: string) => ReturnType<typeof uploadAudio>;
@@ -133,17 +135,18 @@ export async function uploadOpenAiPlanAudio(
     }
     log({ variant, ms: Date.now() - start, count: pending.size });
     for (const [hash, { audio, path }] of pending) {
-      let bytes;
-      try {
-        bytes = pcmWav(clips.get(hash)!);
-      } catch {
-        throw new QueueAudioError({ stage: 'audio_format', code: 'wav_pack_failed', path, variant });
-      }
+      const pieces = clips.get(hash)!;
+      const length = pieces.reduce((sum, piece) => sum + piece.length, 0);
+      if (length > MAX_AUDIO_BYTES) throw new QueueAudioError({ stage: 'audio_format', code: 'aac_size_limit', path, variant });
+      const bytes = new Uint8Array(length);
+      let offset = 0;
+      for (const piece of pieces) { bytes.set(piece, offset); offset += piece.length; }
+      if (!aacDurationMs(bytes.buffer)) throw new QueueAudioError({ stage: 'audio_format', code: 'aac_invalid', path, variant });
       const encoded = new TextEncoder().encode(JSON.stringify({ audio, variant }));
       const spec = btoa(String.fromCharCode(...encoded));
       const request = new Request('https://queue.internal/audio', {
         method: 'PUT', body: bytes,
-        headers: { 'Content-Type': 'audio/wav', 'X-Audio-Spec': spec },
+        headers: { 'Content-Type': 'audio/aac', 'X-Audio-Spec': spec },
       });
       try {
         await upload(request, hash);

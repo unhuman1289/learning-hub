@@ -8,6 +8,7 @@ import { leaseJobs, leasedJob } from '../lib/ai-jobs/lease.ts';
 import { audioVariant } from '../lib/audio/hash.mjs';
 import { resolveLessonAudio } from '../lib/audio/lesson.ts';
 import { playAudio } from '../lib/audio/playback.ts';
+import { pcmWav } from '../lib/audio/wav.ts';
 import { uploadAudio, MAX_AUDIO_BYTES } from '../lib/audio/upload.ts';
 import { readLessonV2 } from '../lib/lesson-v2/store.ts';
 import { validateLessonPackage } from '../lib/lesson-v2/validate.ts';
@@ -133,4 +134,13 @@ test('plan drops audio items without both objects, then enforces the original it
   await assert.rejects(playAudio(db, bucket, { id: 'other' }, cached, f.hash), { status: 404 });
   assert.equal((await playAudio(db, bucket, { id: 'other' }, request({}, '?learner=' + learnerId), f.hash)).status, 404);
   assert.equal((await playAudio(db, bucket, { id: 'other', role: 'admin' }, request({}), f.hash)).status, 200);
+  // Previously saved OpenAI WAV assets keep their original key and MIME type.
+  const wav = pcmWav([new Uint8Array(4800)]);
+  const wavKey = 'audio/' + f.hash + '.wav';
+  objects.set(wavKey, { bytes: wav, size: wav.byteLength });
+  db.sqlite.prepare('UPDATE audio_assets SET r2_key=?, bytes=? WHERE hash=?').run(wavKey, wav.byteLength, f.hash);
+  const legacy = await playAudio(db, bucket, { id: learnerId }, request({ Range: 'bytes=0-3' }), f.hash);
+  assert.equal(legacy.status, 206);
+  assert.equal(legacy.headers.get('Content-Type'), 'audio/wav');
+  assert.equal(Buffer.from(await legacy.arrayBuffer()).toString(), 'RIFF');
 });

@@ -37,7 +37,7 @@ export async function playAudio(
   const etag = '"' + hash + '"';
   const headers = new Headers({
     'Cache-Control': 'private, max-age=31536000, immutable',
-    'Content-Type': asset.r2_key.endsWith('.wav') ? 'audio/wav' : 'audio/mp4',
+    'Content-Type': asset.r2_key.endsWith('.wav') ? 'audio/wav' : asset.r2_key.endsWith('.aac') ? 'audio/aac' : 'audio/mp4',
     'X-Content-Type-Options': 'nosniff',
     'Accept-Ranges': 'bytes',
     ETag: etag,
