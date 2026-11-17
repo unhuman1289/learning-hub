@@ -3,7 +3,8 @@ import {useLiveRefresh} from "./use-live-refresh";
 import { useEffect, useRef, useState } from "react";
 import { buttonClass } from "./ui";
 import { apiJson } from "./api";
-type ApiBody = { error?: string; jobs: Job[]; learners: { id: string; name: string }[]; job: unknown };
+type ApiBody = { error?: string; jobs: Job[]; tutorTurns: TutorTurn[]; learners: { id: string; name: string }[]; job: unknown };
+type TutorTurn = {id:string;status:string;openai_calls:number;created_at:string;learner_name:string};
 type PlanNotebook = { id: string; title: string; aiEnabled: boolean; status: string };
 type Job = {
   id: string;
@@ -12,6 +13,7 @@ type Job = {
   kind: string;
   purpose: string;
   status: string;
+  openai_calls: number;
   created_at: string;
   usage: string | null;
   cost_usd: number | null;
@@ -19,6 +21,7 @@ type Job = {
 };
 export function AiJobsPanel({ active = true }: { active?: boolean }) {
   const [jobs, setJobs] = useState<Job[]>([]),
+    [tutorTurns,setTutorTurns] = useState<TutorTurn[]>([]),
     [error, setError] = useState(""),
     [notice,setNotice]=useState(""),
     [pending,setPending]=useState<{learner:string;requestId:string;subjectId:string}|null>(null),
@@ -58,7 +61,7 @@ export function AiJobsPanel({ active = true }: { active?: boolean }) {
     const r = await fetch(url, { cache: "no-store" }),
       x = (await r.json()) as ApiBody;
     if (!r.ok) throw Error(x.error || "Chưa tải được nhật ký.");
-    setJobs(x.jobs);
+    setJobs(x.jobs); setTutorTurns(x.tutorTurns ?? []);
   }
   useEffect(() => {
     let alive = true;
@@ -67,7 +70,7 @@ export function AiJobsPanel({ active = true }: { active?: boolean }) {
         const x = (await r.json()) as ApiBody;
         if (!r.ok) throw Error(x.error || "Chưa tải được nhật ký.");
         if (alive) {
-          setJobs(x.jobs);
+          setJobs(x.jobs); setTutorTurns(x.tutorTurns ?? []);
         }
       })
       .catch((e) => {
@@ -188,6 +191,7 @@ export function AiJobsPanel({ active = true }: { active?: boolean }) {
             <p className="break-all text-xs text-muted">
               {j.id} · {j.created_at}
             </p>
+            <p className="text-sm">Số lần gọi OpenAI: {j.openai_calls}</p>
             <p className="text-sm">Chi phí ước tính: {j.cost_usd === null ? "chưa có bảng giá" : j.cost_usd + " USD"}</p>
             {j.error && <p>{j.error}</p>}
             <button className={buttonClass("secondary", "mt-2")} onClick={() => void inspect(j.id)}>
@@ -201,6 +205,8 @@ export function AiJobsPanel({ active = true }: { active?: boolean }) {
           </li>
         ))}
       </ul>
+      <h3 className="font-semibold">Lượt gia sư</h3>
+      <ul>{tutorTurns.map(t=><li key={t.id} className="border-b border-line py-2 text-sm">{t.learner_name} · {t.status} · {t.openai_calls} lần gọi · {t.created_at} · {t.id}</li>)}</ul>
       {detail !== null && (
         <div>
           <button className={buttonClass("secondary")} onClick={() => setDetail(null)}>

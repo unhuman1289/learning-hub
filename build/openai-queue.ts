@@ -91,10 +91,16 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       }
       const token = lease.leaseToken;
       const active = await leasedJob(db, client, id, token);
+      let speechLimit = false;
       const logAudioFailure = (event: string, details: object) => console.warn(JSON.stringify({
         component: 'openai-queue-tts', jobId: id, leaseCount: active.lease_count, event, ...details,
       }));
-      const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher });
+      const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher, beforeFetch: async () => {
+        const counted = await db.prepare(`UPDATE ai_jobs SET openai_calls=openai_calls+1 WHERE id=? AND openai_calls<2
+          AND status='leased' AND lease_token_sha256=? AND EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id AND openai_enabled=1)`)
+          .bind(id, active.lease_token_sha256).run();
+        if (!counted.meta.changes) throw new Error('Đã hết giới hạn 2 lần gọi hoặc quyền sử dụng đã thay đổi.');
+      } });
       const processed = await processJob({
         context: async () => JSON.parse(active.context_snapshot!),
         heartbeat: async () => heartbeat(db, client, id, token),
@@ -116,8 +122,9 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
             return await uploadOpenAiPlanAudio(context, result, apiKey, async (request, hash) => {
               const verify = () => leasedJob(db, client, id, token);
               return uploadAudio(db, bucket, request, await verify(), hash, verify);
-            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher);
+            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher, db, id);
           } catch (error) {
+            if (error instanceof QueueAudioError && error.diagnostic.code === 'speech_call_limit') speechLimit = true;
             logAudioFailure('audio_error', error instanceof QueueAudioError ? error.diagnostic : {
               stage: 'unexpected', code: 'audio_unexpected',
             });
@@ -134,9 +141,12 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       });
       const current = await readJob(db, id);
       if (current?.status === 'failed') {
+        const counter = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
+        if (speechLimit) await db.prepare("UPDATE ai_jobs SET error='Không tạo được âm thanh: đã hết 2 lần gọi hoặc quyền sử dụng đã thay đổi.' WHERE id=? AND status='failed'").bind(id).run();
+        else if (counter?.openai_calls === 2) await db.prepare("UPDATE ai_jobs SET error='Đã dùng hết 2 lần gọi OpenAI; lượt xử lý không hoàn thành.' WHERE id=? AND status='failed'").bind(id).run();
         const detail = 'error' in processed && typeof processed.error === 'string'
           ? processed.error.match(/OpenAI (?:HTTP \d{3}(?: \([a-z_]+\))?|schema preparation failed|request timed out|request transport failed|response status: (?:failed|incomplete|cancelled|queued|in_progress|unknown)(?: \((?:max_output_tokens|content_filter)\))?|declined this response|response was not valid JSON)/)?.[0] : undefined;
-        if (detail) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
+        if (detail && !speechLimit && counter?.openai_calls !== 2) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
           .bind(detail, id, client.id).run();
         console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, leaseCount: active.lease_count, kind: job.kind,
           event: 'queue_failed', status: current.status, ...(detail ? { detail } : {}) }));
