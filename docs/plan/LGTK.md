@@ -26,6 +26,7 @@
 | 17/11 | **OpenAI và TTS mặc định bật cho mọi sổ trên staging, kể cả trẻ em.** Quản trị → Sổ tắt được từng sổ. Trẻ em chỉ gửi biệt danh, giám hộ đọc được mọi lời AI | Giải quyết quyết định 11.2. T4 và G5 không còn chờ. Bỏ chép danh sách cũ từ secret |
 | 17/11 | Claude được gộp PR vào `codex/hub-next-wip` và deploy staging khi CI đạt và bước nằm trong plan này | Production, xoá dữ liệu và đổi quyền vẫn cần chủ dự án |
 | 17/11 | **Duyệt M5: gia sư là một nhân vật nhỏ (sprite) để trò chuyện** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX)) | T3 làm tấm trò chuyện; T3b gắn nhân vật. Sprite không vào Git (repo public), nằm trong R2 sau cổng gia đình |
+| 17/11 | **Chấm bài ảnh bằng OpenAI cho mọi sổ, kể cả trẻ em** | G5 không còn giới hạn sổ người lớn. Chỉ gửi ảnh, không gửi tên hay id; giám hộ đọc mọi lời phê; ảnh xoá sau 30 ngày |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
@@ -128,7 +129,7 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 - Job chấm có ảnh đọc ảnh từ R2 `UPLOADS` trong Worker và gửi cho Luna dưới dạng ảnh đầu vào. Không đưa URL công khai ra ngoài.
 - Trích dẫn từ ảnh giữ cờ `unverified` và câu "chưa đối chiếu được với bài viết tay" (G2).
 - Ảnh vẫn bị xoá sau 30 ngày (AGENTS.md).
-- Chỉ bật cho sổ người lớn trên staging. Trẻ em chờ quyết định dữ liệu ở mục 11.
+- Bật cho mọi sổ, kể cả trẻ em (quyết định 17/11). Sổ bị Quản trị tắt OpenAI thì vẫn đi đường cũ.
 
 **Xong khi:** một bài ảnh tự tạo, không có thông tin cá nhân, trên sổ QA người lớn được chấm, lưu và hiện lời phê đúng trên iPhone và Android ở Đức.
 
