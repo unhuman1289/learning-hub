@@ -14,7 +14,7 @@ runLocalD1(['execute', 'learning-hub', '--command',
 if (process.env.E2E_LISTENING === '1') {
   const { f, m, next } = VOICE_HASHES;
   const voices = {
-    f: { fixture: 'tests/fixtures/audio/de-DE-f.m4a', key: 'audio/e2e-listening-f.m4a', duration: 1254 },
+    f: { fixture: 'tests/fixtures/audio/de-DE-f.aac', key: 'audio/e2e-listening-f.aac', duration: 1254 },
     m: { fixture: 'tests/fixtures/audio/de-DE-m.m4a', key: 'audio/e2e-listening-m.m4a', duration: 1672 },
   };
   for (const { fixture, key } of Object.values(voices)) {

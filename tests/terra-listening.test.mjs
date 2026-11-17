@@ -4,7 +4,8 @@ import { test } from 'node:test';
 import { consumeOpenAi } from '../build/openai-queue.ts';
 import { playAudio } from '../lib/audio/playback.ts';
 import { readLessonV2 } from '../lib/lesson-v2/store.ts';
-import { wavDurationMs } from '../lib/audio/wav.ts';
+import { aacDurationMs } from '../lib/audio/aac.ts';
+const aac = readFileSync(new URL('./fixtures/audio/de-DE-f.aac', import.meta.url));
 import { readJob } from '../lib/ai-jobs/lease.ts';
 import { systemPrompt } from '../integrations/home-runner/job.mjs';
 import { memoryDb } from './d1-adapter.mjs';
@@ -26,7 +27,7 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
       async put(key, bytes, options) {
         if (put) return put();
         assert.equal(options.onlyIf.etagDoesNotMatch, '*');
-        assert.equal(options.httpMetadata.contentType, 'audio/wav');
+        assert.equal(options.httpMetadata.contentType, 'audio/aac');
         if (objects.has(key)) return null;
         const object = { bytes, size: bytes.byteLength, customMetadata: options.customMetadata };
         objects.set(key, object);
@@ -75,20 +76,20 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
       });
     }
     assert.equal(url, 'https://api.openai.com/v1/audio/speech');
-    assert.equal(body.response_format, 'pcm');
+    assert.equal(body.response_format, 'aac');
     assert.equal(body.speed, 0.8);
     const calls = voicesByText.get(body.input) ?? [];
     calls.push(body.voice);
     voicesByText.set(body.input, calls);
     if (speech) return speech();
-    return new Response(new Uint8Array(4800).fill(body.voice === 'marin' ? 11 : 23));
+    return new Response(aac);
   };
   return { raw, db, subject, learner, job, objects, env, voicesByText,
     run: () => consumeOpenAi(batch, env, systemPrompt, fetcher), counts: () => ({ terraCalls, acks }),
   };
 }
 
-test('Terra API fixture and Queue delivery replay save a Deutsch lesson with four playable WAV files', async t => {
+test('Terra API fixture and Queue delivery replay save a Deutsch lesson with four playable AAC files', async t => {
   const { raw, db, subject, learner, job, objects, env, voicesByText, run, counts } = await setupTerraFixture(t);
   await run();
   const saved = await readJob(db, job.job_id);
@@ -109,14 +110,14 @@ test('Terra API fixture and Queue delivery replay save a Deutsch lesson with fou
   }
   for (const item of listening) {
     assert.notEqual(item.audio.src.f, item.audio.src.m);
-    for (const [variant, src] of Object.entries(item.audio.src)) {
+    for (const src of Object.values(item.audio.src)) {
       const hash = src.split('/').at(-1);
-      assert.equal(wavDurationMs(objects.get('audio/' + hash + '.wav').bytes), 1100);
+      assert(aacDurationMs(objects.get('audio/' + hash + '.aac').bytes) > 0);
       const response = await playAudio(db, env.UPLOADS, { id: learner },
-        new Request('http://local.test' + src, { headers: { Range: 'bytes=44-45' } }), hash);
+        new Request('http://local.test' + src, { headers: { Range: 'bytes=0-1' } }), hash);
       assert.equal(response.status, 206);
-      assert.equal(response.headers.get('content-type'), 'audio/wav');
-      assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], variant === 'f' ? [11, 11] : [23, 23]);
+      assert.equal(response.headers.get('content-type'), 'audio/aac');
+      assert.deepEqual([...new Uint8Array(await response.arrayBuffer())], [...aac.subarray(0, 2)]);
     }
   }
   await run();
@@ -142,11 +143,9 @@ test('Queue logs safe stages, codes and paths for the L4 failure modes', async t
     ['Speech transport', { speech: () => { throw Error(secret); } },
       { event: 'audio_error', stage: 'speech_api', code: 'speech_transport',
         path: audioPath + '/lines/0/text', variant: 'f' }],
-    ['PCM length', { speech: () => new Response(new Uint8Array(3)) },
-      { event: 'audio_error', stage: 'audio_format', code: 'pcm_invalid_length',
+    ['invalid AAC', { speech: () => new Response(new Uint8Array(3)) },
+      { event: 'audio_error', stage: 'audio_format', code: 'aac_invalid',
         path: audioPath + '/lines/0/text', variant: 'f' }],
-    ['WAV size', { speech: () => new Response(new Uint8Array(400_000)) },
-      { event: 'audio_error', stage: 'audio_format', code: 'wav_pack_failed', path: audioPath, variant: 'f' }],
     ['R2 put', { put: () => { throw Error(secret); } },
       { event: 'audio_error', stage: 'r2', code: 'r2_put_failed', httpStatus: 503, path: audioPath, variant: 'f' }],
     ['R2 head', { put: () => null, head: () => { throw Error(secret); } },
