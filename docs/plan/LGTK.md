@@ -195,8 +195,8 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
    - không lộ đáp án;
    - giám hộ đọc được.
 3. Tạm chặn OpenAI (sai key trên một bản thử hoặc adapter lỗi) để thấy `queued`, rồi lượt đó được trả lời sau.
-4. Đo `tutor_first_token` qua `/api/rum` trên iPhone ở Đức. Mục tiêu p75 < 3 giây.
-5. Bật cho hồ sơ trẻ em chỉ sau quyết định dữ liệu ở mục 11.
+4. Đo `tutor_first_token` qua `/api/rum` trên iPhone ở Đức. Mục tiêu p75 < 5 giây (sửa 17/11 theo số đo T2.1: riêng OpenAI đã mất 1,7–3,3 s), và "Đang nghĩ…" hiện trong vòng 100 ms sau khi gửi.
+5. Hồ sơ trẻ em đã được bật theo quyết định 17/11 (mục 0). Kiểm thêm một lượt bằng hồ sơ trẻ em: chỉ gửi biệt danh, giám hộ đọc được.
 
 ## 6. Kiểm tra vận hành
 
