@@ -1,12 +1,12 @@
 import { answerTutor } from '../lib/tutor/openai.ts';
 import { QueueAudioError, uploadOpenAiPlanAudio } from './openai-tts.ts';
 import { uploadAudio } from '../lib/audio/upload.ts';
-import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
+import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
 import { openAiEngine } from '../integrations/home-runner/openai.mjs';
 import { contractFor, processJob } from '../integrations/home-runner/job.mjs';
 import { applyResult } from '../lib/ai-jobs/result.ts';
 import { failLeasedJob, heartbeat, leasedJob, leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
-import { openAiSubjects } from '../lib/ai-jobs/queue.ts';
+import { aiSubjects } from '../lib/ai-controls.ts';
 import type { AutomationClient } from '../lib/auth/automation';
 
 const client: AutomationClient = {
@@ -44,9 +44,9 @@ function contentIssues(event: string, issues: unknown[] = []) {
 }
 
 export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch, tutorPrompt = '') {
-  const subjectIds = openAiSubjects(env);
-  const ttsSubjectIds = openAiTtsSubjects(env);
   const { DB: db, OPENAI_API_KEY: apiKey, UPLOADS: bucket } = env;
+  const subjectIds = db ? await aiSubjects(db, env) : [];
+  const ttsSubjectIds = db && apiKey && bucket ? await aiSubjects(db, env, true) : [];
   for (const message of batch.messages) {
     const tutorId=message.body?.tutorTurnId;
     if (tutorId && /^tur_[0-9a-f-]{36}$/.test(tutorId)) {
@@ -151,8 +151,9 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
 }
 
 export async function redispatchOpenAi(env: Cloudflare.Env, now: Date) {
-  const subjectIds = openAiSubjects(env);
-  if (!env.DB || !env.AI_QUEUE || !env.OPENAI_API_KEY || !subjectIds.length) return;
+  if (!env.DB || !env.AI_QUEUE || !env.OPENAI_API_KEY) return;
+  const subjectIds = await aiSubjects(env.DB, env);
+  if (!subjectIds.length) return;
   const { results } = await env.DB.prepare(
     `SELECT id FROM ai_jobs
       WHERE subject_id IN (SELECT value FROM json_each(?))

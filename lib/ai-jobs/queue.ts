@@ -1,3 +1,4 @@
+import { aiSubjects } from '../ai-controls.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
@@ -6,7 +7,9 @@ import { usesAdaptivePlan } from '../subjects/sql.ts';
 export type QueueBindings = {
   AI_LOCAL_ONLY?: string;
   ENVIRONMENT?: string;
+  OPENAI_ENABLED?: string;
   OPENAI_SUBJECT_IDS?: string;
+  OPENAI_TTS_SUBJECT_IDS?: string;
   ADAPTIVE_PILOT_SUBJECT_ID?: string;
   AI_JOBS_DAILY_CAP?: string;
   AI_QUEUE?: { send(body: unknown): Promise<unknown> };
@@ -14,12 +17,6 @@ export type QueueBindings = {
   AI_DISPATCH_SECRET?: string;
   HUB2_ENABLED?: string;
 };
-export function openAiSubjects(bindings: QueueBindings) {
-  return bindings.ENVIRONMENT === 'staging'
-    ? [...new Set((bindings.OPENAI_SUBJECT_IDS ?? '').split(',').map(id => id.trim()))]
-        .filter(id => /^sub_[0-9a-f]{20}$/.test(id)).slice(0, 20)
-    : [];
-}
 
 export async function dispatchJob(
   bindings: QueueBindings,
@@ -176,7 +173,7 @@ export async function enqueue(
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
-  if (input.subjectId && openAiSubjects(bindings).includes(input.subjectId) && saved.status === 'queued' &&
+  if (input.subjectId && (await aiSubjects(db, bindings)).includes(input.subjectId) && saved.status === 'queued' &&
       (saved.trigger !== 'deferred' || input.purpose === 'submission' || input.purpose === 'recheck')) {
     await bindings.AI_QUEUE?.send({ jobId: saved.id }).catch(() => console.error('OpenAI dispatch unavailable; queued job retained.'));
   } else if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {
