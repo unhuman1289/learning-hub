@@ -15,6 +15,7 @@ export async function workerMessage(type: string, id?: string) {
   return true;
 }
 export async function changeOfflineProfile(id: string) {
+  window.dispatchEvent(new Event("lh:profile-change"));
   const sent = await workerMessage('profile', id);
   if (!sent && 'caches' in window) { await caches.delete('lh-today-v1'); await caches.delete('lh-profile-v1'); }
   if (id) localStorage.setItem('lh-offline-profile', id); else localStorage.removeItem('lh-offline-profile');

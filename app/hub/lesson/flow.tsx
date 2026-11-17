@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { RuledPage } from "../../../components/notebook/paper";
 import { rumAfterPaint, rumNavigationStart } from "../rum";
 
@@ -23,6 +23,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   hint?: boolean;
   onHintSeen?: () => void;
 }) {
+  performance.mark("f3:flow-render-start");
   const [selected, setSelected] = useState<number | "summary">(initialItem === count + 1 ? "summary" : initialItem);
   const [direction, setDirection] = useState<"next" | "previous">();
   const root = useRef<HTMLDivElement>(null);
@@ -40,9 +41,13 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   const last = current.at(-1);
   const question = index > 0 && !end;
 
+  useLayoutEffect(() => { performance.mark("f3:flow-commit"); }, []);
+
   useEffect(() => {
     const started = questionStarted.current ?? (initialItem > 0 && initialItem <= count ? rumNavigationStart("first_question") : undefined);
     if (question && started !== undefined && !measuredQuestion.current) {
+      performance.mark("f3:flow-effect");
+      requestAnimationFrame(() => performance.mark("f3:question-frame"));
       return rumAfterPaint("first_question", started, () => {
         measuredQuestion.current = true;
       });
