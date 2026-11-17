@@ -157,3 +157,12 @@ test('first-token timing log contains only durations and the opaque turn id',asy
   for(const key of ['pre_answer_ms','eligibility_ms','recovery_ms','context_ms','claim_ms','recheck_ms','count_ms','openai_first_ms','first_token_ms']) assert.ok(Number.isFinite(entry[key]) && entry[key]>=0,key);
   assert.doesNotMatch(JSON.stringify(entry),/secret prompt|Private Name|private@example\.test|Ếch/);
 });
+
+test('eligibility uses one read and respects the global and per-notebook AI switches',async t=>{
+  const {db,env,create}=await setup(t);const turn=await create();let statements=0;
+  const tracked={...db,prepare(sql){statements++;return db.prepare(sql)}};
+  assert.equal(await tutorEligible(tracked,turn.id,env),true);assert.equal(statements,1);
+  db.sqlite.prepare("INSERT INTO ai_subject_controls(subject_id,openai_enabled,tts_enabled,updated_by,updated_at) VALUES(?,0,1,'admin','t')").run(subject);
+  statements=0;assert.equal(await tutorEligible(tracked,turn.id,env),false);assert.equal(statements,1);
+  statements=0;assert.equal(await tutorEligible(tracked,turn.id,{...env,OPENAI_ENABLED:'false'}),false);assert.equal(statements,0);
+});

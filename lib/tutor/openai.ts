@@ -1,4 +1,3 @@
-import { aiSubjectEnabled } from '../ai-controls.ts';
 import { tutorAnswer } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { tutorContext } from './context.ts';
@@ -10,14 +9,17 @@ type Fetcher = typeof fetch;
 
 /** Permission is checked at creation and again immediately before every model call. */
 export async function tutorEligible(db:EvidenceDb, id:string, env:Bindings) {
-  const row = await db.prepare(`SELECT l.subject_id,coalesce(s.role,'adult') AS role,l.completed_at,coalesce(s.tutor_enabled,1) AS enabled,i.flag
+  if (env.OPENAI_ENABLED !== 'true') return false;
+  const row = await db.prepare(`SELECT l.subject_id,coalesce(s.role,'adult') AS role,l.completed_at,coalesce(s.tutor_enabled,1) AS enabled,i.flag,coalesce(c.openai_enabled,1) AS openai_enabled
     FROM tutor_turns t JOIN learning_lessons l ON l.id=t.lesson_id AND l.user_id=t.learner_id
     JOIN lesson_items i ON i.lesson_id=t.lesson_id AND i.item_id=t.item_id AND i.learner_id=t.learner_id
-    LEFT JOIN learner_settings s ON s.user_id=t.learner_id WHERE t.id=?`).bind(id)
-    .first<{subject_id:string;role:string;completed_at:string|null;enabled:number;flag:string|null}>();
+    JOIN subjects sub ON sub.id=l.subject_id
+    LEFT JOIN learner_settings s ON s.user_id=t.learner_id
+    LEFT JOIN ai_subject_controls c ON c.subject_id=sub.id WHERE t.id=?`).bind(id)
+    .first<{subject_id:string;role:string;completed_at:string|null;enabled:number;flag:string|null;openai_enabled:number}>();
   if (!row || row.completed_at || !row.enabled || row.flag === 'item_void') return false;
   // Children are included (owner decision 17/11/2026); they are sent by nickname only and guardians read every turn.
-  return aiSubjectEnabled(db, env, row.subject_id);
+  return row.openai_enabled === 1;
 }
 
 export async function dispatchTutor(env:Bindings, id:string) {
