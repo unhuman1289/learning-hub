@@ -34,6 +34,8 @@ Khung staging T3 đã đóng lúc 22:42 Europe/Berlin ngày 17/11.
 
 Khung staging T3b đã đóng lúc 23:32 Europe/Berlin ngày 17/11.
 
+staging: deploy G3 (#204) với migration `0036`, F3 (#206), sprite v2 (#207), đến 01:45 Europe/Berlin
+
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
