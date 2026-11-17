@@ -1,15 +1,15 @@
+import { berlinDay, cutoffFor } from '../daily-policy.ts';
+import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { safeText } from '../automation/privacy.ts';
 import {
-  TUTOR_OPEN_TURN_LIMIT, TUTOR_QUESTION_LIMIT, TUTOR_TURN_LIMIT, tutorAnswer,
+  TUTOR_OPEN_TURN_LIMIT, TUTOR_QUESTION_LIMIT, TUTOR_TURN_LIMIT,
   type TutorQuestion, type TutorTurn,
 } from '../contracts/tutor.ts';
 import type { Db } from '../subjects/service.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
 import { onTutorTurn } from './support.ts';
-import type { TutorRelay, TutorRelayInput } from './relay.ts';
 
-export const TUTOR_QUEUED_MESSAGE = 'Gia sư đang nghỉ, câu hỏi sẽ được trả lời khi máy bật';
 
 const eligibleItem = `FROM learning_lessons l JOIN lesson_items i ON i.lesson_id=l.id AND i.learner_id=l.user_id
   LEFT JOIN learner_settings s ON s.user_id=l.user_id
@@ -30,23 +30,20 @@ export async function openTutorTurn(db: Db, learnerId: string, input: TutorQuest
 
   const sensitivity = item.sensitivity ?? 'normal';
   const question = [...safeText(input.question, sensitivity)].slice(0, TUTOR_QUESTION_LIMIT).join('');
-  const relayInput: TutorRelayInput = {
-    question,
-    nickname: safeText(item.display_name || 'Người học', sensitivity),
-    prompt: safeText((JSON.parse(item.payload) as { prompt?: string }).prompt, sensitivity),
-  };
   const id = 'tur_' + crypto.randomUUID();
   const status = live ? 'streaming' : 'queued';
   const createdAt = now.toISOString();
+  const day = berlinDay(now), start = cutoffFor(day), end = cutoffFor(addDays(day, 1));
   // The write rechecks eligibility and both limits in a single SQLite statement.
   const result = await db.prepare(`INSERT INTO tutor_turns (id, lesson_id, item_id, learner_id, question, status, created_at)
     SELECT ?, l.id, i.item_id, l.user_id, ?, ?, ? ${eligibleItem}
       AND l.completed_at IS NULL AND COALESCE(s.tutor_enabled,1)=1
       AND (SELECT count(*) FROM tutor_turns WHERE lesson_id=l.id AND learner_id=l.user_id) < ?
-      AND (SELECT count(*) FROM tutor_turns WHERE learner_id=l.user_id AND status IN ('queued','streaming')) < ?`)
-    .bind(id, question, status, createdAt, ...scope, TUTOR_TURN_LIMIT, TUTOR_OPEN_TURN_LIMIT).run();
+      AND (SELECT count(*) FROM tutor_turns WHERE learner_id=l.user_id AND status IN ('queued','streaming')) < ?
+      AND (SELECT count(*) FROM tutor_turns WHERE learner_id=l.user_id AND created_at>=? AND created_at<?) < 60`)
+    .bind(id, question, status, createdAt, ...scope, TUTOR_TURN_LIMIT, TUTOR_OPEN_TURN_LIMIT, start, end).run();
   if (!result.meta.changes) {
-    throw new ApiError(409, 'Chỉ có thể chờ một câu trả lời mỗi lần và hỏi tối đa 20 lượt trong một bài.');
+    throw new ApiError(409, 'Chỉ có thể chờ một câu trả lời mỗi lần, hỏi tối đa 20 lượt mỗi bài và 60 lượt mỗi ngày.');
   }
   try {
     await onTutorTurn(db, { learnerId, lessonId: input.lessonId, itemId: input.itemId });
@@ -54,7 +51,7 @@ export async function openTutorTurn(db: Db, learnerId: string, input: TutorQuest
     await db.prepare("UPDATE tutor_turns SET status='failed' WHERE id=? AND status=?").bind(id, status).run();
     throw error;
   }
-  return { id, status, relayInput };
+  return { id, status };
 }
 
 export async function readTutorTurns(db: Db, learnerId: string, lessonId: string): Promise<TutorTurn[]> {
@@ -65,36 +62,4 @@ export async function readTutorTurns(db: Db, learnerId: string, lessonId: string
     first_token_ms, created_at, answered_at FROM tutor_turns WHERE lesson_id=? AND learner_id=? ORDER BY created_at,rowid`)
     .bind(lessonId, learnerId).all<TutorTurn>();
   return results;
-}
-
-export function tutorStream(db: Db, turn: { id: string; relayInput: TutorRelayInput }, relay: TutorRelay, started: number) {
-  const encoder = new TextEncoder();
-  let cancelled = false;
-  return new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const emit = (event: string, data: object) => {
-        if (!cancelled) controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
-      };
-      try {
-        emit('turn', { id: turn.id, status: 'streaming' });
-        const answer = tutorAnswer.parse(await relay(turn.relayInput));
-        const firstTokenMs = Math.round(Math.max(0, performance.now() - started));
-        emit('delta', { text: answer });
-        const result = await db.prepare(`UPDATE tutor_turns SET answer=?, status='answered', first_token_ms=?, answered_at=?
-          WHERE id=? AND status='streaming'`).bind(answer, firstTokenMs, new Date().toISOString(), turn.id).run();
-        if (!result.meta.changes) throw new Error('Tutor turn is no longer streaming');
-        emit('done', { id: turn.id, status: 'answered' });
-      } catch {
-        try {
-          await db.prepare("UPDATE tutor_turns SET status='failed' WHERE id=? AND status='streaming'").bind(turn.id).run();
-        } catch {
-          console.error('Chưa ghi được trạng thái lượt gia sư.', turn.id);
-        }
-        emit('error', { message: 'Chưa trả lời được câu hỏi.' });
-      } finally {
-        if (!cancelled) controller.close();
-      }
-    },
-    cancel() { cancelled = true; },
-  });
 }

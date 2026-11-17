@@ -1,4 +1,3 @@
-import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 
 const lessonId = 'les_00000000000000000005';
@@ -8,7 +7,6 @@ const child = 'demo-ech';
 test('Quản trị tắt gia sư, trẻ em hỏi qua SSE và người giám hộ đọc nhận xét', async ({ page, baseURL }) => {
   const local = new URL(baseURL);
   expect(['localhost', '127.0.0.1']).toContain(local.hostname);
-  const { bearer } = JSON.parse(await readFile('.wrangler/demo-runner.json', 'utf8'));
   const headers = { origin: local.origin };
   const profile = data => page.request.post('/api/profiles', { headers, data });
   const toggle = enabled => page.request.post('/api/admin/family', {
@@ -46,18 +44,11 @@ test('Quản trị tắt gia sư, trẻ em hỏi qua SSE và người giám hộ
   expect((await toggle(true)).status()).toBe(200);
   expect((await profile({ action: 'select', id: child })).status()).toBe(200);
 
-  const heartbeat = new URL('/api/automation/v2/jobs/lease', local);
-  heartbeat.hostname = 'localhost';
-  const lease = await page.request.post(heartbeat.href, {
-    headers: { Authorization: bearer },
-    data: { kinds: ['assess'], max: 1, runner: { name: 'T1 QA', version: '1', model: 'none' } },
-  });
-  expect(lease.status()).toBe(200);
   const response = await ask('Em nên bắt đầu từ đâu? test@example.test');
   expect(response.status()).toBe(200);
   expect(response.headers()['content-type']).toContain('text/event-stream');
   const events = await response.text();
-  expect(events).toMatch(/event: delta[\s\S]*event: done/);
+  expect(events).toMatch(/event: delta[\s\S]*event: delta[\s\S]*event: done/);
   const turnId = JSON.parse(events.split('\n')[1].slice('data: '.length)).id;
 
   expect((await profile({ action: 'select', id: 'demo-adult' })).status()).toBe(200);

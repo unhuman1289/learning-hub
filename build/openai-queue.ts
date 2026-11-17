@@ -1,3 +1,4 @@
+import { answerTutor } from '../lib/tutor/openai.ts';
 import { QueueAudioError, uploadOpenAiPlanAudio } from './openai-tts.ts';
 import { uploadAudio } from '../lib/audio/upload.ts';
 import { openAiGermanVoices, openAiTtsSubjects } from '../lib/audio/openai-voices.ts';
@@ -42,11 +43,22 @@ function contentIssues(event: string, issues: unknown[] = []) {
   });
 }
 
-export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch) {
+export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorTurnId?: string }>, env: Cloudflare.Env, getPrompt: (kind: string, purpose: string) => string, fetcher = fetch, tutorPrompt = '') {
   const subjectIds = openAiSubjects(env);
   const ttsSubjectIds = openAiTtsSubjects(env);
   const { DB: db, OPENAI_API_KEY: apiKey, UPLOADS: bucket } = env;
   for (const message of batch.messages) {
+    const tutorId=message.body?.tutorTurnId;
+    if (tutorId && /^tur_[0-9a-f-]{36}$/.test(tutorId)) {
+      if (!db || !apiKey || !tutorPrompt) { message.retry({delaySeconds:60}); continue; }
+      try {
+        const outcome=await answerTutor(db,env,tutorId,tutorPrompt,()=>{},fetcher);
+        if (outcome==='ineligible') await db.prepare(`UPDATE tutor_turns SET status='blocked' WHERE id=? AND status='queued'
+          AND EXISTS(SELECT 1 FROM learning_lessons l WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NOT NULL)`).bind(tutorId).run();
+        if (outcome==='queued' || outcome==='claimed') message.retry({delaySeconds:90}); else message.ack();
+      } catch { message.retry({delaySeconds:90}); }
+      continue;
+    }
     const id = message.body?.jobId;
     if (!db || !id || !/^job_[0-9a-f]{20}$/.test(id) || !subjectIds.length) {
       message.ack();
@@ -152,4 +164,10 @@ export async function redispatchOpenAi(env: Cloudflare.Env, now: Date) {
   ).bind(JSON.stringify(subjectIds), now.toISOString(), new Date(now.getTime() - 120000).toISOString(),
     client.id, now.toISOString()).all<{ id: string }>();
   for (const job of results) await env.AI_QUEUE.send({ jobId: job.id });
+  const {results:turns}=await env.DB.prepare(`SELECT t.id FROM tutor_turns t JOIN learning_lessons l ON l.id=t.lesson_id
+    JOIN learner_settings s ON s.user_id=t.learner_id JOIN lesson_items i ON i.lesson_id=t.lesson_id AND i.item_id=t.item_id
+    WHERE l.subject_id IN (SELECT value FROM json_each(?)) AND s.role='adult' AND s.tutor_enabled=1 AND l.completed_at IS NULL
+    AND i.flag IS NOT 'item_void' AND ((t.status='queued' AND t.created_at<=?) OR (t.status='streaming' AND t.lease_expires_at<=?))
+    ORDER BY t.created_at LIMIT 10`).bind(JSON.stringify(subjectIds),new Date(now.getTime()-120000).toISOString(),now.toISOString()).all<{id:string}>();
+  for (const turn of turns) await env.AI_QUEUE.send({tutorTurnId:turn.id});
 }
