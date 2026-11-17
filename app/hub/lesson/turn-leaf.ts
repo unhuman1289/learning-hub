@@ -22,6 +22,12 @@ const clip = (top: number, bottom: number, from: number, to: number) => `inset($
  */
 export function turnLeaf(id: string, direction: "next" | "previous", update: () => void, curl = 0, corner: "top" | "bottom" = "bottom") {
   const html = document.documentElement;
+  const diag = (window as Window & { __e2eTurnDiag?: boolean }).__e2eTurnDiag;
+  const mark = (phase: string) => { if (diag) performance.mark(`turn:${phase}`); };
+  const measure = (name: string, start: string, end: string) => {
+    if (diag) performance.measure(`turn:${name}`, `turn:${start}`, `turn:${end}`);
+  };
+  mark("start");
   if (html.dataset.lessonTurn) return;
   if (stillPage()) { update(); return; }
   const leaf = document.getElementById(id);
@@ -33,9 +39,14 @@ export function turnLeaf(id: string, direction: "next" | "previous", update: () 
   const old = leaf.getBoundingClientRect();
   html.dataset.lessonTurn = direction;
   html.dataset.lessonFold = corner;
+  mark("transition-start");
   void document.startViewTransition(() => {
+    mark("update-start");
     html.dataset.lessonTurnIn = "";
+    mark("flush-start");
     flushSync(update);
+    mark("flush-end");
+    measure("flush", "flush-start", "flush-end");
     // The window is where both sheets are on screen; the old sheet folds from its corner.
     const next = document.getElementById(id)?.getBoundingClientRect() ?? old;
     let from = Math.max(0, old.top, next.top), to = Math.min(innerHeight, old.bottom, next.bottom);
@@ -43,7 +54,12 @@ export function turnLeaf(id: string, direction: "next" | "previous", update: () 
     const values = [px(old.width), px(old.height), px((corner === "top" ? from : to) - old.top), px(Math.max(REST_CURL, curl)),
       px(2 * Math.ceil(Math.hypot(old.width, old.height)) + 2), clip(old.top, old.bottom, from, to), clip(next.top, next.bottom, from, to)];
     geometry.forEach((name, index) => html.style.setProperty(name, values[index]));
+    mark("update-end");
+    measure("update", "update-start", "update-end");
   }).finished.catch(() => {}).finally(() => {
+    mark("end");
+    measure("transition", "transition-start", "end");
+    measure("total", "start", "end");
     delete html.dataset.lessonTurn;
     delete html.dataset.lessonTurnIn;
     delete html.dataset.lessonFold;

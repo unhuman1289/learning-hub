@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { ApiError, apiFailure } from '../../../../lib/api-error';
@@ -28,7 +29,7 @@ export async function GET() {
 /** {action:"profile", userId, role?, displayName?} | {action:"tutor", userId, enabled} | {action:"link"|"unlink", guardianId, learnerId} */
 export async function POST(req: Request) {
   const access = await requireAdmin();
-  if ('response' in access) return access.response;
+  if ('response' in access) { if (env.ENVIRONMENT === 'local') await req.arrayBuffer(); return access.response; }
   if (req.headers.get('origin') !== new URL(req.url).origin) return Response.json({ error: 'Origin rejected' }, { status: 403, headers });
   try {
     const body = await req.json() as Record<string, unknown> | null;

@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { getHubUser } from '../../../../../lib/auth/session';
 import { storage } from '../../../../../db/storage';
 import { apiFailure } from '../../../../../lib/api-error';
@@ -12,7 +13,10 @@ export async function POST(req: Request, context: Context) {
   if (!user) return Response.json({ error: 'Sign in required' }, { status: 401, headers });
   if (req.headers.get('origin') !== new URL(req.url).origin) return Response.json({ error: 'Origin rejected' }, { status: 403, headers });
   const { id } = await context.params;
-  if (id !== 'me' && id !== user.id) return Response.json({ error: 'Not found' }, { status: 404, headers });
+  if (id !== 'me' && id !== user.id) {
+    if (env.ENVIRONMENT === 'local') await req.arrayBuffer();
+    return Response.json({ error: 'Not found' }, { status: 404, headers });
+  }
   try {
     const body = await req.json().catch(() => null) as { voice?: unknown } | null;
     if ((body?.voice !== 'f' && body?.voice !== 'm') || Object.keys(body).length !== 1)

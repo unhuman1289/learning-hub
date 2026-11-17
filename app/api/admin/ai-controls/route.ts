@@ -25,7 +25,7 @@ export async function GET() {
   try { return Response.json(await read(),{headers}); } catch(e) { return apiFailure(e,'Chưa tải được cài đặt AI.',headers); }
 }
 export async function PUT(req:Request) {
-  const auth=await access(); if ('response' in auth) return auth.response;
+  const auth=await access(); if ('response' in auth) { if (env.ENVIRONMENT === 'local') await req.arrayBuffer(); return auth.response; }
   if (req.headers.get('origin')!==new URL(req.url).origin) return Response.json({error:'Origin rejected'},{status:403,headers});
   try {
     const body=await req.json() as Record<string,unknown>;

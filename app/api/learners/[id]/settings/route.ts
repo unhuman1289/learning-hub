@@ -1,3 +1,4 @@
+import { env } from 'cloudflare:workers';
 import { getHubUser } from '../../../../../lib/auth/session';
 import { storage } from '../../../../../db/storage';
 import { apiFailure } from '../../../../../lib/api-error';
@@ -40,7 +41,10 @@ export async function PATCH(req: Request, context: Context) {
     const learnerId = await target(context, user.id);
     const db = storage();
     if (!learnerId) return notFound();
-    if (!(await canAccessLearner(db, user, learnerId, 'edit_settings'))) return denied(user, learnerId);
+    if (!(await canAccessLearner(db, user, learnerId, 'edit_settings'))) {
+      if (env.ENVIRONMENT === 'local') await req.arrayBuffer();
+      return denied(user, learnerId);
+    }
     return Response.json({ settings: await updateSettings(db, learnerId, parseSettingsPatch(await req.json())) }, { headers });
   } catch (error) {
     return apiFailure(error, 'Chưa lưu được cài đặt.', headers);
