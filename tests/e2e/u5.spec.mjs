@@ -401,7 +401,31 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   const before = await questionHeading(page).getAttribute('data-question-number');
   const preparedPage = flow(page).locator('[data-question-page]:not([data-active])').first();
   await expect(preparedPage).toHaveAttribute('aria-hidden', 'true');
+  await expect(preparedPage).toBeHidden();
   expect(await preparedPage.evaluate(node => node.inert)).toBe(true);
+  await preparedPage.locator('textarea, input, button').first().evaluate(element => element.focus());
+  await expect(forward).toBeFocused();
+  for (let step = 0; step < 12; step++) {
+    await page.keyboard.press('Tab');
+    expect(await preparedPage.evaluate(node => node.contains(document.activeElement))).toBe(false);
+  }
+  await forward.focus();
+  const hiddenHeading = await preparedPage.locator('[data-question-number]').first().textContent();
+  expect(await flow(page).ariaSnapshot()).not.toContain(hiddenHeading.trim());
+  const activeHeight = await flow(page).locator('[data-question-page][data-active]').evaluate(node => node.getBoundingClientRect().height);
+  await preparedPage.evaluate((node, height) => { node.style.minHeight = `${height + 160}px`; }, activeHeight);
+  expect(await preparedPage.evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThan(activeHeight + 100);
+  // Allow ResizeObserver to record the altered height before the turn.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => {
+    const viewport = window.visualViewport;
+    window.__pageViewportEffects = { resize: 0, scroll: 0 };
+    const add = viewport.addEventListener.bind(viewport);
+    viewport.addEventListener = (type, ...args) => {
+      if (type === 'resize' || type === 'scroll') window.__pageViewportEffects[type]++;
+      return add(type, ...args);
+    };
+  });
   const preparedHandle = await preparedPage.elementHandle();
   await preparedPage.evaluate(node => { node.dataset.testPreparedInstance = 'same'; });
   await watchTurnWindows(page);
@@ -411,6 +435,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await turnSettled(page);
   await expect(flow(page).locator('[data-question-page][data-active][data-test-prepared-instance="same"]')).toBeVisible();
   expect(await preparedHandle.evaluate(node => node.isConnected && !node.inert && !node.hasAttribute('aria-hidden'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__pageViewportEffects)).toEqual({ resize: 1, scroll: 1 });
   await expect(page.locator(':focus')).not.toHaveAttribute('data-turn-edge');
   await page.keyboard.press('ArrowLeft');
   await turnSettled(page);
