@@ -43,6 +43,8 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
 
   await noOverflow(page);
 
+  // Let the initial desk finish its ambient request before measuring the reload.
+  await page.waitForLoadState("networkidle");
   const warm = routeMetrics(page);
   await page.goto('/');
   await expect(openLesson(page)).toBeVisible();
@@ -51,7 +53,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const deskStats = await warm();
   expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
-  expect(deskStats.api.length).toBeLessThanOrEqual(2);
+  expect(deskStats.api.length, JSON.stringify(deskStats.api)).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
 
   // Give the demo lesson a saved draft so the desk continues directly at a question.
@@ -188,6 +190,9 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   console.log(JSON.stringify({ project: info.project.name, coldMs, warmMs, firstMs, gradeMs, desk: deskStats, lesson: lessonStats, notebook: notebookStats }));
 });
 
+test.describe('cửa sổ chờ dữ liệu', () => {
+  // Playwright routing must see the delayed request directly.
+  test.use({ serviceWorkers: 'block' });
 test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', async ({ page }) => {
   const manifest = JSON.parse(await readFile('dist/client/.vite/manifest.json', 'utf8'));
   const scene = '/' + manifest['app/hub/lubeck/scene.ts'].file;
@@ -226,6 +231,8 @@ test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', a
     releaseToday();
     page.off('request', watchScene);
   }
+});
+
 });
 
 const lessonHeading = page => flow(page).locator('[data-lesson-heading]');

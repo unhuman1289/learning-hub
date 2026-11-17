@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { changeOfflineProfile } from "../app/hub/offline-client";
 import { SketchIcon } from "../app/hub/sketch-icons";
 import { PaperDialog } from "../app/hub/paper-dialog";
 import { LazyProfileSettings } from "../app/hub/profile-settings-loader";
@@ -16,6 +17,8 @@ async function post<T = unknown>(body: unknown): Promise<T> {
   }
   const value = (await response.json().catch(() => null)) as { error?: string } | null;
   if (!response.ok) throw new Error(value?.error || "Chưa lưu được.");
+  const action = body as { action?: string; id?: string };
+  if (action.action === "select" || action.action === "leave") await changeOfflineProfile(action.action === "select" ? action.id ?? "" : "");
   return value as T;
 }
 

@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { CalendarLeaf, LubeckWindow, SeasonItem, useSkyClock } from "./lubeck/window";
+import { workerMessage } from "./offline-client";
 import { LazyProfileSettings } from "./profile-settings-loader";
 import { PaperDialog } from "./paper-dialog";
 import { PostIt } from "../../components/notebook/post-it";
@@ -151,7 +152,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         </div>
       </section>
 
-      {!online && <p role="status" className="rounded-sm bg-paper px-4 py-3 text-sm text-ink-paper shadow-page">
+      {(!online || shelf.offline) && <p role="status" className="rounded-sm bg-paper px-4 py-3 text-sm text-ink-paper shadow-page">
         Đang mất mạng. Kết nối lại để cập nhật bàn học.
       </p>}
 
@@ -192,6 +193,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
       </PaperDialog>}
       {drawer === "settings" && selfId && <PaperDialog title="Cài đặt" labelId="drawer-settings" onClose={() => setDrawer(null)}>
         <LazyProfileSettings learner={selfId} title="Về bạn" />
+        <button type="button" className="mt-4 min-h-11 underline" onClick={async event => { const button = event.currentTarget; try { if (!await workerMessage("clear")) throw new Error(); button.textContent = "Đã xoá cache"; } catch { button.textContent = "Chưa xoá được cache"; } }}>Xoá cache</button>
       </PaperDialog>}
       {hub2 && !!shelf.subjects?.length && (
         <details className="mx-auto w-full max-w-3xl" onToggle={event => setShowProgress(event.currentTarget.open)}>
