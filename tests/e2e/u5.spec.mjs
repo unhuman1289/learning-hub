@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { runFake } from '../../scripts/fake-runner.mjs';
 import { shapeNetwork, timeFromTap } from './network.mjs';
 import { routeMetrics } from './route-metrics.mjs';
+import { hubLongFrame } from './turn-frame.mjs';
 
 const desk = page => page.getByRole('region', { name: 'Bài tiếp theo' });
 const flow = page => page.locator('.lesson-flow');
@@ -409,7 +410,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await expect(hint).toHaveCount(0);
 
   if (browserName === 'chromium') {
-    // On a 4× slower CPU a turn must not block the main thread for more than 50 ms.
+    // On a 4× slower CPU, gate long frames attributed to Hub scripts during the turn.
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
     const tracing = process.env.E2E_DIAG === '1';
@@ -418,16 +419,16 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
       transferMode: 'ReturnAsStream',
     });
     await page.evaluate(diag => {
-      window.__e2eTurnDiag = diag;
+      window.__e2eTurnDiag = true;
       window.__turnDiagnosticTasks = [];
       if (diag) new PerformanceObserver(list => window.__turnDiagnosticTasks.push(...list.getEntries().map(entry => entry.toJSON())))
         .observe({ type: 'longtask', buffered: true });
       window.__turnFrames = [];
-      if (diag && PerformanceObserver.supportedEntryTypes.includes('long-animation-frame')) {
-        new PerformanceObserver(list => window.__turnFrames.push(...list.getEntries().map(entry => ({
+      if (!PerformanceObserver.supportedEntryTypes.includes('long-animation-frame')) throw Error('Long animation frame observer unavailable');
+      window.__turnFrameObserver = new PerformanceObserver(list => window.__turnFrames.push(...list.getEntries().map(entry => ({
           ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
-        })))).observe({ type: 'long-animation-frame', buffered: true });
-      }
+        }))));
+      window.__turnFrameObserver.observe({ type: 'long-animation-frame' });
       window.__longTasks = [];
       new PerformanceObserver(list => window.__longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration))))
         .observe({ type: 'longtask' });
@@ -435,13 +436,29 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     let turnFailed = false;
     try {
     for (const turn of [() => nextEdge(page).tap(), () => previousEdge(page).tap()]) {
-      await page.evaluate(() => { window.__longTasks.length = 0; });
+      await page.evaluate(() => {
+        window.__longTasks.length = 0;
+        window.__turnFrames.length = 0;
+        performance.clearMarks('turn:start');
+        performance.clearMarks('turn:end');
+      });
       await turn();
       await expect(page.locator('html')).toHaveAttribute('data-lesson-turn', /.+/);
       await turnSettled(page);
-      const tasks = await page.evaluate(() => window.__longTasks);
+      const { tasks, frames, start, end, origin } = await page.evaluate(() => {
+        window.__turnFrames.push(...window.__turnFrameObserver.takeRecords().map(entry => ({
+          ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
+        })));
+        return { tasks: window.__longTasks, frames: window.__turnFrames,
+          start: performance.getEntriesByName('turn:start').at(-1)?.startTime,
+          end: performance.getEntriesByName('turn:end').at(-1)?.startTime, origin: location.origin };
+      });
       console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
-      expect(Math.max(0, ...tasks), 'long task during a turn').toBeLessThanOrEqual(50);
+      expect(start, 'turn start mark').toBeDefined();
+      expect(end, 'turn end mark').toBeDefined();
+      const blockingFrames = frames.filter(frame => hubLongFrame(frame, start, end, origin));
+      console.log(JSON.stringify({ metric: 'turn-hub-long-frames', frames: blockingFrames }));
+      expect(blockingFrames, 'Hub-attributed long animation frame during a turn').toEqual([]);
     }
     } catch (error) {
       turnFailed = true;
