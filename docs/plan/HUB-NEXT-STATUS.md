@@ -20,7 +20,7 @@ Khung staging H1 đã đóng lúc 12:32 Europe/Berlin ngày 17/11.
 
 Khung staging A1 đã đóng lúc 13:48 Europe/Berlin ngày 17/11.
 
-staging: deploy F2 (#189), F6 (#190), AI mặc định bật (#191), không migration, đến 18:00 Europe/Berlin
+Khung staging F2/F6/AI mặc định đã đóng lúc 16:56 Europe/Berlin ngày 17/11.
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
@@ -28,7 +28,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 |---|---|---|
 | Production | tag `prod-20261113-1` (`0625f56`), health `hub2-request-recovery-2026-11-13` | Chưa áp `0026`–`0028`. Còn 4 bài v1 |
 | Runner production | `~/Code/learning-hub-prod` tại `prod-20261113-1` | launchd `cc.unhuman.learning-hub-runner.production` |
-| Staging | `5c68c077c18ba3fc75edd0476fa23e768bd918df` | Deploy 17/11 lúc 13:48 Berlin sau khi gộp A1 [#188](https://github.com/unhuman1289/learning-hub/pull/188). Đã sao lưu D1, áp `0033_ai_controls.sql`. Cổng gia đình bật, smoke household đạt, Hub và MCP cùng SHA. Bảng `ai_subject_controls` còn trống; Worker chép từ secret cũ ở lần đọc đầu. |
+| Staging | `0163dfe850a4507146d79cac6aef3edd48e33c0e` | Deploy 17/11 lúc 16:56 Berlin sau khi gộp F2 [#189](https://github.com/unhuman1289/learning-hub/pull/189), F6 [#190](https://github.com/unhuman1289/learning-hub/pull/190), AI mặc định bật [#191](https://github.com/unhuman1289/learning-hub/pull/191). Không migration. Smoke household đạt, Hub và MCP cùng SHA. OpenAI và TTS bật cho mọi sổ (kể cả trẻ em) trừ khi Quản trị tắt. |
 | Dev | `work/learning-hub-hub-next` | Worktree nhánh tích hợp `codex/hub-next-wip`. Mỗi bước dùng nhánh và worktree riêng. |
 
 ## Các bước
@@ -56,12 +56,12 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 | G | G1, G2 trên staging cho bài văn bản. G4 [#176](https://github.com/unhuman1289/learning-hub/pull/176) trên staging: lần chấm lại có hiệu lực, hai lần chấm hiện trong Cần xem và sổ giám hộ, có tỉ lệ đổi điểm 7 ngày. | G4 còn nghiệm thu một ca đổi điểm trên QA H5 Deutsch. Còn G3 (`0033`), G5. |
 | T | T1 (`0032`) và T2 [#179](https://github.com/unhuman1289/learning-hub/pull/179) (`0034`) trên staging: Worker gọi Luna stream SSE, lượt lỗi hoặc quá 10 s vào Queue, trần 60 lượt/ngày, ghi token và `first_token_ms`. Chỉ bật cho hồ sơ người lớn trên sổ đã bật OpenAI. #175 đã đóng. | T2 còn một lượt thật đo chữ đầu < 2 s. Tiếp T3 chặn lộ đáp án và giao diện Hỏi, T4 nghiệm thu. |
 | K | K1 [#156](https://github.com/unhuman1289/learning-hub/pull/156) đã lên staging cùng SHA với Hub. | K2/K3 bỏ trên staging (17/11). [Hướng dẫn K2](status/K2.md) dùng lại ở bước R. |
-| A1 điều khiển AI | [#188](https://github.com/unhuman1289/learning-hub/pull/188) trên staging: cờ OpenAI/TTS theo sổ chỉ quản trị sửa, nhật ký, trần 2 lời gọi mỗi job, lượt gia sư và tệp Speech | Chủ dự án bật AI và TTS cho sổ QA L4 trong Quản trị. Sau đó chạy lại nghiệm thu G4, L7, T2 |
+| A1 điều khiển AI | [#188](https://github.com/unhuman1289/learning-hub/pull/188) trên staging: cờ OpenAI/TTS theo sổ chỉ quản trị sửa, nhật ký, trần 2 lời gọi mỗi job, lượt gia sư và tệp Speech | Chủ dự án bật AI và TTS cho sổ QA L4 trong Quản trị. Sau đó chạy lại nghiệm thu G4, L7, T2 Từ 17/11 [#191](https://github.com/unhuman1289/learning-hub/pull/191) trên staging: mặc định bật cho mọi sổ, kể cả trẻ em; không còn chép danh sách từ secret. |
 | L7 | [#178](https://github.com/unhuman1289/learning-hub/pull/178) trên staging: Speech API trả AAC (ADTS), lưu nguyên tệp nén. Fixture: AAC 9.551 B so với WAV 60.266 B | Nghiệm thu bằng một bài Terra mới trên QA L4: 4 tệp AAC trả 206, kích thước thật, nghe trên iPhone |
 | H1 cổng gia đình | Lên staging 17/11. Hồ sơ cũ giữ lại: quản trị unhuman, QA H5 (và other), QA Cổng Q, PHONE-CHECK | Chủ dự án đặt PIN quản lý và tạo hồ sơ giống production |
 | D giao bài 00:00 | Chưa có biên bản đọc lại id bài với OpenAI | Claude đọc D1 staging sau một lượt 00:00 Berlin |
 | N máy thật ở Đức | #165 sửa PHONE-CHECK, chưa chạy lại trên staging | Chủ dự án chạy bước 1–9 và duyệt lật trang U6 |
-| F nhanh và mượt | F0 [#177](https://github.com/unhuman1289/learning-hub/pull/177) trên staging: Server-Timing cho route bài, RUM nhận `inp`, `submit_feedback`, `lesson_ready`. JS bàn học 177.288 B | Thu số đo staging cho F0. CPU p95 chờ quyền Workers Observability. Tiếp F1 giảm JS. Còn lỗi chập chờn: tác vụ dài khi lật trang trên Pixel 7 CI, Worker local trả 503 trong e2e |
+| F nhanh và mượt | F0 [#177](https://github.com/unhuman1289/learning-hub/pull/177) trên staging: Server-Timing cho route bài, RUM nhận `inp`, `submit_feedback`, `lesson_ready`. JS bàn học 177.288 B | Thu số đo staging cho F0. CPU p95 chờ quyền Workers Observability. Tiếp F1 giảm JS. Còn lỗi chập chờn: tác vụ dài khi lật trang trên Pixel 7 CI, Worker local trả 503 trong e2e F2 [#189](https://github.com/unhuman1289/learning-hub/pull/189) trên staging: bàn học offline theo hồ sơ, JS bàn học 178.568 byte gzip; còn thử iPhone thật ở chế độ màn hình chính. F6 [#190](https://github.com/unhuman1289/learning-hub/pull/190) trên staging: hết 503 do body chưa đọc, 5 lượt CI liên tiếp đạt; long task Pixel‑7 khi lật trang vẫn thỉnh thoảng >50 ms, chưa rõ nguyên nhân. |
 | R phát hành production | Production ở `prod-20261113-1`, còn dùng Qwen, chưa áp `0026`–`0033` | Lập kế hoạch chi tiết sau đợt 4. Quyết định ở LGTK mục 11 |
 
 **Migration tiếp theo.** Staging đã áp đến `0034_tutor_openai.sql`. G3 dùng `0033` (áp sau `0034` trên staging; bảng mới, không phụ thuộc). Production chưa áp `0026`–`0033`; làm ở bước R.
