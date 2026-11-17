@@ -10,15 +10,7 @@ Mục tiêu là các luồng AI trên staging dùng OpenAI API và bỏ phụ th
 
 **Kế hoạch đang chạy:** [`LGTK.md`](LGTK.md) bản 2 ngày 17/11/2026. Claude lập plan, điều phối và cập nhật bảng này. Chat Codex chỉ ghi `status/<bước>.md` trên nhánh của mình.
 
-Khung staging L1 và P3 (migration `0030`) đã kết thúc lúc 02:50 Europe/Berlin.
-Khung kiểm thử OpenAI và nộp cả bài ngày 16/11 đã kết thúc lúc 05:00 Europe/Berlin.
-Khung deploy #169 và #170 ngày 16/11 đã đóng sau khi xác nhận staging lúc 05:02 Europe/Berlin.
-
-Khung sửa và nghiệm thu **Chấm sai?** trên QA H5 Deutsch đã đóng sau khi đọc lại quyết định Terra và điểm lưu ngày 16/11.
-
-Khung L4 đã đóng sau lượt Cổng Q ngày 16/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
-
-Khung #174 đã đóng sau lượt chẩn đoán Cổng Q ngày 17/11. Đã khôi phục danh sách bật OpenAI trước thử và xác nhận smoke staging đạt.
+staging: deploy đợt 1 bản 2 (L7 #178, F0 #177, G4 #176, T2 #179) với migration `0034`, đến 12:00 Europe/Berlin
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
