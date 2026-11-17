@@ -1,12 +1,15 @@
-.tutor-pet { display:inline-grid; place-items:center; flex:none; width:48px; height:52px; }
-.tutor-pet-window { display:block; width:48px; height:52px; overflow:hidden; }
-.tutor-pet-strip { display:block; max-width:none; width:calc(var(--frames) * 48px); height:52px; animation:tutor-frames var(--duration) steps(var(--frames)) infinite; }
+.tutor-pet-panel { --pet-width:96px; --pet-height:104px; }
+.tutor-pet-corner { --pet-width:72px; --pet-height:78px; }
+.tutor-pet-child { --pet-width:88px; --pet-height:95px; }
+.tutor-pet { display:inline-grid; place-items:center; flex:none; width:var(--pet-width); height:var(--pet-height); }
+.tutor-pet-window { display:block; width:var(--pet-width); height:var(--pet-height); overflow:hidden; }
+.tutor-pet-strip { display:block; max-width:none; width:calc(var(--frames) * var(--pet-width)); height:var(--pet-height); animation:tutor-frames var(--duration) steps(var(--frames)) infinite; }
 .tutor-pet-once { animation-name:tutor-frames-once; animation-timing-function:steps(calc(var(--frames) - 1)); animation-iteration-count:1; animation-fill-mode:forwards; }
 .tutor-pet-offline { animation:tutor-umbrella-intro 360ms steps(3) 1 forwards, tutor-umbrella-loop 360ms steps(3) 360ms infinite; }
-.tutor-pet-fallback { width:48px; height:48px; border:2px solid #765342; border-radius:50%; background:#f8e4bf; color:#493026; font-size:24px; text-align:center; }
+.tutor-pet-fallback { width:var(--pet-width); height:var(--pet-width); border:2px solid #765342; border-radius:50%; background:#f8e4bf; color:#493026; font-size:24px; text-align:center; }
 .tutor-pet-fallback[hidden] { display:none; }
-@keyframes tutor-frames { to { transform:translateX(calc(var(--frames) * -48px)); } }
-@keyframes tutor-frames-once { to { transform:translateX(calc((var(--frames) - 1) * -48px)); } }
-@keyframes tutor-umbrella-intro { to { transform:translateX(-144px); } }
-@keyframes tutor-umbrella-loop { from { transform:translateX(-144px); } to { transform:translateX(-288px); } }
+@keyframes tutor-frames { to { transform:translateX(calc(var(--frames) * -1 * var(--pet-width))); } }
+@keyframes tutor-frames-once { to { transform:translateX(calc((var(--frames) - 1) * -1 * var(--pet-width))); } }
+@keyframes tutor-umbrella-intro { to { transform:translateX(calc(-3 * var(--pet-width))); } }
+@keyframes tutor-umbrella-loop { from { transform:translateX(calc(-3 * var(--pet-width))); } to { transform:translateX(calc(-6 * var(--pet-width))); } }
 @media (prefers-reduced-motion:reduce) { .tutor-pet-strip { animation:none; } }
