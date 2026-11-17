@@ -164,7 +164,12 @@ test('Queue logs safe stages, codes and paths for the L4 failure modes', async t
     await run();
     assert(captured.some(entry => entry.component === 'openai-queue-tts' &&
       entry.jobId === job.job_id && entry.leaseCount === 1 &&
-      Object.entries(expected).every(([key, value]) => JSON.stringify(entry[key]) === JSON.stringify(value))),
+      Object.entries(expected).every(([key, value]) => {
+        // The two Speech requests run concurrently; either line can fail first.
+        if (key === 'path' && typeof value === 'string' && value.endsWith('/lines/0/text'))
+          return entry.path === value || entry.path === value.replace('/lines/0/text', '/lines/1/text');
+        return JSON.stringify(entry[key]) === JSON.stringify(value);
+      })),
     JSON.stringify(captured));
     const canRetry = false;
     assert.equal(captured.some(entry => entry.event === 'queue_failed'), !canRetry);

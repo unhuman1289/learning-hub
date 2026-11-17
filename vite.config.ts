@@ -1,3 +1,5 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import vinext from "vinext";
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { defineConfig } from "vite";
@@ -12,6 +14,16 @@ export default defineConfig({
   },
   plugins: [
     vinext(),
+    {
+      name: "offline-build-id",
+      apply: "build",
+      async writeBundle(options) {
+        if (!options.dir?.endsWith("client")) return;
+        const path = `${options.dir}/sw.js`;
+        const source = await readFile(path, "utf8");
+        await writeFile(path, source.replace("__BUILD_ID__", randomUUID()));
+      },
+    },
     cloudflare({
       configPath: "./wrangler.jsonc",
       config(worker) {
