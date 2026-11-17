@@ -75,8 +75,10 @@ export async function getTutor(req: Request, user: Viewer | null, storage: () =>
       LEFT JOIN ai_subject_controls c ON c.subject_id=l.subject_id WHERE l.id=? AND l.user_id=?`)
       .bind(learnerId,cutoffFor(day),cutoffFor(addDays(day,1)),id,learnerId)
       .first<{tutor_enabled:number;openai_enabled:number;today:number}>();
+    const lessonRemaining = Math.max(0, 20-turns.length);
+    const dayRemaining = Math.max(0, 60-(info?.today ?? 0));
     return Response.json({ turns, enabled: enabled && !!info?.tutor_enabled && !!info?.openai_enabled,
-      remaining: Math.max(0, Math.min(20-turns.length, 60-(info?.today ?? 0))) }, { headers: privateHeaders });
+      remaining: Math.min(lessonRemaining, dayRemaining), limit: lessonRemaining <= dayRemaining ? 'lesson' : 'day' }, { headers: privateHeaders });
   } catch (error) {
     return apiFailure(error, 'Chưa đọc được các lượt hỏi gia sư.', privateHeaders);
   }

@@ -2,19 +2,41 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { answerFragments, containsAnswer, SentenceFilter, BLOCKED_SENTENCE } from '../lib/tutor/leak.ts';
 
-test('answer fragments include accepted answers, correct choices and solution', () => {
-  const answers=answerFragments({key:{accepted:['Guten Tag'],correct:['b']},choices:[{id:'a',text:'falsch'},{id:'b',text:'Richtig'}],solution:'Das ist richtig'});
-  assert.deepEqual(answers,['Das ist richtig','Guten Tag','Richtig']);
-  assert.equal(containsAnswer('Sag GUTEN, TAG!',answers),true);
-  assert.equal(containsAnswer('Das ist RICHTIG!',answers),true);
-  assert.equal(containsAnswer('Unrichtig ist es.',answers),false);
+const fragments=(...texts)=>({texts,labels:[]});
+test('accepted, correct option text, solution and ordered labels are checked', () => {
+  const answers=answerFragments({key:{accepted:['Guten Tag'],correct:['a']},choices:[{id:'b',text:'falsch'},{id:'a',text:'Richtig'}],solution:'Das ist richtig'});
+  assert.deepEqual(answers,{texts:['Das ist richtig','Guten Tag','Richtig'],labels:['B']});
+  for (const s of ['Sag GUTEN, TAG!','Das ist RICHTIG!','Đáp án là B.','Bạn nên chọn (B)','Option b','Antwort B','Lösung B']) assert.equal(containsAnswer(s,answers),true,s);
+  for (const s of ['Unrichtig ist es.','Chọn B1','Chọn AB','B là một chữ cái']) assert.equal(containsAnswer(s,answers),false,s);
 });
-
-test('sentences are held across chunks and a split answer never reaches output', () => {
-  const output=[]; const filter=new SentenceFilter(['Guten Tag'],(text,blocked)=>output.push({text,blocked}));
-  filter.push('Erste Frage. Die Antwort ist gu');
-  assert.deepEqual(output,[{text:'Erste Frage.',blocked:false}]);
-  filter.push('TEN, tag! Noch eine');
-  filter.finish();
+test('answers already present in the prompt are excluded on word boundaries', () => {
+  const answers=answerFragments({prompt:'Um 13 Uhr? Der Wert ist 130.',key:{accepted:['13','30']},solution:'13'});
+  assert.deepEqual(answers.texts,['30']);
+  assert.equal(containsAnswer('Um 13 Uhr?',answers),false);
+  assert.equal(containsAnswer('Đó là 30.',answers),true);
+  const labels=answerFragments({prompt:'Phương án B được viết như thế nào?',key:{correct:['b']},choices:[{id:'a',text:'một'},{id:'b',text:'hai'}]});
+  assert.deepEqual(labels.labels,[]);
+});
+test('sentences are held across chunks and split answers never reach output', () => {
+  const output=[]; const filter=new SentenceFilter(fragments('Guten Tag'),(text,blocked)=>output.push({text,blocked}));
+  filter.push('Erste Frage. Die Antwort ist gu'); assert.deepEqual(output,[{text:'Erste Frage.',blocked:false}]);
+  filter.push('TEN, tag! Noch eine'); filter.finish();
   assert.deepEqual(output,[{text:'Erste Frage.',blocked:false},{text:' '+BLOCKED_SENTENCE,blocked:true},{text:' Noch eine',blocked:false}]);
+});
+test('newline flushes a sentence and long unpunctuated text does not wait for finish', () => {
+  const output=[]; const filter=new SentenceFilter(fragments('secret'),(text,blocked)=>output.push({text,blocked}));
+  filter.push('Safe\n'); assert.deepEqual(output,[{text:'Safe\n',blocked:false}]);
+  filter.push('x'.repeat(230)+' se'); assert.equal(output.length,1);
+  filter.push('cret '+'y'.repeat(30)); filter.finish();
+  assert.ok(output.some(x=>x.blocked)); assert.doesNotMatch(output.map(x=>x.text).join(''),/secret/i);
+  const plain=[]; const long=new SentenceFilter(fragments('zebra'),text=>plain.push(text));
+  long.push('a'.repeat(241)); assert.ok(plain.length>0);
+});
+test('long sentences cannot reveal a label and its reference on opposite sides of the cap', () => {
+  const spec={texts:[],labels:['B']};
+  for(const sentence of ['Chọn '+'x'.repeat(245)+' B.', 'B '+'x'.repeat(245)+' là đáp án.']) {
+    const output=[]; const filter=new SentenceFilter(spec,(text,blocked)=>output.push({text,blocked}));
+    filter.push(sentence); filter.finish();
+    assert.ok(output.some(x=>x.blocked)); assert.doesNotMatch(output.map(x=>x.text).join(''),/(?:^|\s)B(?:\s|\.)/);
+  }
 });

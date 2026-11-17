@@ -6,7 +6,7 @@ import { TutorPet, type TutorPetState } from './tutor-pet';
 const blockedText = '(Chỗ này có đáp án, mình giữ lại nhé.)';
 const busyText = 'Mình đang bận một chút. Câu trả lời sẽ có trong bài, bạn cứ làm câu khác rồi quay lại đọc nhé.';
 type Message = { id:string; question:string; answer:string; status:string };
-type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number };
+type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; limit:'lesson'|'day' };
 const initialRequests = new Map<string, Promise<Data>>();
 function readTutor(lessonId:string, fresh:boolean) {
   if (!fresh && initialRequests.has(lessonId)) return initialRequests.get(lessonId)!;
@@ -20,12 +20,13 @@ function readTutor(lessonId:string, fresh:boolean) {
 
 export default function Tutor({lessonId,itemId,number,child}:{lessonId:string;itemId:string;number:number;child:boolean}) {
   const [enabled,setEnabled]=useState(false), [open,setOpen]=useState(false), [remaining,setRemaining]=useState(20);
+  const [limit,setLimit]=useState<'lesson'|'day'>('lesson');
   const [messages,setMessages]=useState<Message[]>([]), [question,setQuestion]=useState(''), [state,setState]=useState<TutorPetState>('idle');
   const [sending,setSending]=useState(false), [offline,setOffline]=useState(false), [notice,setNotice]=useState('');
   const trigger=useRef<HTMLButtonElement>(null), input=useRef<HTMLTextAreaElement>(null);
   const load=useCallback(async (fresh=false) => {
     const data=await readTutor(lessonId,fresh);
-    setEnabled(data.enabled); setRemaining(data.remaining);
+    setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit);
     setMessages(previous => {
       const saved=data.turns.filter(t=>t.item_id===itemId).map(t=> {
         const partial=previous.find(m=>m.id===t.id || (m.question===t.question && m.status==='streaming'));
@@ -95,11 +96,11 @@ export default function Tutor({lessonId,itemId,number,child}:{lessonId:string;it
         </div>)}
         {offline && <p role="status">Mất kết nối. Phần đã nghe vẫn được giữ. <button type="button" className="underline" onClick={()=>{setOffline(false);setState('listen');input.current?.focus();}}>Hỏi tiếp</button></p>}
         {notice && <p role="alert">{notice}</p>}
-        {remaining===0 && <p>Hôm nay mình đã trả lời đủ 20 lượt. Mai hỏi tiếp nhé!</p>}
+        {remaining===0 && <p>{limit==='day' ? 'Hôm nay mình đã trả lời đủ 60 lượt. Mai hỏi tiếp nhé!' : 'Bài này mình đã trả lời đủ 20 lượt rồi. Bạn thử tự làm tiếp nhé!'}</p>}
       </div>
       {remaining>0 && <><div className="mt-3 flex flex-wrap gap-2">{['Mình nên bắt đầu từ đâu?','Bạn gợi ý thêm nhé?','Mình cần chú ý điều gì?'].map(s=><button type="button" key={s} className="min-h-11 rounded border border-[#765342] px-2 text-sm" onClick={()=>{setQuestion(s);input.current?.focus();}}>{s}</button>)}</div>
         <label htmlFor={'tutor-'+itemId} className="mt-3 block">Câu hỏi của bạn</label><textarea ref={input} id={'tutor-'+itemId} value={question} onFocus={()=>setState('listen')} onChange={e=>setQuestion(e.target.value)} maxLength={500} rows={2} className="w-full rounded border border-[#765342] bg-white p-2 text-[#38281e] focus-visible:outline-2 focus-visible:outline-[#773729]" />
-        <button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="brick min-h-11 px-4 disabled:opacity-60">{sending?'Chờ chút':'Gửi'}</button><p className="text-sm">Còn {remaining} lượt hỏi hôm nay</p></>}
+        <button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="brick min-h-11 px-4 disabled:opacity-60">{sending?'Chờ chút':'Gửi'}</button><p className="text-sm">Còn {remaining} lượt hỏi trong bài này</p></>}
     </section>}
   </div>;
 }
