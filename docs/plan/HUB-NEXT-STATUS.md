@@ -65,7 +65,7 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 ## Chờ chủ dự án
 
 - Chạy PHONE-CHECK bước 1–9 trên staging bằng iPhone ở Đức và duyệt lật trang U6 (bước N). Không thử ở Việt Nam (quyết định 17/11).
-- Các quyết định ở [LGTK mục 11](LGTK.md#11-chủ-dự-án-cần-quyết): quyền gộp và deploy staging của Claude, dữ liệu trẻ em với OpenAI, quyền đọc Workers Observability.
+- Các quyết định ở [LGTK mục 11](LGTK.md#11-chủ-dự-án-cần-quyết): dữ liệu trẻ em với OpenAI, quyền đọc Workers Observability. Claude đã được giao gộp PR và deploy staging khi CI đạt (17/11).
 - Review [draft PR #144](https://github.com/unhuman1289/learning-hub/pull/144) khi các bước sẵn sàng.
 
 

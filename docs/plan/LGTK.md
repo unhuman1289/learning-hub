@@ -23,6 +23,7 @@
 | 17/11 | Nghiệm thu L6 bằng hai máy thật; bỏ đo `audio_play` | L xong, trừ L7 |
 | 17/11 | **Không thử ở Việt Nam** vì không có điều kiện | Ngân sách tốc độ (HUB-NEXT mục 4.2) giữ làm chuẩn, nhưng đo bằng mạng 4G giả lập trong CI và máy thật ở Đức. Không chờ số liệu từ Việt Nam |
 | 17/11 | Claude lập plan và điều phối | Chat Codex Planning thôi sửa plan. Mục 12 |
+| 17/11 | Claude được gộp PR vào `codex/hub-next-wip` và deploy staging khi CI đạt và bước nằm trong plan này | Production, xoá dữ liệu và đổi quyền vẫn cần chủ dự án |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
@@ -332,7 +333,6 @@ Sau khi các đợt 1–4 đạt. Đây là phác thảo. Kế hoạch chi tiế
 
 | # | Khi | Câu hỏi | Claude khuyên |
 |---|---|---|---|
-| 1 | Bây giờ | Cho Claude gộp PR vào `codex/hub-next-wip` và deploy staging khi CI đạt và bước nằm trong plan này | Đồng ý. Production, xoá dữ liệu và đổi quyền vẫn cần chủ dự án |
 | 2 | Trước T4, G5 | Cho phép gửi văn bản và ảnh của **trẻ em** tới OpenAI (gia sư, chấm câu mở, chấm ảnh), với biệt danh và giám hộ đọc được | Quyết sau khi đọc chính sách dữ liệu API của OpenAI cho project. Đến lúc đó chỉ bật cho người lớn |
 | 3 | R0 | Production dùng OpenAI cho mọi luồng AI và tắt runner Qwen trên Mac | Có, vì staging đã chạy và nghiệm thu theo OpenAI |
 | 4 | R0 | Hạn mức chi tiêu OpenAI mỗi tháng cho production | Chủ dự án đặt con số, Claude ước từ số token của G3, T4, F0 |
@@ -340,7 +340,7 @@ Sau khi các đợt 1–4 đạt. Đây là phác thảo. Kế hoạch chi tiế
 
 ## 12. Điều phối
 
-- **Claude** giữ `LGTK.md`, `HUB-NEXT.md` và `HUB-NEXT-STATUS.md`, viết prompt cho từng bước, review PR, gộp và deploy staging theo quyết định 11.1, ghi kết quả.
+- **Claude** giữ `LGTK.md`, `HUB-NEXT.md` và `HUB-NEXT-STATUS.md`, viết prompt cho từng bước, review PR, gộp và deploy staging theo quyết định 17/11 ở mục 0, ghi kết quả.
 - **Chat Codex** làm đúng một bước: nhánh riêng, worktree riêng, PR vào `codex/hub-next-wip`. Chỉ ghi `docs/plan/status/<bước>.md` trên nhánh của mình. Không sửa `LGTK.md`, `HUB-NEXT.md` hay `HUB-NEXT-STATUS.md`. Không deploy.
 - **Chủ dự án:** duyệt điểm dừng ở mục 11, thử máy thật ở Đức (bước N), duyệt mockup M5.
 
