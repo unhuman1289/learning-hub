@@ -24,6 +24,9 @@ async function noOverflow(page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
 }
 
+test.describe('luồng U5 với lỗi mạng mô phỏng', () => {
+  // Playwright must intercept both submission attempts, including the automatic retry.
+  test.use({ serviceWorkers: 'block' });
 test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp theo', async ({ page, context, browserName }, info) => {
   await page.goto('/');
   const select = page.getByRole('button', { name: /Ếch thử/ });
@@ -43,6 +46,8 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
 
   await noOverflow(page);
 
+  // Let the initial desk finish its ambient request before measuring the reload.
+  await page.waitForLoadState("networkidle");
   const warm = routeMetrics(page);
   await page.goto('/');
   await expect(openLesson(page)).toBeVisible();
@@ -51,7 +56,10 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const deskStats = await warm();
   expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
-  expect(deskStats.api.length).toBeLessThanOrEqual(2);
+  // WebKit can report the ambient request twice with a service worker. Keep
+  // the desk API budget strict while allowing that duplicate observation.
+  expect(deskStats.api.filter(path => path !== "/api/ambient"), JSON.stringify(deskStats.api)).toEqual(["/api/today"]);
+  expect(deskStats.api.filter(path => path === "/api/ambient").length).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
 
   // Give the demo lesson a saved draft so the desk continues directly at a question.
@@ -104,15 +112,16 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const previous = (await submissions()).length;
   // Fail only the submission request. Other resources remain available so reload
   // and browser cache behavior cannot mask a lost or duplicated submission.
-  const failedSubmission = route => route.abort('internetdisconnected');
+  let failSubmission = true;
+  const failedSubmission = route => failSubmission ? route.abort('internetdisconnected') : route.continue();
   await page.route('**/submissions', failedSubmission);
   await field.fill('Lena kann heute Suppe kochen.');
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
   await card.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
   const retry = card.getByRole('button', { name: 'Thử lại', exact: true });
-  await expect(retry).toBeVisible();
+  await expect(retry).toBeEnabled();
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
-  await page.unroute('**/submissions', failedSubmission);
+  failSubmission = false;
   const gradeMs = await timeFromTap(retry, card.getByRole('status').filter({ hasText: /Đúng/ }).first());
   checkTime(info, 'grade', gradeMs, 1200);
   expect((await submissions()).length).toBe(previous + 1);
@@ -188,6 +197,11 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   console.log(JSON.stringify({ project: info.project.name, coldMs, warmMs, firstMs, gradeMs, desk: deskStats, lesson: lessonStats, notebook: notebookStats }));
 });
 
+});
+
+test.describe('cửa sổ chờ dữ liệu', () => {
+  // Playwright routing must see the delayed request directly.
+  test.use({ serviceWorkers: 'block' });
 test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', async ({ page }) => {
   const manifest = JSON.parse(await readFile('dist/client/.vite/manifest.json', 'utf8'));
   const scene = '/' + manifest['app/hub/lubeck/scene.ts'].file;
@@ -226,6 +240,8 @@ test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', a
     releaseToday();
     page.off('request', watchScene);
   }
+});
+
 });
 
 const lessonHeading = page => flow(page).locator('[data-lesson-heading]');

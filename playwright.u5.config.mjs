@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests/e2e',
-  testMatch: 'u5.spec.mjs',
+  testMatch: process.env.F2_E2E ? 'f2.spec.mjs' : 'u5.spec.mjs',
   outputDir: 'private-data/playwright',
   workers: 1,
   timeout: 180_000,
