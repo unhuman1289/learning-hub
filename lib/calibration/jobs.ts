@@ -7,10 +7,21 @@ type CalibrationJob = { id: string; kind: 'calibrate'; status: string; calls: nu
 export async function enqueueCalibration(db: EvidenceDb, env: CalibrationBindings, scheduleKey: string | null = null, now = new Date()) {
   if (env.OPENAI_ENABLED !== 'true' || !env.AI_QUEUE) throw new Error('Chưa bật xử lý hiệu chuẩn.');
   const id = 'cal_' + crypto.randomUUID(), stamp = now.toISOString();
-  await db.prepare(`INSERT OR IGNORE INTO calibration_jobs(id,kind,status,schedule_key,created_at,updated_at)
-    VALUES(?,'calibrate','queued',?,?,?)`).bind(id, scheduleKey, stamp, stamp).run();
-  const job = await db.prepare(`SELECT * FROM calibration_jobs WHERE id=? OR (kind='calibrate' AND status IN ('queued','leased')) OR (schedule_key IS NOT NULL AND schedule_key=?)
-    ORDER BY CASE WHEN id=? THEN 0 WHEN schedule_key=? THEN 1 ELSE 2 END LIMIT 1`).bind(id, scheduleKey, id, scheduleKey).first<CalibrationJob>();
+  if (scheduleKey) {
+    await db.batch([
+      db.prepare(`INSERT OR IGNORE INTO calibration_schedules(schedule_key,job_id)
+        VALUES(?,coalesce((SELECT id FROM calibration_jobs WHERE status IN ('queued','leased') LIMIT 1),?))`).bind(scheduleKey,id),
+      db.prepare(`INSERT OR IGNORE INTO calibration_jobs(id,kind,status,schedule_key,created_at,updated_at)
+        SELECT job_id,'calibrate','queued',?,?,? FROM calibration_schedules WHERE schedule_key=?`)
+        .bind(scheduleKey,stamp,stamp,scheduleKey),
+    ]);
+  } else {
+    await db.prepare(`INSERT OR IGNORE INTO calibration_jobs(id,kind,status,created_at,updated_at)
+      VALUES(?,'calibrate','queued',?,?)`).bind(id, stamp, stamp).run();
+  }
+  const job = scheduleKey
+    ? await db.prepare('SELECT j.* FROM calibration_jobs j JOIN calibration_schedules s ON s.job_id=j.id WHERE s.schedule_key=?').bind(scheduleKey).first<CalibrationJob>()
+    : await db.prepare("SELECT * FROM calibration_jobs WHERE id=? OR (kind='calibrate' AND status IN ('queued','leased')) ORDER BY CASE WHEN id=? THEN 0 ELSE 1 END LIMIT 1").bind(id,id).first<CalibrationJob>();
   if (!job) throw new Error('Chưa tạo được lượt hiệu chuẩn.');
   if (job.status === 'queued') await env.AI_QUEUE.send({ calibrationJobId: job.id }).catch(() => {});
   return job;

@@ -29,3 +29,8 @@ CREATE TABLE calibration_jobs (
   finished_at TEXT
 );
 CREATE UNIQUE INDEX calibration_one_active ON calibration_jobs(kind) WHERE status IN ('queued','leased');
+
+CREATE TABLE calibration_schedules (
+  schedule_key TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL
+);

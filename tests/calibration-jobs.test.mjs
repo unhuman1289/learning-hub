@@ -23,3 +23,14 @@ test('schedule replay does not create another job after completion', async () =>
   assert.equal(db.sqlite.prepare('SELECT count(*) n FROM calibration_jobs').get().n,1);
   db.sqlite.close();
 });
+
+test('cron replay during and after a manual run never starts a second job', async () => {
+ const db=memoryDb(),env={OPENAI_ENABLED:'true',AI_QUEUE:{send:async()=>{}}};
+ const manual=await enqueueCalibration(db,env);
+ const scheduled=await enqueueCalibration(db,env,'weekly:2026-11-22');
+ assert.equal(scheduled.id,manual.id);
+ db.sqlite.prepare("UPDATE calibration_jobs SET status='succeeded' WHERE id=?").run(manual.id);
+ const replay=await enqueueCalibration(db,env,'weekly:2026-11-22');
+ assert.equal(replay.id,manual.id);
+ assert.equal(db.sqlite.prepare('SELECT count(*) n FROM calibration_jobs').get().n,1);db.sqlite.close();
+});
