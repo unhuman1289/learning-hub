@@ -16,9 +16,9 @@ import { summaryState } from "../../../lib/lesson-v2/summary-state";
 import { feedbackForItems } from "../../../lib/feedback-history";
 import type { TodayItem } from "../../../lib/today";
 
-export function LessonSummary({ lessonId, subjectId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false, go, children, items, answers, history, child, displayName }: {
+export function LessonSummary({ lessonId, subjectId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false, go, children, items, answers, history, child, displayName, offlinePending }: {
   lessonId: string; learner: string | null; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
-  items: ItemView[]; answers: DraftAnswers; history: SubmissionView[]; child: boolean; displayName: string;
+  items: ItemView[]; answers: DraftAnswers; history: SubmissionView[]; child: boolean; displayName: string; offlinePending: boolean;
   completed?: boolean; justCompleted?: boolean; subjectId: string; go: (route: Route) => void; children: ReactNode;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
@@ -67,6 +67,8 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
       {!data && !error && <p role="status" className={pencil}>Đang đọc tổng kết…</p>}
       {data && <>
         {!history.length && <p>Đã làm {items.filter(item => hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length).length}/{items.length} câu. {items.filter(item => !hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") && !answers[item.id]?.attachmentIds?.length).length ? "Vẫn còn câu trống; bạn vẫn có thể nộp." : ""}</p>}
+        {waiting && <p className="font-hand text-lg text-muted-paper">{results.filter(a => !!a?.result).length} câu đã có kết quả.</p>}
+        {graded && <p className="font-hand text-lg text-muted-paper">Đã có kết quả bài làm.</p>}
         {graded && <p className="font-hand text-3xl text-brick">{presentation.correct}/{items.length} câu đúng</p>}
         {completed && <Stamp label={needsWork ? "Cố lên!" : data.pending || data.solutionsSeen ? "Đã học" : "Giỏi lắm!"}
           className={needsWork ? "border-warn! text-warn!" : undefined} pressed={justCompleted} />}
@@ -79,11 +81,15 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
             const comment = attempt?.feedback || (attempt ? (attempt.result ? "Đã chấm" : "Chờ lời phê") : answered ? "Đã làm" : "Chưa làm");
             return <li key={item.id}><button type="button" onClick={() => onQuestion?.(item.id)} className={"flex w-full items-baseline gap-3 py-1 text-left focus-visible:outline-2 focus-visible:outline-accent-paper " + (child ? "min-h-12 text-lg" : "min-h-11")}>
               <span className="shrink-0 font-hand text-xl">Câu {index + 1}</span>
-              <span className={"shrink-0 rounded border px-2 font-hand text-lg " + (mark === "ĐÚNG" ? "border-green-700 text-green-800" : mark === "SỬA LẠI" ? "border-brick text-brick" : "border-rule text-muted-paper")}>{mark}</span>
+              <span className={"shrink-0 rounded border px-2 font-hand text-lg " + (mark === "ĐÚNG" ? "border-[#6d8a62] text-[#4f6b45]" : mark === "SỬA LẠI" ? "border-brick text-brick" : "border-rule text-muted-paper")}>{mark}</span>
               <span className="min-w-0 truncate text-sm">{comment}</span>
             </button></li>;
           })}
         </ul>
+        {offlinePending && <div className="my-5 flex items-end gap-2" role="alert">
+          <TutorPet size="panel" state="offline" />
+          <p className="mb-3 rounded bg-[#f5ebd8] px-3 py-2 text-[#5e3f0e]">Chưa nộp được vì mất mạng ạ. Bài còn trên trang; có mạng lại con sẽ kiểm tra và nộp tiếp.</p>
+        </div>}
         {presentation.pet && <div className="my-5 flex items-end gap-2" role="status">
           <TutorPet size="panel" state={presentation.pet} />
           <p className="mb-3 rounded-xl rounded-bl-sm border border-rule bg-white px-3 py-2 font-print">{presentation.message}</p>

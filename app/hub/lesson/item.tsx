@@ -208,7 +208,8 @@ export function LessonItem({
           <label htmlFor={"photo-" + item.id} className="block text-muted">
             Ảnh bài làm {item.attachment === "required" ? "(cần có)" : "(tuỳ chọn)"} · giữ tối đa 30 ngày, đừng chụp tên, địa chỉ hay giấy tờ
           </label>
-          <label className="relative mt-2 inline-flex h-24 w-24 cursor-pointer items-center justify-center rounded border border-rule px-2 text-center font-hand text-base text-ink-paper focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-paper has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+          <div className="mt-2 flex flex-wrap items-start gap-3">
+          <label className="relative inline-flex h-24 w-24 cursor-pointer items-center justify-center rounded border border-dashed border-accent-paper bg-[#fffdf7] px-2 text-center font-hand text-base text-ink-paper focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-paper has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
             Chụp hoặc chọn ảnh
           <input
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
@@ -240,16 +241,20 @@ export function LessonItem({
             }}
           />
           </label>
-          {uploading && <p role="status" className="mt-2 grid h-24 w-24 place-items-center rounded border border-rule bg-stone-100">Đang gửi…</p>}
+          {uploading && <p role="status" className="grid h-24 w-24 place-items-center rounded border border-rule bg-[#f3efe6]">Đang gửi…</p>}
           {photoError && <p role="alert">{photoError}</p>}
           {value.attachmentIds?.map((photo) => (
-            <p key={photo} className="mt-2 flex min-h-24 w-24 flex-wrap items-center justify-center gap-2 rounded border border-rule p-2">
-              <a href={"/api/uploads/" + photo} target="_blank" rel="noreferrer" className={pencilLink} aria-label="Xem ảnh đã đính kèm">Xem</a>
-              {!readOnly && (
-                <button className={pencilLink} disabled={disabled || uploading} onClick={() => onChange({ ...value, attachmentIds: value.attachmentIds?.filter((x) => x !== photo) })}>Gỡ</button>
-              )}
-            </p>
+            <figure key={photo} className="w-24">
+              {/* Private, authenticated image; it must not pass through a public image optimizer. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={"/api/uploads/" + photo} alt="Ảnh bài làm đã gửi" className="h-24 w-24 rounded border border-rule object-cover" />
+              <figcaption className="flex items-center justify-between gap-2">
+                <a href={"/api/uploads/" + photo} target="_blank" rel="noreferrer" className={pencilLink} aria-label="Xem ảnh đã đính kèm">Xem</a>
+                {!readOnly && <button type="button" className={pencilLink} disabled={disabled || uploading} onClick={() => onChange({ ...value, attachmentIds: value.attachmentIds?.filter((x) => x !== photo) })}>Gỡ</button>}
+              </figcaption>
+            </figure>
           ))}
+          </div>
         </div>
       )}
       {(item.input === "short" || item.input === "long") && value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
