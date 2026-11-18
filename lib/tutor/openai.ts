@@ -81,10 +81,23 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
   emit('turn',{id,status:'streaming'});
   const abort=new AbortController();
   let firstMs:number|undefined, answer='', rawLength=0, leakBlocked=false, inputTokens:number|undefined, outputTokens:number|undefined, completed=false;
+  let classification = '', offTopic: boolean | undefined;
+  let namePending = '';
+  const personalize = (text:string, final=false) => {
+    namePending = (namePending + text).replaceAll('{ten}', data.displayName);
+    let cut = namePending.length;
+    if (!final) for (let size=1;size<5;size++) {
+      if (namePending.endsWith('{ten}'.slice(0,size))) { cut=namePending.length-size; break; }
+    }
+    const part = namePending.slice(0, cut);
+    namePending = namePending.slice(cut);
+    return part;
+  };
   const filter = new SentenceFilter(data.answerFragments, (text, blocked) => {
-    answer += text;
+    const personalized = personalize(text);
+    answer += personalized;
     if (blocked) { leakBlocked=true; emit('blocked',{}); }
-    emit('delta',{text,blocked});
+    if (personalized) emit('delta',{text:personalized,blocked});
   });
   let timer=setTimeout(()=>abort.abort(),Math.max(0,timeoutMs-(Date.now()-started)));
   try {
@@ -114,7 +127,16 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
         }
         rawLength += [...entry.delta].length;
         if (rawLength>2000 || entry.delta.includes('\0')) throw new Error('Response too long');
-        filter.push(entry.delta);
+        if (offTopic === undefined) {
+          classification += entry.delta;
+          const newline=classification.indexOf('\n');
+          if (newline < 0) { if (classification.length > 32) throw new Error('Missing scope classification'); continue; }
+          const marker=classification.slice(0,newline).trim();
+          if (marker !== 'ON_TOPIC' && marker !== 'OFF_TOPIC') throw new Error('Invalid scope classification');
+          offTopic=marker === 'OFF_TOPIC';
+          const rest=classification.slice(newline+1); classification='';
+          if (!offTopic) filter.push(rest);
+        } else if (!offTopic) filter.push(entry.delta);
       }
       if (entry.type==='response.completed') {
         const response=entry.response as {status?:string;usage?:{input_tokens?:number;output_tokens?:number}}|undefined;
@@ -123,14 +145,17 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
       }
       if (entry.type==='response.failed' || entry.type==='error' || entry.type==='response.incomplete' || entry.type==='response.refusal.delta') throw new Error('Incomplete response');
     }
+    if (offTopic === undefined) throw new Error('Missing scope classification');
+    if (offTopic) filter.push(`Hihi, chuyện đó để lúc khác nha, giờ con chỉ giúp bài này thôi ạ. Quay lại câu đang mở nhé?`);
     filter.finish();
+    const tail=personalize('',true); answer+=tail; if (tail) emit('delta',{text:tail,blocked:false});
     const parsed=tutorAnswer.safeParse(answer);
     if (!completed || !parsed.success || firstMs===undefined) throw new Error('Incomplete response');
-    const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,leak_blocked=max(leak_blocked,?),first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
+    const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,off_topic=?,leak_blocked=max(leak_blocked,?),first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
       WHERE id=? AND status='streaming' AND attempt_token=? AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
         JOIN lesson_items i ON i.lesson_id=l.id AND i.item_id=tutor_turns.item_id WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NULL AND coalesce(s.tutor_enabled,1)=1 AND i.flag IS NOT 'item_void'
         AND NOT EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=0) AND ?=1)`)
-      .bind(parsed.data,Number(leakBlocked),firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
+      .bind(parsed.data,Number(offTopic),Number(leakBlocked),firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
     if (!saved.meta.changes) {
       await db.prepare("UPDATE tutor_turns SET status='blocked',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=?").bind(id,token).run();
       emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); return 'ineligible' as const;

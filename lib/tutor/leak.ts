@@ -1,6 +1,6 @@
 import { normalizeText } from '../evidence/normalize-text.ts';
 
-export const BLOCKED_SENTENCE = '(Chỗ này có đáp án, mình giữ lại nhé.)';
+export const BLOCKED_SENTENCE = '(Chỗ này lộ đáp án mất, con giữ lại nha.)';
 
 const normalized = (s: string) => normalizeText(s, { ignoreCase: true, punctuation: 'ignore' }).replace(/\s+/g, ' ').trim();
 

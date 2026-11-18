@@ -22,6 +22,7 @@ export type TutorTurn = {
   answer: string | null;
   status: 'queued' | 'streaming' | 'answered' | 'failed' | 'blocked';
   leak_blocked: number;
+  off_topic: number;
   first_token_ms: number | null;
   created_at: string;
   answered_at: string | null;

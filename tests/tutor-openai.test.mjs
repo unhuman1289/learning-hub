@@ -20,7 +20,7 @@ async function setup(t) {
   return {db,lessonId,env,create};
 }
 
-test('streamed Luna request sends only the current exercise and saves tokens before done',async t=>{
+test('streamed request sends the lesson without nickname and saves tokens before done',async t=>{
   const {db,env,create}=await setup(t); const turn=await create();
   db.sqlite.prepare('UPDATE learning_lessons SET draft=?').run(JSON.stringify({i1:{answer:'draft'},i2:{answer:'SECRET-OTHER'}}));
   let request; const events=[];
@@ -28,10 +28,10 @@ test('streamed Luna request sends only the current exercise and saves tokens bef
     request={url,...JSON.parse(options.body)}; return fakeTutorOpenAi();
   });
   assert.equal(result,'answered'); assert.equal(request.model,'gpt-6-luna'); assert.equal(request.stream,true); assert.equal(request.store,false);
-  assert.equal(request.input.includes('SECRET-OTHER'),false); assert.equal(request.input.includes('Private Name'),false); assert.equal(request.input.includes('private@example.test'),false);
-  const input=JSON.parse(request.input); assert.equal(input.nickname,'Ếch'); assert.equal(input.draft,'draft'); assert.match(input.question,/email redacted/);
+  assert.equal(request.input.includes('SECRET-OTHER'),true); assert.equal(request.input.includes('Ếch'),false); assert.equal(request.input.includes('Private Name'),false); assert.equal(request.input.includes('private@example.test'),false);
+  const input=JSON.parse(request.input); assert.equal(input.nickname,undefined); assert.equal(input.lesson.items[0].answer,'draft'); assert.match(input.question,/email redacted/);
   assert.equal('key' in input,false); assert.equal('solution' in input,false);
-  assert.deepEqual(events.map(x=>x.type),['turn','delta','delta','done']);
+  assert.equal(events[0].type,'turn'); assert.equal(events.at(-1).type,'done');
   const row=db.sqlite.prepare('SELECT status,answer,input_tokens,output_tokens,first_token_ms FROM tutor_turns WHERE id=?').get(turn.id);
   assert.equal(row.status,'answered'); assert.equal(row.input_tokens,12); assert.equal(row.output_tokens,8); assert.ok(row.first_token_ms>=0);
 });
@@ -131,7 +131,7 @@ test('disabling notebook AI while a child receives an answer prevents saving',as
   assert.equal(db.sqlite.prepare('SELECT status FROM tutor_turns WHERE id=?').get(turn.id).status,'blocked');
 });
 
-test('adult and child Responses payloads include nickname but not account name or profile id',async t=>{
+test('adult and child Responses payloads exclude nickname, account name and profile id',async t=>{
   for(const role of ['adult','child']) {
     await t.test(role,async t=>{
       const db=memoryDb();t.after(()=>db.sqlite.close());
@@ -143,7 +143,7 @@ test('adult and child Responses payloads include nickname but not account name o
       const turn=await openTutorTurn(db,profile,{lessonId,itemId:'i1',question:'Gợi ý cách bắt đầu?'},false);
       let sent;
       const result=await answerTutor(db,{OPENAI_ENABLED:'true',ENVIRONMENT:'staging',OPENAI_API_KEY:'fake'},turn.id,'prompt',()=>{},async (_url,options)=>{sent=JSON.parse(options.body);return fakeTutorOpenAi();});
-      assert.equal(result,'answered');assert.equal(JSON.parse(sent.input).nickname,nickname);
+      assert.equal(result,'answered');assert.equal(JSON.parse(sent.input).nickname,undefined); assert.equal(JSON.stringify(sent).includes(nickname),false);
       const payload=JSON.stringify(sent);assert.equal(payload.includes(profile),false);assert.equal(payload.includes(name),false);assert.equal(payload.includes('private@example.test'),false);
     });
   }
@@ -172,10 +172,45 @@ test('answer filtering occurs before SSE and persistence, with a blocked event a
   const item=JSON.parse(db.sqlite.prepare("SELECT payload FROM lesson_items WHERE item_id='i1'").get().payload);
   item.key={type:'text',accepted:['Guten Tag'],caseSensitive:false}; item.solution='Guten Tag';
   db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE item_id='i1'").run(JSON.stringify(item));
-  const entries=[{type:'response.output_text.delta',delta:'Hãy nghĩ nhé. GUTEN, '},{type:'response.output_text.delta',delta:'tag! Thử lại?'},{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:2}}}];
+  const entries=[{type:'response.output_text.delta',delta:'ON_TOPIC\nHãy nghĩ nhé. GUTEN, '},{type:'response.output_text.delta',delta:'tag! Thử lại?'},{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:2}}}];
   const fetcher=async()=>new Response(entries.map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''));
   const events=[]; assert.equal(await answerTutor(db,env,turn.id,'',(type,data)=>events.push({type,data}),fetcher),'answered');
   const row=db.sqlite.prepare('SELECT answer,leak_blocked FROM tutor_turns WHERE id=?').get(turn.id);
-  assert.equal(row.leak_blocked,1); assert.doesNotMatch(row.answer,/guten/i); assert.match(row.answer,/Chỗ này có đáp án/);
+  assert.equal(row.leak_blocked,1); assert.doesNotMatch(row.answer,/guten/i); assert.match(row.answer,/Chỗ này lộ đáp án/);
   assert.ok(events.some(event=>event.type==='blocked')); assert.doesNotMatch(JSON.stringify(events),/guten/i);
+});
+
+test('personalizes a split placeholder before stream and storage without sending the name', async t => {
+  const {db,env,create}=await setup(t); const turn=await create(); let request;
+  const entries=[{type:'response.output_text.delta',delta:'ON_TOPIC\nCon chào {te'},{type:'response.output_text.delta',delta:'n} ạ! Con giúp nha.'},{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:2}}}];
+  const events=[]; const fetcher=async (_url,options)=>{request=options.body;return new Response(entries.map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''));};
+  assert.equal(await answerTutor(db,env,turn.id,'',(type,data)=>events.push({type,data}),fetcher),'answered');
+  assert.doesNotMatch(request,/Ếch/); assert.match(JSON.stringify(events),/Ếch/); assert.doesNotMatch(JSON.stringify(events),/\{ten\}/);
+  assert.match(db.sqlite.prepare('SELECT answer FROM tutor_turns WHERE id=?').get(turn.id).answer,/Con chào Ếch/);
+});
+
+test('another hidden question is protected and off-topic answers are flagged', async t => {
+  const {db,env,create}=await setup(t); const turn=await create();
+  const item=JSON.parse(db.sqlite.prepare("SELECT payload FROM lesson_items WHERE item_id='i2'").get().payload);
+  item.key={type:'text',accepted:['geheimwort']}; item.solution='geheimwort';
+  db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE item_id='i2'").run(JSON.stringify(item));
+  const response=parts=>async()=>new Response([...parts.map(delta=>({type:'response.output_text.delta',delta})),{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:1}}}].map(e=>'data: '+JSON.stringify(e)+'\n\n').join(''));
+  assert.equal(await answerTutor(db,env,turn.id,'',()=>{},response(['ON_TOPIC\nCâu 2 là geheimwort.'])),'answered');
+  const saved=db.sqlite.prepare('SELECT answer,leak_blocked FROM tutor_turns WHERE id=?').get(turn.id);
+  assert.equal(saved.leak_blocked,1); assert.doesNotMatch(saved.answer,/geheimwort/i);
+  const next=await create();
+  assert.equal(await answerTutor(db,env,next.id,'',()=>{},response(['OFF_','TOPIC\nNội dung không được hiển thị'])),'answered');
+  const off=db.sqlite.prepare('SELECT answer,off_topic FROM tutor_turns WHERE id=?').get(next.id);
+  assert.equal(off.off_topic,1); assert.match(off.answer,/bài này/); assert.doesNotMatch(off.answer,/không được hiển thị/);
+});
+
+test('only an explicitly revealed solution enters model context', async t => {
+  const {db,env,create,lessonId}=await setup(t); const turn=await create();
+  const item=JSON.parse(db.sqlite.prepare("SELECT payload FROM lesson_items WHERE item_id='i2'").get().payload);
+  item.key={type:'text',accepted:['solution-secret']}; item.solution='solution-secret'; item.rubric='private-rubric';
+  db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE item_id='i2'").run(JSON.stringify(item));
+  db.sqlite.prepare('UPDATE learning_lessons SET support=? WHERE id=?').run(JSON.stringify({i2:'solution'}),lessonId);
+  let request; const fetcher=async(_url,options)=>{request=options.body;return fakeTutorOpenAi();};
+  assert.equal(await answerTutor(db,env,turn.id,'',()=>{},fetcher),'answered');
+  assert.match(request,/solution-secret/); assert.doesNotMatch(request,/private-rubric/);
 });

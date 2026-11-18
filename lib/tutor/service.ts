@@ -60,7 +60,7 @@ export async function readTutorTurns(db: Db, learnerId: string, lessonId: string
   const lesson = await db.prepare("SELECT 1 FROM learning_lessons WHERE id=? AND user_id=? AND package_version IN ('2','3')")
     .bind(lessonId, learnerId).first();
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
-  const { results = [] } = await db.prepare(`SELECT id, lesson_id, item_id, question, answer, status, leak_blocked,
+  const { results = [] } = await db.prepare(`SELECT id, lesson_id, item_id, question, answer, status, leak_blocked, off_topic,
     first_token_ms, created_at, answered_at FROM tutor_turns WHERE lesson_id=? AND learner_id=? ORDER BY created_at,rowid`)
     .bind(lessonId, learnerId).all<TutorTurn>();
   return results;
