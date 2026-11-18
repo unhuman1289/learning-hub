@@ -246,6 +246,8 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         await restoreNetwork();
       }
       await expect.poll(count).toBe(before + 1);
+      // The API can show the saved row before the reader receives the response.
+      await expect(summary.getByRole('button', { name: 'Thử nộp lại', exact: true })).toHaveCount(0);
       await page.reload();
       expect(await count()).toBe(before + 1);
     });
