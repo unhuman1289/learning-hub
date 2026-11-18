@@ -116,3 +116,5 @@ Khung staging Q0 đã đóng lúc 18:44 Europe/Berlin ngày 18/11.
 Khung staging G3 fixture #230 đã đóng lúc 19:20 Europe/Berlin ngày 18/11.
 
 staging: G3 #231 + cấu hình R #232, đến 20:30 Europe/Berlin
+
+staging: G3 mail1 #233, đến 21:30 Europe/Berlin
