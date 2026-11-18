@@ -36,7 +36,7 @@
     "staging": {
       "placement": { "region": "azure:westeurope" },
       "name": "learning-hub-staging",
-          "workers_dev": true,
+      "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "staging",
         "OPENAI_ENABLED": "true",
@@ -104,7 +104,7 @@
     "production": {
       "placement": { "region": "azure:westeurope" },
       "name": "learning-hub-prod",
-          "workers_dev": true,
+      "workers_dev": true,
       "routes": [
         {
           "pattern": "learn.unhuman.cc",
