@@ -58,21 +58,29 @@ export function LessonReader({
   const settings = useListeningSettings(ownerId, hasListening && !readonly && !session.verification);
   const [listeningPlays, setListeningPlays] = useState<Record<string, number>>({});
   const [savingPlays, setSavingPlays] = useState<string[]>([]);
-  const [checkIntent, setCheckIntent] = useState<{ itemId: string; previousId: string | undefined }>();
+  const [uploadingPhotos, setUploadingPhotos] = useState<string[]>([]);
   if (!lesson) return <p role={error ? "alert" : "status"} className="mx-auto max-w-4xl p-6">{error || "Đang mở bài…"}</p>;
 
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;
   const subject = lesson.subjectTitle || lesson.title;
   const frozen = readonly || !!lesson.completedAt || !!session.verification;
-  const checked = checkIntent ? feedbackForItems(history, [checkIntent.itemId])[0] : undefined;
-  const correctCheck = checked && checked.id !== checkIntent?.previousId && checked.attempts[0]?.result === 'correct' ? checked.id : undefined;
   const answered = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
-  const hasAnswer = (item: Lesson["items"][number]) =>
-    hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length;
-  const changedWhole = lesson.items.some(item => {
+  const hasAnswer = (item: Lesson["items"][number]) => {
+    const answer = answers[item.id]?.answer ?? "";
+    return !!answers[item.id]?.attachmentIds?.length ||
+      (hasLessonAnswer(item.input, answer) && !(item.input === "code" && answer === item.starter));
+  };
+  const hasUnsubmittedWork = lesson.items.some(item => {
     const previous = feedbackForItems(history, [item.id])[0]?.attempts[0];
     const answer = answers[item.id]?.answer ?? "";
-    return previous ? previous.answer !== answer || JSON.stringify(previous.attachmentIds ?? []) !== JSON.stringify(answers[item.id]?.attachmentIds ?? []) : hasAnswer(item);
+    if (item.revealed.solutionSeen && previous?.support !== "solution") return true;
+    return hasAnswer(item) && (!previous || previous.answer !== answer ||
+      JSON.stringify(previous.attachmentIds ?? []) !== JSON.stringify(answers[item.id]?.attachmentIds ?? []));
+  });
+  const canRetryGrading = lesson.items.some(item => {
+    if (!hasAnswer(item)) return false;
+    const submission = feedbackForItems(history, [item.id])[0];
+    return submission?.attempts[0]?.status === "pending" && !waitingForFeedback(submission);
   });
   const blankCount = lesson.items.filter(item => !answered.has(item.id) && !item.revealed.solutionSeen && !hasAnswer(item)).length;
   const correctionIndex = correction ? lesson.items.findIndex(item =>
@@ -81,8 +89,7 @@ export function LessonReader({
   const firstUnanswered = lesson.items.findIndex(item => !item.revealed.solutionSeen && !answered.has(item.id));
   let initialItem = 0;
   if (lesson.completedAt) initialItem = summaryIndex;
-  else if (pending === "whole-lesson") initialItem = summaryIndex;
-  else if (pending) initialItem = lesson.items.findIndex(item => item.id === pending) + 1;
+  else if (pending) initialItem = summaryIndex;
   else if (correctionIndex >= 0) initialItem = correctionIndex + 1;
   else if (answered.size || lesson.items.some(item => item.revealed.solutionSeen || hasAnswer(item))) {
     const draftIndex = lesson.items.findIndex(item =>
@@ -107,11 +114,11 @@ export function LessonReader({
     {feedbackError && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-ink-paper">
       {feedbackError} <button onClick={() => void session.refreshFeedback()} className={pencilLink}>{words.action.retry}</button>
     </p>}
-    {error && !(session.offline && pending === "whole-lesson") && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
+    {error && !(session.offline && pending) && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
     {hasListening && <ListeningBrowserNotice />}
     <LessonFlow initialItem={initialItem} groups={session.hadPrefetch && !grouped ? lesson.items.map((_, i) => [i + 1]) : lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
-      locked={busy || !!pending || !!session.verification || (session.hadPrefetch && !grouped)} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen}
-      tutor={!frozen && lesson.items.length ? current => <Suspense fallback={null}><Tutor lessonId={id} items={lesson.items.map(item=>item.id)} number={current} child={child} correctCheck={correctCheck} checkedItem={checkIntent?.itemId} /></Suspense> : undefined} page={(index, jump, active) => {
+      locked={busy || uploadingPhotos.length > 0 || !!session.verification || (session.hadPrefetch && !grouped)} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen}
+      tutor={!frozen && lesson.items.length ? current => <Suspense fallback={null}><Tutor lessonId={id} items={lesson.items.map(item=>item.id)} number={current} child={child} /></Suspense> : undefined} page={(index, jump, active) => {
         if (index === 0) return <>
           <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
           <p className="mt-3">{lesson.objective}</p>
@@ -119,21 +126,25 @@ export function LessonReader({
           {lesson.template === "reading" ? <LessonNotes lesson={lesson} formatText={formatText} /> : materials}
         </>;
         if (index === summaryIndex) return <>
-          <LessonSummary child={child} displayName={session.displayName} offlinePending={session.offline && pending === "whole-lesson"} items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
+          <LessonSummary child={child} displayName={session.displayName} offlinePending={session.offline && pending} items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
             onQuestion={itemId => {
               const itemIndex = lesson.items.findIndex(item => item.id === itemId);
               if (itemIndex >= 0) jump(itemIndex + 1);
             }}
             progressKey={history.map(entry => entry.id + ":" + entry.job_status + ":" + entry.attempts.map(a => a.result + ":" + a.feedback).join("~")).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
             completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
-            {lesson.wholeLesson && !readonly && !lesson.completedAt && (!history.length || changedWhole || !!pending) &&
-              <button type="button" className={buttonClass("primary")} disabled={busy || !!session.verification || session.waitingForGrade || savingPlays.length > 0}
-                onClick={() => void session.submit("whole-lesson")}>
+            {!readonly && (pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || canRetryGrading))) &&
+              <button type="button" className={buttonClass("primary")} disabled={busy || !!session.verification || (session.waitingForGrade && !pending) || savingPlays.length > 0}
+                onClick={() => void session.submit()}>
                 {pending ? "Thử nộp lại" : "Nộp bài"}
               </button>}
+            {lesson.items.some(item => item.attachment !== "none") && <details className="w-full text-sm text-muted-paper">
+              <summary className={pencilLink + " min-h-11 content-center cursor-pointer"}>Quyền riêng tư của ảnh</summary>
+              <p>Ảnh được giữ tối đa 30 ngày. Tránh chụp tên, địa chỉ hoặc giấy tờ.</p>
+            </details>}
             {lesson.output && <p>{words.place.product} · {lesson.output}</p>}
             {!readonly && <button type="button" className={buttonClass(lesson.completedAt ? "ghost" : "primary")}
-              disabled={busy || !!session.verification || !!pending || (lesson.wholeLesson && !lesson.completedAt && (!history.length || session.waitingForGrade))} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
+              disabled={busy || !!session.verification || !!pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || session.waitingForGrade))} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
               {lesson.completedAt ? words.action.reopen : words.action.finish}
             </button>}
           </LessonSummary>
@@ -148,8 +159,6 @@ export function LessonReader({
         const latest = current?.attempts[0];
         const awaiting = waitingForFeedback(current);
         const value = answers[item.id] ?? { answer: item.input === "code" ? item.starter : "" };
-        const changed = !latest || latest.answer !== value.answer || !!value.attachmentIds?.length;
-        const canSubmit = pending === item.id || (!pending && !awaiting && hasAnswer(item) && (changed || !latest?.result));
         const nextAudio: ListeningAudio | undefined = lesson.items[index]?.audio;
         const playSaving = savingPlays.includes(item.id);
         const listeningItem = { lessonId: id, itemId: item.id, readOnly: frozen };
@@ -171,11 +180,10 @@ export function LessonReader({
           nextSrc: nextAudio?.src?.[settings.voice],
         } : undefined;
         return <div key={item.id}><LessonItem active={active} listening={listening} item={item} number={index} value={value} formatText={formatText}
-          germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
-          disabled={playSaving || busy || !!session.verification || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={readonly || !!lesson.completedAt}
+          germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)}
+          disabled={playSaving || busy || !!session.verification || pending} readOnly={readonly || !!lesson.completedAt}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
-          onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} allowUploadSubmit={!lesson.wholeLesson && !awaiting && !pending} awaitingFeedback={awaiting && pending !== item.id}
-          submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
+          onUploadState={uploading => setUploadingPhotos(photos => uploading ? [...photos, item.id] : photos.filter(id => id !== item.id))}
           feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :
             latest?.result ? words.result[latest.result as keyof typeof words.result] : current ? words.status.gradeLater : undefined}

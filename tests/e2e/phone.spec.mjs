@@ -34,8 +34,6 @@ async function openSpine(page, title) {
   await expect(page.getByRole('heading', { name: title, exact: true }).filter({ visible: true })).toBeVisible();
 }
 
-const feedback = article => article.getByText('Chi tiết lời phê', { exact: true });
-
 test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
   if (new URL(baseURL).hostname === 'learning-hub-staging.tranvu-812.workers.dev') {
     if (!credentialsFile || !artifacts || !process.env.PHONE_COMMIT) {
@@ -60,7 +58,6 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
   const desk = () => page.getByRole('region', { name: 'Bài tiếp theo' });
   const spine = () => page.getByRole('link', { name: 'Mở sổ ' + subject, exact: true });
   const answer = item => visiblePage(page).locator('#answer-' + item);
-  const article = item => visiblePage(page).locator('article').filter({ has: page.locator('#question-' + item) });
   let lessonUrl, newId, notebookId;
   const failures = [];
   const selected = new Set((process.env.PHONE_STEPS ?? '').split(',').filter(Boolean).map(Number));
@@ -201,33 +198,27 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
     });
 
     await step(5, async () => {
-      if (!credentialsFile) {
+      if (credentialsFile) {
+        for (const [index, correct] of ['Wie', 'Wo', 'Wann'].entries()) {
+          const field = answer('i' + (index + 1));
+          await turnUntil(page, field);
+          await field.fill(correct);
+        }
+      } else {
         const field = visiblePage(page).getByLabel('Bài làm của bạn').first();
         await field.fill('Test online');
-        const card = field.locator('xpath=ancestor::article');
-        await card.getByRole('button', { name: /^Kiểm tra/ }).tap();
-        await expect(feedback(card)).toBeVisible();
-        return;
       }
-      const times = measurements[5] = [];
-      if (!lessonUrl) throw Error('No accessible demo lesson.');
-      for (const [index, correct] of ['Wie', 'Wo', 'Wann'].entries()) {
-        const item = 'i' + (index + 1);
-        await turnUntil(page, answer(item));
-        const card = article(item);
-        await answer(item).tap();
-        await answer(item).fill(correct);
-        const button = card.getByRole('button', { name: /^Kiểm tra/ });
-        await expect(button).toBeVisible();
-        const result = card.getByRole('status').filter({ hasText: 'Đúng' });
-        times.push(await timeFromTap(button, result));
-      }
+      await expect(visiblePage(page).getByRole('button', { name: /^Kiểm tra/ })).toHaveCount(0);
+      const summary = page.getByRole('region', { name: 'Tổng kết bài' });
+      await turnUntil(page, summary);
+      const elapsed = await timeFromTap(summary.getByRole('button', { name: 'Nộp bài', exact: true }),
+        summary.getByText('Đã có kết quả bài làm.', { exact: true }));
+      const times = measurements[5] = [elapsed];
       return { times };
     });
 
     await step(6, async () => {
-      const field = credentialsFile ? answer('i3') : visiblePage(page).getByLabel('Bài làm của bạn').first();
-      const card = field.locator('xpath=ancestor::article');
+      const summary = page.getByRole('region', { name: 'Tổng kết bài' });
       const id = new URL(lessonUrl ?? page.url()).searchParams.get('bai2');
       if (!id) throw Error('No accessible demo lesson.');
       const feedbackPath = '/api/lessons/' + id + '/feedback';
@@ -236,26 +227,27 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
         expect(response.ok(), 'load saved submissions').toBeTruthy();
         return (await response.json()).submissions.length;
       };
-      if (credentialsFile && !lessonUrl) throw Error('No accessible demo lesson.');
-      if (credentialsFile && !await field.isVisible()) await turnUntil(page, field);
+      await turnUntil(page, summary);
+      const lesson = (await (await context.request.get('/api/lessons/' + id)).json()).lesson;
+      const index = credentialsFile ? 2 : lesson.items.findIndex(item => item.input === 'short');
+      const item = lesson.items[index];
+      await summary.getByRole('button', { name: new RegExp('^Câu ' + (index + 1) + ' ') }).tap();
+      const field = answer(item.id);
       await expect(field).toBeVisible();
       const before = await count();
-      await expect(card.getByRole('button', { name: /^Kiểm tra/ })).toBeEnabled();
-      await context.setOffline(true);
       await restoreNetwork({ offline: true });
       try {
-        await field.tap();
         await field.fill('Test offline');
-        await card.getByRole('button', { name: /^Kiểm tra/ }).tap();
-        await expect(page.getByRole('alert').filter({ hasText: /Mất kết nối/ }).first()).toBeVisible();
+        await turnUntil(page, summary);
+        await summary.getByRole('button', { name: 'Nộp bài', exact: true }).tap();
+        await expect(summary.getByText(/Chưa nộp được vì mất mạng/)).toBeVisible();
         if (dir) await page.screenshot({ path: join(dir, '06-offline.png') });
       } finally {
-        await context.setOffline(false);
         await restoreNetwork();
       }
-      await expect(field).toHaveValue('Test offline');
-      await card.getByRole('button', { name: 'Thử lại', exact: true }).tap();
       await expect.poll(count).toBe(before + 1);
+      // The API can show the saved row before the reader receives the response.
+      await expect(summary.getByRole('button', { name: 'Thử nộp lại', exact: true })).toHaveCount(0);
       await page.reload();
       expect(await count()).toBe(before + 1);
     });
@@ -274,7 +266,7 @@ test('PHONE-CHECK', async ({ browser, browserName, baseURL }, info) => {
       await expect(visiblePage(page).getByRole('button', { name: 'Mở lại bài', exact: true })).toBeVisible();
       await page.goto(lessonUrl ?? page.url());
       await expect(reopen).toBeVisible();
-      await summary.getByRole('button', { name: /đúng ngay|cần sửa lại|đúng sau khi sửa/ }).first().tap();
+      await summary.getByRole('button', { name: /^Câu \d+ (ĐÚNG|SỬA LẠI)/ }).first().tap();
       const mark = visiblePage(page).getByText('Chi tiết lời phê', { exact: true }).first();
       await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn', /.+/);
       await mark.tap();

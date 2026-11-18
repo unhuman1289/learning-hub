@@ -388,3 +388,34 @@ test('whole lesson submits a photo for grading', async () => {
   const history = await readLessonSubmissions(db, 'learner', id);
   assert.deepEqual(history[0].attempts[0].attachmentIds, [photo]);
 });
+
+test('legacy drafts submit closed and open answers together without rewriting past attempts', async () => {
+  const { db, id } = await seed();
+  const answers = {
+    i1: { answer: '["b"]' },
+    i2: { answer: 'Lena kann heute Suppe kochen.' },
+    i3: { answer: 'Paul möchte einen Kuchen kaufen.' },
+  };
+  await saveDraft(db, 'learner', id, { revision: 0, answers });
+  const old = await submitLesson(db, 'learner', id, input());
+  const snapshot = db.sqlite.prepare('SELECT payload,draft,draft_revision FROM learning_lessons WHERE id=?');
+  const before = snapshot.get(id);
+  const packet = parseSubmission({
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: null, itemIds: null,
+  });
+  const submitted = await submitLesson(db, 'learner', id, packet);
+
+  assert.equal(submitted.stage, null);
+  assert.deepEqual(submitted.attempts.map(({ item_id, result, status }) => [item_id, result, status]), [
+    ['i2', 'correct', 'graded'],
+    ['i3', null, 'pending'],
+  ]);
+  assert.equal((await submitLesson(db, 'learner', id, packet)).replayed, true);
+  assert.equal(await status(submitLesson(db, 'learner', id, { ...packet, clientSubmissionId: crypto.randomUUID() })), 409);
+  const job = await queueSubmission(db, {}, 'learner', submitted.id);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='failed' WHERE id=?").run(job.id);
+  const retry = await submitLesson(db, 'learner', id, { ...packet, clientSubmissionId: crypto.randomUUID() });
+  assert.deepEqual(retry.attempts.map(({ item_id, retry_of }) => [item_id, retry_of]), [['i3', submitted.attempts[1].id]]);
+  assert.deepEqual(snapshot.get(id), before);
+  assert.deepEqual((await readSubmission(db, 'learner', old.id)).attempts, old.attempts);
+});

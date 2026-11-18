@@ -1,3 +1,4 @@
+import { openLessonSummary } from './lesson-summary.mjs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
 import { runFake } from '../../scripts/fake-runner.mjs';
@@ -55,6 +56,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const warmMs = await page.evaluate(() => performance.now());
   checkTime(info, 'desk-warm', warmMs, 3000);
   const deskStats = await warm();
+  console.log(JSON.stringify({ project: info.project.name, deskGzip: deskStats.gzip }));
   expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
   // WebKit can report the ambient request twice with a service worker. Keep
@@ -121,31 +123,20 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await page.route('**/submissions', failedSubmission);
   await field.fill('Lena kann heute Suppe kochen.');
   await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
-  await card.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
-  const retry = card.getByRole('button', { name: 'Thử lại', exact: true });
+  await expect(card.getByRole('button', { name: /^Kiểm tra/ })).toHaveCount(0);
+  const summary = await openLessonSummary(page);
+  await expect(summary.getByRole('button', { name: /^Câu 2 .*Đã làm/ })).toBeVisible();
+  await summary.getByRole('button', { name: 'Nộp bài', exact: true }).tap();
+  const retry = summary.getByRole('button', { name: 'Thử nộp lại', exact: true });
   await expect(retry).toBeEnabled();
-  await expect(field).toHaveValue('Lena kann heute Suppe kochen.');
   failSubmission = false;
-  const gradeMs = await timeFromTap(retry, card.getByRole('status').filter({ hasText: /Đúng/ }).first());
+  const gradeMs = await timeFromTap(retry, summary.getByText('Đã có kết quả bài làm.', { exact: true }));
   checkTime(info, 'grade', gradeMs, 1200);
   expect((await submissions()).length).toBe(previous + 1);
   await page.reload();
   await expect(flow(page)).toBeVisible();
   expect((await submissions()).length).toBe(previous + 1);
-
-  for (let index = 0; index < lesson.items.length + 1; index++) {
-    const summary = flow(page).getByRole('heading', { name: 'Tổng kết bài' });
-    if (await summary.isVisible()) break;
-    // The turn starts after a lazy import, so wait for the sheet to be replaced
-    // instead of racing the next tap against a page that is about to unmount.
-    await flow(page).locator('.lesson-flow-page[data-e2e-turned-from]').evaluateAll(sheets => sheets.forEach(sheet => delete sheet.dataset.e2eTurnedFrom));
-    const sheet = flow(page).locator('.lesson-flow-page:visible');
-    await sheet.evaluate(element => { element.dataset.e2eTurnedFrom = ''; });
-    await nextEdge(page).tap();
-    await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]:visible')).toHaveCount(0);
-    await turnSettled(page);
-  }
-  await expect(flow(page).getByRole('heading', { name: 'Tổng kết bài' })).toBeVisible();
+  await openLessonSummary(page);
   await flow(page).getByRole('button', { name: 'Xong bài', exact: true }).tap();
   const confirm = page.getByRole('alertdialog').getByRole('button', { name: 'Xong bài', exact: true });
   if (await confirm.isVisible()) await confirm.tap();
@@ -442,7 +433,7 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await turnSettled(page);
   await expect(flow(page).locator('[data-question-page][data-active][data-test-prepared-instance="same"]')).toBeVisible();
   expect(await preparedHandle.evaluate(node => node.isConnected && !node.inert && !node.hasAttribute('aria-hidden'))).toBe(true);
-  await expect.poll(() => page.evaluate(() => window.__pageViewportEffects)).toEqual({ resize: 1, scroll: 1 });
+  await expect.poll(() => page.evaluate(() => window.__pageViewportEffects)).toEqual({ resize: 0, scroll: 0 });
   await expect(page.locator(':focus')).not.toHaveAttribute('data-turn-edge');
   await page.keyboard.press('ArrowLeft');
   await turnSettled(page);
@@ -658,8 +649,7 @@ test.describe('F3 xác nhận và hồ sơ', () => {
     await expect(page.getByRole('alert').filter({ hasText: 'bản đang xem chỉ để đọc' })).toBeVisible();
     const inputs = flow(page).locator('input, textarea');
     for (const input of await inputs.all()) await expect(input).toBeDisabled();
-    const check = flow(page).getByRole('button', { name: /Kiểm tra|Nộp bài/ });
-    for (const button of await check.all()) await expect(button).toBeDisabled();
+    await expect(flow(page).getByRole('button', { name: /Kiểm tra|Nộp bài/ })).toHaveCount(0);
   });
 
   test('đổi hồ sơ bỏ dữ liệu tải trước của hồ sơ cũ', async ({ page }) => {
