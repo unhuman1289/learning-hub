@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { apiJson } from "../api";
-import { pencilLink } from "../paper-bits";
+import { buttonClass } from "../ui";
 import type { Voice } from "./listen-api";
 
 type Preferences = Record<string, unknown>;
@@ -57,7 +57,7 @@ export function ListeningBrowserNotice() {
   if (!inApp) return null;
   return <aside className="mb-2 flex flex-wrap items-center gap-x-3 bg-postit-yellow px-3 text-sm text-postit-ink">
     <p className="py-2">Mở bằng Safari/Chrome để dùng đầy đủ</p>
-    <button type="button" className={pencilLink + " min-h-11"}
+    <button type="button" className={buttonClass("secondary", "text-postit-ink")}
       onClick={async () => {
         try {
           await navigator.clipboard.writeText(window.location.href);

@@ -2,21 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 import { SketchIcon } from "./sketch-icons";
-import { cx } from "../../components/notebook/paper";
 import { buttonClass } from "./ui";
 import type { StudyClock } from "./use-study-clock";
 
 const presets = [30, 45, 60, 90, 120];
 
 /**
- * Minutes studied today as a small ruler in the top bar. Counted automatically while a notebook
+ * Minutes studied today on the oak bar in the top bar. Counted automatically while a notebook
  * is open. Hover or focus shows the breakdown; pressing it lets the learner change the daily target.
  */
-export function StudyMeter({ clock, labelFor, variant = "ruler" }: { variant?: "ring" | "ruler"; clock: StudyClock; labelFor: (key: string) => string }) {
-  const { seconds, minutes, byTrack, targetMinutes, counting } = clock;
+export function StudyMeter({ clock, labelFor }: { clock: StudyClock; labelFor: (key: string) => string }) {
+  const { minutes, byTrack, targetMinutes, counting } = clock;
   const [editing, setEditing] = useState(false);
   const wrapper = useRef<HTMLDivElement>(null);
-  const percent = Math.min(100, (seconds / (targetMinutes * 60)) * 100);
   const note = editing ? undefined : "study-meter-note";
   const reached = minutes >= targetMinutes;
 
@@ -41,25 +39,13 @@ export function StudyMeter({ clock, labelFor, variant = "ruler" }: { variant?: "
         aria-describedby={note}
         aria-label={`Đã học hôm nay ${minutes} trên ${targetMinutes} phút${counting ? ", đang tính giờ" : ""}. Đổi mục tiêu`}
         onClick={() => setEditing((open) => !open)}
-        className="flex min-h-11 items-center gap-2 rounded-[3px] bg-paper/85 px-2.5 text-ink-paper shadow-[inset_0_-2px_0_rgb(0_0_0/0.12)] transition-colors hover:bg-paper"
+        className="notebook-button notebook-ghost notebook-wood whitespace-nowrap tabular-nums"
       >
-        {variant === "ring" ? (
-          <svg aria-hidden="true" viewBox="0 0 24 24" className={cx("size-6", reached ? "text-ok" : "text-accent-paper")}>
-            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2" opacity=".25" />
-            <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" strokeWidth="2"
-              pathLength="100" strokeDasharray={`${percent} 100`} transform="rotate(-90 12 12)" />
-          </svg>
-        ) : <SketchIcon name="hourglass" size={15} className={cx(reached ? "text-ok" : "text-accent-paper", counting && "animate-hourglass")} />}
-        <span className="grid gap-1">
-          <span className="text-xs font-semibold leading-none tabular-nums">{minutes}<span className="font-normal text-muted-paper">/{targetMinutes} phút</span></span>
-          {/* A tiny ruler with a tick at each quarter of the target; it grows a little every few seconds. */}
-          {variant === "ruler" && <span className="relative block h-1.5 w-16 overflow-hidden rounded-[1px] bg-line [background-image:repeating-linear-gradient(to_right,transparent_0_calc(25%-1px),var(--color-muted)_calc(25%-1px)_25%)] sm:w-20">
-            <span className={cx("absolute inset-y-0 left-0 transition-[width] duration-[5000ms] ease-linear", reached ? "bg-ok" : "bg-accent")} style={{ width: `${percent}%` }} />
-          </span>}
-        </span>
+        <SketchIcon name="hourglass" size={17} />
+        <span>{minutes}/{targetMinutes} phút</span>
       </button>
 
-      {/* Tooltip: a small paper slip hanging from the ruler (hidden while the target is being edited). */}
+      {/* Tooltip: a small paper slip hanging from the bar (hidden while the target is being edited). */}
       {!editing && (
         <div
           id="study-meter-note"
@@ -139,7 +125,7 @@ function TargetEditor({ clock, onDone }: { clock: StudyClock; onDone: () => void
             disabled={busy}
             aria-pressed={minutes === preset}
             onClick={() => setValue(String(preset))}
-            className={cx("min-h-8 rounded-full border px-2.5 text-sm", minutes === preset ? "border-brick bg-brick text-brick-ink" : "border-postit-ink/30 hover:border-postit-ink/60")}
+            className="notebook-button notebook-choice"
           >
             {preset}
           </button>
@@ -149,7 +135,7 @@ function TargetEditor({ clock, onDone }: { clock: StudyClock; onDone: () => void
       {error && <p role="alert" className="mt-2 text-xs font-semibold text-brick">{error}</p>}
       <div className="mt-3 flex items-center gap-2">
         <button type="submit" disabled={!valid || busy} className={buttonClass("primary", "min-h-11 px-3")}>{busy ? "Đang lưu…" : "Lưu mục tiêu"}</button>
-        <button type="button" onClick={onDone} className="min-h-11 px-2 text-sm text-postit-ink underline-offset-2 hover:underline">Huỷ</button>
+        <button type="button" onClick={onDone} className={buttonClass("secondary", "text-postit-ink")}>Huỷ</button>
       </div>
     </form>
   );

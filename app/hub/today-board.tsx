@@ -6,12 +6,11 @@ import type { TodayItem } from "../../lib/today";
 import { apiJson } from "./api";
 import { buttonClass, RouteLink } from "./ui";
 import type { Route } from "./use-route";
-const openAction = "brick inline-flex min-h-11 items-center px-3 font-hand text-lg";
 
 export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, adaptiveSubjects, preparing, loadError, reload, animate }: {
   learner: string | null;
   go: (route: Route) => void;
-  notes: ReactNode[];
+  notes: (highlightFirst: boolean) => ReactNode[];
   items: TodayItem[];
   loading: boolean;
   emptyShelf: boolean;
@@ -69,7 +68,7 @@ export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, ada
     <section aria-label="Bài tiếp theo" aria-busy={loading}>
       {(error || loadError) && (
         <p role="alert" className="mb-3 rounded-sm bg-paper px-3 py-2 text-sm text-ink-paper">
-          {error || loadError} {loadError && <button type="button" className="min-h-11 underline" onClick={() => void reload()}>Thử lại</button>}
+          {error || loadError} {loadError && <button type="button" className={buttonClass("secondary")} onClick={() => void reload()}>Thử lại</button>}
         </p>
       )}
       <ul className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13rem),1fr))] gap-4 px-1 py-2">
@@ -81,21 +80,21 @@ export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, ada
             <div className="mt-auto flex flex-wrap items-center gap-x-3 pt-2">
               {item.lessonId || learner ? (
                 <RouteLink route={item.lessonId ? { view: "lesson", id: item.lessonId, correction: item.category === "correction" ? true : undefined } : { view: "book", id: item.subjectId }}
-                  go={go} className={openAction}>
-                  {item.hasWork ? "Học tiếp" : item.lessonId ? words.action.open : "Mở sổ"}
+                  go={go} className={buttonClass(index === 0 ? "primary" : "secondary", index > 0 ? "text-postit-ink" : undefined)}>
+                  {item.hasWork ? "Học tiếp" : item.lessonId ? words.action.open : "Mở sổ"}{index === 0 && <span aria-hidden="true">→</span>}
                 </RouteLink>
               ) : (
-                <button type="button" disabled={busy !== null} className={openAction} onClick={() => void practise(item)}>{words.request.practice}</button>
+                <button type="button" disabled={busy !== null} className={buttonClass(index === 0 ? "primary" : "secondary", index > 0 ? "text-postit-ink" : undefined)} onClick={() => void practise(item)}>{words.request.practice}</button>
               )}
               {item.lessonId && !learner && (
                 <button type="button" disabled={busy !== null}
-                  className={buttonClass("ghost", "min-h-11 px-0 text-postit-ink hover:text-postit-ink")}
+                  className={buttonClass("secondary", "text-postit-ink")}
                   onClick={() => void snooze(item.lessonId!)}>{words.action.later}</button>
               )}
             </div>
           </PostIt>
         ))}
-        {notes}
+        {notes(firstBySubject.size === 0)}
         {waiting.map(({ subjectId, title, writing }, index) => (
           <PostIt key={subjectId} color="bg-postit-yellow" index={firstBySubject.size + index} compact>
             <p className="font-hand text-xl" role="status">{writing ? "Đang soạn bài" : "Đang chờ soạn bài"} · {title}</p>

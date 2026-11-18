@@ -32,7 +32,7 @@ export function DeskProgress({ subjects, learner, go }: { subjects: ShelfSubject
         <div role="group" aria-label="Chọn sổ" className="flex flex-wrap gap-x-5">
           {notebooks.map((subject) => (
             <button key={subject.id} type="button" aria-pressed={subject.id === active.id} onClick={() => setPicked(subject.id)}
-              className={cx("min-h-11 min-w-11 font-hand text-xl leading-9", subject.id === active.id ? "text-accent-hover underline decoration-2 underline-offset-4" : "text-muted hover:text-ink")}>
+              className="notebook-button notebook-choice text-xl">
               {subject.title}
             </button>
           ))}
@@ -70,7 +70,7 @@ function Sheet({ subject, learner, go, single }: { subject: ShelfSubject; learne
         <div className="grid h-[4.5rem] grid-cols-7 sm:grid-cols-[repeat(14,1.75rem)]" aria-label="Phút học mỗi ngày">
           {data.days.map((day, index) => (
             <button type="button" key={day.day} aria-pressed={selectedDay === day.day} aria-label={`${shortDay(day.day)}, ${minutes(day.seconds)}`} onClick={() => setSelectedDay(day.day)}
-              className={cx("flex min-h-11 flex-col-reverse hover:bg-rose-soft/60 focus-visible:outline-2 focus-visible:outline-accent", index < 7 && "hidden sm:flex", selectedDay === day.day && "bg-rose-soft")}>
+              className={cx("notebook-choice flex min-h-11 flex-col-reverse border hover:bg-rose-soft/60 focus-visible:outline-2 focus-visible:outline-accent-paper", index < 7 && "hidden sm:flex")}>
               {Array.from({ length: squares(day.seconds) }, (_, i) => <span key={i} aria-hidden="true" className="h-[1.125rem] border border-paper bg-accent/85" />)}
             </button>
           ))}

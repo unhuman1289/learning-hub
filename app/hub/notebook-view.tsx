@@ -221,7 +221,7 @@ function DocsPage({ track, workspace, openForm, readOnly, child }: { track: Trac
               {note.url
                 ? <a href={note.url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold leading-7 text-accent hover:underline">{note.title} <SketchIcon name="external" size={15} /></a>
                 : <span className="font-semibold leading-7">{note.title}</span>}
-              <button type="button" onClick={() => openForm({ track, note })} className="text-sm leading-7 text-muted hover:text-accent hover:underline">Sửa</button>
+              <button type="button" onClick={() => openForm({ track, note })} className={buttonClass("secondary")}>Sửa</button>
             </div>
             {note.body && <p className="whitespace-pre-wrap break-words leading-7">{note.body}</p>}
           </li>

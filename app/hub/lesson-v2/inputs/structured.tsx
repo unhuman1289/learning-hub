@@ -11,7 +11,7 @@ type StructuredItem = Extract<ItemView, { input: "cloze" | "match" | "order" | "
 type Props = { value: string; onChange: (value: string) => void; disabled: boolean };
 type InputProps<T extends StructuredItem["input"]> = Props & { item: Extract<StructuredItem, { input: T }> };
 const field = "min-h-11 min-w-0 border-b border-rule bg-transparent px-2 text-ink-paper outline-none focus:border-accent focus:ring-2 focus:ring-accent-paper/50 disabled:opacity-70";
-const choice = "min-h-11 rounded-sm border border-rule px-2 text-left text-ink-paper aria-pressed:border-accent aria-pressed:bg-rose-soft focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-70";
+const choice = "notebook-button notebook-choice min-w-0 flex-col items-start text-left text-ink-paper";
 
 function cells(value: string, count: number) {
   const saved = parseStructuredAnswer(value);
@@ -99,7 +99,7 @@ function OrderInput({ item, value, onChange, disabled }: InputProps<"order">) {
           onClick={() => move(index, offset)}><SketchIcon name="chevron" size={17} className={offset < 0 ? "rotate-180" : undefined} /></button>)}
       </li>)}
     </ol>
-    <button type="button" disabled={disabled} className="min-h-11 text-sm text-accent underline"
+    <button type="button" disabled={disabled} className="notebook-button notebook-secondary"
       onClick={() => onChange(JSON.stringify(order))}>Dùng thứ tự này</button>
   </fieldset>;
 }

@@ -4,8 +4,7 @@
 .tutor-sheet { position:fixed; inset:auto 0 0; height: min(470px,55dvh); display:flex; flex-direction:column; background-color:#fffdf7; background-image:linear-gradient(rgb(203 212 227 / .35) 1px,transparent 1px),linear-gradient(90deg,rgb(203 212 227 / .35) 1px,transparent 1px); background-size:20px 20px; border-radius:16px 16px 0 0; box-shadow:0 -14px 30px -14px rgb(48 36 22 / .42); }
 .tutor-chips { display:flex; align-items:center; gap:4px; padding:8px 4px 8px 12px; border-bottom:1px solid #ebe4d6; }
 .tutor-chips > div { display:flex; gap:6px; flex:1; min-width:0; overflow-x:auto; }
-.tutor-chips button { flex:none; min-height:44px; padding:0 12px; border:1.5px solid #e6a9c3; border-radius:22px; background:#fffdf7; color:#9b4268; }
-.tutor-chips button[aria-pressed=true] { background:#9b4268; border-color:#9b4268; color:#fffdf7; }
+.tutor-chips button { flex:none; min-width:44px; min-height:44px; }
 .tutor-chips > button { border:0; background:transparent; color:#62616b; font-size:26px; }
 .tutor-messages { flex:1; min-height:0; overflow-y:auto; padding:12px 14px 8px 6px; display:flex; flex-direction:column; }
 .tutor-messages > :first-child { margin-top:auto; }
@@ -21,7 +20,7 @@
 @media (max-width:1023px) { .tutor-bot .tutor-pet { --pet-width:76.8px; --pet-height:83.2px; } }
 @media (min-width:1024px) { .tutor-whole { right:3vw; bottom:8vh; } .tutor-sheet { top:72px; right:24px; bottom:24px; left:auto; width:400px; height:auto; border-radius:6px; } .tutor-chips > div { flex-wrap:wrap; } }
 .tutor-trigger[hidden] { display:none; }
-.tutor-trigger:focus-visible, .tutor-chips button:focus-visible, .tutor-compose :focus-visible { outline:2px solid #773729; outline-offset:2px; }
+.tutor-trigger:focus-visible, .tutor-chips button:focus-visible, .tutor-compose :focus-visible { outline:2px solid #9b4268; outline-offset:2px; }
 @media (min-width:1024px) {
   .lesson-flow:has(.tutor-whole) { width:min(53rem,calc(100vw - 220px)); margin-left:0; }
   .lesson-flow:has(.tutor-sheet) { width:min(50rem,calc(100vw - 548px)); margin-left:3rem; }

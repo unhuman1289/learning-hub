@@ -24,11 +24,10 @@ export function RedPen({ children, className }: { children: ReactNode; className
 
 /** Pencilled aside: hints, small links, waiting notes. */
 export const pencil = "font-hand text-[17px] leading-7 text-muted";
-export const pencilLink = "inline-flex min-h-11 min-w-11 items-center font-hand text-[17px] leading-7 text-accent underline decoration-dotted underline-offset-4 hover:text-accent-hover disabled:opacity-50";
+export const pencilLink = "notebook-button notebook-secondary text-[17px]";
 
 /** An underlined action printed on a paper tab, with room to tap on a phone. */
-export const paperAction = "inline-flex min-h-11 w-fit items-center gap-2 border-b border-current px-2 font-hand text-xl leading-7 text-accent hover:bg-rose-soft hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current disabled:opacity-50";
-export const postitAction = "inline-flex min-h-11 w-fit items-center border-b border-current px-2 font-hand text-xl leading-7 text-postit-ink hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current";
+export const paperAction = "notebook-button notebook-secondary w-fit";
 
 export function PaperSummary({ children }: { children: ReactNode }) {
   return <summary className="group flex min-h-11 w-fit cursor-pointer list-none items-center gap-2 border-b border-dashed border-rule pr-3 font-hand text-xl leading-7 text-accent hover:text-accent-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current [&::-webkit-details-marker]:hidden">
