@@ -225,7 +225,7 @@ Việc:
 **Vì sao:** người học thường hỏi chéo giữa các câu ("câu 2 với câu 4 khác nhau chỗ nào?"). Mỗi câu một gia sư làm mất mạch và tốn chỗ trên trang. Một nhân vật cố định cũng dễ nhận ra và gần gũi hơn.
 
 **Nhân vật và giọng:**
-- Tên **Bột**. Đầu tấm trò chuyện ghi "Bột" thay cho "Gia sư nhỏ".
+- Tên **Bột**. Đầu tấm trò chuyện chỉ ghi "Bột", không có dòng hướng dẫn phụ (bỏ "Gợi hướng cho câu này…", "Chỉ hỏi về câu này. Bố mẹ đọc được…"; quy tắc giám hộ đọc được vẫn giữ). Bong bóng chờ: "Hỏi Bột nè!". Ô hỏi: "Hỏi Bột…".
 - Bột tự xưng "Bột", nói như em bé lễ phép: câu ngắn, cuối câu thường có "ạ". Ví dụ: "Chỗ này sai ạ!", "Câu này cần làm lại ạ!", "Vì động từ phải đứng ở vị trí thứ 2 trong câu, ví dụ: *Heute gehe ich…* ạ!".
 - Bột không gọi tên và không dùng đại từ cho người học (tránh sai vai vế giữa người lớn và trẻ em). Viết lại các câu cố định của T3 theo giọng này, ví dụ lời chào: "Bột đây ạ! Câu nào chưa rõ thì hỏi Bột nhé ạ. Bột gợi hướng thôi, không nói đáp án đâu ạ."
 - Vẫn tiếng Việt; ví dụ và thuật ngữ theo ngôn ngữ của sổ (Đức, Anh…).
@@ -234,7 +234,7 @@ Việc:
 - Màn rộng (≥ 1024 px): Bột đứng ở lề bàn bên phải trang sổ, ngoài vùng chữ, dùng chung cho mọi trang. Tấm trò chuyện mở cạnh trang, không che đề.
 - Điện thoại: một nút nổi góc dưới phải có Bột ngồi. Chạm thì mở tấm như T3 (cao tối đa 55%, không làm tối trang).
 - Bỏ nút gia sư trong từng câu (`item.tsx`). Giữ các state của `TutorPet` và gán hàng sprite của T3b.
-- Thiết kế M5b (Claude vẽ, chủ dự án duyệt trước khi code): màn rộng, điện thoại, trẻ em, chọn câu.
+- Thiết kế theo M5b trên [canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX) (18/11): màn rộng, điện thoại, chọn câu, hỏi chéo, đào sâu, chặn đáp án, ngoài phạm vi, trẻ em.
 
 **Ngữ cảnh toàn bài:**
 - Mỗi lượt gửi ngữ cảnh của cả bài: đề và loại từng câu, phương án, câu trả lời hiện tại của người học, kết quả và lời phê của các câu đã chấm. Câu đang mở trên trang là câu mặc định. Ô hỏi có các chip "Câu 1…N" để chọn; người học cũng có thể gõ "câu 3".
