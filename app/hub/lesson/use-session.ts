@@ -73,6 +73,15 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     ready = useRef(false),
     generation = useRef(0);
   const pendingSubmission = useRef<PendingSubmission | null>(null);
+  const submissionInFlight = useRef(false);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const update = () => setOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
   const cacheKey = "v2:" + ownerId + ":" + id,
     readonly = learner !== null,
     url = `/api/lessons/${id}`,
@@ -285,13 +294,14 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     }
   }
   async function submit(itemId: string) {
-    if (!lesson || busy || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+    if (!lesson || busy || submissionInFlight.current || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+    submissionInFlight.current = true;
     const started = performance.now();
     setBusy(true);
     setError("");
     try {
       if (!pendingSubmission.current) {
-        if (saveInFlight.current && !(await saveInFlight.current)) return;
+        if (saveInFlight.current) await saveInFlight.current;
         const item = lesson.items.find(i => i.id === itemId);
         if (!item && !lesson.wholeLesson) return;
         pendingSubmission.current = {
@@ -342,9 +352,17 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       }
       setError((e as Error).message + (pendingSubmission.current ? " Bấm nộp lại khi có mạng để kiểm tra kết quả." : ""));
     } finally {
+      submissionInFlight.current = false;
       setBusy(false);
     }
   }
+  const submitRef = useRef(submit);
+  useEffect(() => { submitRef.current = submit; });
+  useEffect(() => {
+    const reconnect = () => { if (pending) void submitRef.current(pending); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [pending]);
   async function complete(confirmed = false) {
     if (!lesson || busy || pending) return;
     if (!lesson.completedAt && unanswered > 0 && !confirmed) {
@@ -386,7 +404,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
+    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
     waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };

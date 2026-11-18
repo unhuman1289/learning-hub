@@ -95,6 +95,7 @@ export function LessonReader({
 
   performance.mark("f3:reader-render-ready");
   return <Book id={lesson.subjectId} title={subject} page="lesson" go={go} focusedLesson>
+    {session.offline && <p role="status" className="mb-1 bg-amber-100 px-3 py-1 text-sm text-amber-950">Mất mạng · Bài làm vẫn còn trên trang này.</p>}
     {session.verification === "loading" && <p role="status" className="mb-1 text-sm text-oak-ink">Đang cập nhật…</p>}
     {readonly && <p className="mb-1 font-hand text-lg text-oak-ink">Bạn đang xem bài của người học.</p>}
     {feedbackError && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-ink-paper">
@@ -112,7 +113,7 @@ export function LessonReader({
           {lesson.template === "reading" ? <LessonNotes lesson={lesson} formatText={formatText} /> : materials}
         </>;
         if (index === summaryIndex) return <>
-          <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
+          <LessonSummary items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
             onQuestion={itemId => {
               const itemIndex = lesson.items.findIndex(item => item.id === itemId);
               if (itemIndex >= 0) jump(itemIndex + 1);
@@ -167,7 +168,7 @@ export function LessonReader({
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={playSaving || busy || !!session.verification || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={readonly || !!lesson.completedAt}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
-          onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
+          onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} allowUploadSubmit={!lesson.wholeLesson && !awaiting && !pending} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
           gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :
