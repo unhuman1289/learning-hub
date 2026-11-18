@@ -1613,7 +1613,7 @@ test('Queue matches normalized rubric names on first validation and saves origin
     return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
    });
   } finally {console.info=original;}
-  const saved=await readJob(db,job.id), valid=['normalized','positional'].includes(kind);
+  const saved=await readJob(db,job.id), valid=['normalized','positional','wrong_max'].includes(kind);
   assert.equal(saved.status,valid?'succeeded':'failed',saved.error);assert.equal(calls,valid?1:2);
   assert.ok(logs.some(line=>line.includes('assess_first_validation') && line.includes(`"passed":${valid}`)));
   if(valid){const grade=db.sqlite.prepare('SELECT rubric_scores FROM grades WHERE job_id=?').get(job.id);
@@ -1636,4 +1636,22 @@ test('Queue saves score and result derived from rubric even when model disagrees
  });
  const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
  const grade=db.sqlite.prepare('SELECT result,score FROM grades WHERE job_id=?').get(job.id);assert.equal(grade.result,'incorrect');assert.equal(grade.score,0);
+});
+
+test('Queue cleans auxiliary assess fields before validation and saves rubric-derived grade',async t=>{
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}},job=await queueSubmission(db,env,learner,sub.id,new Date());
+ let calls=0;const logs=[],old=console.info;console.info=(...args)=>logs.push(args.join(' '));
+ try {await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail()}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'correct',score:1,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:0})),feedback:'Thử lại.',correction:'',errors:[],checkItem:{id:'wrong id'}}],diagnosis:[{attemptId:a.attemptId,errors:[]}],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });}finally{console.info=old;}
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+ const grade=db.sqlite.prepare('SELECT result,score,rubric_scores FROM grades WHERE job_id=?').get(job.id);assert.equal(grade.result,'incorrect');assert.equal(grade.score,0);
+ assert.ok(JSON.parse(grade.rubric_scores).every(r=>r.max>0));
+ for(const code of ['auto_diagnosis','rubric_max','check_item'])assert.ok(logs.some(x=>x.includes('assess_cleanup') && x.includes(code)),code);
 });

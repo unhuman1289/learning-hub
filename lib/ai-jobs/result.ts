@@ -32,7 +32,7 @@ export async function applyResult(
     if (job.result_hash !== hash) throw new ApiError(409, 'Job đã hoàn tất với kết quả khác.');
     return { status: 200, outcome: JSON.parse(job.outcome!), replayed: true };
   }
-  if (job.kind === 'assess' && job.purpose === 'submission') input = deriveAssessScores(input, JSON.parse(job.context_snapshot!) as AssessContext);
+  if (job.kind === 'assess' && job.purpose === 'submission') input = deriveAssessScores(input, JSON.parse(job.context_snapshot!) as AssessContext, code => console.info(JSON.stringify({component:'assess',jobId:id,event:'assess_cleanup',code})));
   const parsed = (job.kind === 'plan' ? planResult : assessResult).safeParse(input);
   let issues = parsed.success ? [] : parsed.error.issues.map((e) => ({ path: '/' + e.path.join('/'), code: 'schema', message: e.message }));
   if (parsed.success && parsed.data.contextHash !== job.context_hash) throw new ApiError(409, 'Ngữ cảnh không khớp lease.');
