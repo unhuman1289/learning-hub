@@ -24,7 +24,8 @@ export function checkRoadmapLesson(lesson:{gradingMode?: string;items:{skills:st
    items.filter(item=>transferActivities.has(item.activity)).length<2||
    (lesson.gradingMode !== 'whole-lesson' && items.filter(item=>item.key!=null).length*2<items.length)||!items.some(item=>item.difficulty===band)||
    !adaptive.targetSkills.every(skill=>items.some(item=>item.skills.includes(skill))))
-  issue('Bài thử cần 5–6 câu, ít nhất hai câu vận dụng, ít nhất nửa số câu chấm ngay và không có gợi ý.');
+  issue('Bài thử cần 5–6 câu, ít nhất hai câu vận dụng, có câu ở mức khó cao nhất và không có gợi ý.' +
+    (lesson.gradingMode === 'whole-lesson' ? '' : ' Ít nhất nửa số câu cần chấm ngay.'));
 }
 
 export function openRoadmapStep(db:Db,learnerId:string,subjectId:string,stepId:string,lessonId:string,stamp:string){

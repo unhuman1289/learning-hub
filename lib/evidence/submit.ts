@@ -177,6 +177,12 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   }
   const id = makeId('subm_'),
     stamp = now.toISOString();
+  const attachmentIds = selected.flatMap(row => draft[row.item_id]?.attachmentIds ?? []);
+  const { results: availablePhotos = [] } = attachmentIds.length
+    ? await db.prepare('SELECT id FROM attachments WHERE learner_id=? AND deleted_at IS NULL AND expires_at>? AND id IN (SELECT value FROM json_each(?))')
+      .bind(learnerId, stamp, JSON.stringify(attachmentIds)).all<{ id: string }>()
+    : {};
+  const ownedPhotos = new Set(availablePhotos.map(photo => photo.id));
   const gate = 'EXISTS(SELECT 1 FROM submissions WHERE id=?)';
   const statements = [
     db
@@ -224,13 +230,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     if (item.attachment === 'none' && photos.length) throw new ApiError(400, `Câu ${row.item_id} không nhận ảnh.`);
     if (containsContactDetails(answer) || containsPossibleClinicalIdentifier(answer, lesson.sensitivity))
       throw new ApiError(400, 'Bài làm có thể chứa thông tin định danh. Hãy dùng ví dụ giả lập.');
-    for (const photo of photos) {
-      const image = await db
-        .prepare('SELECT id FROM attachments WHERE id=? AND learner_id=? AND deleted_at IS NULL AND expires_at>?')
-        .bind(photo, learnerId, stamp)
-        .first();
-      if (!image) throw new ApiError(400, 'Ảnh không thuộc người học hoặc đã hết hạn.');
-    }
+    if (photos.some(photo => !ownedPhotos.has(photo))) throw new ApiError(400, 'Ảnh không thuộc người học hoặc đã hết hạn.');
     const previous = latest.find((attempt) => attempt.item_id === row.item_id);
     // Only a correction actually shown (or a manually revealed solution) counts as solution support.
     const shownCorrection = previous?.correction && previous.result !== 'correct' && !hiddenCorrection(previous, support).correctionHidden;

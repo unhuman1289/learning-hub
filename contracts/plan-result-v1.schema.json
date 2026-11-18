@@ -781,6 +781,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             }
                           },
                           "required": [
@@ -936,6 +941,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -1153,6 +1163,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -1399,6 +1414,11 @@
                               ],
                               "additionalProperties": false
                             },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
+                            },
                             "input": {
                               "type": "string",
                               "const": "order"
@@ -1620,6 +1640,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -1869,6 +1894,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -2139,6 +2169,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -3252,6 +3287,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             }
                           },
                           "required": [
@@ -3407,6 +3447,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -3624,6 +3669,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -3870,6 +3920,11 @@
                               ],
                               "additionalProperties": false
                             },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
+                            },
                             "input": {
                               "type": "string",
                               "const": "order"
@@ -4091,6 +4146,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -4340,6 +4400,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -4610,6 +4675,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -6324,6 +6394,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             }
                           },
                           "required": [
@@ -6479,6 +6554,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -6696,6 +6776,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -6942,6 +7027,11 @@
                               ],
                               "additionalProperties": false
                             },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
+                            },
                             "input": {
                               "type": "string",
                               "const": "order"
@@ -7163,6 +7253,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -7412,6 +7507,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",
@@ -7682,6 +7782,11 @@
                                 "transcript"
                               ],
                               "additionalProperties": false
+                            },
+                            "estMinutes": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 90
                             },
                             "input": {
                               "type": "string",

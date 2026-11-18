@@ -9,6 +9,9 @@ import { playAudio } from '../lib/audio/playback.ts';
 import { readLessonV2 } from '../lib/lesson-v2/store.ts';
 import { aacDurationMs } from '../lib/audio/aac.ts';
 const aac = readFileSync(new URL('./fixtures/audio/de-DE-f.aac', import.meta.url));
+import { saveDraft } from '../lib/lesson-v2/actions.ts';
+import { submitLesson } from '../lib/evidence/submit.ts';
+import { queueSubmission } from '../lib/ai-jobs/queue.ts';
 import { readJob } from '../lib/ai-jobs/lease.ts';
 import { systemPrompt } from '../lib/ai/job.mjs';
 import { memoryDb } from './d1-adapter.mjs';
@@ -17,6 +20,25 @@ import { seedListeningRequest } from './listening-authoring-fixture.mjs';
 async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
   const raw = JSON.parse(readFileSync(new URL('./fixtures/qwen/l4-listening-sample.json', import.meta.url))).listeningSample;
   raw.explorations[0].lesson = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-listening.json', import.meta.url)));
+  const lesson = raw.explorations[0].lesson;
+  lesson.gradingMode = 'whole-lesson';
+  const [choice, listening, short] = lesson.items;
+  delete choice.choices;
+  delete choice.key;
+  delete short.key;
+  Object.assign(choice, {
+    input: 'short', prompt: 'Nghe và ghi lại giờ hai người đồng ý gặp.',
+    rubric: [{ criterion: 'Nêu đúng giờ', points: 1 }, { criterion: 'Phân biệt giờ hẹn với giờ được đề nghị', points: 1 }],
+  });
+  short.rubric = [{ criterion: 'Dùng um với giờ', points: 1 }, { criterion: 'Giữ giờ hẹn trong đề', points: 1 }];
+  short.prompt = 'Viết lại giờ gặp trong câu này bằng tiếng Đức: Wir treffen uns ___ vier Uhr.';
+  lesson.items.push(...[
+    ['Em sẽ đến lúc mấy giờ nếu đến sớm hơn lịch hẹn lúc bốn giờ một tiếng?', 'Em sẽ đến lúc ba giờ.'],
+    ['Viết một câu tiếng Đức hẹn gặp vào lúc chín giờ sáng.', 'Wir treffen uns um neun Uhr morgens.'],
+    ['Viết một câu tiếng Đức đề nghị đổi giờ hẹn sang sáu giờ.', 'Können wir uns um sechs Uhr treffen?'],
+  ].map(([prompt, solution], index) => ({ ...short, id: 'i' + (index + 4), prompt, solution })));
+  lesson.stages[1].itemIds = lesson.items.slice(2).map(item => item.id);
+  for (const item of lesson.items) item.estMinutes = item === listening ? 5 : 2;
   const db = memoryDb();
   t.after(() => db.sqlite.close());
   const { subject, learner, request } = await seedListeningRequest(db, { at: new Date() });
@@ -45,17 +67,49 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
   let acks = 0;
   const batch = { messages: [{ body: { jobId: job.job_id }, ack: () => acks++, retry: retry ?? (() => assert.fail('Unexpected Queue retry')) }] };
   let terraCalls = 0;
+  let assessCalls = 0;
   const voicesByText = new Map();
   const fetcher = async (url, init) => {
     assert.equal(init.method, 'POST');
     assert.equal(init.redirect, 'manual');
     const body = JSON.parse(init.body);
     if (url === 'https://api.openai.com/v1/responses') {
+      assert.equal(body.store, false);
+      const context = JSON.parse(body.input.split('<context>\n')[1].split('\n</context>')[0]);
+      if (body.model === 'gpt-6-luna') {
+        assessCalls++;
+        assert.equal(context.attempts.length, 6);
+        const heard = context.attempts.filter(item => item.transcript);
+        assert.deepEqual(heard.map(item => item.input), ['short', 'long']);
+        assert.deepEqual(heard.map(item => item.transcript), lesson.items.slice(0, 2).map(item => item.audio.lines));
+        assert(context.attempts.every(item => item.rubric.length === 2 && item.solution && !item.autoGrade && !item.key));
+        return Response.json({ status: 'completed', model: body.model, usage: { input_tokens: 100, output_tokens: 100 },
+          output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify({
+            contract: 'assess-result/1', summary: 'Đã đối chiếu lời thoại và bài làm.',
+            grades: context.attempts.map(item => ({
+              attemptId: item.attemptId, result: 'correct', score: 1,
+              rubricScores: item.rubric.map(entry => ({ criterion: entry.criterion, points: entry.points, max: entry.points })),
+              feedback: 'Đủ ý.', correction: '', errors: [], checkItem: null,
+            })),
+            diagnosis: [], masteryProposals: [], errorPatternUpdates: [], reviewProposals: [], recheckDecision: null,
+          }) }] }],
+        });
+      }
       terraCalls++;
       assert.equal(body.model, 'gpt-6.1-terra');
-      assert.equal(body.store, false);
-      assert(!body.input.includes('Mỗi bài dùng gradingMode whole-lesson'));
-      const context = JSON.parse(body.input.split('<context>\n')[1].split('\n</context>')[0]);
+      assert.match(body.instructions, /gradingMode: whole-lesson/);
+      const schema = JSON.parse(body.input.split('optional fields:\n')[1].split('\nDữ liệu')[0]);
+      const lessonSchema = schema.properties.explorations.items.properties.lesson;
+      assert.deepEqual(lessonSchema.properties.gradingMode, { const: 'whole-lesson' });
+      assert.deepEqual(lessonSchema.properties.estMinutes, { const: 15 });
+      assert.equal(lessonSchema.properties.items.minItems, 6);
+      assert.equal(lessonSchema.properties.items.maxItems, 8);
+      for (const item of lessonSchema.properties.items.prefixItems[0].anyOf) {
+        assert(item.required.includes('audio') && item.required.includes('rubric'));
+        assert(!item.properties.key);
+      }
+      assert.equal(context.adaptive.minutes, 15);
+      assert.equal(context.learner.targetMinutes, 15);
       assert.deepEqual(context.adaptive.listening, { min: 2, max: 3 });
       assert.deepEqual(context.tts.languages, ['de-DE']);
       assert.equal(context.learner.displayName, 'Người học');
@@ -87,7 +141,12 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
     return new Response(aac);
   };
   return { raw, db, subject, learner, job, objects, env, voicesByText,
-    run: () => consumeOpenAi(batch, env, systemPrompt, fetcher), counts: () => ({ terraCalls, acks }),
+    run: () => consumeOpenAi(batch, env, systemPrompt, fetcher),
+    async assess(jobId) {
+      await consumeOpenAi({ messages: [{ body: { jobId }, ack() {}, retry: () => assert.fail('Unexpected assessment retry') }] },
+        env, systemPrompt, fetcher);
+      assert.equal(assessCalls, 1);
+    }, counts: () => ({ terraCalls, acks }),
   };
 }
 
@@ -127,6 +186,28 @@ test('Terra API fixture and Queue delivery replay save a Deutsch lesson with fou
   assert.deepEqual(counts(), { terraCalls: 1, acks: 2 });
   assert.equal(objects.size, 4);
   assert.deepEqual(JSON.parse((await readJob(db, job.job_id)).outcome), JSON.parse(saved.outcome));
+});
+
+test('one whole-lesson submission grades all typed answers with both listening transcripts', async t => {
+  const { raw, db, job, learner, run, assess } = await setupTerraFixture(t);
+  await run();
+  const [lessonId] = JSON.parse((await readJob(db, job.job_id)).outcome).extraLessonIds;
+  const lesson = await readLessonV2(db, learner, lessonId);
+  assert.equal(lesson.wholeLesson, true);
+  const at = new Date();
+  const answers = Object.fromEntries(raw.explorations[0].lesson.items.map(item => [item.id, { answer: item.solution }]));
+  await saveDraft(db, learner, lessonId, { revision: 0, answers }, at);
+  await assert.rejects(submitLesson(db, learner, lessonId, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'retrieval', itemIds: ['i1'],
+  }, at), /nộp cả lượt/);
+  const submission = await submitLesson(db, learner, lessonId, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: null,
+  }, at);
+  const assessJob = await queueSubmission(db, {}, learner, submission.id, at);
+  await assess(assessJob.id);
+  const saved = await readJob(db, assessJob.id);
+  assert.equal(saved.status, 'succeeded', saved.error);
+  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM grades WHERE grader='ai'").get().n, 6);
 });
 
 test('Queue logs safe stages, codes and paths for the L4 failure modes', async t => {

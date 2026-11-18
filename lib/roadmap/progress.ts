@@ -1,5 +1,6 @@
 import type { EvidenceDb } from '../evidence/submit.ts';
 import type { Db } from '../subjects/service.ts';
+import { DAILY_LESSON_MINUTES, EXTRA_LESSON_MINUTES } from '../ai-jobs/adaptive.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { nextSteps } from './store.ts';
 import { reasons, type ReasonCode } from './reasons.ts';
@@ -70,7 +71,7 @@ export function decideNext(state:NextInput) {
    if(mode==='practice')listening=listeningState.completedLessons>=3&&targets.some(skill=>!listeningState.observedSkills.has(skill))
     ?{min:3,max:4}:{min:2,max:3};
   }
-  return {mode,listening,minutes:state.daily?45 as const:15 as const,step:step?{id:step.id,title:step.title,skills:step.skills}:null,
+  return {mode,listening,minutes:state.daily?DAILY_LESSON_MINUTES:EXTRA_LESSON_MINUTES,step:step?{id:step.id,title:step.title,skills:step.skills}:null,
    stepRole, targetSkills:targets,difficulty:{min:Math.max(1,band-1),max:Math.min(state.maxDifficulty,band+1)},
    reasonCode,reason:reasons[reasonCode],needsScaffold,roadmapTask};
  };

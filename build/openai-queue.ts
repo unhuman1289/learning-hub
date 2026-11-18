@@ -19,7 +19,7 @@ const client: AutomationClient = {
   triggers: ['on_demand', 'scheduled', 'deferred'],
 };
 
-const contentEvents = new Set(['contract_error', 'listening_contract_error', 'local_duplicates', 'audio_validation_error', 'dry_run_422']);
+const contentEvents = new Set(['contract_error', 'listening_contract_error', 'plan_validation_error', 'local_duplicates', 'audio_validation_error', 'dry_run_422']);
 
 function planFieldNames(node: unknown, fields: Set<string>) {
   if (!node || typeof node !== 'object') return fields;
@@ -154,11 +154,17 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       const photos = (snapshot.attempts ?? []).flatMap((a: {attachments: {attachmentId: string; expired: boolean}[]}) => a.attachments);
       const attachmentCount = job.kind === 'assess' ? await db.prepare("SELECT coalesce(sum(json_array_length(attachment_ids)),0) AS n FROM attempts WHERE learner_id=? AND id IN (SELECT value FROM json_each(?))").bind(job.learner_id, JSON.stringify((snapshot.attempts ?? []).map((a: {attemptId:string}) => a.attemptId))).first<{n:number}>() : null;
       let photoError: string | null = attachmentCount && attachmentCount.n !== photos.length ? 'Có quá nhiều ảnh hoặc ảnh không còn; không thể chấm bài.' : null;
+      const { results: availablePhotos = [] } = photos.length && !photoError
+        ? await db.prepare('SELECT id,r2_key,mime,bytes FROM attachments WHERE learner_id=? AND deleted_at IS NULL AND expires_at>? AND id IN (SELECT value FROM json_each(?))')
+          .bind(job.learner_id, new Date().toISOString(), JSON.stringify(photos.map((photo: { attachmentId: string }) => photo.attachmentId)))
+          .all<{ id: string; r2_key: string; mime: string; bytes: number }>()
+        : {};
+      const photosById = new Map(availablePhotos.map(photo => [photo.id, photo]));
       const photoData = new Map<string, {mime: string; base64: string}>();
       let totalBytes = 0;
       for (const photo of photos) {
         if (photoError) break;
-        const row = await db.prepare('SELECT r2_key,mime,bytes FROM attachments WHERE id=? AND learner_id=? AND deleted_at IS NULL AND expires_at>?').bind(photo.attachmentId, job.learner_id, new Date().toISOString()).first<{r2_key:string;mime:string;bytes:number}>();
+        const row = photosById.get(photo.attachmentId);
         if (photo.expired || !row || !bucket) { photoError = 'Ảnh đã bị xoá hoặc hết hạn; không thể chấm bài.'; break; }
         if (row.bytes > 3000000 || !['image/jpeg','image/png','image/webp'].includes(row.mime)) { photoError = 'Ảnh quá lớn hoặc định dạng không được hỗ trợ; không thể chấm bài.'; break; }
         const object = await bucket.get(row.r2_key);
