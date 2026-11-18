@@ -47,6 +47,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   }
 
   await noOverflow(page);
+  await expect(page.getByRole('region', { name: 'Bài tiếp theo' }).locator('.notebook-primary')).toHaveCount(1);
 
   // Let the initial desk finish its ambient request before measuring the reload.
   await page.waitForLoadState("networkidle");

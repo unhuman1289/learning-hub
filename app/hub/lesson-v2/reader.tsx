@@ -83,6 +83,8 @@ export function LessonReader({
     return submission?.attempts[0]?.status === "pending" && !waitingForFeedback(submission);
   });
   const blankCount = lesson.items.filter(item => !answered.has(item.id) && !item.revealed.solutionSeen && !hasAnswer(item)).length;
+  const showSubmit = !readonly && (pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || canRetryGrading)));
+  const confirmFinish = session.confirmFinish && !busy && !pending;
   const correctionIndex = correction ? lesson.items.findIndex(item =>
     ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
   const summaryIndex = lesson.items.length + 1;
@@ -132,23 +134,22 @@ export function LessonReader({
               if (itemIndex >= 0) jump(itemIndex + 1);
             }}
             progressKey={history.map(entry => entry.id + ":" + entry.job_status + ":" + entry.attempts.map(a => a.result + ":" + a.feedback).join("~")).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
-            completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
-            {!readonly && (pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || canRetryGrading))) &&
-              <button type="button" className={buttonClass("primary")} disabled={busy || !!session.verification || (session.waitingForGrade && !pending) || savingPlays.length > 0}
+            completed={!!lesson.completedAt} justCompleted={session.justCompleted}
+            submission={showSubmit && <button type="button" className={buttonClass(confirmFinish ? "secondary" : "primary")} disabled={busy || !!session.verification || (session.waitingForGrade && !pending) || savingPlays.length > 0}
                 onClick={() => void session.submit()}>
-                {pending ? "Thử nộp lại" : "Nộp bài"}
-              </button>}
+                {pending ? "Thử nộp lại" : "Nộp bài"} <span aria-hidden="true">→</span>
+            </button>}
+            finish={!readonly && <button type="button" className={buttonClass(lesson.completedAt ? "ghost" : showSubmit || confirmFinish ? "secondary" : "primary")}
+                disabled={busy || !!session.verification || !!pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || session.waitingForGrade))} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
+                {lesson.completedAt ? words.action.reopen : words.action.finish}
+              </button>}>
             {lesson.items.some(item => item.attachment !== "none") && <details className="w-full text-sm text-muted-paper">
               <summary className={pencilLink + " min-h-11 content-center cursor-pointer"}>Quyền riêng tư của ảnh</summary>
               <p>Ảnh được giữ tối đa 30 ngày. Tránh chụp tên, địa chỉ hoặc giấy tờ.</p>
             </details>}
             {lesson.output && <p>{words.place.product} · {lesson.output}</p>}
-            {!readonly && <button type="button" className={buttonClass(lesson.completedAt ? "ghost" : "primary")}
-              disabled={busy || !!session.verification || !!pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || session.waitingForGrade))} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
-              {lesson.completedAt ? words.action.reopen : words.action.finish}
-            </button>}
           </LessonSummary>
-          <PaperConfirm open={session.confirmFinish && !busy && !pending}
+          <PaperConfirm open={confirmFinish}
             message={blankCount ? `Còn ${blankCount} câu chưa làm. Bạn vẫn muốn đánh dấu xong bài này?` : `Còn ${session.unanswered} câu chưa nộp. Bạn vẫn muốn đánh dấu xong bài này?`} confirmLabel={words.action.finish}
             onCancel={() => session.setConfirmFinish(false)} onConfirm={() => void session.complete(true)} />
           {reflection && <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />}

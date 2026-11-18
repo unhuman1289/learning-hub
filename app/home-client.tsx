@@ -103,7 +103,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
     <div className="min-h-dvh">
       {/* Oak plank ceiling with a beam: the top of the study. */}
       <header className="sticky top-0 z-20 text-oak-ink" style={{ viewTransitionName: "site-header" }}>
-        <div className="bg-oak">
+        <div className="bg-oak bg-oak-dark!">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-4 px-4 sm:px-6">
           <RouteLink route={{ view: "desk" }} go={go} aria-label="Bàn học" className="flex items-center gap-2.5 rounded-md">
             <HouseLogo className="size-11 drop-shadow-[0_1px_1px_rgb(0_0_0/0.35)]" />
@@ -120,7 +120,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
           </nav>}
           <div className="ml-auto flex min-w-0 items-center gap-2 sm:gap-3">
             {!hub2Enabled && <SaveIndicator workspace={workspace} />}
-            {route.view !== "admin" && <StudyMeter variant={deskStudy ? "ring" : "ruler"} clock={clock} labelFor={labelFor} />}
+            {route.view !== "admin" && <StudyMeter clock={clock} labelFor={labelFor} />}
             {profileMode ? <ProfileControls name={name} manage={isAdmin} initialAvatar={profileAvatar} settingsLearner={userId} /> : <Suspense fallback={null}><AuthControls name={name} email={userEmail} /></Suspense>}
           </div>
         </div>

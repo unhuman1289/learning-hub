@@ -48,7 +48,7 @@ export function LessonReflection({submissionId, lessonId}:{submissionId:string; 
      <label className={labelClass}>Bạn muốn bài sau đổi gì?
        <input className={fieldClass + " min-h-11"} maxLength={1500} value={value.note} onChange={e => setValue(v => ({ ...v, note: e.target.value }))} />
      </label>
-     <button type="submit" className="inline-flex min-h-11 items-center gap-2 justify-self-start px-2 font-hand text-xl text-accent hover:text-accent-hover enabled:hover:underline decoration-dotted underline-offset-4 disabled:opacity-50" disabled={!ready || busy}>
+     <button type="submit" className="notebook-button notebook-secondary justify-self-start" disabled={!ready || busy}>
        <SketchIcon name="check" size={23} className="rounded-full border border-current p-0.5" />
        {busy ? "Đang lưu…" : "Lưu"}
      </button>

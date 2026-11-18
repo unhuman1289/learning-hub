@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { Pause, Play, RotateCcw } from "lucide-react";
+import { FileText, Pause, Play, RotateCcw } from "lucide-react";
 import { PaperConfirm } from "../paper-confirm";
-import { pencilLink } from "../paper-bits";
+import { buttonClass } from "../ui";
 import { recordPlaybackSupport, revealTranscript, type ListeningAudio, type ListeningItem, type Voice } from "./listen-api";
 
 type PlayState = "idle" | "authorizing" | "ready" | "starting" | "playing" | "paused" | "retry";
 type PlayAttempt = { slow: boolean; retry: boolean };
-const transport = "stone inline-flex min-h-14 min-w-14 items-center justify-center gap-2 px-3 text-sm font-medium";
-const link = pencilLink + " min-h-11 text-sm";
 
 export type ListeningControls = {
   item: ListeningItem;
@@ -50,6 +48,8 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
   const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [state, setState] = useState<PlayState>("idle");
   const [elapsed, setElapsed] = useState(0);
+  const [mediaDuration, setMediaDuration] = useState(0);
+  const [slow, setSlow] = useState(false);
   const [recordError, setRecordError] = useState(false);
   const remaining = Math.max(0, audio.maxPlays - plays);
 
@@ -100,6 +100,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     }
     const current = attempt.current;
     if (!current) return;
+    setSlow(current.slow);
     const support = current.slow ? "slow" : remaining === 0 ? "extra" : null;
     const authorizing = support && !supportSaved.current && !item.readOnly;
     if (authorizing) {
@@ -145,6 +146,20 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     } else void start();
   }
 
+  function toggleSlow() {
+    if (!slow) {
+      void start(true, true);
+      return;
+    }
+    // Restarting in normal mode is a separate listen. Only a completed listen counts.
+    clearTimeout(timeout.current);
+    attempt.current = null;
+    media.current?.pause();
+    setElapsed(0);
+    setSlow(false);
+    setState("idle");
+  }
+
   const shortcut = useEffectEvent((event: KeyboardEvent) => {
     if (event.defaultPrevented || event.isComposing || event.repeat || event.altKey || event.ctrlKey || event.metaKey ||
         event.shiftKey || !(event.target instanceof Element) ||
@@ -168,6 +183,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     clearTimeout(timeout.current);
     const current = attempt.current;
     attempt.current = null;
+    setSlow(false);
     setState("idle");
     if (!current || current.retry) return;
     setRecordError(false);
@@ -177,43 +193,61 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
   const playing = state === "playing" || state === "starting";
   const playLabel = playing ? "Tạm dừng" : state === "ready" ? "Phát âm thanh" : state === "retry" ? "Phát lại" : state === "paused" ? "Nghe tiếp" :
     remaining === 0 ? "Nghe thêm (tính là gợi ý)" : "Phát âm thanh";
-  const duration = (audio.durationMs ?? 0) / 1000;
+  const duration = mediaDuration || (audio.durationMs ?? 0) / 1000;
+  const percent = duration > 0 ? Math.min(100, (elapsed / duration) * 100) : 0;
+  const time = `${clock(elapsed)} / ${duration > 0 ? clock(duration) : "–:–"}`;
+  const status = playSaving || state === "authorizing" ? "Đang ghi lượt nghe…" :
+    state === "starting" ? "Đang mở âm thanh…" : state === "retry" ? "Âm thanh bị gián đoạn." : "";
   return <div ref={panel} className="grid gap-1">
-    <span className="text-xs">Giọng tổng hợp</span>
     <audio
       ref={media} src={src} preload="none"
       onPlaying={() => { clearTimeout(timeout.current); setState("playing"); }}
       onWaiting={event => { if (attempt.current && !event.currentTarget.paused) waitForPlayback(); }}
-      onPause={event => { if (state === "playing" && !event.currentTarget.ended) failed(); }}
+      onPause={event => { if (attempt.current && state === "playing" && !event.currentTarget.ended) failed(); }}
+      onLoadedMetadata={event => {
+        const seconds = event.currentTarget.duration;
+        if (Number.isFinite(seconds)) setMediaDuration(seconds);
+      }}
       onTimeUpdate={event => setElapsed(event.currentTarget.currentTime)}
       onEnded={finished}
       onError={() => { if (attempt.current) failed(); }}
     />
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <button type="button" className={transport} onClick={toggle} disabled={playSaving || state === "authorizing"}>
-        {playing ? <Pause size={18} aria-hidden /> : state === "retry" ? <RotateCcw size={18} aria-hidden /> :
-          <Play size={18} aria-hidden />}
-        {playLabel}
+    <div className="flex items-center gap-3">
+      <button type="button" className="notebook-button audio-disc" aria-label={playLabel}
+        onClick={toggle} disabled={playSaving || state === "authorizing"}>
+        {playing ? <Pause size={22} fill="currentColor" aria-hidden /> : state === "retry" ? <RotateCcw size={22} aria-hidden /> :
+          <Play size={22} fill="currentColor" aria-hidden />}
       </button>
-      <div role="group" aria-label="Giọng đọc" className="flex items-center text-sm text-muted-paper">
-        <span>Giọng:</span>
-        {(["f", "m"] as const).map(v => <button type="button" key={v} aria-pressed={v === voice}
-          className={link + " min-w-11 px-1 aria-pressed:font-bold aria-pressed:underline"} disabled={voiceSaving || item.readOnly}
-          onClick={() => onVoice(v)}>{v === "f" ? "Nữ" : "Nam"}</button>)}
+      <div className="min-w-0 flex-1 px-1">
+        <div className="audio-track" role="progressbar" aria-label="Tiến độ nghe" aria-valuenow={Math.round(percent)}
+          aria-valuetext={duration > 0 ? `Đã nghe ${Math.floor(elapsed)} trên ${Math.floor(duration)} giây` :
+            `Đã nghe ${Math.floor(elapsed)} giây. Chưa rõ thời lượng.`}>
+          <span style={{ width: `${percent}%` }} />
+        </div>
+        <div className="flex flex-wrap justify-between gap-x-2 font-hand text-lg leading-tight tabular-nums text-muted-paper">
+          <span aria-hidden="true">{time}</span>
+          <span role="status">
+            <span className="sr-only">{remaining ? `Còn ${remaining} lượt nghe` : "Đã hết lượt nghe"}</span>
+            {remaining > 0 ? <span aria-hidden="true">còn {Array.from({ length: remaining }, (_, i) => <i key={i} className="audio-tally" />)} lượt</span> :
+              <span aria-hidden="true">hết lượt</span>}
+          </span>
+        </div>
       </div>
     </div>
-    <div className="flex flex-wrap items-center gap-x-3">
-      <p role="status" className="text-sm text-muted-paper">
-        {playSaving || state === "authorizing" ? "Đang ghi lượt nghe…" : state === "starting" ? "Đang mở âm thanh…" : state === "playing" ? "Đang phát" :
-          state === "retry" ? "Âm thanh bị gián đoạn." :
-          remaining === 0 ? "Đã hết lượt nghe" : `Còn ${remaining} lượt nghe`}
-      </p>
-      {state === "playing" && <span aria-hidden="true" className="text-sm tabular-nums text-muted-paper">
-        {clock(elapsed)}{duration > 0 && ` / ${clock(duration)}`}
-      </span>}
-      <button type="button" disabled={playSaving || state === "authorizing" || state === "starting" || state === "retry"}
-        className={link + " disabled:opacity-60"} onClick={() => void start(true, true)}>Chậm hơn</button>
+    <div className="flex flex-wrap items-center gap-1 font-hand text-lg text-muted-paper">
+      <div role="group" aria-label="Giọng đọc" className="flex items-center gap-1">
+        <span aria-hidden="true">Giọng</span>
+        {(["f", "m"] as const).map(v => <button type="button" key={v} aria-pressed={v === voice}
+          aria-label={v === "f" ? "Giọng nữ" : "Giọng nam"} className="notebook-button notebook-choice" disabled={voiceSaving || item.readOnly}
+          onClick={() => onVoice(v)}>{v === "f" ? "nữ" : "nam"}</button>)}
+      </div>
+      <span aria-hidden="true" className="mx-1 h-5 w-px bg-rule" />
+      <button type="button" aria-pressed={slow} aria-label="Nghe chậm"
+        disabled={playSaving || state === "authorizing" || state === "starting" || state === "retry"}
+        className="notebook-button notebook-choice" onClick={toggleSlow}><span aria-hidden="true">🐢</span> chậm</button>
     </div>
+    {status && <p role="status" className="text-sm text-muted-paper">{status}</p>}
+    {state === "playing" && <span role="status" className="sr-only">Đang phát</span>}
     {(voiceError || recordError) && <p role="status" className="text-sm text-muted-paper">
       {voiceError || "Chưa ghi được lượt nghe."}
     </p>}
@@ -222,6 +256,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
 
 function AudioTranscript({ audio, item, answered = false, automatic = false, active }:
   { audio: ListeningAudio; item: ListeningItem; answered?: boolean; automatic?: boolean; active: boolean }) {
+  const transcriptTab = useRef<HTMLButtonElement>(null);
   const [transcript, setTranscript] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [request, setRequest] = useState(0);
@@ -252,12 +287,13 @@ function AudioTranscript({ audio, item, answered = false, automatic = false, act
     <p lang={audio.lang} className="whitespace-pre-wrap break-words">{transcript}</p>
   </div>;
   return <div>
-    {!automatic && <button type="button" className={link} disabled={status === "Đang tải lời thoại…"}
-      onClick={() => answered ? load() : setConfirm(true)}>Xem lời thoại</button>}
-    <PaperConfirm open={confirm} message="Xem lời thoại trước khi trả lời sẽ tính là gợi ý."
-      confirmLabel="Xem lời thoại" onCancel={() => setConfirm(false)} onConfirm={load} />
+    {!automatic && <button type="button" ref={transcriptTab} className={confirm ? "sr-only" : "notebook-button audio-transcript-tab"}
+      aria-hidden={confirm || undefined} tabIndex={confirm ? -1 : undefined} disabled={status === "Đang tải lời thoại…"}
+      onClick={() => answered ? load() : setConfirm(true)}><FileText size={16} aria-hidden /> Lời thoại</button>}
+    <PaperConfirm open={confirm} message="Xem lời thoại bây giờ thì câu này tính là đã dùng gợi ý nha."
+      confirmLabel="Mở xem" cancelLabel="Thôi" returnFocus={transcriptTab} onCancel={() => setConfirm(false)} onConfirm={load} />
     {(status || automatic) && <p role="status" className="text-sm text-muted-paper">{status || "Đang tải lời thoại…"}</p>}
     {automatic && status === "Lời thoại chưa sẵn sàng." && !item.readOnly &&
-      <button type="button" className={link} onClick={load}>Thử lại</button>}
+      <button type="button" className={buttonClass("secondary")} onClick={load}>Thử lại</button>}
   </div>;
 }

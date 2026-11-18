@@ -27,7 +27,7 @@ export function PaperDialog({ title, labelId, onClose, children }: { title: stri
     <div className="fixed inset-0 z-30 flex animate-fade-in items-end justify-center bg-ink/50 p-0 backdrop-blur-[2px] sm:items-center sm:p-6" onClick={onClose}>
       <section ref={dialog} role="dialog" aria-modal="true" aria-labelledby={labelId} onClick={(event) => event.stopPropagation()} className="max-h-[92dvh] w-full max-w-xl animate-sheet-in overflow-auto rounded-t-xl shadow-page sm:rounded-md">
         <RuledPage>
-          <button type="button" aria-label="Đóng" onClick={onClose} className="absolute right-3 top-3 grid size-11 place-items-center rounded-full text-muted hover:bg-paper-2 hover:text-ink"><SketchIcon name="close" size={20} /></button>
+          <button type="button" aria-label="Đóng" onClick={onClose} className="notebook-button absolute right-3 top-3 size-11 text-muted hover:text-ink"><SketchIcon name="close" size={20} /></button>
           <h2 id={labelId} className="relative top-2.5 font-hand text-[28px] leading-[3.5rem] text-accent">{title}</h2>
           {children}
         </RuledPage>
