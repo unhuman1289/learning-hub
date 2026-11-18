@@ -15,6 +15,7 @@ export const usage = z
     inputTokens: z.number().int().min(0).max(1e8),
     outputTokens: z.number().int().min(0).max(1e8),
     ms: z.number().int().min(0).max(86400000),
+    cachedInputTokens: z.number().int().min(0).max(1e8).optional(),
     cacheReadTokens: z.number().int().min(0).optional(),
     cacheWriteTokens: z.number().int().min(0).optional(),
   })

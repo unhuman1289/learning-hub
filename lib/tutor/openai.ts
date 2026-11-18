@@ -80,8 +80,13 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
   if (!claimed) return 'claimed' as const;
   emit('turn',{id,status:'streaming'});
   const abort=new AbortController();
-  let firstMs:number|undefined, answer='', rawLength=0, leakBlocked=false, inputTokens:number|undefined, outputTokens:number|undefined, completed=false;
+  let firstMs:number|undefined, answer='', rawLength=0, leakBlocked=false, inputTokens:number|undefined, outputTokens:number|undefined, cachedTokens:number|undefined, completed=false;
   let classification = '', offTopic: boolean | undefined;
+  const question=data.context.question.toLocaleLowerCase('vi');
+  const nameQuestion=/(?:tôi|mình|tên)\s+(?:là\s+ai|tên\s+gì|gì)|tên\s+(?:tôi|mình)\s+(?:là\s+)?gì/u.test(question);
+  const itemQuestion=/\bcâu\s*(?:\d+|này|đó|kia)\b/iu.test(question);
+  const answerQuestion=/(?:đáp án|lời giải|điền gì|cách làm)/iu.test(question);
+  let substitute: string | undefined;
   let namePending = '';
   const personalize = (text:string, final=false) => {
     namePending = (namePending + text).replaceAll('{ten}', data.displayName);
@@ -133,29 +138,34 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
           if (newline < 0) { if (classification.length > 32) throw new Error('Missing scope classification'); continue; }
           const marker=classification.slice(0,newline).trim();
           if (marker !== 'ON_TOPIC' && marker !== 'OFF_TOPIC') throw new Error('Invalid scope classification');
-          offTopic=marker === 'OFF_TOPIC';
+          offTopic=marker === 'OFF_TOPIC' && !nameQuestion && !itemQuestion && !answerQuestion;
+          if (nameQuestion) substitute=data.displayName ? 'Con gọi là {ten} nha! Quay lại bài này cùng con nhé.' : 'Con chưa biết tên ạ. Quay lại bài này cùng con nha!';
+          else if (marker === 'OFF_TOPIC' && (itemQuestion || answerQuestion)) substitute='Con chưa nói đáp án đâu nha. Thử đọc lại đề và tìm điều câu hỏi yêu cầu trước nhé!';
           const rest=classification.slice(newline+1); classification='';
-          if (!offTopic) filter.push(rest);
-        } else if (!offTopic) filter.push(entry.delta);
+          if (!offTopic && !substitute) filter.push(rest);
+        } else if (!offTopic && !substitute) filter.push(entry.delta);
       }
       if (entry.type==='response.completed') {
-        const response=entry.response as {status?:string;usage?:{input_tokens?:number;output_tokens?:number}}|undefined;
+        const response=entry.response as {status?:string;usage?:{input_tokens?:number;output_tokens?:number;input_tokens_details?:{cached_tokens?:number}}}|undefined;
         inputTokens=response?.usage?.input_tokens; outputTokens=response?.usage?.output_tokens;
+        const cached=response?.usage?.input_tokens_details?.cached_tokens;
+        cachedTokens=Number.isSafeInteger(cached) && cached! >= 0 && cached! <= (inputTokens ?? -1) ? cached : undefined;
         completed=response?.status==='completed' && Number.isSafeInteger(inputTokens) && Number.isSafeInteger(outputTokens) && inputTokens!>=0 && outputTokens!>=0;
       }
       if (entry.type==='response.failed' || entry.type==='error' || entry.type==='response.incomplete' || entry.type==='response.refusal.delta') throw new Error('Incomplete response');
     }
     if (offTopic === undefined) throw new Error('Missing scope classification');
+    if (substitute) filter.push(substitute);
     if (offTopic) filter.push(`Hihi, chuyện đó để lúc khác nha, giờ con chỉ giúp bài này thôi ạ. Quay lại câu đang mở nhé?`);
     filter.finish();
     const tail=personalize('',true); answer+=tail; if (tail) emit('delta',{text:tail,blocked:false});
     const parsed=tutorAnswer.safeParse(answer);
     if (!completed || !parsed.success || firstMs===undefined) throw new Error('Incomplete response');
-    const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,off_topic=?,leak_blocked=max(leak_blocked,?),first_token_ms=?,input_tokens=?,output_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
+    const saved=await db.prepare(`UPDATE tutor_turns SET status='answered',answer=?,off_topic=?,leak_blocked=max(leak_blocked,?),first_token_ms=?,input_tokens=?,output_tokens=?,cached_tokens=?,answered_at=?,attempt_token=NULL,lease_expires_at=NULL
       WHERE id=? AND status='streaming' AND attempt_token=? AND EXISTS(SELECT 1 FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
         JOIN lesson_items i ON i.lesson_id=l.id AND i.item_id=tutor_turns.item_id WHERE l.id=tutor_turns.lesson_id AND l.completed_at IS NULL AND coalesce(s.tutor_enabled,1)=1 AND i.flag IS NOT 'item_void'
         AND NOT EXISTS(SELECT 1 FROM ai_subject_controls c WHERE c.subject_id=l.subject_id AND c.openai_enabled=0) AND ?=1)`)
-      .bind(parsed.data,Number(offTopic),Number(leakBlocked),firstMs,inputTokens,outputTokens,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
+      .bind(parsed.data,Number(offTopic),Number(leakBlocked),firstMs,inputTokens,outputTokens,cachedTokens ?? null,new Date().toISOString(),id,token,Number(env.OPENAI_ENABLED==='true')).run();
     if (!saved.meta.changes) {
       await db.prepare("UPDATE tutor_turns SET status='blocked',attempt_token=NULL,lease_expires_at=NULL WHERE id=? AND status='streaming' AND attempt_token=?").bind(id,token).run();
       emit('error',{message:'Câu hỏi không còn trong bài đang làm.'}); return 'ineligible' as const;

@@ -70,7 +70,7 @@ test('backup restores tutor turns with usage and older snapshots with defaults',
  const target=memoryDb();t.after(()=>target.sqlite.close());target.sqlite.exec(buildRestoreSql(snapshot));
  assert.deepEqual(target.sqlite.prepare('SELECT * FROM tutor_turns').all(),snapshot.tables.tutor_turns);
  assert.deepEqual(target.sqlite.prepare('PRAGMA foreign_key_check').all(),[]);
- for(const row of snapshot.tables.tutor_turns) for(const field of ['input_tokens','output_tokens','attempt_token','lease_expires_at']) delete row[field];
+ for(const row of snapshot.tables.tutor_turns) for(const field of ['input_tokens','output_tokens','cached_tokens','attempt_token','lease_expires_at']) delete row[field];
  const old=memoryDb();t.after(()=>old.sqlite.close());old.sqlite.exec(buildRestoreSql(snapshot));
  assert.equal(old.sqlite.prepare('SELECT input_tokens FROM tutor_turns').get().input_tokens,null);
 });

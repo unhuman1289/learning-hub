@@ -12,4 +12,6 @@ Bản soạn lưu cùng dữ liệu sao lưu; lease maintenance và redispatch k
 
 SQLite kiểm tra giao một lần lúc 00:00, không ghi trước giờ, bỏ completion, đổi revision, quá hạn, DST, 23:59/00:01, hai sổ độc lập và cron chạy lại. Dùng fixture và runner giả, không gọi model thật. Chưa triển khai, sửa D1 hay merge; cần nghiệm thu môi trường thật riêng.
 
-Kết quả: `npm run test` 565/565; `npm run typecheck` đạt; `npm run lint` đạt với hai cảnh báo sẵn có trong `tutor-pet.tsx` và `ai-controls.ts`; `npm run build` đạt. Chạy với Node 22.23.2.
+Kết quả: `npm run test` 573/573; `npm run typecheck` đạt; `npm run lint` đạt với hai cảnh báo sẵn có trong `tutor-pet.tsx` và `ai-controls.ts`; `npm run build` đạt. Chạy với Node 22.23.2.
+
+Sau khi C1 #225 gộp: merge `codex/hub-next-wip` vào nhánh F4b, giữ `0038_tutor_cached_tokens.sql` và chuyển F4b sang `0039_prepared_daily.sql`; chạy lại toàn bộ kiểm tra ở trên.
