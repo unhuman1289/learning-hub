@@ -216,7 +216,7 @@ test('only an explicitly revealed solution enters model context', async t => {
 });
 
 test('25-item lesson preserves nearby context and bounds the model input',async t=>{
-  const {db,lessonId,create}=await setup(t); const row=db.sqlite.prepare("SELECT * FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(lessonId);
+  const {db,lessonId}=await setup(t); const row=db.sqlite.prepare("SELECT * FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(lessonId);
   db.sqlite.prepare("DELETE FROM lesson_items WHERE lesson_id=? AND item_id NOT IN ('i1','i2')").run(lessonId);
   const columns=Object.keys(row); const insert=db.sqlite.prepare(`INSERT INTO lesson_items (${columns.join(',')}) VALUES (${columns.map(()=>'?').join(',')})`);
   for(let n=3;n<=25;n++) {
