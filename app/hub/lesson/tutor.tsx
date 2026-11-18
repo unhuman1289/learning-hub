@@ -2,11 +2,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TutorTurn } from '../../../lib/contracts/tutor';
 import { TutorPet, type TutorPetState } from './tutor-pet';
+import './tutor.css';
 
-const blockedText = '(Chỗ này có đáp án, mình giữ lại nhé.)';
-const busyText = 'Mình đang bận một chút. Câu trả lời sẽ có trong bài, bạn cứ làm câu khác rồi quay lại đọc nhé.';
+const blockedText = '(Chỗ này lộ đáp án mất, con giữ lại nha.)';
+const busyText = 'Con đang bận một chút. Câu trả lời sẽ có trong bài nha.';
 type Message = { id:string; question:string; answer:string; status:string };
-type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; limit:'lesson'|'day' };
+type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; limit:'lesson'|'day'; displayName:string };
 const initialRequests = new Map<string, Promise<Data>>();
 function readTutor(lessonId:string, fresh:boolean) {
   if (!fresh && initialRequests.has(lessonId)) return initialRequests.get(lessonId)!;
@@ -18,54 +19,55 @@ function readTutor(lessonId:string, fresh:boolean) {
   return request;
 }
 
-export default function Tutor({lessonId,itemId,number,child,correctCheck,active=true}:{lessonId:string;itemId:string;number:number;child:boolean;correctCheck?:string;active?:boolean}) {
+export default function Tutor({lessonId,items,number,child,correctCheck,checkedItem}:{lessonId:string;items:string[];number:number;child:boolean;correctCheck?:string;checkedItem?:string}) {
+  const [choice,setChoice]=useState({page:number, value:number}), [displayName,setDisplayName]=useState('');
+  const selected=choice.page===number ? choice.value : number;
+  const itemId=items[selected-1] ?? items[0];
   const [enabled,setEnabled]=useState(false), [open,setOpen]=useState(false), [remaining,setRemaining]=useState(20);
   const [limit,setLimit]=useState<'lesson'|'day'>('lesson');
   const [messages,setMessages]=useState<Message[]>([]), [question,setQuestion]=useState(''), [state,setState]=useState<TutorPetState>('idle');
   const [sending,setSending]=useState(false), [offline,setOffline]=useState(false), [notice,setNotice]=useState('');
   const trigger=useRef<HTMLButtonElement>(null), input=useRef<HTMLTextAreaElement>(null);
-  const asked=useRef(false), seenCheck=useRef(correctCheck);
+  const seenCheck=useRef(correctCheck), asked=useRef(new Set<string>());
   const [reaction,setReaction]=useState<TutorPetState | null>(null);
   const load=useCallback(async (fresh=false) => {
     const data=await readTutor(lessonId,fresh);
-    setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit);
-    asked.current=data.turns.some(turn=>turn.item_id===itemId);
+    setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit); setDisplayName(data.displayName ?? '');
+    asked.current=new Set(data.turns.map(turn=>turn.item_id));
     setMessages(previous => {
-      const saved=data.turns.filter(t=>t.item_id===itemId).map(t=> {
+      const saved=data.turns.map(t=> {
         const partial=previous.find(m=>m.id===t.id || (m.question===t.question && m.status==='streaming'));
         return {id:t.id,question:t.question,answer:t.answer ?? partial?.answer ?? '',status:t.status};
       });
       return [...saved,...previous.filter(m=>m.status==='streaming' && !saved.some(t=>t.question===m.question))];
     });
     return data;
-  },[lessonId,itemId]);
+  },[lessonId]);
   useEffect(()=>{
-    if (!active) return;
     // Loading permission and history is synchronization with the server.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load().catch(()=>{});
-  },[active,load]);
+  },[load]);
   useEffect(()=>{
-    if (!active || !open) return;
+    if (!open) return;
     input.current?.focus();
-    const escape=(event:KeyboardEvent) => { if(event.key==='Escape') { event.preventDefault(); setOpen(false); setState('idle'); trigger.current?.focus(); } };
+    const escape=(event:KeyboardEvent) => { if(event.key==='Escape') { event.preventDefault(); setOpen(false); setState('idle'); requestAnimationFrame(()=>trigger.current?.focus()); } };
     window.addEventListener('keydown',escape);
     return ()=>window.removeEventListener('keydown',escape);
-  },[active,open]);
+  },[open]);
   useEffect(()=>{
-    if (!active || (state !== 'greet' && state !== 'point')) return;
+    if (state !== 'greet' && state !== 'point') return;
     const timer=setTimeout(()=>setState(current=>current === 'greet' ? 'point' : current === 'point' ? 'listen' : current), state === 'greet' ? 480 : 720);
     return ()=>clearTimeout(timer);
-  },[active,state]);
+  },[state]);
   useEffect(()=>{
-    if (!active || !correctCheck || correctCheck === seenCheck.current) return;
+    if (!correctCheck || correctCheck===seenCheck.current) return;
     seenCheck.current=correctCheck;
-    // The choice uses the tutor history already loaded for this item.
-    setReaction(asked.current ? 'nod' : 'cheer');
+    setReaction(checkedItem && asked.current.has(checkedItem) ? 'nod' : 'cheer');
     const timer=setTimeout(()=>setReaction(null),720);
     return ()=>clearTimeout(timer);
-  },[active,correctCheck]);
-  function close() { setOpen(false); setState('idle'); trigger.current?.focus(); }
+  },[correctCheck,checkedItem]);
+  function close() { setOpen(false); setState('idle'); requestAnimationFrame(()=>trigger.current?.focus()); }
   async function ask() {
     const text=question.trim(); if(!text || sending || remaining<=0) return;
     const id=String(Date.now()); setQuestion(''); setSending(true); setOffline(false); setNotice(''); setState('think');
@@ -74,6 +76,7 @@ export default function Tutor({lessonId,itemId,number,child,correctCheck,active=
       const response=await fetch('/api/tutor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lessonId,itemId,question:text})}).catch(()=>{throw new Error('offline');});
       if(!response.ok || !response.body) { const body=await response.json().catch(()=>({})) as {error?:string}; throw new Error(body.error || 'Chưa gửi được câu hỏi.'); }
       setRemaining(n=>Math.max(0,n-1));
+      asked.current.add(itemId);
       const reader=response.body.getReader(), decoder=new TextDecoder(); let buffer='', finished=false;
       while(true) {
         const {done,value}=await reader.read(); buffer+=decoder.decode(value,{stream:!done}).replace(/\r\n/g,'\n');
@@ -91,36 +94,27 @@ export default function Tutor({lessonId,itemId,number,child,correctCheck,active=
         if(done) break;
       }
       if(!finished) throw new Error('offline');
-      void readTutor(lessonId,true).then(data=>{asked.current=data.turns.some(turn=>turn.item_id===itemId);}).catch(()=>{});
+
     } catch(error) {
       if(error instanceof Error && error.message !== 'offline' && error.message !== 'Failed to fetch' && error.message !== 'Load failed') setNotice(error.message);
       else { setOffline(true); setState('offline'); }
     } finally { setSending(false); }
   }
-  if(!active || !enabled) return null;
-  return <div className="mt-4 flex flex-col items-end gap-2">
-    <link rel="preload" as="image" href="/api/tutor/sprite/v2/idle.webp" />
-    <link rel="preload" as="image" href="/api/tutor/sprite/v2/sit.webp" />
-    <button ref={trigger} type="button" aria-label="Hỏi gia sư về câu này" aria-expanded={open} onClick={()=>{setOpen(true);setState('greet');void load(true).catch(()=>{setOffline(true);setState('offline');});}}
-      className="flex min-h-11 items-center gap-2 rounded-xl bg-[#fff8e9] p-2 text-[#38281e] shadow focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#773729]">
-      <TutorPet size={child ? "child" : "corner"} state={reaction ?? (open?(remaining === 0 ? 'limit' : state):'idle')}/><span>Hỏi mình nhé!</span>
+  if(!enabled) return null;
+  return <div className="tutor-whole">
+    <button hidden={open} ref={trigger} type="button" aria-label="Hỏi Bột" aria-expanded={false} onClick={()=>{setChoice({page:number,value:number});setOpen(true);setState('greet');void load(true).catch(()=>{setOffline(true);setState('offline');});}} className="tutor-trigger">
+      <span>Hỏi Bột nè!</span><TutorPet size="corner" state={reaction ?? 'idle'} />
     </button>
-    {open && <section aria-label="Trò chuyện với gia sư" className={'w-full max-w-xl overflow-y-auto rounded-t-2xl border border-[#a78b72] bg-[#fff9ed] p-4 text-[#38281e] shadow-lg max-h-[55dvh] motion-safe:animate-[tutor-enter_200ms_ease-out] '+(child?'text-lg leading-9':'leading-7')}>
-      <header className="flex items-start gap-3"><TutorPet size="panel" state={reaction ?? (remaining === 0 ? 'limit' : state)}/><div className="flex-1"><strong>Gia sư nhỏ</strong><p className="text-sm leading-5">{child?'Chỉ hỏi về câu này. Bố mẹ đọc được mọi câu hỏi và trả lời.':'Gợi hướng cho câu này, không nói đáp án.'}</p></div><button type="button" onClick={close} className="min-h-11 min-w-11 underline">Đóng</button></header>
-      <div className="mt-3 grid gap-3" aria-live="polite">
-        <p className="mr-8 rounded-xl bg-white p-3">Chào bạn! Câu {number} có chỗ nào chưa rõ? Mình gợi hướng thôi, không nói đáp án đâu nhé.</p>
-        {messages.map(m=><div key={m.id} className="grid gap-2"><p className="ml-8 rounded-xl bg-[#ffe79a] p-3">{m.question}</p>
-          {m.answer && <p className="mr-8 whitespace-pre-wrap rounded-xl bg-white p-3">{m.answer.split(blockedText).map((part,i)=><span key={i}>{i>0 && <span className="font-semibold text-[#a12620]">{blockedText}</span>}{part}</span>)}</p>}
-          {m.status==='queued' && <p className="mr-8 rounded-xl bg-white p-3">{busyText}</p>}
-          {sending && m.status==='streaming' && !m.answer && <p className="mr-8 rounded-xl bg-white p-3">Để mình nghĩ chút…</p>}
-        </div>)}
-        {offline && <p role="status">Mất kết nối. Phần đã nghe vẫn được giữ. <button type="button" className="underline" onClick={()=>{setOffline(false);setState('listen');input.current?.focus();}}>Hỏi tiếp</button></p>}
+    {open && <section role="dialog" aria-label="Trò chuyện với Bột" className={'tutor-sheet '+(child?'tutor-sheet-child':'')}>
+      <div className="tutor-chips"><div role="group" aria-label="Hỏi về câu nào">{items.map((id,index)=><button key={id} type="button" aria-pressed={selected===index+1} onClick={()=>setChoice({page:number,value:index+1})}>Câu {index+1}{number===index+1?' · đang mở':''}</button>)}</div><button type="button" aria-label="Đóng, Bột về chỗ ngồi" onClick={close}>×</button></div>
+      <div className="tutor-messages" aria-live="polite">
+        {!messages.length && <div className="tutor-bot"><TutorPet size="panel" state={state}/><p>Con chào{displayName ? ` ${displayName}` : ''} ạ! Bài này có {items.length} câu, đang ở câu {number} nè. Chỗ nào chưa hiểu cứ hỏi con nha, con chỉ gợi ý thôi chứ không nói đáp án đâu.</p></div>}
+        {messages.map((m,index)=><div key={m.id} className="tutor-message"><p className="tutor-question">{m.question}</p>{(m.answer || m.status==='queued' || (sending && m.status==='streaming')) && <div className="tutor-bot">{index===messages.length-1 && <TutorPet size="panel" state={remaining===0?'limit':state}/>}<p>{m.answer ? m.answer.split(blockedText).map((part,i)=><span key={i}>{i>0 && <strong>{blockedText}</strong>}{part}</span>) : m.status==='queued' ? busyText : 'Để con nghĩ xíu nha…'}</p></div>}</div>)}
+        {offline && <p role="status">Mất kết nối. Phần đã nghe vẫn được giữ. <button type="button" onClick={()=>{setOffline(false);setState('listen');input.current?.focus();}}>Hỏi tiếp</button></p>}
         {notice && <p role="alert">{notice}</p>}
-        {remaining===0 && <p>{limit==='day' ? 'Hôm nay mình đã trả lời đủ 60 lượt. Mai hỏi tiếp nhé!' : 'Bài này mình đã trả lời đủ 20 lượt rồi. Bạn thử tự làm tiếp nhé!'}</p>}
+        {remaining===0 && <p>{limit==='day' ? 'Hôm nay con đã trả lời đủ 60 lượt. Mai hỏi con tiếp nha!' : 'Bài này con trả lời đủ 20 lượt rồi, con đi ngủ xíu đây.'}</p>}
       </div>
-      {remaining>0 && <><div className="mt-3 flex flex-wrap gap-2">{['Mình nên bắt đầu từ đâu?','Bạn gợi ý thêm nhé?','Mình cần chú ý điều gì?'].map(s=><button type="button" key={s} className="min-h-11 rounded border border-[#765342] px-2 text-sm" onClick={()=>{setQuestion(s);input.current?.focus();}}>{s}</button>)}</div>
-        <label htmlFor={'tutor-'+itemId} className="mt-3 block">Câu hỏi của bạn</label><textarea ref={input} id={'tutor-'+itemId} value={question} onFocus={()=>setState(current=>current === 'greet' || current === 'point' ? current : 'listen')} onChange={e=>{setState('listen');setQuestion(e.target.value);}} maxLength={500} rows={2} className="w-full rounded border border-[#765342] bg-white p-2 text-[#38281e] focus-visible:outline-2 focus-visible:outline-[#773729]" />
-        <button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="brick min-h-11 px-4 disabled:opacity-60">{sending?'Chờ chút':'Gửi'}</button><p className="text-sm">Còn {remaining} lượt hỏi trong bài này</p></>}
+      {remaining>0 && <div className="tutor-compose"><label htmlFor="tutor-question" className="sr-only">Câu hỏi cho Bột</label><textarea ref={input} id="tutor-question" value={question} onFocus={()=>setState('listen')} onChange={e=>{setState('listen');setQuestion(e.target.value);}} maxLength={500} rows={2}/><button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="brick min-h-11 px-4 disabled:opacity-60">{sending?'Chờ chút':'Gửi'}</button><small>Còn {remaining} lượt hỏi trong bài này</small></div>}
     </section>}
   </div>;
 }

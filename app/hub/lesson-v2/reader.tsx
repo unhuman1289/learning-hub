@@ -64,6 +64,8 @@ export function LessonReader({
   const formatText = isChemistryNotebook(lesson.subjectTitle ?? "") ? formatChemicalText : (text: string) => text;
   const subject = lesson.subjectTitle || lesson.title;
   const frozen = readonly || !!lesson.completedAt || !!session.verification;
+  const checked = checkIntent ? feedbackForItems(history, [checkIntent.itemId])[0] : undefined;
+  const correctCheck = checked && checked.id !== checkIntent?.previousId && checked.attempts[0]?.result === 'correct' ? checked.id : undefined;
   const answered = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
   const hasAnswer = (item: Lesson["items"][number]) =>
     hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length;
@@ -101,7 +103,8 @@ export function LessonReader({
     {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
     {hasListening && <ListeningBrowserNotice />}
     <LessonFlow initialItem={initialItem} groups={session.hadPrefetch && !grouped ? lesson.items.map((_, i) => [i + 1]) : lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
-      locked={busy || !!pending || !!session.verification || (session.hadPrefetch && !grouped)} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen} page={(index, jump, active) => {
+      locked={busy || !!pending || !!session.verification || (session.hadPrefetch && !grouped)} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen}
+      tutor={!frozen && lesson.items.length ? current => <Suspense fallback={null}><Tutor lessonId={id} items={lesson.items.map(item=>item.id)} number={current} child={child} correctCheck={correctCheck} checkedItem={checkIntent?.itemId} /></Suspense> : undefined} page={(index, jump, active) => {
         if (index === 0) return <>
           <h1 tabIndex={-1} data-lesson-heading className="font-print text-4xl leading-tight">{lesson.title}</h1>
           <p className="mt-3">{lesson.objective}</p>
@@ -164,7 +167,7 @@ export function LessonReader({
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={playSaving || busy || !!session.verification || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={readonly || !!lesson.completedAt}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
-          onSubmit={() => { setCheckIntent({itemId: item.id, previousId: current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
+          onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
           gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :
@@ -174,7 +177,6 @@ export function LessonReader({
               formatText={formatText} onRefresh={() => void session.refreshFeedback()} />
             <PreviousFeedback entries={previous} item={item} readOnly={frozen} formatText={formatText} />
           </> : undefined} />
-          {!frozen && <Suspense fallback={null}><Tutor active={active} lessonId={id} itemId={item.id} number={index} child={child} correctCheck={checkIntent?.itemId === item.id && current?.id !== checkIntent.previousId && latest?.result === "correct" ? current?.id : undefined} /></Suspense>}
         </div>;
       }} />
   </Book>;

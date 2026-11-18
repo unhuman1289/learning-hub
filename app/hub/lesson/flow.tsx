@@ -11,7 +11,7 @@ type Corner = "top" | "bottom";
 /** A swipe this far (px) turns the page; shorter pulls spring back. */
 const SWIPE = 64;
 
-export function LessonFlow({ initialItem, groups, count, subject, materials, page, status, locked, hint = false, onHintSeen = () => {} }: {
+export function LessonFlow({ initialItem, groups, count, subject, materials, page, status, locked, tutor, hint = false, onHintSeen = () => {} }: {
   initialItem: number;
   groups: number[][];
   count: number;
@@ -20,6 +20,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
   page: (index: number, jump: (index: number) => void, active: boolean) => ReactNode;
   status: string;
   locked: boolean;
+  tutor?: (current: number) => ReactNode;
   /** Show "Chạm mép giấy để lật" until the learner first turns a page. */
   hint?: boolean;
   onHintSeen?: () => void;
@@ -203,6 +204,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
       if (Math.abs(dx) >= SWIPE && Math.abs(dx) > Math.abs(dy) * 1.5 && pages[index + offset]) turnFrom(offset, start.corner, event.timeStamp);
       else pull(null);
     }}>
+    {tutor?.(question ? target : 1)}
     <div id={paperId} ref={paper} className="lesson-flow-leaf" onAnimationEnd={event => {
       if (event.animationName === "lesson-leaf-arrive" && paper.current) delete paper.current.dataset.fallbackTurn;
     }}>
