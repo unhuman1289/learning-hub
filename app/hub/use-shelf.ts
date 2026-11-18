@@ -29,7 +29,6 @@ type TodayData = {
   study: StudyDay;
   adaptiveSubjects: string[];
   preparing: { subjectId: string; title: string; writing: boolean }[];
-  gradingWaits: boolean;
   gradingActive?: boolean;
 };
 

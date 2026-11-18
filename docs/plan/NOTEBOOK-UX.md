@@ -676,7 +676,7 @@ Hiện là khối đá có viền vữa và bóng (`buttonClass("secondary")`, `
   - `cloze`, `match`, `order`, `label`, `table` chấm theo đáp án;
   - đúng một phần thì `partial` với điểm theo tỉ lệ ô đúng;
   - `code` luôn gửi AI.
-- Prompt chấm (`integrations/runner-prompts/assess-local.md`, `assess.md`):
+- Prompt chấm (`integrations/runner-prompts/assess-openai.md`, `assess.md`):
   - phần riêng cho `code`: đọc code như người chấm, kiểm tra theo rubric (đúng yêu cầu, biên dịch được về lý thuyết, xử lý lỗi, đặt tên); không bịa kết quả chạy; ghi rõ "chưa chạy thử";
   - lời phê trỏ số dòng.
 - Prompt soạn (`plan-request.md`, `LESSON-DESIGN.md`):

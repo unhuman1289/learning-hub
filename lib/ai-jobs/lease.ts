@@ -18,22 +18,6 @@ export function permits(client: AutomationClient, job: Pick<Job, 'kind' | 'purpo
     (!client.learnerIds || client.learnerIds.includes(job.learner_id))
   );
 }
-/** At most one write a minute per client: polling every 15 s must not spend the D1 write budget. */
-export async function recordPresence(db: EvidenceDb, clientId: string, runner: unknown, capabilities: string[], now = new Date()) {
-  const stamp = now.toISOString();
-  await db
-    .prepare(
-      'INSERT INTO runner_presence(client_id,runner,capabilities,last_seen_at) VALUES(?,?,?,?) ON CONFLICT(client_id) DO UPDATE SET runner=excluded.runner,capabilities=excluded.capabilities,last_seen_at=excluded.last_seen_at WHERE runner_presence.last_seen_at<? OR runner_presence.runner<>excluded.runner OR runner_presence.capabilities<>excluded.capabilities',
-    )
-    .bind(clientId, JSON.stringify(runner).slice(0, 400), JSON.stringify(capabilities), stamp, new Date(now.getTime() - 60000).toISOString())
-    .run();
-}
-/** The grading runner counts as online when it asked for work within the last 3 minutes. */
-export async function runnerStatus(db: EvidenceDb, clientId: string, now = new Date()) {
-  const row = await db.prepare('SELECT last_seen_at FROM runner_presence WHERE client_id=?').bind(clientId).first<{ last_seen_at: string }>();
-  const lastSeenAt = row?.last_seen_at ?? null;
-  return { online: !!lastSeenAt && Date.parse(lastSeenAt) >= now.getTime() - 3 * 60000, lastSeenAt };
-}
 export async function maintainJobs(db: EvidenceDb, now = new Date()) {
   const stamp = now.toISOString();
   await db.batch([
@@ -71,7 +55,6 @@ export async function leaseJobs(
   const purposes = (client.purposes ?? []).filter((x) => !input.purposes || input.purposes.includes(x));
   const triggers = (client.triggers ?? []).filter((x) => !input.triggers || input.triggers.includes(x));
   if (!kinds.length || !purposes.length || !triggers.length) throw new ApiError(403, 'Client không được lease loại công việc này.');
-  await recordPresence(db, client.id, input.runner, input.capabilities ?? [], now);
   const languages = Object.keys(input.ttsVoices ?? {}) as NonNullable<PlanContext['tts']>['languages'];
   const tts = input.capabilities?.includes('tts') && input.ttsVoices && languages.length
     ? { languages, voices: input.ttsVoices } : undefined;

@@ -74,15 +74,3 @@ test('separate assessor client preserves planner permissions and cannot broaden 
  assert.equal(configuredAutomationClients({...bindings,ASSESSOR_CLIENT:JSON.stringify({...assessor,learnerIds:undefined})}),null);
  assert.equal(configuredAutomationClients({...bindings,ASSESSOR_CLIENT:JSON.stringify({...assessor,id:'planner'})}),null);
 });
-
-test('staging runner credential replaces only the scoped staging runner', () => {
-  const bridge = { id: 'sites-bridge-staging', keySha256: 'a'.repeat(64), accessClientId: 'token-bridge.access', scopes: ['jobs:plan'], learnerIds: undefined, purposes: undefined, triggers: undefined };
-  const runner = { id: 'home-runner', keySha256: 'b'.repeat(64), accessClientId: 'token-runner.access',
-    scopes: ['jobs:plan', 'jobs:assess'], learnerIds: ['one-profile'], purposes: ['initial', 'submission'], triggers: ['on_demand'] };
-  const oldRunner = { ...runner, keySha256: 'c'.repeat(64) };
-  const bindings = { APP_ENV: 'staging', ENVIRONMENT: 'staging', AUTOMATION_CLIENTS: JSON.stringify([bridge, oldRunner]) };
-  assert.deepEqual(configuredAutomationClients({ ...bindings, STAGING_RUNNER_CLIENT: JSON.stringify(runner) }), [bridge, runner]);
-  assert.deepEqual(configuredAutomationClients({ ...bindings, APP_ENV: 'production', ENVIRONMENT: 'production', STAGING_RUNNER_CLIENT: JSON.stringify(runner) }), [bridge, oldRunner]);
-  assert.equal(configuredAutomationClients({ ...bindings, STAGING_RUNNER_CLIENT: JSON.stringify({ ...runner, learnerIds: undefined }) }), null);
-  assert.equal(configuredAutomationClients({ ...bindings, STAGING_RUNNER_CLIENT: [runner, bridge].map(entry => JSON.stringify(entry)).join(',') }), null);
-});

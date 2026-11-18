@@ -185,7 +185,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
                   <TodayBoard key={`${viewing.id ?? "self"}:${data?.study.day ?? today}`} learner={viewing.id} go={go} notes={notes} items={data?.items ?? []}
                     loading={hub2 ? !data && !shelf.error : loading}
                     emptyShelf={shelf.subjects?.length === 0} adaptiveSubjects={data?.adaptiveSubjects ?? []} preparing={data?.preparing ?? []}
-                    gradingWaits={data?.gradingWaits ?? false} animate={animate}
+                    animate={animate}
                     loadError={hub2 ? shelf.error : daily.error} reload={hub2 ? shelf.load : daily.load} />
                 </div>
                 <SeasonItem place="desk" month={clock?.month} className="h-20 w-14 shrink-0 sm:h-[103px] sm:w-[84px]" />

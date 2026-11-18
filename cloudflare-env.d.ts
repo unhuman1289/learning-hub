@@ -3,7 +3,6 @@ declare namespace Cloudflare {
     APP_ENV?:string;
     AI_JOBS_DAILY_CAP?:string;
     ADAPTIVE_PILOT_SUBJECT_ID?:string;
-    AI_LOCAL_ONLY?:string;
     AI_DISPATCH_URL?:string;
     AI_DISPATCH_SECRET?:string;
     AI_COST_ALERT_USD?:string;
@@ -29,7 +28,6 @@ declare namespace Cloudflare {
     HUB2_ENABLED?:string;
     MCP_ENABLED?:string;
     MCP_EVENTS_ENABLED?:string;
-    GRADER_CLIENT_ID?:string;
     BETTER_AUTH_SECRET?: string;
     BOOTSTRAP_ADMIN_EMAIL?: string;
     RESEND_API_KEY?: string;
@@ -43,6 +41,5 @@ declare namespace Cloudflare {
     AUTOMATION_ACCESS_AUD?: string;
     AUTOMATION_CLIENTS?: string;
     ASSESSOR_CLIENT?: string;
-    STAGING_RUNNER_CLIENT?: string;
   }
 }

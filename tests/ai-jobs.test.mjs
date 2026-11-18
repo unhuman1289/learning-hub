@@ -12,8 +12,8 @@ import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob }
 import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
 import { aiSubjects, setAiControls } from '../lib/ai-controls.ts';
 import { applyResult, applyPreparedDaily } from '../lib/ai-jobs/result.ts';
-import { processJob } from '../integrations/home-runner/job.mjs';
-import { openAiEngine } from '../integrations/home-runner/openai.mjs';
+import { processJob } from '../lib/ai/job.mjs';
+import { openAiEngine } from '../lib/ai/openai.mjs';
 import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
 import { readLessonSubmissions, submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
@@ -332,14 +332,11 @@ test('dispatch is authenticated with HMAC and includes only job metadata', async
   assert.match(sent.headers['X-LH-Signature'], /^sha256:[a-f0-9]{64}$|^sha256=[a-f0-9]{64}$/);
   assert(!sent.body.includes(learner));
 });
-test('local-only jobs remain queued for the runner without external dispatch', async () => {
-  const sent = [];
-  const job = await enqueue(seed(), {
-    AI_LOCAL_ONLY: 'true',
-    AI_QUEUE: { send: async () => { sent.push('queue'); } },
-  }, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
+test('jobs remain queued for API clients when no dispatch is configured', async () => {
+  const db = seed();
+  const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
   assert.equal(job.status, 'queued');
-  assert.deepEqual(sent, []);
+  assert.equal((await readJob(db, job.id)).status, 'queued');
 });
 
 test('closed-only one wrong submission skips AI; open answers queue assess', async () => {

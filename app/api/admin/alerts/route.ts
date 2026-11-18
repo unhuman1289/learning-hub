@@ -1,8 +1,6 @@
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { berlinDay } from '../../../../lib/daily-policy';
-import { env } from 'cloudflare:workers';
-import { runnerOfflineAlert } from '../../../../lib/alerts';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
 export async function GET() {
@@ -13,6 +11,5 @@ export async function GET() {
     .prepare('SELECT code,message,email_state FROM alert_events WHERE learning_day=? ORDER BY created_at')
     .bind(berlinDay())
     .all();
-  const offline = await runnerOfflineAlert(db, env);
-  return Response.json({ alerts: offline ? [{ ...offline, email_state: 'none' }, ...results] : results }, { headers });
+  return Response.json({ alerts: results }, { headers });
 }

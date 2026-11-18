@@ -10,7 +10,7 @@ import { readLessonV2 } from '../lib/lesson-v2/store.ts';
 import { aacDurationMs } from '../lib/audio/aac.ts';
 const aac = readFileSync(new URL('./fixtures/audio/de-DE-f.aac', import.meta.url));
 import { readJob } from '../lib/ai-jobs/lease.ts';
-import { systemPrompt } from '../integrations/home-runner/job.mjs';
+import { systemPrompt } from '../lib/ai/job.mjs';
 import { memoryDb } from './d1-adapter.mjs';
 import { seedListeningRequest } from './listening-authoring-fixture.mjs';
 

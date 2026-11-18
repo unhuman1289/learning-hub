@@ -1,11 +1,8 @@
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
-import { writeFile, readFile } from 'node:fs/promises';
-import { probeTts, synthesize, uploadPlanAudio } from '../integrations/home-runner/tts.mjs';
+import { uploadPlanAudio } from '../lib/ai/upload-plan-audio.mjs';
 import { audioVariant } from '../lib/audio/hash.mjs';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { memoryDb } from './d1-adapter.mjs';
 import { enqueue, queueSubmission } from '../lib/ai-jobs/queue.ts';
@@ -14,12 +11,9 @@ import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
 import { submitLesson } from '../lib/evidence/submit.ts';
 import { assessResult } from '../lib/contracts/ai-common.ts';
-import { processJob, userPrompt, systemPrompt, normalizePlan, normalizePlanAttachments, compactPlanContext } from '../integrations/home-runner/job.mjs';
-import { strictSchema, stripOptionalNulls, parseJsonReply } from '../integrations/home-runner/schema.mjs';
-import { childEnv, codexEngine, qwenEngine } from '../integrations/home-runner/engines.mjs';
-import { leaseRequest, pollDelay, parseEnvFile, runOnce } from '../integrations/home-runner/runner.mjs';
+import { processJob, userPrompt, systemPrompt, normalizePlan, normalizePlanAttachments, compactPlanContext } from '../lib/ai/job.mjs';
+import { strictSchema, stripOptionalNulls, parseJsonReply } from '../lib/ai/schema.mjs';
 import { listeningJob, germanVoices } from './listening-authoring-fixture.mjs';
-import { createHub } from '../integrations/home-runner/hub.mjs';
 
 const now = new Date('2026-11-12T09:00:00Z'),
   subject = 'sub_bbbbbbbbbbbbbbbbbbbb',
@@ -155,7 +149,7 @@ const fakeEngine = (name, replies, vision = false) => {
   };
 };
 
-test('a Qwen grade passes the dry run, is saved, verified and reports the engine', async () => {
+test('a model grade passes the dry run, is saved, verified and reports the engine', async () => {
   const { db, sub } = await openSubmission();
   const hub = memoryHub(db);
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner, capabilities: ['lesson-v3'] });
@@ -183,7 +177,7 @@ test('a 422 from the dry run goes back to the engine once with the error codes',
   db.sqlite.close();
 });
 
-test('a rejected lesson goes back to Qwen with the draft and exact question path', async () => {
+test('a rejected lesson goes back to the model with the draft and exact question path', async () => {
   const context = {
     contract: 'plan-context/1', contextHash: 'sha256:' + '0'.repeat(64), purpose: 'daily', subjects: [],
   };
@@ -247,7 +241,7 @@ test('a whole-lesson retry uses Hub errors without resending the rejected packag
   assert.equal(calls[2].body.summary, 'Bản mới');
 });
 
-test('a duplicate found on the Mac is repaired before the Hub sees the draft', async () => {
+test('a duplicate found before validation is repaired before the Hub sees the draft', async () => {
   const lesson = structuredClone(fixture);
   const context = {
     contract: 'plan-context/1', contextHash: 'sha256:' + '0'.repeat(64), purpose: 'daily',
@@ -286,7 +280,7 @@ test('plan context stays under its byte budget', () => {
   assert.ok(compact.subjects[0].recentLessons.every(l => l.items.every(item => item.prompt.length <= 80)));
 });
 
-test('Qwen without vision leaves photos with the Hub', async () => {
+test('a model without vision leaves photos with the Hub', async () => {
   let failed;
   const hub = {
     context: async () => ({ attempts: [{ attachments: [{ expired: false }] }] }),
@@ -308,7 +302,7 @@ test('an uncertain network failure after saving is verified, not resent with oth
   db.sqlite.close();
 });
 
-test('when Qwen fails the job goes back to the Hub queue with only a short reason', async () => {
+test('when the model fails the job goes back to the Hub queue with only a short reason', async () => {
   const { db } = await openSubmission();
   const hub = memoryHub(db);
   const [lease] = await hub.lease({ kinds: ['assess'], max: 1, runner, capabilities: ['lesson-v3'] });
@@ -316,62 +310,6 @@ test('when Qwen fails the job goes back to the Hub queue with only a short reaso
   assert.equal(out.status, 'failed');
   assert.deepEqual(hub.calls.at(-1), { fail: 'qwen: down', retryable: true });
   db.sqlite.close();
-});
-
-test('runOnce leases nothing when no engine answers and asks only for work it can do', async () => {
-  const hub = { lease: async (input) => ((hub.input = input), []) };
-  const none = { available: async () => false };
-  assert.deepEqual(await runOnce(hub, none), { idle: true, reason: 'no_engine' });
-  const up = { available: async () => true, vision: false };
-  await runOnce(hub, up);
-  assert.deepEqual(hub.input.purposes, ['submission', 'recheck', 'request', 'initial']);
-  assert.deepEqual(hub.input.kinds, ['assess', 'plan']);
-  assert.deepEqual(hub.input.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2']);
-});
-
-test('lease requests, poll schedule and env file parsing', () => {
-  const all = leaseRequest({ vision: true });
-  assert.deepEqual(all.purposes, ['submission', 'recheck', 'request', 'initial']);
-  assert.deepEqual(all.kinds, ['assess', 'plan']);
-  assert.deepEqual(all.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', 'vision']);
-  assert.deepEqual(all.triggers, ['on_demand', 'deferred']);
-  assert.equal(all.runner.model, 'qwen');
-  const nightly = leaseRequest({ vision: false }, { daily: true });
-  assert.deepEqual(nightly.purposes, ['submission', 'recheck', 'request', 'initial', 'daily']);
-  assert.deepEqual(nightly.triggers, ['on_demand', 'deferred', 'scheduled']);
-  assert.deepEqual(nightly.capabilities, ['adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2']);
-  assert.equal(pollDelay(new Date('2026-11-12T09:00:00Z')), 15000);
-  assert.equal(pollDelay(new Date('2026-11-12T02:00:00Z')), 300000);
-  assert.equal(pollDelay(new Date('2026-11-12T22:45:00Z')), 300000); // 23:45 Berlin
-  assert.deepEqual(parseEnvFile('# c\nHUB_BASE_URL=https://x.test\nQWEN_MODEL="qwen/a"\nbad line\n'), {
-    HUB_BASE_URL: 'https://x.test',
-    QWEN_MODEL: 'qwen/a',
-  });
-});
-
-test('engines never receive Hub secrets and the local model must be on localhost', () => {
-  const env = childEnv({ PATH: '/bin', HUB_BEARER: 'x', HUB_ACCESS_CLIENT_SECRET: 'y', MY_SECRET: 'z', HOME: '/h' });
-  assert.deepEqual(env, { PATH: '/bin', HOME: '/h' });
-  assert.throws(() => qwenEngine({ baseUrl: 'http://192.168.1.5:1234/v1', model: 'q' }), /localhost/);
-  assert.throws(() => createHub({ baseUrl: 'http://hub.example', bearer: 'lhk_home-runner_' + 'a'.repeat(40) }), /HTTPS/);
-  assert.throws(() => createHub({ baseUrl: 'https://hub.example', bearer: 'nope' }), /HUB_BEARER/);
-  assert.throws(() => createHub({ baseUrl: 'https://hub.example', bearer: 'lhk_home-runner_' + 'a'.repeat(40) }), /Access/);
-});
-
-test('Qwen sends the HTTPS pattern without the unsupported starts_with format', async () => {
-  const link = { type: 'string', format: 'starts_with', pattern: '^https://' };
-  const qwen = qwenEngine({
-    model: 'qwen',
-    fetcher: async (_url, init) => {
-      assert.deepEqual(JSON.parse(init.body).response_format.json_schema.schema.properties.link, {
-        type: 'string',
-        pattern: '^https://',
-      });
-      return Response.json({ choices: [{ message: { content: '{}' } }] });
-    },
-  });
-  await qwen.run({ system: 's', user: 'u', schema: { type: 'object', properties: { link } } });
-  assert.equal(link.format, 'starts_with');
 });
 
 test('lesson normalization keeps generated answers and places every item in one allowed stage', () => {
@@ -402,7 +340,7 @@ test('the user prompt marks the context as data and carries repair errors', () =
   assert.match(systemPrompt('plan', 'request'), /Chỉ dùng ID có thật/);
 });
 
-test('strict schema for Codex: optional fields become nullable and nulls are removed again', () => {
+test('strict model schema: optional fields become nullable and nulls are removed again', () => {
   const json = z.toJSONSchema(assessResult);
   const strict = strictSchema(json);
   const walk = (s) => {
@@ -430,32 +368,8 @@ test('JSON replies survive reasoning blocks and fences', () => {
   assert.throws(() => parseJsonReply('nothing here'), /no JSON/);
 });
 
-test('codex engine runs exec with an output schema in a private temp dir and reads the last message', async () => {
-  let seen;
-  const engine = codexEngine({
-    model: 'gpt-x',
-    env: { PATH: '/bin', HUB_BEARER: 'secret' },
-    runner: async (bin, args, opts) => {
-      seen = { bin, args, opts };
-      if (args[0] === 'exec') writeFileSync(args[args.indexOf('-o') + 1], '{"ok":true,"extra":null}');
-    },
-  });
-  const out = await engine.run({
-    system: 'S',
-    user: 'U',
-    schema: { type: 'object', properties: { ok: { type: 'boolean' }, extra: { type: 'string' } }, required: ['ok'] },
-  });
-  assert.deepEqual(out.json, { ok: true });
-  assert.equal(seen.bin, 'codex');
-  for (const flag of ['exec', '--skip-git-repo-check', '--ephemeral', '-o', '-m']) assert(seen.args.includes(flag), flag);
-  assert(!seen.args.includes('--output-schema'));
-  assert.match(seen.opts.input, /^S\n\nU\n\nJSON Schema/);
-  assert.equal(seen.args[seen.args.indexOf('--sandbox') + 1], 'read-only');
-  assert.equal(seen.opts.env.HUB_BEARER, undefined);
-});
-
 test('reference hygiene: invented pattern ids become null and each answer keeps one grade', async () => {
-  const { normalizeAssess } = await import('../integrations/home-runner/job.mjs');
+  const { normalizeAssess } = await import('../lib/ai/job.mjs');
   const context = {
     purpose: 'submission',
     attempts: [
@@ -490,41 +404,6 @@ test('reference hygiene: invented pattern ids become null and each answer keeps 
     out.errorPatternUpdates.map((u) => u.patternId),
     ['err_known'],
   );
-});
-
-test('Drive copy: once per Berlin day after 03:00, atomic files, only listed profiles', async () => {
-  const { mirrorDue, mirrorHistory } = await import('../integrations/home-runner/mirror.mjs');
-  const { mkdtemp, readFile, readdir, rm } = await import('node:fs/promises');
-  const { tmpdir } = await import('node:os');
-  const { join } = await import('node:path');
-  assert.equal(mirrorDue(null, new Date('2026-11-10T01:30:00Z')), null); // 02:30 Berlin
-  assert.equal(mirrorDue(null, new Date('2026-11-10T02:30:00Z')), '2026-11-10');
-  assert.equal(mirrorDue('2026-11-10', new Date('2026-11-10T20:00:00Z')), null);
-  const dir = await mkdtemp(join(tmpdir(), 'lh-mirror-'));
-  const asked = [];
-  const hub = { history: async (id) => (asked.push(id), '# Lịch sử ' + id) };
-  assert.equal(await mirrorHistory(hub, { dir, learnerIds: ['prf_a', '../evil', 'prf_b'] }), 2);
-  assert.deepEqual(asked, ['prf_a', 'prf_b']);
-  assert.deepEqual((await readdir(dir)).sort(), ['lich-su-prf_a.md', 'lich-su-prf_b.md']);
-  assert.equal(await readFile(join(dir, 'lich-su-prf_a.md'), 'utf8'), '# Lịch sử prf_a');
-  await rm(dir, { recursive: true });
-});
-
-test('after ChatGPT reports its usage limit Codex rests an hour so Qwen takes the work', async () => {
-  let clock = 1_000_000;
-  const engine = codexEngine({
-    now: () => clock,
-    env: {},
-    runner: async (_bin, args) => {
-      if (args[0] === '--version') return;
-      throw Error("codex exited 1: ERROR: You've hit your usage limit.");
-    },
-  });
-  assert.equal(await engine.available(), true);
-  await assert.rejects(engine.run({ system: 's', user: 'u', schema: { type: 'object' } }), /usage limit/);
-  assert.equal(await engine.available(), false);
-  clock += 61 * 60000;
-  assert.equal(await engine.available(), true);
 });
 
 test('v3 Rust diagnostic uses five questions and a stable acyclic skill vocabulary', async () => {
@@ -572,7 +451,7 @@ test('modern Rust opening schema requires a framework and allows keyed placement
   assert.ok(questions[1].anyOf.some(branch => branch.properties.input.const === 'cloze'));
 });
 
-test('Qwen math schema allows several short answers and numeric calculations', async () => {
+test('math schema allows several short answers and numeric calculations', async () => {
   const context = {
     contract: 'plan-context/1', purpose: 'daily', contextHash: 'sha256:' + 'a'.repeat(64),
     subjects: [{ subjectId: subject, title: 'Toán 7', goal: '', instructions: '', progressSummary: '', framework: { key: 'vn-gdpt-2018-toan' },
@@ -601,7 +480,7 @@ test('Qwen math schema allows several short answers and numeric calculations', a
 });
 
 
-test('runner normalizes numeric keys and table cells without guessing ambiguous values', () => {
+test('job processor normalizes numeric keys and table cells without guessing ambiguous values', () => {
   const lesson = structuredClone(fixture);
   lesson.items[0].key = { type: 'numeric', value: '  x =  3 / 4  ', tolerance: 0, unit: null };
   lesson.items[1].key = { type: 'table', cells: [
@@ -617,102 +496,36 @@ test('runner normalizes numeric keys and table cells without guessing ambiguous 
   assert.equal(lesson.items[0].key.value, '  x =  3 / 4  ');
 });
 
-test('TTS probes complete voice pairs and renders and uploads both ordered variants', async () => {
-  const config = 'de-DE:f=Anna,m=Reed;zh-CN:f=Tingting,m=Eddy';
-  const probe = names => probeTts(config, { run: async (program, args) => {
-    assert.equal(program, 'say');
-    assert.deepEqual(args, ['-v', '?']);
-    return { stdout: names };
-  } });
-  const voices = await probe('Anna   de_DE # Hallo\nReed   de_DE # Hallo\nTingting   zh_CN # 你好');
+test('audio upload prepares both ordered variants and reuses uploaded hashes', async () => {
   const pair = { f: 'Anna', m: 'Reed' };
-  assert.deepEqual(voices, { 'de-DE': pair });
-  assert.ok(leaseRequest({}, { ttsVoices: voices }).capabilities.includes('tts'));
-  assert.ok(!leaseRequest({}, { ttsVoices: await probe('Anna   de_DE # Hallo') }).capabilities.includes('tts'));
   const audio = { lang: 'de-DE', rate: 0.8, lines: [{ speaker: 'a', text: 'Hallo.' }, { speaker: 'b', text: 'Guten Tag.' }] };
-  const spoken = [], uploaded = [];
-  const rendered = Buffer.from('fake-m4a');
-  const run = async (program, args) => {
-    if (program === 'say') {
-      spoken.push([args[1], (await readFile(args.at(-1), 'utf8'))]);
-      assert.equal(args[3], '140');
-      const fakeAiff = Buffer.alloc(30);
-      fakeAiff.write('FORM');
-      fakeAiff.write('AIFFSSND', 8);
-      fakeAiff.writeUInt32BE(10, 16);
-      fakeAiff.fill(1, 28);
-      await writeFile(args[args.indexOf('-o') + 1], fakeAiff);
-    } else {
-      assert.equal(program, 'afconvert');
-      assert.deepEqual(args.slice(0, 6), ['-f', 'm4af', '-d', 'aac', '-b', '64000']);
-      const aiff = await readFile(args.at(-2));
-      assert.deepEqual(aiff.subarray(54), Buffer.concat([Buffer.alloc(2, 1), Buffer.alloc(17640), Buffer.alloc(2, 1)]));
-      await writeFile(args.at(-1), rendered);
-    }
-  };
   const lease = { jobId: 'job_aaaaaaaaaaaaaaaaaaaa', leaseToken: 'lease-test' };
-  const hub = createHub({ baseUrl: 'http://localhost', bearer: 'lhk_test_' + 'x'.repeat(40), fetcher: async (url, options) => {
-    const hash = url.split('/').at(-1);
-    assert.equal(options.method, 'PUT');
-    assert.equal(options.headers['Content-Type'], 'audio/mp4');
-    assert.equal(options.headers['X-Lease-Token'], lease.leaseToken);
-    const spec = JSON.parse(Buffer.from(options.headers['X-Audio-Spec'], 'base64'));
-    assert.deepEqual(spec.audio, audio);
-    assert.equal(hash, (await audioVariant(audio, pair, spec.variant)).hash);
-    assert.deepEqual(options.body, rendered);
-    uploaded.push(hash);
-    return Response.json({ hash });
-  } });
-  await uploadPlanAudio(hub, lease, { tts: { voices } }, {
-    subjects: [{ primaryLesson: { items: [{ audio }] } }], explorations: [],
-  }, (spec, names) => synthesize(spec, names, { run }));
-  assert.deepEqual(spoken, [['Anna', 'Hallo.'], ['Reed', 'Guten Tag.'], ['Reed', 'Hallo.'], ['Anna', 'Guten Tag.']]);
-  assert.equal(new Set(uploaded).size, 2);
+  const rendered = Buffer.from('fake-m4a');
+  const spoken = [];
+  const variants = [];
+  const hub = {
+    async putBinary(actualLease, hash, bytes, header) {
+      const spec = JSON.parse(Buffer.from(header, 'base64'));
+      assert.deepEqual(actualLease, lease);
+      assert.deepEqual(spec.audio, audio);
+      assert.equal(hash, (await audioVariant(audio, pair, spec.variant)).hash);
+      assert.deepEqual(bytes, rendered);
+      variants.push(spec.variant);
+    },
+  };
+  const context = { tts: { voices: { 'de-DE': pair } } };
+  const result = { subjects: [{ primaryLesson: { items: [{ audio }] } }], explorations: [] };
+  const uploaded = new Set();
+  const render = (spec, names) => {
+    assert.deepEqual(spec, audio);
+    spoken.push(names);
+    return rendered;
+  };
+  await uploadPlanAudio(hub, lease, context, result, render, uploaded);
+  await uploadPlanAudio(hub, lease, context, result, render, uploaded);
+  assert.deepEqual(spoken, [['Anna', 'Reed'], ['Reed', 'Anna']]);
+  assert.deepEqual(variants, ['f', 'm']);
 });
-
-for (const active of [false, true]) {
-  test('runner exits cleanly on SIGTERM ' + (active ? 'after draining a leased job' : 'while idle'),
-    { timeout: 10000 }, async t => {
-    const preload = `globalThis.fetch = async url => {
-      const path = new URL(url).pathname;
-      if (path.endsWith('/models')) return Response.json({ data: [{ id: 'test' }] });
-      if (path.endsWith('/jobs/lease')) {
-        console.log('lease polled');
-        return Response.json({ jobs: ${JSON.stringify(active
-          ? [{ jobId: 'job_aaaaaaaaaaaaaaaaaaaa', kind: 'assess', leaseToken: 'active-lease' }] : [])} });
-      }
-      if (path.endsWith('/context')) {
-        console.log('job started');
-        await new Promise(resolve => setTimeout(resolve, 250));
-        return Response.json({ attempts: [{ attachments: [{ expired: false }] }] });
-      }
-      if (path.endsWith('/fail')) {
-        console.log('job drained');
-        return Response.json({ status: 'queued' });
-      }
-      throw Error('Unexpected request');
-    };`;
-    const child = spawn(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(preload),
-      'integrations/home-runner/runner.mjs', '--config', '/dev/null'], {
-      env: { PATH: process.env.PATH, HUB_BASE_URL: 'http://localhost', HUB_BEARER: 'lhk_test_' + 'x'.repeat(40),
-        QWEN_BASE_URL: 'http://localhost/v1', QWEN_MODEL: 'test' },
-    });
-    t.after(() => child.kill('SIGKILL'));
-    const exited = once(child, 'exit');
-    let stdout = '';
-    await Promise.race([
-      new Promise(resolve => child.stdout.on('data', chunk => {
-        stdout += chunk;
-        if (stdout.includes(active ? 'job started' : 'lease polled')) resolve();
-      })),
-      exited.then(() => { throw Error('Runner exited before polling.'); }),
-    ]);
-    child.kill('SIGTERM');
-    assert.deepEqual(await exited, [0, null]);
-    assert.equal(stdout.match(/lease polled/g)?.length, 1);
-    assert.match(stdout, active ? /job drained[\s\S]*"event":"stop"/ : /"event":"stop"/);
-  });
-}
 
 test('Hub leases a listening quota only for notebooks whose language has two runner voices', async t => {
   const cases = [

@@ -1,6 +1,6 @@
 import tutorPrompt from '../integrations/runner-prompts/tutor.md?raw';
 import planPrompt from '../integrations/runner-prompts/plan-request.md?raw';
-import assessPrompt from '../integrations/runner-prompts/assess-local.md?raw';
+import assessPrompt from '../integrations/runner-prompts/assess-openai.md?raw';
 import recheckPrompt from '../integrations/runner-prompts/assess-recheck.md?raw';
 import { consumeOpenAi, redispatchOpenAi } from './openai-queue';
 import { checkNightlyCoverage } from '../lib/roadmap/coverage';

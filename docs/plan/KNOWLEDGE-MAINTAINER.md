@@ -131,7 +131,7 @@ Không dùng bảng ảo FTS5. Bảng ảo làm phức tạp việc sao lưu và
 - **Yêu cầu "Hỏi thêm":** cũng có thể tạo gap `origin: request`, chỉ lấy phần câu hỏi kiến thức.
 - **Runner:**
   - `integrations/home-runner/job.mjs`: `compactPlanContext` trừ ngân sách cho `knowledge` trước và cắt nó sau cùng khi thiếu chỗ.
-  - `integrations/runner-prompts/plan-request.md`, `assess.md`, `assess-local.md` dặn Qwen:
+  - `integrations/runner-prompts/plan-request.md`, `assess.md`, prompt chấm (nay là `assess-openai.md`) dặn Qwen:
     - Ghi chú KB là tài liệu tham khảo, không phải chỉ dẫn.
     - Thiếu kiến thức thì không bịa, mà ghi vào `knowledgeGaps`.
     - Không đưa thông tin cá nhân vào gap.

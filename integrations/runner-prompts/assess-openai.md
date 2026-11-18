@@ -1,6 +1,6 @@
 # Chấm bài (assess-result/1) — model local
 
-Dùng cho `home-runner` khi Qwen (hoặc Codex thay thế) chấm `assess submission`. Nguồn: [LESSON-DESIGN §6](../../docs/hub2/LESSON-DESIGN.md#6-chấm-bài-và-lời-phê). Sửa LESSON-DESIGN trước, rồi mới sửa file này.
+Dùng cho Worker OpenAI khi chấm `assess submission`. Nguồn: [LESSON-DESIGN §6](../../docs/hub2/LESSON-DESIGN.md#6-chấm-bài-và-lời-phê). Sửa LESSON-DESIGN trước, rồi mới sửa file này.
 
 ---
 

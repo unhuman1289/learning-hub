@@ -1,4 +1,4 @@
-import { openAiEngine, OPENAI_MODELS } from '../integrations/home-runner/openai.mjs';
+import { openAiEngine, OPENAI_MODELS } from '../lib/ai/openai.mjs';
 
 const apiKey = process.env.OPENAI_API_KEY;
 if (!apiKey?.trim()) {

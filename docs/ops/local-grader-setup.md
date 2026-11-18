@@ -1,5 +1,7 @@
 # Đưa máy chấm local và hồ sơ gia đình lên `learn.unhuman.cc`
 
+> **Tài liệu lịch sử:** Kiến trúc runner trên Mac đã được thay thế theo [quyết định 11.3](../plan/LGTK.md#11-chủ-dự-án-cần-quyết). Production tiếp tục chạy bản phát hành cũ đến bước R. Các bước bên dưới ghi lại cách vận hành cũ.
+
 Hướng dẫn cho Codex, viết 10/11/2026. Plan: [LOCAL-GRADER.md](../plan/LOCAL-GRADER.md). Đây là production và có dữ liệu thật, nên:
 - làm đúng thứ tự;
 - dừng lại báo chủ dự án nếu một bước báo lỗi;

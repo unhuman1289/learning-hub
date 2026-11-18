@@ -1,6 +1,6 @@
 # Soạn bài (plan-result/1, purpose `daily`, `request` hoặc `initial`)
 
-Dùng cho Qwen trên Mac qua `home-runner`. Quy tắc nội dung nằm trong [LESSON-DESIGN.md](../../docs/hub2/LESSON-DESIGN.md).
+Dùng cho Worker OpenAI khi soạn bài. Quy tắc nội dung nằm trong [LESSON-DESIGN.md](../../docs/hub2/LESSON-DESIGN.md).
 
 ---
 
