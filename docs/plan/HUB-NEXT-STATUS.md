@@ -110,3 +110,5 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 Khung staging F4+F7 sửa #227 đã đóng lúc 15:09 Europe/Berlin ngày 18/11.
 
 Khung staging G3 chi tiết hiệu chuẩn #228 đã đóng lúc 18:40 Europe/Berlin ngày 18/11.
+
+staging: Q0 xoá runner Mac #229, đến 20:00 Europe/Berlin
