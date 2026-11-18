@@ -19,16 +19,18 @@ function responsesSchema(schema) {
   return result;
 }
 
-export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFetch = async () => {} }) {
+export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFetch = async () => {}, allowVision = false }) {
   const model = OPENAI_MODELS[purpose === 'recheck' ? 'recheck' : kind];
   if (!model) throw new Error('Unsupported OpenAI job kind.');
   if (!apiKey?.trim()) throw new Error('Missing OpenAI project API key.');
 
   return {
     name: 'openai',
-    vision: false,
+    queueVision: allowVision,
+    privateNames: /** @type {string[]} */ ([]),
+    vision: allowVision && kind === 'assess',
     async run({ system, user, schema, images = [] }) {
-      if (images.length) throw new Error('OpenAI pilot only supports text.');
+      if (images.length && (!allowVision || kind !== 'assess')) throw new Error('OpenAI pilot only supports text.');
       const started = Date.now();
       let requestSchema;
       try {
@@ -43,7 +45,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
         body: JSON.stringify({
           model,
           instructions: system,
-          input: kind === 'plan' ? user + '\nReturn one JSON object. Follow this schema and omit unused optional fields:\n' + JSON.stringify(schema) : user,
+          input: images.length ? [{ role: 'user', content: [{ type: 'input_text', text: user }, ...images.map(img => ({ type: 'input_image', image_url: 'data:' + img.mime + ';base64,' + img.base64 }))] }] : kind === 'plan' ? user + '\nReturn one JSON object. Follow this schema and omit unused optional fields:\n' + JSON.stringify(schema) : user,
           store: false,
           service_tier: 'default',
           reasoning: { effort: kind === 'plan' || purpose === 'recheck' ? 'low' : 'none' },

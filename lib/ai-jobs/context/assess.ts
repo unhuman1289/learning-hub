@@ -42,12 +42,12 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
         .prepare('SELECT id,mime,expires_at,deleted_at FROM attachments WHERE id=? AND learner_id=?')
         .bind(id, job.learner_id)
         .first<{ id: string; mime: string; expires_at: string; deleted_at: string | null }>();
-      if (img && imageCount < 12) {
+      if (imageCount < 12) {
         photos.push({
-          attachmentId: img.id,
-          url: `/api/automation/v2/jobs/${job.id}/attachments/${img.id}`,
-          mime: img.mime,
-          expired: !!img.deleted_at || img.expires_at <= now.toISOString(),
+          attachmentId: img?.id ?? id,
+          url: `/api/automation/v2/jobs/${job.id}/attachments/${img?.id ?? id}`,
+          mime: img?.mime ?? 'image/jpeg',
+          expired: !img || !!img.deleted_at || img.expires_at <= now.toISOString(),
         });
         imageCount++;
       }

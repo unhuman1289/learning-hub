@@ -99,3 +99,25 @@ test('OpenAI refuses redirects without forwarding credentials', async () => {
   await assert.rejects(engine.run(input), /OpenAI HTTP 302/);
   assert.equal(requests, 1);
 });
+
+
+test('Queue keeps the adult-only plan and normal-sensitivity assessment gates', async () => {
+  const { processJob } = await import('../integrations/home-runner/job.mjs');
+  for (const [kind, context] of [
+    ['plan', { learner: { role: 'child' }, subjects: [{ sensitivity: 'normal' }] }],
+    ['assess', { learner: { role: 'adult' }, subject: { sensitivity: 'clinical' }, attempts: [] }],
+    ['assess', { learner: { role: 'child' }, subject: { sensitivity: 'child_dev' }, attempts: [{ attachments: [{}] }] }],
+  ]) {
+    let failures = 0;
+    const result = await processJob({
+      context: async () => context,
+      fail: async (_lease, _reason, retryable) => { failures++; assert.equal(retryable, true); },
+      attachment: async () => assert.fail('Blocked jobs must not read attachments'),
+    }, { jobId: 'blocked', kind }, {
+      name: 'openai', queueVision: true, vision: true,
+      run: async () => assert.fail('Blocked jobs must not call the model'),
+    });
+    assert.equal(result.status, 'returned');
+    assert.equal(failures, 1);
+  }
+});
