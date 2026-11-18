@@ -1,3 +1,5 @@
+import { env } from 'cloudflare:workers';
+import { queuePreparedDaily } from '../../../../../lib/ai-jobs/queue';
 import { getHubUser } from '../../../../../lib/auth/session';
 import { storage } from '../../../../../db/storage';
 import { completeLesson } from '../../../../../lib/lesson-v2/actions';
@@ -14,7 +16,9 @@ export async function PUT(req: Request, context: { params: Promise<{ id: string 
     if (learner instanceof Response) return learner;
     const body = (await req.json()) as { completed?: unknown; expectedUpdated?: unknown };
     if (!body || typeof body.completed !== 'boolean' || typeof body.expectedUpdated !== 'string') throw new ApiError(400, 'Dữ liệu không hợp lệ.');
-    return Response.json(await completeLesson(db, learner, id, body.completed, body.expectedUpdated), { headers: privateHeaders });
+    const result = await completeLesson(db, learner, id, body.completed, body.expectedUpdated);
+    if (body.completed) await queuePreparedDaily(db, env, learner, id).catch(() => console.error('Next daily plan not queued.'));
+    return Response.json(result, { headers: privateHeaders });
   } catch (e) {
     return apiFailure(e, 'Chưa lưu dấu hoàn thành.', privateHeaders);
   }

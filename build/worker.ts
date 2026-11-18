@@ -15,6 +15,8 @@ import { queueDaily } from "../lib/ai-jobs/queue";
 import { enqueueCalibration } from '../lib/calibration/jobs';
 import { isBerlinCalibrationTime } from '../lib/calibration-schedule.mjs';
 import { isBerlinPlanTime } from "../lib/plan-schedule.mjs";
+import { applyPreparedDaily } from '../lib/ai-jobs/result';
+import { aiSubjects } from '../lib/ai-controls';
 import { maintainJobs } from "../lib/ai-jobs/lease";
 import { sendAlertDigest } from "../lib/alerts";
 import directMcp from './direct-mcp-worker';
@@ -42,7 +44,7 @@ function hub2Steps(db: D1Database, env: Cloudflare.Env, at: Date): [string, () =
   if(at.getUTCMinutes()!==0)return [];
   switch (berlinHour.format(at)) {
     case "00":
-      return isBerlinPlanTime(at)?[["maintain jobs", () => maintainJobs(db, at)], ["queue daily plans", () => queueDaily(db, env, at)], ["check roadmap sources", () => checkNightlyCoverage(db, berlinDay(at))]]:[];
+      return isBerlinPlanTime(at)?[["apply prepared plans", async () => applyPreparedDaily(db, at, env.AI_PRICE_TABLE, env.UPLOADS, env.OPENAI_API_KEY && env.UPLOADS ? await aiSubjects(db, env, true) : [])], ["maintain jobs", () => maintainJobs(db, at)], ["queue daily plans", () => queueDaily(db, env, at)], ["check roadmap sources", () => checkNightlyCoverage(db, berlinDay(at))]]:[];
     case "04":
       return [["refresh skills", () => refreshSkills(db, at)], ["expire attachments", () => expireAttachments(db, at)]];
     case "05":

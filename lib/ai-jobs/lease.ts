@@ -8,7 +8,7 @@ import { buildPlanContext } from './context/plan.ts';
 import { buildAssessContext } from './context/assess.ts';
 import type { Job } from './context/common.ts';
 export async function readJob(db: EvidenceDb, id: string) {
-  return db.prepare('SELECT * FROM ai_jobs WHERE id=?').bind(id).first<Job>();
+  return db.prepare("SELECT j.*, CASE WHEN EXISTS(SELECT 1 FROM prepared_daily_plans p WHERE p.job_id=j.id) THEN 'prepared' ELSE j.status END AS status FROM ai_jobs j WHERE id=?").bind(id).first<Job>();
 }
 export function permits(client: AutomationClient, job: Pick<Job, 'kind' | 'purpose' | 'trigger' | 'learner_id'>) {
   return (
@@ -40,17 +40,17 @@ export async function maintainJobs(db: EvidenceDb, now = new Date()) {
     db.prepare(`UPDATE disputes SET status='needs_human' WHERE status='rechecking' AND EXISTS (
       SELECT 1 FROM ai_jobs j WHERE j.ref_id=disputes.id AND j.learner_id=disputes.learner_id
       AND j.purpose='recheck' AND j.status='leased' AND j.lease_client_id='openai-staging'
-      AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL)`).bind(stamp),
+      AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=j.id))`).bind(stamp),
     db.prepare(`UPDATE ai_jobs SET status='failed',error='Không hoàn tất được công việc sau khi gọi AI.',
       finished_at=?,updated_at=?,lease_token_sha256=NULL,lease_expires_at=NULL
       WHERE status='leased' AND lease_client_id='openai-staging' AND lease_expires_at<=?
-      AND openai_calls>=2 AND apply_token IS NULL`).bind(stamp, stamp, stamp),
+      AND openai_calls>=2 AND apply_token IS NULL AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)`).bind(stamp, stamp, stamp),
     db
-      .prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=?")
+      .prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=? AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)")
       .bind(stamp, stamp, stamp),
     db
       .prepare(
-        "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,error='Lease hết hạn',finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL,updated_at=? WHERE status='leased' AND lease_expires_at<=?",
+        "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,error='Lease hết hạn',finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL,updated_at=? WHERE status='leased' AND lease_expires_at<=? AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)",
       )
       .bind(stamp, stamp, stamp),
     db
@@ -153,7 +153,7 @@ export async function leasedJob(db: EvidenceDb, client: AutomationClient, id: st
   const job = await readJob(db, id);
   if (!job || job.lease_client_id !== client.id || !permits(client, job)) throw new ApiError(404, 'Không tìm thấy công việc.');
   if (!token || (await sha256Hex(token)) !== job.lease_token_sha256) throw new ApiError(401, 'Lease token không hợp lệ.');
-  if (allowFinished && job.status === 'succeeded') return job;
+  if (allowFinished && (job.status === 'succeeded' || await db.prepare('SELECT 1 FROM prepared_daily_plans WHERE job_id=?').bind(id).first())) return job;
   if (job.status !== 'leased' || !job.lease_expires_at || job.lease_expires_at <= now.toISOString() || job.expires_at <= now.toISOString())
     throw new ApiError(410, 'Lease đã hết hạn. Đọc lại trạng thái công việc.');
   return job;

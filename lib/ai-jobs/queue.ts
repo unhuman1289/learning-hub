@@ -61,6 +61,8 @@ export async function enqueue(
     dailyRunId?: string;
     manualRunId?: string;
     adaptiveRequest?: boolean;
+    learningDay?: string;
+    completedLessonId?: string;
     /** Wait for the nightly runner instead of asking for an answer now. */
     tonight?: boolean;
   },
@@ -73,9 +75,9 @@ export async function enqueue(
   const adaptive = input.kind === 'assess'
     ? !!input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID
     : !!subject && usesAdaptivePlan(subject.id, subject.legacy_track, bindings.ADAPTIVE_PILOT_SUBJECT_ID);
-  const day = berlinDay(now),
+  const day = input.learningDay ?? berlinDay(now),
     stamp = now.toISOString(),
-    dailyKey = input.manualRunId ? 'manual:' + input.manualRunId : adaptive ? day : input.dailyRunId ?? stamp,
+    dailyKey = input.manualRunId ? 'manual:' + input.manualRunId : input.subjectId && adaptive ? day : input.dailyRunId ?? stamp,
     dedupe =
       input.kind +
       ':' +
@@ -140,7 +142,7 @@ export async function enqueue(
   const result = await db
     .prepare(
       `INSERT OR IGNORE INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,ref_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at,needs_vision,adaptive)
- SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<?`,
+ SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<? AND (? IS NULL OR EXISTS(SELECT 1 FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id JOIN user u ON u.id=l.user_id WHERE l.id=? AND l.user_id=? AND l.subject_id=? AND l.slot='primary' AND l.completed_at IS NOT NULL AND l.completed_at<? AND l.assigned_date<? AND s.legacy_track IS NULL AND s.status='active' AND s.ai_enabled=1 AND u.status='active'))`,
     )
     .bind(
       id,
@@ -165,12 +167,14 @@ export async function enqueue(
       Number(adaptive),
       day,
       cap,
+      input.completedLessonId ?? null, input.completedLessonId ?? null, input.learnerId, input.subjectId ?? null, cutoffFor(day), day,
     )
     .run();
   const saved = await db
     .prepare('SELECT id,status,trigger,kind,purpose,priority FROM ai_jobs WHERE dedupe_key=?')
     .bind(dedupe)
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
+  if (!saved && input.completedLessonId) return { id: null, status: 'unchanged', trigger, created: false };
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
   if (input.subjectId && await aiSubjectEnabled(db, bindings, input.subjectId) && saved.status === 'queued' &&
@@ -208,9 +212,9 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
          AND CASE WHEN s.legacy_track IS NULL OR s.id=? THEN
            l.slot='primary' AND (l.completed_at IS NULL OR l.completed_at>=? OR l.assigned_date=?)
          ELSE l.completed_at IS NULL END
-       ) ORDER BY s.learner_id,s.weight DESC,s.id`,
+       ) AND NOT EXISTS(SELECT 1 FROM ai_jobs j WHERE j.learner_id=s.learner_id AND j.subject_id=s.id AND j.kind='plan' AND j.purpose='daily' AND j.trigger='scheduled' AND j.learning_day=?) ORDER BY s.learner_id,s.weight DESC,s.id`,
     )
-    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now))
+    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now), berlinDay(now))
     .all<{ id: string; learner_id: string }>();
   // One notebook's failure (daily cap, D1 hiccup) must not stop the others.
   let failed = 0;
@@ -223,4 +227,13 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
     }
   }
   return { subjects: results.length, failed };
+}
+
+/** Queue the next Berlin day only for a completed primary in a scheduled custom notebook. */
+export async function queuePreparedDaily(db: EvidenceDb, bindings: QueueBindings, learnerId: string, lessonId: string, now = new Date()) {
+  const row = await db.prepare("SELECT l.subject_id FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.slot='primary' AND l.completed_at IS NOT NULL AND s.legacy_track IS NULL AND s.status='active' AND s.ai_enabled=1")
+    .bind(lessonId, learnerId).first<{subject_id:string}>();
+  if (!row) return null;
+  const learningDay = addDays(berlinDay(now), 1);
+  return enqueue(db, bindings, {learnerId, subjectId:row.subject_id, kind:'plan', purpose:'daily', learningDay, refId:lessonId, completedLessonId:lessonId}, now);
 }
