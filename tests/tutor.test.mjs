@@ -101,3 +101,16 @@ test('atomic tutor support preserves stronger help',async t=>{
  assert.match(await (await ask()).text(),/event: done/);
  assert.equal(db.sqlite.prepare("SELECT json_extract(support,'$.i1') AS level FROM learning_lessons WHERE id=?").get(lessonId).level,'solution');
 });
+
+test('history reports the binding per-lesson or daily limit',async t=>{
+ const {db,history,lessonId}=await setup(t);
+ const insert=db.sqlite.prepare("INSERT INTO tutor_turns(id,lesson_id,item_id,learner_id,question,status,created_at) VALUES(?,?,'i1','child','q','answered',?)");
+ const now=new Date().toISOString();
+ for(let i=0;i<20;i++) insert.run('lesson_'+i,lessonId,now);
+ let data=await (await history()).json(); assert.equal(data.remaining,0); assert.equal(data.limit,'lesson');
+ const other=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-14',lesson:fixture});
+ const extra=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-13',lesson:fixture});
+ for(let i=0;i<40;i++) insert.run('other_'+i,i<19 ? other : extra,now);
+ const res=await getTutor(new Request(origin+'/api/lessons/'+other+'/tutor'),learner,()=>db,other);
+ data=await res.json(); assert.equal(data.remaining,0); assert.equal(data.limit,'day');
+});

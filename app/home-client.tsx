@@ -32,6 +32,7 @@ const AdminView = lazy(() => import("./hub/pages").then(module => ({ default: mo
 
 export default function Home({ userId, userEmail, userName, userRole,hub2Enabled=false,profileMode=false,profileAvatar="" }: { userId: string; userEmail: string; userName: string; userRole: string;hub2Enabled?:boolean;profileMode?:boolean;profileAvatar?:string }) {
   const isAdmin = userRole === "admin";
+  const ReadyLessonReader = typeof window !== "undefined" && window.__lhLessonReader ? window.__lhLessonReader : LessonReader;
   useEffect(() => { if (profileMode && !localStorage.getItem("lh-offline-profile")) void changeOfflineProfile(userId).catch(() => {}); }, [profileMode, userId]);
   const { route: requested, go, ready: routeReady } = useRoute();
   const workspace = useWorkspace(!hub2Enabled);
@@ -131,6 +132,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
         {routeReady && route.view === "desk" && (
           <Desk
             name={name}
+            ownerId={userId}
             go={go}
             daily={viewingId ? viewedDaily : daily}
             shelf={shelf}
@@ -141,7 +143,7 @@ export default function Home({ userId, userEmail, userName, userRole,hub2Enabled
           />
         )}
         <Suspense fallback={<p role="status">Đang mở sổ…</p>}>
-          {hub2Enabled&&route.view==="lesson"&&<LessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId}  drafts={drafts} go={go} onLoaded={onLessonLoaded}/>}
+          {hub2Enabled&&route.view==="lesson"&&<ReadyLessonReader key={route.id+String(viewingId)+String(route.correction)} id={route.id} ownerId={userId} correction={route.correction} learner={viewingId}  drafts={drafts} go={go} onLoaded={onLessonLoaded}/>}
           {route.view === "book" && <SubjectView id={route.id} page={route.page} shelf={shelf} canEdit={canEditNotebook} canDelete={canOpenNotebook} canManage={isAdmin} go={go} hub2={hub2Enabled} />}
           {route.view === "notebook" && <NotebookView track={route.track} tab={route.tab} pageId={route.page} go={go} daily={daily} workspace={workspace} drafts={drafts} openForm={setForm} shelf={shelf} />}
         </Suspense>

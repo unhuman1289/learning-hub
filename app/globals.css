@@ -1026,3 +1026,5 @@ html[data-lesson-turn-in] .lesson-flow-curl { view-transition-name: none; }
   background-color: var(--color-postit-yellow);
   box-shadow: inset 0 -2px currentColor;
 }
+
+@keyframes tutor-enter { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

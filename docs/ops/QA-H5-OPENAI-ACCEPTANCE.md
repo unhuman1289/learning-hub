@@ -21,7 +21,12 @@ Ngày 16/11/2026, giờ Europe/Berlin. Ca 12:07 chạy trên Worker phiên bản
 3. Nhấn **Nộp bài**. Ghi thời gian từ lúc nhấn tới khi có kết quả. Kiểm tra câu dùng gợi ý được chấm bình thường, câu đã xem đáp án tính lỗi, câu sai có giải thích. Tải lại trang và mở lại kết quả để kiểm tra vẫn là cùng lượt nộp.
 4. Ở một câu có điểm, chọn **Chấm sai?** nếu nút hiện, rồi ghi thời gian và trạng thái. Tải lại sau khi hoàn tất để kiểm quyết định và điểm đang tính vẫn còn. Đối chiếu mã lượt nộp và yêu cầu với D1. Ghi thiết bị, hệ điều hành, trình duyệt, Wi-Fi/4G và các bước lỗi. Nếu cần lưu ảnh, lưu riêng trong `private-data/`.
 
-## 3. Giao tự nhiên lúc 00:00 · chờ lượt 17/11
+## 3. Giao tự nhiên lúc 00:00 · đã đọc lại lượt 17/11
+
+- Đọc lại vào 00:15 ngày 18/11 Berlin. Scheduler gửi lượt kiểm muộn một ngày so với mốc 00:15 ngày 17/11 dự kiến. Kết quả dưới đây là trạng thái đã lưu khi đọc lại.
+- Cron tự nhiên ngày 17/11 đã tạo đúng một job `daily`/`scheduled` lúc 00:00:03 CET, `job_26b4856352254952bdd7`. Job kết thúc lúc 16:56:05 CET với status `succeeded` nhưng outcome ghi `rejected`, `lessonIds=[]`, không có bài mới. Lý do lưu cho biết schema chỉ cho câu mở trong khi yêu cầu nội dung vẫn đòi ít nhất một nửa câu chấm tự động và tối đa bốn câu mở. **Chưa đạt nghiệm thu giao bài mới** dù job báo thành công.
+- QA H5 Deutsch vẫn giữ bài chính `les_9cb4019bcc11aec5da83`, chưa hoàn thành và không có bài chính mới ngày 17/11, đúng điều kiện chặn bài dang dở.
+- Đối chiếu từng sổ theo truy vấn rồi tổng hợp tại thời điểm đọc lại: 15 sổ không hoạt động, 5 sổ tắt lịch, 5 sổ vướng bài chưa hoàn thành/cutoff và 1 sổ đủ điều kiện. Tất cả nhóm có 0 bài chính mới ngày 17/11. Trạng thái hiện tại không thay thế snapshot tại cutoff; chưa có đủ lịch sử để khẳng định mọi cờ sổ giữ nguyên suốt ngày.
 
 - Cutoff tiếp theo là **00:00 CET ngày 17/11/2026** (`2026-11-16T23:00:00.000Z`). Đã đặt lượt đọc lại một lần lúc 00:15 theo giờ máy Berlin.
 - Snapshot lúc khoảng 12:04 ngày 16/11 cho thấy 1 sổ đủ điều kiện sơ bộ, 15 sổ không hoạt động, 4 sổ tắt lịch và 5 sổ vướng điều kiện hoàn thành/cutoff. Cần xác định lại theo trạng thái thực tế tại cutoff. Sổ demo đang thuộc nhóm cuối với bài chính `les_9cb4019bcc11aec5da83`, chưa hoàn thành.
