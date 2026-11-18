@@ -871,3 +871,20 @@ test('photo policy limits normal open rubric items and removes photos from sensi
   assert.deepEqual(plan.subjects[0].primaryLesson.items.map(i => i.attachment), ['optional', 'optional', 'none', 'none', 'none']);
   assert.equal(plan.subjects[1].primaryLesson.items[0].attachment, 'none');
 });
+
+test('runner accepts off-topic, blank and other-language answers without invented evidence', async t => {
+ for (const answer of ['ok lah', '', 'I like turtles']) {
+  const {db} = await openSubmission(); t.after(() => db.sqlite.close());
+  db.sqlite.prepare('UPDATE attempts SET answer=?').run(answer);
+  const hub=memoryHub(db), [lease]=await hub.lease({kinds:['assess'],max:1,runner,capabilities:['lesson-v3']});
+  const engine=fakeEngine('qwen', [context => {
+   const a=context.attempts[0], blank=!answer;
+   return {...grade(context),grades:[{...grade(context).grades[0],result:blank?'ungradable':'incorrect',score:0,
+    rubricScores:blank?[]:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),
+    feedback:'Hãy trả lời theo yêu cầu của câu hỏi.',errors:[],correction:''}]};
+  }]);
+  assert.equal((await processJob(hub,lease,engine)).status,'succeeded');
+  const result=db.sqlite.prepare('SELECT result,score,errors FROM grades').get();
+  assert.equal(result.result,answer?'incorrect':'ungradable');assert.equal(result.score,0);assert.deepEqual(JSON.parse(result.errors),[]);
+ }
+});

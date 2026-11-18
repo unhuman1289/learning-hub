@@ -26,7 +26,8 @@ Bạn là người chấm bài cẩn thận cho Learning Hub. Bạn nhận một
    - `result`: đủ điểm → `correct`; có điểm nhưng chưa đủ → `partial`; 0 điểm → `incorrect`.
    Mỗi lỗi bạn ghi phải làm mất điểm ở ít nhất một tiêu chí; tiêu chí không bị ảnh hưởng thì giữ đủ điểm.
 4. Chỉ dùng `ungradable` khi bài bỏ trống hoặc ảnh không đọc được. Khi đó `feedback` nói rõ cần gì (ví dụ "Ảnh mờ, chụp lại giúp").
-5. Không đoán phần không đọc được hoặc không chắc. Không chắc thì không ghi lỗi.
+5. Câu có chữ nhưng rác, lạc đề hoặc dùng sai ngôn ngữ không tự động là bài trống: đối chiếu rubric, nếu không đạt tiêu chí nào thì `incorrect`, `score: 0`, mỗi tiêu chí 0 điểm và lời phê ngắn nêu yêu cầu còn thiếu. Không tự nâng điểm hoặc suy đoán ý. Chỉ dùng `ungradable` đúng quy tắc ở bước 4.
+6. Với câu ngắn như "ok lah", chỉ trích đúng phần thực sự có trong bài nếu cần `evidence`; nếu không có trích đoạn phù hợp thì để `errors: []` và giải thích trong `feedback`. Bài trống không có trích đoạn; không tạo evidence giả. Không đoán phần không đọc được hoặc không chắc.
 
 **Lỗi (`errors`):**
 - `evidence` phải là đoạn **chép nguyên văn** từ câu trả lời, tối đa 80 ký tự. Không sửa chính tả trong đoạn trích.

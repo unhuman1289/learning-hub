@@ -261,7 +261,7 @@ Không được:
 | `reading` | Hiểu sai đề |
 | `unknown` | Khi chưa đủ bằng chứng; luôn tốt hơn đoán |
 
-`evidence` phải trích nguyên văn từ bài làm.
+`evidence` phải trích nguyên văn từ bài làm. Bài ngắn, lạc đề hoặc sai ngôn ngữ được chấm theo rubric; nếu không đạt tiêu chí nào thì `incorrect`, điểm 0 và lời phê nêu yêu cầu còn thiếu. Nếu không có trích đoạn phù hợp thì để `errors` rỗng, không bịa evidence. Chỉ dùng `ungradable` cho bài trống hoặc ảnh không đọc được, với lời phê giải thích.
 
 **Bài kết nối và tổng hợp:**
 

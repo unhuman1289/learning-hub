@@ -30,6 +30,7 @@ function planFieldNames(node: unknown, fields: Set<string>) {
 }
 
 let planFields: Set<string> | undefined;
+let assessFields: Set<string> | undefined;
 function contentIssues(event: string, issues: unknown[] = []) {
   planFields ??= planFieldNames(contractFor('plan').json, new Set());
   const fields = planFields;
@@ -42,6 +43,20 @@ function contentIssues(event: string, issues: unknown[] = []) {
       : undefined;
     return { code: safeCode, ...(safePath ? { path: safePath } : {}) };
   });
+}
+
+/** Persist only known validator codes and schema paths, never model text. */
+export function assessIssue(entry: {event:string; errors?:unknown[]}) {
+  if (entry.event === 'engine_error') return 'engine_error';
+  if (!['contract_error', 'dry_run_422'].includes(entry.event)) return null;
+  assessFields ??= planFieldNames(contractFor('assess').json, new Set());
+  const raw = entry.errors?.[0];
+  const [code, path] = typeof raw === 'string' ? raw.split(' ', 2)
+    : raw && typeof raw === 'object' && 'code' in raw && 'path' in raw ? [raw.code, raw.path] : [];
+  const safeCode = typeof code === 'string' && /^[a-z_]{1,40}$/.test(code) ? code : 'validation_failed';
+  const safePath = typeof path === 'string' && path.startsWith('/')
+    ? '/' + path.slice(1).split('/').slice(0, 16).map(part => assessFields!.has(part) || /^[0-9]{1,3}$/.test(part) ? part : '*').join('/') : '';
+  return `${entry.event}:${safeCode}${safePath ? ' ' + safePath : ''}`;
 }
 
 // A terminated Worker cannot execute a catch block. The scheduled sweep fences
@@ -104,6 +119,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
     }
     let ownedLeaseHash: string | null = null;
     let stage = 'lease';
+    let assessDiagnostic: string | null = null;
     try {
       const tts = job.kind === 'plan' && ttsSubjectIds.includes(job.subject_id);
       const [lease] = await leaseJobs(db, client, {
@@ -195,6 +211,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
           }
         } } : {}),
         log: (entry?: { event: string; errors?: unknown[] }) => {
+          if (job.kind === 'assess' && entry) assessDiagnostic = assessIssue(entry) ?? assessDiagnostic;
           if (tts && entry && contentEvents.has(entry.event))
             logAudioFailure(entry.event, { stage: 'lesson_validation', issues: contentIssues(entry.event, entry.errors) });
           if (job.purpose === 'recheck' && entry && ['engine_error', 'contract_error', 'dry_run_422'].includes(entry.event)) {
@@ -206,10 +223,11 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       if (current?.status === 'failed') {
         const counter = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
         if (speechLimit) await db.prepare("UPDATE ai_jobs SET error='Chưa tạo được âm thanh: đã hết giới hạn lượt gọi hoặc quyền sử dụng đã thay đổi.' WHERE id=? AND status='failed'").bind(id).run();
+        else if (job.kind === 'assess' && assessDiagnostic) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed'").bind(assessDiagnostic, id).run();
         else if (counter?.openai_calls === 2) await db.prepare("UPDATE ai_jobs SET error='Đã dùng hết 2 lần gọi OpenAI; lượt xử lý không hoàn thành.' WHERE id=? AND status='failed'").bind(id).run();
         const detail = 'error' in processed && typeof processed.error === 'string'
           ? processed.error.match(/OpenAI (?:HTTP \d{3}(?: \([a-z_]+\))?|schema preparation failed|request timed out|request transport failed|response status: (?:failed|incomplete|cancelled|queued|in_progress|unknown)(?: \((?:max_output_tokens|content_filter)\))?|declined this response|response was not valid JSON)/)?.[0] : undefined;
-        if (detail && !speechLimit && counter?.openai_calls !== 2) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
+        if (detail && !speechLimit && !assessDiagnostic && counter?.openai_calls !== 2) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
           .bind(detail, id, client.id).run();
         console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, leaseCount: active.lease_count, kind: job.kind,
           event: 'queue_failed', status: current.status, ...(detail ? { detail } : {}) }));
@@ -229,7 +247,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
           const count = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
           if ((count?.openai_calls ?? 0) > 0) {
             await failLeasedJob(db, current, false);
-            await db.prepare("UPDATE ai_jobs SET error='Không hoàn tất được công việc sau khi gọi AI.' WHERE id=? AND status='failed'").bind(id).run();
+            await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed'").bind(assessDiagnostic ?? 'Không hoàn tất được công việc sau khi gọi AI.', id).run();
             message.ack();
           } else message.retry({ delaySeconds: 60 });
         } else message.retry({ delaySeconds: 60 });
