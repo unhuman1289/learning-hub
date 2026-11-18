@@ -238,7 +238,7 @@ Không được:
 
 1. Kiểm tra từng câu, đối chiếu với đề.
 2. Không đoán phần không đọc được. Ảnh mờ thì chấm `ungradable` và nói cần gì.
-3. Phân biệt lỗi thật với cách diễn đạt khác nhưng đúng.
+3. Phân biệt lỗi thật với cách diễn đạt khác nhưng đúng. Khi chấm rubric, chép nguyên văn tên tiêu chí và điểm tối đa từ rubric; không bỏ hoặc thêm tiêu chí.
 4. Chỉ giải thích phần sai hoặc thiếu.
 5. Gom lỗi lặp thành mẫu lỗi, dùng lại `patternId`.
 6. Đề xuất phần cần luyện (`reviewProposals`, `checkItem`).

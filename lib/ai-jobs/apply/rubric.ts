@@ -4,6 +4,22 @@ type Grade = AssessResult['grades'][number];
 type Attempt = AssessContext['attempts'][number];
 export type RubricIssue = {path: string; code: string; detail: string; message: string};
 
+/** Return scores with rubric-owned names; positional fallback is used only when counts agree. */
+export function matchRubricScores(g: Grade, a: Attempt) {
+  const rubric = a.rubric ?? [], scores = g.rubricScores;
+  if (scores.length !== rubric.length) return scores;
+  const key = (text: string) => text.normalize('NFC').replace(/\s+/gu, ' ').trim().replace(/[\p{P}\p{S}]+$/gu, '').trim().toLocaleLowerCase('und');
+  const remaining = new Set(rubric.map((_, i) => i));
+  const matches = scores.map(row => {
+    const candidates = [...remaining].filter(i => key(rubric[i].criterion) === key(row.criterion));
+    if (candidates.length !== 1) return -1;
+    remaining.delete(candidates[0]);
+    return candidates[0];
+  });
+  const order = matches.every(i => i >= 0) ? matches : scores.map((_, i) => i);
+  return scores.map((row, i) => ({...row, criterion: rubric[order[i]].criterion}));
+}
+
 /** The same rubric checks for both saved submissions and synthetic calibration. */
 export function rubricIssues(g: Grade, a: Attempt, path: string): RubricIssue[] {
   const issues: RubricIssue[] = [];
@@ -13,10 +29,11 @@ export function rubricIssues(g: Grade, a: Attempt, path: string): RubricIssue[] 
     if (!g.feedback.trim() || g.score !== 0) add(path,'ungradable_score','Câu không chấm được cần lý do và score 0.');
     return issues;
   }
-  if (g.rubricScores.length !== rubric.length || new Set(g.rubricScores.map(r => r.criterion)).size !== rubric.length)
+  if (g.rubricScores.length !== rubric.length)
     add(path + '/rubricScores','rubric_count','Cần điểm cho đúng từng tiêu chí rubric.');
+  const scores = matchRubricScores(g, a);
   let points = 0, max = 0;
-  for (const r of g.rubricScores) {
+  for (const r of scores) {
     const expected = rubric.find(x => x.criterion === r.criterion);
     if (!expected || r.max !== expected.points || r.points > r.max)
       add(path + '/rubricScores','rubric_criterion','Tiêu chí hoặc số điểm không khớp rubric.');

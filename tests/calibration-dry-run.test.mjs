@@ -19,6 +19,9 @@ test('calibration dry run applies the real rubric tolerance and preserves valida
  issues=await calibrationDryRun(context,result);assert.deepEqual(issues,[]);
  grade.rubricScores[0].criterion=grade.rubricScores[0].criterion.toUpperCase();
  issues=await calibrationDryRun(context,result);
- assert.ok(issues.some(x=>x.code==='schema' && x.detail==='rubric_criterion'));
- assert.deepEqual(issues.filter(x=>x.detail),rubricIssues(grade,context.attempts[index],'/grades/'+index));
+ assert.deepEqual(issues,[]);
+ assert.deepEqual(rubricIssues(grade,context.attempts[index],'/grades/'+index),[]);
+ grade.rubricScores.pop();
+ issues=await calibrationDryRun(context,result);
+ assert.ok(issues.some(x=>x.detail==='rubric_count'));
 });

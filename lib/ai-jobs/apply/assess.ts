@@ -8,7 +8,7 @@ import {roadmapProgressWrite} from '../../roadmap/progress.ts';
 import { prepareJobStates } from '../../learner-model/job-state.ts';
 import type { ValidationIssue } from './plan.ts';
 import { checkGradeEvidence } from './evidence.ts';
-import { rubricIssues } from './rubric.ts';
+import { matchRubricScores, rubricIssues } from './rubric.ts';
 import { promptHash } from '../../lesson-v2/store.ts';
 export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessContext, result: AssessResult, token: string, now: Date) {
   const errors: ValidationIssue[] = [],
@@ -83,7 +83,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
           job.id,
           solutionSeen ? 'incorrect' : g.result,
           solutionSeen ? 0 : g.score,
-          JSON.stringify(solutionSeen ? [] : g.rubricScores),
+          JSON.stringify(solutionSeen ? [] : matchRubricScores(g, a)),
           solutionSeen ? 'Đã xem lời giải. ' + evidence.feedback : evidence.feedback,
           g.correction,
           JSON.stringify(solutionSeen ? [] : evidence.errors),
