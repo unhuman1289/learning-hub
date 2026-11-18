@@ -128,7 +128,7 @@ export function AiJobsPanel({ active = true }: { active?: boolean }) {
   return (
     <section aria-label="Lượt soạn và chấm" className="grid gap-4">
       <p className="text-sm text-muted">
-        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài. Máy ở nhà tự nhận lượt soạn và chấm.
+        Hàng đợi và kết quả đã lưu. Lượt thành công có thể giữ bài cũ; chỉ có bài mới khi kết quả ghi ID bài.
       </p>
       <div className="flex flex-wrap gap-3">
         <label>

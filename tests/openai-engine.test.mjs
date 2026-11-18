@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { openAiEngine } from '../integrations/home-runner/openai.mjs';
+import { openAiEngine } from '../lib/ai/openai.mjs';
 
 const input = {
   system: 'Return a synthetic grade.',
@@ -56,27 +56,8 @@ test('OpenAI rejects images before fetch and treats exhausted credit as non-retr
   await assert.rejects(engine.run(input), error => error.retryable === false && !error.message.includes('private value'));
 });
 
-test('OpenAI runner is scoped to explicit demo notebooks on staging', async () => {
-  const { buildFromConfig, leaseRequest } = await import('../integrations/home-runner/runner.mjs');
-  const config = {
-    RUNNER_ENGINE: 'openai',
-    OPENAI_API_KEY: 'test-key',
-    HUB_BASE_URL: 'https://learning-hub-staging.tranvu-812.workers.dev',
-    RUNNER_SUBJECT_IDS: 'sub_0123456789abcdef0123',
-    HUB_BEARER: 'lhk_test_' + 'x'.repeat(40),
-    HUB_ACCESS_CLIENT_ID: 'demo',
-    HUB_ACCESS_CLIENT_SECRET: 'demo',
-  };
-  const runner = buildFromConfig(config);
-  assert.deepEqual(leaseRequest(runner.qwen).subjectIds, [config.RUNNER_SUBJECT_IDS]);
-  assert.equal(leaseRequest(runner.qwen).capabilities.includes('vision'), false);
-  assert.equal(runner.daily, false);
-  assert.throws(() => buildFromConfig({ ...config, RUNNER_SUBJECT_IDS: '' }), /demo subject IDs/);
-  assert.throws(() => buildFromConfig({ ...config, HUB_BASE_URL: 'https://learn.unhuman.cc' }), /local or staging/);
-});
-
 test('OpenAI runner returns a child job before calling the model', async () => {
-  const { processJob } = await import('../integrations/home-runner/job.mjs');
+  const { processJob } = await import('../lib/ai/job.mjs');
   let returned = false;
   const hub = {
     context: async () => ({ learner: { role: 'child' }, subject: { sensitivity: 'normal' } }),
@@ -104,7 +85,7 @@ test('OpenAI refuses redirects without forwarding credentials', async () => {
 
 
 test('Queue keeps the adult-only plan and normal-sensitivity assessment gates', async () => {
-  const { processJob } = await import('../integrations/home-runner/job.mjs');
+  const { processJob } = await import('../lib/ai/job.mjs');
   for (const [kind, context] of [
     ['plan', { learner: { role: 'child' }, subjects: [{ sensitivity: 'normal' }] }],
     ['assess', { learner: { role: 'adult' }, subject: { sensitivity: 'clinical' }, attempts: [] }],

@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { uploadPlanAudio } from '../integrations/home-runner/tts.mjs';
+import { uploadPlanAudio } from '../lib/ai/upload-plan-audio.mjs';
 import { pathToFileURL } from 'node:url';
 // Deterministic test runner only. Its server client MUST be restricted with learnerIds to QA accounts.
 export function fakeResult(context, fixture) {

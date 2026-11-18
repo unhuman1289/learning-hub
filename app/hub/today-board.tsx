@@ -8,7 +8,7 @@ import { buttonClass, RouteLink } from "./ui";
 import type { Route } from "./use-route";
 const openAction = "brick inline-flex min-h-11 items-center px-3 font-hand text-lg";
 
-export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, adaptiveSubjects, preparing, gradingWaits, loadError, reload, animate }: {
+export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, adaptiveSubjects, preparing, loadError, reload, animate }: {
   learner: string | null;
   go: (route: Route) => void;
   notes: ReactNode[];
@@ -17,7 +17,6 @@ export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, ada
   emptyShelf: boolean;
   adaptiveSubjects: string[];
   preparing: { subjectId: string; title: string; writing: boolean }[];
-  gradingWaits: boolean;
   loadError: string;
   reload: () => Promise<void>;
   animate: boolean;
@@ -102,12 +101,7 @@ export function TodayBoard({ learner, go, notes, items, loading, emptyShelf, ada
             <p className="font-hand text-xl" role="status">{writing ? "Đang soạn bài" : "Đang chờ soạn bài"} · {title}</p>
           </PostIt>
         ))}
-        {gradingWaits && (
-          <PostIt color="bg-postit-yellow" index={firstBySubject.size + waiting.length} compact>
-            <p className="font-hand text-xl" role="status">{words.status.gradeLater}</p>
-          </PostIt>
-        )}
-        {!firstBySubject.size && !notes.length && !waiting.length && !gradingWaits && !loadError && (
+        {!firstBySubject.size && !notes.length && !waiting.length && !loadError && (
           <PostIt color="bg-postit-yellow" index={0} compact>
             <p role="status" className="font-hand text-xl leading-6">{message}</p>
           </PostIt>

@@ -5,7 +5,6 @@ import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { usesAdaptivePlan } from '../subjects/sql.ts';
 export type QueueBindings = {
-  AI_LOCAL_ONLY?: string;
   ENVIRONMENT?: string;
   OPENAI_ENABLED?: string;
   OPENAI_SUBJECT_IDS?: string;
@@ -108,8 +107,7 @@ export async function enqueue(
     .first<{ n: number }>();
   const limit =
     input.purpose === 'submission'
-      ? // Open answers are graded by the family Mac's local model (no API cost), so retries stay on demand.
-        Number(budget.assessPerDay ?? 60)
+      ? Number(budget.assessPerDay ?? 60)
       : input.purpose === 'recheck'
         ? Number(budget.recheckPerDay ?? (adult ? 10 : 5))
         : input.purpose === 'request' && !adaptive
@@ -180,7 +178,7 @@ export async function enqueue(
   if (input.subjectId && await aiSubjectEnabled(db, bindings, input.subjectId) && saved.status === 'queued' &&
       (saved.trigger !== 'deferred' || input.purpose === 'submission' || input.purpose === 'recheck')) {
     await bindings.AI_QUEUE?.send({ jobId: saved.id }).catch(() => console.error('OpenAI dispatch unavailable; queued job retained.'));
-  } else if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {
+  } else if (created && !adaptive) {
     if (saved.trigger === 'on_demand')
       await dispatchJob(bindings, saved, now).catch(() => console.error('Dispatch unavailable; queued job retained.'));
   }

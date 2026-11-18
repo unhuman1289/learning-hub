@@ -120,7 +120,6 @@
         "AI_JOBS_DAILY_CAP": "300",
         "HUB2_ENABLED": "true",
         "MCP_ENABLED": "true",
-        "AI_LOCAL_ONLY": "true",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",

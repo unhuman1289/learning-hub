@@ -23,7 +23,6 @@ const args = [
   '--var', 'HOUSEHOLD_GATE:passphrase',
   '--var', 'HOUSEHOLD_LEGACY_PROFILE_IDS:demo-admin,demo-adult,demo-ech',
   '--var', 'PROFILE_COOKIE_SECRET:' + config.cookieSecret,
-  '--var', 'GRADER_CLIENT_ID:' + client.id,
   '--var', 'AUTOMATION_CLIENTS:' + JSON.stringify([client]),
 ];
 if (process.env.E2E_AI_CONTROLS === '1') args.push('--var', 'OPENAI_ENABLED:true');

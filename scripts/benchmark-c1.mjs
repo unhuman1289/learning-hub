@@ -1,7 +1,7 @@
 // Synthetic context-only byte comparison. No network or real learner data.
 import { writeFileSync, unlinkSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { compactOpenAiContext, compactPlanContext } from '../integrations/home-runner/job.mjs';
+import { compactOpenAiContext, compactPlanContext } from '../lib/ai/job.mjs';
 import { memoryDb } from '../tests/d1-adapter.mjs';
 import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 import { openTutorTurn } from '../lib/tutor/service.ts';

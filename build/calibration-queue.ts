@@ -1,5 +1,5 @@
 import fixture from '../fixtures/eval/assess/deutsch.json' with { type: 'json' };
-import { openAiEngine, OPENAI_MODELS } from '../integrations/home-runner/openai.mjs';
+import { openAiEngine, OPENAI_MODELS } from '../lib/ai/openai.mjs';
 import { runCalibration } from '../lib/calibration/run.mjs';
 import { calibrationLow } from '../lib/calibration/metrics.mjs';
 import { claimCalibration, reserveCalibrationCall } from '../lib/calibration/jobs.ts';

@@ -2,8 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { memoryDb } from './d1-adapter.mjs';
 import { enqueue } from '../lib/ai-jobs/queue.ts';
-import { leaseJobs, runnerStatus } from '../lib/ai-jobs/lease.ts';
-import { runnerOfflineAlert } from '../lib/alerts.ts';
+import { leaseJobs } from '../lib/ai-jobs/lease.ts';
 const now = new Date('2026-11-12T09:00:00Z'),
   learner = 'profile-a';
 const home = {
@@ -64,34 +63,7 @@ test('enqueue marks submissions whose answers carry photos', async () => {
   db.sqlite.close();
 });
 
-test('presence is written at most once a minute and drives the online state', async () => {
-  const db = seed();
-  assert.deepEqual(await runnerStatus(db, 'home-runner', now), { online: false, lastSeenAt: null });
-  await leaseJobs(db, home, { kinds: ['assess'], max: 1, runner }, 'test', now);
-  await leaseJobs(db, home, { kinds: ['assess'], max: 1, runner }, 'test', new Date(now.getTime() + 15000));
-  assert.equal((await runnerStatus(db, 'home-runner', now)).lastSeenAt, now.toISOString());
-  await leaseJobs(db, home, { kinds: ['assess'], max: 1, runner }, 'test', new Date(now.getTime() + 61000));
-  assert.equal((await runnerStatus(db, 'home-runner', now)).lastSeenAt, new Date(now.getTime() + 61000).toISOString());
-  assert.equal((await runnerStatus(db, 'home-runner', new Date(now.getTime() + 61000 + 2 * 60000))).online, true);
-  assert.equal((await runnerStatus(db, 'home-runner', new Date(now.getTime() + 61000 + 4 * 60000))).online, false);
-  db.sqlite.close();
-});
-
-test('offline alert appears only with waiting work and a runner away 30 minutes', async () => {
-  const db = seed();
-  assert.equal(await runnerOfflineAlert(db, {}, now), null);
-  await assess(db, 'subm-1');
-  assert.equal((await runnerOfflineAlert(db, {}, now)).code, 'runner-offline');
-  db.sqlite
-    .prepare("INSERT INTO runner_presence(client_id,runner,capabilities,last_seen_at) VALUES('home-runner','{}','[]',?)")
-    .run(new Date(now.getTime() - 10 * 60000).toISOString());
-  assert.equal(await runnerOfflineAlert(db, {}, now), null);
-  const later = new Date(now.getTime() + 40 * 60000);
-  assert.match((await runnerOfflineAlert(db, {}, later)).message, /Máy chấm đang tắt từ .*1 việc đang chờ/);
-  db.sqlite.close();
-});
-
-test('local grading keeps 60 on-demand submissions a day by default', async () => {
+test('job scheduling keeps 60 on-demand submissions a day by default', async () => {
   const db = seed();
   for (let n = 0; n < 60; n++) assert.equal((await assess(db, 'subm-' + n)).trigger, 'on_demand');
   assert.equal((await assess(db, 'subm-60')).trigger, 'deferred');

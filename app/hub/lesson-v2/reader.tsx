@@ -176,7 +176,7 @@ export function LessonReader({
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
           onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} allowUploadSubmit={!lesson.wholeLesson && !awaiting && !pending} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
-          gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
+          feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :
             latest?.result ? words.result[latest.result as keyof typeof words.result] : current ? words.status.gradeLater : undefined}
           feedback={current ? onCodeLine => <>

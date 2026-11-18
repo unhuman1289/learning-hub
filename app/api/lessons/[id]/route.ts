@@ -1,7 +1,5 @@
 import { readStudyDay } from '../../../../lib/study-day';
-import { env } from 'cloudflare:workers';
 import { learnerFacts } from '../../../../lib/access';
-import { runnerStatus } from '../../../../lib/ai-jobs/lease';
 import { getHubUser } from '../../../../lib/auth/session';
 import { measureStorage } from '../../../../db/timing';
 import { apiFailure } from '../../../../lib/api-error';
@@ -32,9 +30,7 @@ export async function GET(req: Request, context: Context) {
         readStudyDay(db, user.id),
         own ? readSettings(db, learnerId) : null,
       ]);
-      const runner = submissions.some(entry => entry.attempts.some(attempt => ("status" in attempt && attempt.status === "pending") || attempt.dispute?.status === "rechecking"))
-        ? await runnerStatus(db, env.GRADER_CLIENT_ID ?? "home-runner") : null;
-      return Response.json({ lesson, submissions, child: facts.learnerRole === "child", runner, study,
+      return Response.json({ lesson, submissions, child: facts.learnerRole === "child", study,
         displayName: settings?.displayName ?? "", pageEdgeHint: !!settings && showsHint(settings, 'pageEdge') }, { headers: { ...privateHeaders, "Server-Timing": timing.header() } });
     }
     const lesson=await readLessonV2(db,learnerId,id);

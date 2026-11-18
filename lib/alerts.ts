@@ -2,7 +2,7 @@ import type { EvidenceDb } from './evidence/submit.ts';
 import { berlinDay } from './daily-policy.ts';
 import { sendAuthEmail, type ResendBindings } from './auth/email.ts';
 import { sha256Hex } from './auth/automation.ts';
-export type AlertBindings = ResendBindings & { AI_COST_ALERT_USD?: string; ENVIRONMENT?: string; GRADER_CLIENT_ID?: string };
+export type AlertBindings = ResendBindings & { AI_COST_ALERT_USD?: string; ENVIRONMENT?: string };
 export async function collectAlerts(db: EvidenceDb, bindings: AlertBindings, now = new Date()) {
   const day = berlinDay(now),
     conditions: { code: string; message: string }[] = [];
@@ -34,31 +34,6 @@ export async function collectAlerts(db: EvidenceDb, bindings: AlertBindings, now
       .bind('alert_' + (await sha256Hex(day + ':' + c.code)).slice(0, 20), day, c.code, c.message, now.toISOString())
       .run();
   return conditions;
-}
-/** Live, not stored or emailed: it clears itself as soon as the family Mac asks for work again. */
-export async function runnerOfflineAlert(db: EvidenceDb, bindings: AlertBindings, now = new Date()) {
-  const conditions: { code: string; message: string }[] = [];
-  // Work for the family Mac waits while it is off; say so once it has been away for 30 minutes.
-  const waiting = await db
-    .prepare(
-      "SELECT count(*) AS n, (SELECT last_seen_at FROM runner_presence WHERE client_id=?) AS seen FROM ai_jobs WHERE status='queued' AND (kind='assess' OR purpose IN ('request','initial'))",
-    )
-    .bind(bindings.GRADER_CLIENT_ID ?? 'home-runner')
-    .first<{ n: number; seen: string | null }>();
-  if (waiting?.n && (!waiting.seen || Date.parse(waiting.seen) < now.getTime() - 30 * 60000))
-    conditions.push({
-      code: 'runner-offline',
-      message:
-        'Máy chấm đang tắt' +
-        (waiting.seen
-          ? ' từ ' +
-            new Intl.DateTimeFormat('vi-VN', { timeZone: 'Europe/Berlin', dateStyle: 'short', timeStyle: 'short' }).format(new Date(waiting.seen))
-          : '') +
-        '; có ' +
-        waiting.n +
-        ' việc đang chờ. Bài sẽ được chấm khi máy bật lại.',
-    });
-  return conditions[0] ?? null;
 }
 export async function sendAlertDigest(db: EvidenceDb, bindings: AlertBindings, now = new Date(), fetcher: typeof fetch = fetch) {
   await collectAlerts(db, bindings, now);

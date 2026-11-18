@@ -1,6 +1,6 @@
 # Chấm lại sau phản đối (assess-result/1, purpose `recheck`)
 
-Dùng cho `home-runner` (Codex CLI, thuê bao ChatGPT). Áp dụng toàn bộ [assess-local.md](assess-local.md), cộng các điểm dưới. Nguồn: [AI-API §8](../../docs/hub2/AI-API.md#8-chấm-sai-và-chấm-lại).
+Dùng cho Worker OpenAI. Áp dụng toàn bộ [assess-openai.md](assess-openai.md), cộng các điểm dưới. Nguồn: [AI-API §8](../../docs/hub2/AI-API.md#8-chấm-sai-và-chấm-lại).
 
 ---
 

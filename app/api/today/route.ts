@@ -1,5 +1,4 @@
 import { env } from 'cloudflare:workers';
-import { runnerStatus } from '../../../lib/ai-jobs/lease';
 import { listViewableLearners } from '../../../lib/learners/list';
 import { usesAdaptivePlan } from "../../../lib/subjects/sql";
 import { listSubjects } from '../../../lib/subjects/service';
@@ -31,7 +30,6 @@ export async function GET(req: Request) {
         .all<{ subject_id: string | null; kind: string; status: string }>(),
     ]);
     const grading = jobs.some(job => job.kind === 'assess');
-    const gradingWaits = grading && !(await runnerStatus(db, env.GRADER_CLIENT_ID ?? 'home-runner', now)).online;
     const adaptiveSubjects = subjects.filter(subject =>
       usesAdaptivePlan(subject.id, subject.legacyTrack, env.ADAPTIVE_PILOT_SUBJECT_ID),
     ).map(subject => subject.id);
@@ -41,7 +39,7 @@ export async function GET(req: Request) {
       return [{ subjectId: subject.id, title: subject.title, writing: plan.some(job => job.status === 'leased') }];
     });
     return Response.json(
-      { ...today, subjects, learners, adaptiveSubjects, preparing, gradingWaits, gradingActive: grading },
+      { ...today, subjects, learners, adaptiveSubjects, preparing, gradingActive: grading },
       { headers: { ...headers, "Server-Timing": timing.header(), "X-LH-Profile": user.id } },
     );
   } catch (e) {

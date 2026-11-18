@@ -1,9 +1,6 @@
 # Learning Hub 2.0 — API cho AI bên ngoài
 
-Thuộc bộ [Learning Hub 2.0](README.md). Hub giữ dữ liệu và luật; **runner bên ngoài giữ model**. Hub không chứa API key model nào. Bất kỳ runner nào cũng cắm vào được nếu nói đúng hợp đồng dưới đây. Hai runner chính (§9):
-
-- **R1, runner đêm:** tác vụ định kỳ ChatGPT gọi thẳng API.
-- **R2, Worker chấm bài** `learning-hub-assessor`: Worker riêng giữ key Anthropic.
+Thuộc bộ [Learning Hub 2.0](README.md). Job API v2 quản lý công việc, lease, context và xác minh kết quả. Worker staging dùng Cloudflare Queue và OpenAI cho soạn bài, chấm, chấm lại và OpenAI Speech. Gia sư và hiệu chuẩn cũng dùng OpenAI. Production chuyển sang OpenAI ở bước R theo [quyết định 11.3](../plan/LGTK.md#11-chủ-dự-án-cần-quyết).
 
 ## 1. Mô hình
 
@@ -83,7 +80,7 @@ stateDiagram-v2
 | Thời hạn lease | 60 phút | 10 phút |
 | Gia hạn bằng heartbeat, tối đa | 2 giờ | 30 phút |
 | `expires_at` | `daily`: mốc 03:00 hôm sau. `initial`, `request`: 36 giờ | 36 giờ |
-| Chuyển `deferred` | | `on_demand` chờ quá 15 phút thì `trigger = deferred`, độ ưu tiên hạ xuống 20 để runner đêm làm |
+| Chuyển `deferred` | | `on_demand` chờ quá 15 phút thì `trigger = deferred`, độ ưu tiên hạ xuống 20 |
 
 **Lease.** Server chọn job `queued` theo `priority` giảm dần rồi `created_at` tăng dần, trong số kind client được phép. Lệnh `UPDATE … WHERE status = 'queued' … RETURNING` bảo đảm hai runner không lease trùng. Lúc lease, server chụp context, lưu `context_snapshot` và `context_hash`. Đọc context nhiều lần trong một lease trả cùng nội dung.
 
@@ -156,7 +153,7 @@ X-LH-Signature: sha256=<hex HMAC-SHA256(secret, timestamp + "." + body)>
 
 - Cả hai đều không chứa dữ liệu người học.
 - Webhook gửi bằng `ctx.waitUntil`, không thử lại; lỗi chỉ ghi log. Người nhận phải kiểm chữ ký và lệch giờ tối đa 5 phút, rồi tự lease.
-- Lưới an toàn: Worker chấm bài có cron mỗi giờ để lease job còn sót. Job `on_demand` chờ quá 15 phút thành `deferred`, và runner đêm cũng nhận được.
+- Lưới an toàn: Worker staging kiểm tra và gửi lại việc OpenAI còn sót theo cron 5 phút. Job `on_demand` chờ quá 15 phút thành `deferred`.
 
 ## 6. Hợp đồng
 
@@ -494,81 +491,12 @@ Bỏ qua lượt AI khi không cần: lần nộp mà mọi câu đều chấm t
 6. Phụ huynh hoặc admin xử lý trong Sổ liên lạc hoặc trang Quản trị: **giữ**, **đặt điểm** (grade `guardian` hoặc `admin`, kèm ghi chú), hoặc **huỷ câu**. Đây là quyết định cuối cùng.
 7. Chỉ số chất lượng, theo sổ và theo 14 hoặc 30 ngày: số câu AI chấm; số bị phản đối; số bị lật (`overturned`, cộng với phụ huynh đặt điểm khác); số lỗi đáp án. Planner nhận chỉ số này trong context; pilot dùng nó làm cổng.
 
-## 9. Runner
+## 9. Client xử lý công việc
 
-Hub không phụ thuộc runner nào. Ba runner dự kiến:
-
-| Runner | Làm gì | Trạng thái |
-| --- | --- | --- |
-| **R1. Runner đêm**: tác vụ định kỳ ChatGPT gọi thẳng API (§9.1) | 03:10 Berlin: lease plan `daily` từng job một, sau đó assess `deferred` | Đã được thay bằng runner Qwen |
-| **R2. Worker chấm bài** `learning-hub-assessor` (§9.2) | Nhận việc từ Queue: chấm (`submission`, `recheck`) và soạn theo yêu cầu (`request`, `initial`) | Làm ở H7.3; giới hạn Cloudflare cần thử ở H7.2 |
-| **R3. Runner giả** `scripts/fake-runner.mjs` | Sinh kết quả hợp lệ, có thể dự đoán từ context; dùng cho test, staging, demo | Làm ở H5.7 |
-
-### 9.1 R1: tác vụ định kỳ ChatGPT
-
-> **Đã được thay bằng runner Qwen trên Mac của nhà** (`integrations/home-runner/`). Lịch 03:10 và các chi tiết R1 dưới đây mô tả phương án cũ.
-
-- **Lịch:** hằng ngày lúc 03:10 Europe/Berlin. Hướng dẫn của tác vụ lấy từ `integrations/runner-prompts/plan.md` (lưu trong repo):
-
-  > lease một job → đọc context → soạn → `dryRun` → sửa lỗi 422 → gửi thật → `GET /jobs/{id}` xác minh → lặp lại đến khi hết job → lease assess `deferred` và chấm tương tự.
-- **Credential:** client riêng `chatgpt-nightly` (bảng ở §2), cùng service token Access riêng.
-  - Thông tin này nằm trong hướng dẫn của tác vụ, nên ai vào được tài khoản ChatGPT cũng đọc được. Vì vậy client chỉ có quyền tối thiểu, xoay khoá theo `docs/ops/AUTOMATION-CREDENTIALS.md`, và thu hồi được ngay bằng cách xoá khỏi `AUTOMATION_CLIENTS`.
-- **Phải kiểm chứng trước (H7.1):**
-  - Gửi được header tuỳ ý: `CF-Access-Client-Id`, `CF-Access-Client-Secret`, `Authorization`, `X-Lease-Token`.
-  - POST được JSON đến khoảng 100 KB.
-  - Đọc được ảnh nhị phân.
-  - Xử lý được bao nhiêu job trong một lần chạy.
-  - Lịch chạy đúng giờ Berlin.
-- **Không đạt thì thay bằng**, theo thứ tự:
-  1. Sites bridge (đã có, thêm tool v2).
-  2. Tác vụ định kỳ Claude.
-  3. Cho R2 chạy luôn plan `daily`: tốn API, khoảng $0,7 mỗi người mỗi ngày với cấu hình dưới.
-
-### 9.2 R2: Worker chấm bài
-
-> **Không làm nữa (10/11/2026).** Thay bằng `integrations/home-runner/` trên Mac của nhà: Qwen chấm câu mở, Codex CLI (thuê bao ChatGPT) chấm lại và soạn theo yêu cầu; lease có `capabilities: ['vision']`; Mac vắng thì `GET /api/runner-status` báo "Máy chấm đang tắt". Client `home-runner`: scope `jobs:assess`, `jobs:plan`, `attachments:read`, `history:read` (lịch sử, `/status/{profileId}`). Xem [LOCAL-GRADER.md](../plan/LOCAL-GRADER.md).
-
-Đây là chỗ duy nhất giữ key model.
-
-- **Mã nguồn:** `integrations/assessor/`, TypeScript, `@anthropic-ai/sdk`. Có `wrangler.jsonc` riêng và deploy riêng thành `learning-hub-assessor-staging` và `learning-hub-assessor-production`. Không có route, `workers_dev: false`. Dùng chung schema hợp đồng với Hub từ `lib/contracts/`, nên hai bên không lệch nhau.
-- **Kích hoạt:**
-  - Consumer của Queue `learning-hub-ai-<env>`, `max_batch_size: 1`.
-  - Cron `17 * * * *` để lease job còn sót.
-- **Secret:**
-  - `ANTHROPIC_API_KEY`
-  - `HUB_BASE_URL`
-  - `HUB_ACCESS_CLIENT_ID`, `HUB_ACCESS_CLIENT_SECRET`
-  - `HUB_BEARER` (`lhk_assessor_…`)
-- **Gọi model:**
-
-  | Tham số | Giá trị |
-  | --- | --- |
-  | `model` | `claude-opus-5-5`. Thinking luôn bật ở model này, không cần cấu hình. |
-  | `output_config.effort` | `high` cho chấm, chấm lại và soạn theo yêu cầu. Đặt rõ vì mặc định của model là `medium`. |
-  | `output_config.format` | JSON Schema của `assess-result/1` hoặc `plan-result/1`, sinh từ zod. SDK tự bỏ các ràng buộc API không hỗ trợ (độ dài, min/max) và kiểm lại phía client; **Hub vẫn kiểm đầy đủ** khi nhận. |
-  | `system` | Hướng dẫn chấm hoặc soạn cố định (`integrations/runner-prompts/assess.md`, `plan.md`), có `cache_control` để cache phần đầu giống nhau giữa các lần gọi |
-  | `messages` | Ảnh base64 (tải qua URL gắn lease), rồi context JSON, được đánh dấu là dữ liệu của người học, không phải chỉ dẫn |
-  | `max_tokens` | 16 000 cho assess. Plan theo yêu cầu dùng streaming với 64 000 và `finalMessage()`. |
-  | Fallback khi bị từ chối | Bật mặc định: beta `server-side-fallback-2026-07-01`, `fallbacks: "default"`. Nếu cả chuỗi vẫn trả `stop_reason: "refusal"` thì `fail` với `retryable: false`; Hub chuyển bài sang "cần phụ huynh xem". |
-
-- **Lỗi:**
-  - SDK tự thử lại 2 lần với 429, 5xx và lỗi mạng; vẫn lỗi thì `fail` với `retryable: true`.
-  - `stop_reason: max_tokens` cũng `fail` với `retryable: true`.
-  - Kết quả bị Hub trả 422 thì gửi lỗi cho model sửa một lần, rồi gửi lại.
-- **Báo usage:** gửi `usage` (input, output, cache read, cache write, ms). Hub tính chi phí ước tính theo bảng giá trong biến `AI_PRICE_TABLE` và hiện trên trang Quản trị.
-- **Kiểm soát chi phí:**
-  - Ngân sách theo người (§7) và `AI_JOBS_DAILY_CAP` trong Hub.
-  - Giới hạn chi tiêu của workspace trong Anthropic Console (bạn đặt).
-  - Dùng model rẻ hơn (Sonnet 5.5, giá bằng một nửa) là quyết định của bạn sau khi có số đo; mặc định giữ Opus 5.5.
-
-**Ước tính chi phí** với Opus 5.5 ($4 / $20 mỗi triệu token vào / ra; chưa tính giảm giá cache):
-
-| Job | Token vào | Token ra (kể cả suy nghĩ) | Ước tính |
-| --- | --- | --- | --- |
-| Assess, 1 lần nộp có 3–5 câu mở, 0–2 ảnh | ~15 000 | ~6 000 | ~$0,18 |
-| Plan `request` (khám phá) hoặc `initial` | ~30 000 | ~20 000 | ~$0,50 |
-
-Với Ếch, khoảng 2–3 lần nộp có câu mở mỗi ngày cộng vài câu hỏi khám phá mỗi tuần, tổng khoảng **$15–25/tháng**. Mức trần ngân sách mặc định chặn tối đa khoảng $4 mỗi ngày cho một trẻ. Plan `daily` chạy bằng ChatGPT nên không tốn API.
+- **Worker OpenAI** nhận job qua Cloudflare Queue. Worker soạn bài, chấm và chấm lại theo quyền từng sổ. Worker dùng chung luật lease, kiểm tra kết quả và lưu kết quả của Job API v2.
+- **ChatGPT MCP và Sites bridge** tiếp tục dùng Job API v2 trong phạm vi được cấp. Trường `runner` trong yêu cầu lease vẫn là metadata của client xử lý.
+- **Runner giả** (`npm run runner:fake`) tạo kết quả từ fixture để thử API ở local và trong E2E.
+- **Mac runner** thuộc bản phát hành production cũ đến bước R. Tài liệu [LOCAL-GRADER](../plan/LOCAL-GRADER.md) ghi lại kiến trúc đó. Bảng `runner_presence` và migration 0019 được giữ để bảo toàn lịch sử.
 
 **Nghĩa vụ của mọi runner:**
 

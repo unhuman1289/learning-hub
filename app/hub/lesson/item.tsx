@@ -5,7 +5,6 @@ import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { HintNote, RevealedSolution } from "../lesson-v2/hints";
 import { pencil, pencilLink, ResultStamp } from "../paper-bits";
-import { SketchIcon } from "../sketch-icons";
 import { words } from "../words";
 import { submitAfterPhoto } from "./photo-submit";
 import { uploadPhoto } from "../lesson-v2/photo";
@@ -22,7 +21,6 @@ export function LessonItem({
   feedbackPreview,
   feedbackResult,
   feedbackSupported,
-  gradeLater,
   onSubmit,
   submitLabel,
   awaitingFeedback,
@@ -47,7 +45,6 @@ export function LessonItem({
   feedbackPreview?: string;
   feedbackResult?: string | null;
   feedbackSupported?: boolean;
-  gradeLater?: boolean;
   onSubmit?: () => void;
   submitLabel?: string;
   awaitingFeedback: boolean;
@@ -262,11 +259,10 @@ export function LessonItem({
       {(item.input === "short" || item.input === "long") && value.answer && formatText(value.answer)!==value.answer && <p className={pencil}>Công thức: {formatText(value.answer)}</p>}
       {(feedback || item.revealed.solution) && <div className="min-w-0 border-y border-rule py-2">
         <div ref={result} role="status" className="scroll-mt-24 flex flex-wrap items-baseline gap-x-2 font-hand text-lg">
-          {gradeLater && <SketchIcon name="hourglass" size={20} className="shrink-0" />}
           {feedbackResult && <ResultStamp result={feedbackResult} className={feedbackSupported ? "opacity-60" : undefined} />}
           <span>{feedbackSupported && feedbackResult === "correct"
             ? "Đã xem lời giải, không tính điểm."
-            : gradeLater ? words.status.gradeLater : renderEmphasis(feedbackPreview ?? "")}</span>
+            : renderEmphasis(feedbackPreview ?? "")}</span>
         </div>
         <RevealedSolution item={item} formatText={formatText} />
         {feedback && <details open={showFeedback} onToggle={event => setShowFeedback(event.currentTarget.open)}>

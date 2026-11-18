@@ -8,7 +8,6 @@ import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { Drafts } from "../lesson-page";
 import { startFeedbackPolling } from "./feedback-poll";
 import { rumAfterPaint } from "../rum";
-import { useRunnerStatus, type RunnerStatus } from "../runner-status";
 import type { SubmissionView } from "../lesson-v2/feedback";
 import { readOfflineDraft, writeOfflineDraft } from "../lesson-v2/offline-draft";
 import { takePrefetched } from "./prefetch";
@@ -28,7 +27,7 @@ type PendingSubmission = {
   answers?: DraftAnswers;
 };
 export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
-type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; displayName?: string; pageEdgeHint?: boolean };
+type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; study: StudyDay; displayName?: string; pageEdgeHint?: boolean };
 class RequestError extends Error {
   constructor(
     message: string,
@@ -89,7 +88,6 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const [child, setChild] = useState(prefetched?.child ?? false);
   const [displayName, setDisplayName] = useState(prefetched?.displayName ?? "");
   const [pageEdgeHint, setPageEdgeHint] = useState(false);
-  const [initialRunner, setInitialRunner] = useState<RunnerStatus | null>(null);
   const submissionKey = cacheKey + ":submission";
   const cache = useRef(drafts);
   useEffect(() => {
@@ -101,12 +99,11 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
     json<ReaderPayload>(url + "?" + query)
-      .then(({ lesson: result, submissions, child, runner, study, displayName, pageEdgeHint }) => {
+      .then(({ lesson: result, submissions, child, study, displayName, pageEdgeHint }) => {
         if (generation.current !== version) return;
         setChild(child);
         setDisplayName(displayName ?? "");
         setPageEdgeHint(!readonly && !!pageEdgeHint);
-        setInitialRunner(runner);
         const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
         if (storedSubmission) {
           try {
@@ -407,7 +404,6 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setBusy(false);
     }
   }
-  const runner = useRunnerStatus(waitingForGrade, initialRunner);
   const [justCompleted, setJustCompleted] = useState(false);
   const [confirmFinish, setConfirmFinish] = useState(false);
   /** The learner turned a page: hide the hint now and remember it in the profile. */
@@ -421,7 +417,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
 
   return {
     lesson, child, displayName, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
-    waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
+    waitingForGrade, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };
 }

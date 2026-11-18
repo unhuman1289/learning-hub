@@ -15,8 +15,6 @@ import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-items';
 import { lessonPackageV3, ttsVoices } from '../../../../../lib/contracts/lesson-package-v3';
 import { historyMarkdown, readHistory } from '../../../../../lib/history';
 import { learnerStatus } from '../../../../../lib/status';
-import { householdMode } from '../../../../../lib/household';
-import { listProfiles } from '../../../../../lib/profiles';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store' };
 const leaseBody = z
@@ -78,12 +76,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     if ('response' in auth) return auth.response;
     const db = storage();
     const token = req.headers.get('X-Lease-Token');
-    let client = auth.client;
-    if (path[0] === 'jobs' && env.AI_LOCAL_ONLY === 'true' && householdMode(env) &&
-        client.id === (env.GRADER_CLIENT_ID ?? 'home-runner')) {
-      const profiles = await listProfiles(db, env.HOUSEHOLD_LEGACY_PROFILE_IDS);
-      client = { ...client, learnerIds: [...new Set([...(client.learnerIds ?? []), ...profiles.map(profile => profile.id)])] };
-    }
+    const client = auth.client;
     let body: unknown;
     if (req.method === 'POST') {
       const raw = await req.text();
@@ -96,13 +89,11 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     }
     if (path.join('/') === 'schema' && req.method === 'GET') return Response.json({ contracts: contractSchemas() }, { headers });
     if (path.join('/') === 'jobs/lease' && req.method === 'POST') {
-      if (env.AI_LOCAL_ONLY === 'true' && client.id !== (env.GRADER_CLIENT_ID ?? 'home-runner'))
-        throw new ApiError(403, 'Lượt xử lý chỉ dành cho máy ở nhà.');
       const input = leaseBody.safeParse(body);
       if (!input.success) throw new ApiError(400, 'Lease request không hợp lệ.');
       return Response.json({ jobs: await leaseJobs(db, client, { ...input.data, excludeSubjectIds: await aiSubjects(db, env) }, env.ENVIRONMENT ?? 'unknown') }, { headers });
     }
-    // Read-only history for the Drive copy on the family Mac (L5.6): only profiles listed for this client.
+    // Read-only history for profiles explicitly granted to this client.
     if (path[0] === 'history' && path.length === 2 && req.method === 'GET') {
       if (!client.scopes.includes('history:read') || !client.learnerIds?.includes(path[1])) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
       const name = await db
@@ -114,7 +105,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8' },
       });
     }
-    // Read-only status for ChatGPT Project v7 (L6.2), same scope and profile list as the history copy.
+    // Read-only status for ChatGPT Project v7 (L6.2), same scope and profile list as history.
     if (path[0] === 'status' && path.length === 2 && req.method === 'GET') {
       if (!client.scopes.includes('history:read') || !client.learnerIds?.includes(path[1])) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
       return Response.json(await learnerStatus(db, path[1]), { headers });

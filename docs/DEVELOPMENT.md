@@ -18,9 +18,6 @@ Bản xem thử chỉ nghe trên loopback. Dữ liệu mẫu nằm tại `.wrang
 Cấu hình tự sinh nằm tại `.wrangler/demo-runner.json` và được Git bỏ qua.
 Dùng `Ctrl+C` để dừng server. Nếu cổng 5174 đang bận, đặt `LEARNING_HUB_DEMO_PORT=5175` khi chạy cả `dev:profiles` và `runner:fake`.
 
-Nếu LM Studio đã mở server ở cổng 1234, chạy `npm run runner:local` để Qwen nhận một lượt.
-Thêm `-- --watch` để runner tiếp tục chờ lượt mới.
-
-LM Studio được dùng chung với production. Chỉ chạy Qwen cho local hoặc staging khi người nhà không đang cần soạn hoặc chấm bài.
+Staging dùng Worker và Cloudflare Queue cho OpenAI. Dùng runner giả để kiểm hợp đồng Job API v2 ở local.
 
 Trong clone staging riêng có tệp đánh dấu `.staging-checkout`, `node scripts/release.mjs staging <tag>` kiểm bản build và liệt kê migration. Thêm `--apply-migrations` để áp migration staging, deploy và kiểm health đúng tag.

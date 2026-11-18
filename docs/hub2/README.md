@@ -25,7 +25,7 @@ Bản thiết kế để review, cập nhật 12/10/2026. **Chưa có code.** D�
 | D9 | Khuôn buổi học | Hai khuôn: `skill` (nhớ lại → phiếu → luyện có hướng dẫn → tự làm → nộp → lời phê) và `reading` (đọc → phân tích → đầu ra → nộp → lời phê). |
 | D10 | Chấm sai | Nút **Chấm sai?** trên mỗi câu đã chấm: gửi phản hồi, tuỳ chọn yêu cầu chấm lại. AI chấm lại tối đa một lần; sau đó phụ huynh hoặc admin quyết. |
 | D11 | Ngữ cảnh | Plan đọc 14 ngày gần nhất cùng toàn bộ trạng thái kỹ năng của môn; Assess trả về đề xuất cập nhật thành thạo, lỗi và lịch ôn. |
-| D12 | Kết nối AI | **Đã thay bằng D12′ (10/11/2026): runner `home-runner` trên Mac (Qwen, Codex), không key model, không Worker assessor — xem [LOCAL-GRADER §4](../plan/LOCAL-GRADER.md#4-quyết-định).** Hub **không giữ API key model**. Hub có API job (lease → context → result). Hai runner (AI-API §9):<br>• **R1, runner đêm**: tác vụ định kỳ ChatGPT gọi thẳng `/api/automation/v2`, không qua Sites. Cần thử trước (H7.1).<br>• **R2, Worker chấm bài** `learning-hub-assessor`: Worker riêng trong cùng tài khoản Cloudflare, giữ key Anthropic, dùng model `claude-opus-5-5`, nhận việc qua Queue. |
+| D12 | Kết nối AI | **Quyết định 11.3 ngày 18/11/2026.** Worker dùng OpenAI qua Cloudflare Queue cho soạn bài và chấm. ChatGPT MCP và Sites bridge tiếp tục dùng Job API v2. Production chuyển ở bước R. Xem [AI-API §9](AI-API.md#9-client-xử-lý-công-việc) và [LGTK §11](../plan/LGTK.md#11-chủ-dự-án-cần-quyết). |
 | D13 | Môn học | Môn động theo từng người, thay cho 5 mảng cố định. 5 mảng cũ chuyển thành môn của những người đang học chúng. |
 | D14 | Người học | **Đã thay bằng D23: hồ sơ không tài khoản, sau cổng nhà.** Mỗi người một tài khoản, tiến độ riêng. Ếch đăng ký bằng **email riêng**, admin duyệt như mọi tài khoản, rồi đặt `role = child` và gắn phụ huynh. |
 | D15 | Ai thấy tiến độ | **Đã thay bằng D23: mọi hồ sơ trong nhà, cài đặt sau chế độ quản lý.** **Mỗi người chỉ thấy tiến độ của mình. Admin thấy tất cả.** Phụ huynh thấy của con (quyền phụ huynh trong bản mô tả). Ghi chú, nhật ký, mốc dự án đang dùng chung cũng tách theo người (H1.3). |
@@ -84,9 +84,9 @@ Một vòng có ba nhịp:
 
 1. **Ngay khi nộp:** câu đóng được chấm tại chỗ và hiện lời giải.
 2. **Một đến vài phút sau:** Worker chấm bài chấm câu mở, viết lời phê và chẩn đoán lỗi.
-3. **Đêm:** runner đêm đọc bằng chứng 14 ngày và soạn bài hoặc bộ ôn cho hôm sau.
+3. **Đêm:** lịch theo giờ Berlin và Worker kiểm tra điều kiện giao bài chính. Worker có thể soạn sẵn bài rồi kiểm lại điều kiện trước khi lưu lúc 00:00.
 
-Khi Worker chấm bài không chạy được hoặc hết ngân sách, bài nộp được chấm trong lượt đêm, và giao diện báo đúng như vậy.
+Khi chấm chưa xong, giao diện hiển thị trạng thái chờ dựa trên lượt xử lý đã lưu.
 
 ## 4. Vai trò và quyền
 

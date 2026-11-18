@@ -1,5 +1,5 @@
 /** Hub 2 APIs answer only where Hub 2 is switched on; elsewhere they do not exist. */
-const hub2Prefixes = ["/api/lessons", "/api/submissions", "/api/attempts", "/api/disputes", "/api/requests", "/api/quality", "/api/skills", "/api/today", "/api/uploads", "/api/admin/ai-jobs", "/api/admin/alerts", "/api/admin/lessons", "/api/admin/quality", "/api/runner-status", "/api/history"];
+const hub2Prefixes = ["/api/lessons", "/api/submissions", "/api/attempts", "/api/disputes", "/api/requests", "/api/quality", "/api/skills", "/api/today", "/api/uploads", "/api/admin/ai-jobs", "/api/admin/alerts", "/api/admin/lessons", "/api/admin/quality", "/api/history"];
 
 export function hub2Guard(request: Request, env: { HUB2_ENABLED?: string }): Response | null {
   if (env.HUB2_ENABLED === "true") return null;

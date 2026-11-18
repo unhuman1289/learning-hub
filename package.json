@@ -30,9 +30,7 @@
     "dev:setup": "node scripts/dev-setup.mjs",
     "dev:seed": "LEARNING_HUB_LOCAL_STATE=${LEARNING_HUB_DEMO_STATE:-.wrangler/state-demo} npm run seed:hub2",
     "runner:fake": "node --experimental-strip-types scripts/fake-runner.mjs --credentials .wrangler/demo-runner.json",
-    "runner:local": "node --experimental-strip-types scripts/run-demo-qwen.mjs",
     "dev:fresh": "npm run dev:setup && npm run dev:seed && npm run build",
-    "qwen:replay": "node --experimental-strip-types scripts/qwen-replay.mjs",
     "test:e2e": "playwright test",
     "test:e2e:u5": "playwright test --config playwright.u5.config.mjs",
     "test:e2e:listening": "playwright test --config playwright.listening.config.mjs"
