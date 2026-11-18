@@ -46,20 +46,22 @@ export async function tutorContext(db: EvidenceDb, id: string) {
   const selected=entries.findIndex(item=>item.id===row.item_id);
   const context={lesson:{title:clean(lesson.title),objective:clean(lesson.objective),items:entries}, selectedItem:row.item_id,question:clean(row.question)};
   const farthest=[...entries.keys()].sort((a,b)=>Math.abs(b-selected)-Math.abs(a-selected));
+  // UTF-8 bytes provide a conservative, model-independent budget for Vietnamese text.
+  const size=()=>new TextEncoder().encode(JSON.stringify(context.lesson)).length;
   for (const index of farthest) {
-    if (JSON.stringify(context.lesson).length <= 10000) break;
+    if (size() <= 10000) break;
     const item=entries[index]; item.details=''; item.feedback=item.feedback.slice(0,240); item.answer=item.answer.slice(0,240);
     item.prompt=item.prompt.slice(0,500); item.choices=item.choices.slice(0,500);
   }
   // Keep a bounded share for every question even if the selected item is unusually long.
   for (const limit of [200,100,40]) {
-    if (JSON.stringify(context.lesson).length <= 10000) break;
+    if (size() <= 10000) break;
     for (const index of farthest) {
       const item=entries[index];
       item.prompt=item.prompt.slice(0,limit); item.choices=item.choices.slice(0,limit);
       item.answer=item.answer.slice(0,limit); item.feedback=item.feedback.slice(0,limit);
       if (item.solution) item.solution=item.solution.slice(0,limit);
-      if (JSON.stringify(context.lesson).length <= 10000) break;
+      if (size() <= 10000) break;
     }
   }
   return {learnerId:row.learner_id, displayName:name, answerFragments:protectedAnswers, context};

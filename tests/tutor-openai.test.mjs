@@ -225,7 +225,7 @@ test('25-item lesson preserves nearby context and bounds the model input',async 
   }
   const turn=await openTutorTurn(db,'u',{lessonId,itemId:'i3',question:'Gợi ý?'},false); let sent;
   assert.equal(await answerTutor(db,{OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake'},turn.id,'',()=>{},async(_url,options)=>{sent=JSON.parse(options.body);return fakeTutorOpenAi();}),'answered');
-  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(sent.input.length<=10500,`input length ${sent.input.length}`);
+  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(Buffer.byteLength(sent.input)<=10500,`input bytes ${Buffer.byteLength(sent.input)}`);
   assert.equal(input.selectedItem,'i3'); assert.ok(input.lesson.items[2].prompt.length>input.lesson.items[24].prompt.length);
   assert.doesNotMatch(sent.input,/secret(?:3|25)/);
 });

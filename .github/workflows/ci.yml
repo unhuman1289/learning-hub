@@ -62,6 +62,8 @@ jobs:
         run: node scripts/e2e-diagnostics.mjs tutor npm run test:e2e -- --config playwright.tutor.config.mjs
       - name: Test tutor sprite states on both phones
         run: node scripts/e2e-diagnostics.mjs t3 npm run test:e2e -- --config playwright.t3.config.mjs
+      - name: Test whole-lesson tutor on both phones
+        run: node scripts/e2e-diagnostics.mjs t5 npm run test:e2e -- --config playwright.t5.config.mjs
       - name: Upload E2E diagnostics
         if: always() && env.E2E_DIAG == '1'
         uses: actions/upload-artifact@v4
