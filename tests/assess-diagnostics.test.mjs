@@ -19,3 +19,11 @@ test('short answers permit a verbatim quote or no diagnostic, never invented evi
   } else assert.equal(checkGradeEvidence({...grade,errors:[{evidence:''}]},answer,false).invalid,true);
  }
 });
+
+test('extra evidence follows text and photo verification rules',async()=>{
+ const {checkGradeEvidence}=await import('../lib/ai-jobs/apply/evidence.ts');
+ const grade={feedback:'Trật tự từ.',errors:[{category:'extra',evidence:'Leider ich kann'}]};
+ assert.equal(checkGradeEvidence(grade,'Leider ich kann um 10 Uhr',false).invalid,false);
+ assert.equal(checkGradeEvidence(grade,'không có',false).invalid,true);
+ const photo=checkGradeEvidence(grade,'',true);assert.equal(photo.invalid,false);assert.equal(photo.errors[0].unverified,true);
+});

@@ -71,6 +71,8 @@ export async function prepareRecheck(db: EvidenceDb, job: Job, context: AssessCo
   if (status === 'overturned') {
     const grade = result.grades[0],
       id = 'gr_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20);
+    if (grade.errors.filter(e => e.category === 'extra').length > 2)
+      issue('/grades/0/errors', 'schema', 'Tối đa hai lỗi ngoài rubric.');
     const evidence = checkGradeEvidence(grade, dispute.answer, attempt?.attachments.some((img) => !img.expired) ?? false);
     if (evidence.invalid)
       issue('/grades/0/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản.');

@@ -153,7 +153,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
           result: i.result ?? null,
           support: i.support ?? 'none',
           attemptNo: i.attempt_no ?? 0,
-          errorLabels: JSON.parse(String(i.errors ?? '[]')).map((e: { label: string }) => safeText(e.label, sensitivity)),
+          errorLabels: JSON.parse(String(i.errors ?? '[]')).filter((e: { unverified?: boolean }) => !e.unverified).map((e: { label: string }) => safeText(e.label, sensitivity)),
           flag: i.flag ?? null,
         })),
       });
