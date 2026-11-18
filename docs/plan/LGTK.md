@@ -225,7 +225,7 @@ Việc:
 **Vì sao:** người học thường hỏi chéo giữa các câu ("câu 2 với câu 4 khác nhau chỗ nào?"). Mỗi câu một gia sư làm mất mạch và tốn chỗ trên trang. Một nhân vật cố định cũng dễ nhận ra và gần gũi hơn.
 
 **Nhân vật và giọng:**
-- Tên **Bột**. Đầu tấm trò chuyện chỉ ghi "Bột", không có dòng hướng dẫn phụ (bỏ "Gợi hướng cho câu này…", "Chỉ hỏi về câu này. Bố mẹ đọc được…"; quy tắc giám hộ đọc được vẫn giữ). Bong bóng chờ: "Hỏi Bột nè!". Ô hỏi: "Hỏi Bột…".
+- Tên **Bột**, chỉ hiện ở bong bóng chờ "Hỏi Bột nè!". Đầu tấm trò chuyện chỉ có nhân vật và nút đóng: không ghi tên, không dòng hướng dẫn phụ (quy tắc giám hộ đọc được vẫn giữ). Ô hỏi không có placeholder; nhãn ẩn cho trình đọc màn hình là "Câu hỏi cho Bột", tấm có `aria-label` "Trò chuyện với Bột".
 - Bột tự xưng "Bột", nói như em bé lễ phép: câu ngắn, cuối câu thường có "ạ". Ví dụ: "Chỗ này sai ạ!", "Câu này cần làm lại ạ!", "Vì động từ phải đứng ở vị trí thứ 2 trong câu, ví dụ: *Heute gehe ich…* ạ!".
 - Bột không gọi tên và không dùng đại từ cho người học (tránh sai vai vế giữa người lớn và trẻ em). Viết lại các câu cố định của T3 theo giọng này, ví dụ lời chào: "Bột đây ạ! Câu nào chưa rõ thì hỏi Bột nhé ạ. Bột gợi hướng thôi, không nói đáp án đâu ạ."
 - Vẫn tiếng Việt; ví dụ và thuật ngữ theo ngôn ngữ của sổ (Đức, Anh…).
