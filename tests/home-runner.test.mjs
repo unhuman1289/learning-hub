@@ -806,3 +806,54 @@ test('listening quota and quoted grading evidence are enforced through lease, up
   const accepted = await hub.result(assess, result, false);
   assert.equal(accepted.status, 200, JSON.stringify(accepted));
 });
+
+test('OpenAI whole-lesson daily prompt replaces key quotas and saves the generated lesson', async () => {
+  const { db } = await openSubmission();
+  try {
+    db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?').run('2026-11-11T08:00:00.000Z');
+    await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, new Date('2026-11-13T09:00:00Z'));
+    const hub = memoryHub(db);
+    const [lease] = await hub.lease({ kinds: ['plan'], max: 1, runner, capabilities: ['lesson-v3'] });
+    const context = await hub.context(lease);
+    let seen;
+    const engine = {
+      name: 'openai',
+      run: async input => {
+        seen = input;
+        const s = context.subjects[0];
+        const skill = s.skills[0].id ?? s.skills[0].skillId;
+        const lesson = structuredClone(fixture);
+        lesson.gradingMode = 'whole-lesson';
+        lesson.targetSkills = [skill];
+        lesson.reasonRefs = [];
+        lesson.items = lesson.items.slice(0, 5).map((item, index) => ({
+          id: item.id, input: 'short', activity: 'apply', skills: [skill], difficulty: 1,
+          prompt: 'Schreibe einen Satz über deinen Tagesplan ' + index + '.',
+          rubric: [{ criterion: 'Đúng ngữ pháp', points: 1 }, { criterion: 'Đúng yêu cầu', points: 1 }],
+          hints: ['Dùng động từ khuyết thiếu.'], solution: 'Ich kann morgen kochen.', attachment: 'none',
+        }));
+        lesson.stages = [{ stage: 'independent', itemIds: lesson.items.map(item => item.id) }];
+        return { json: {
+          contract: 'plan-result/1', summary: 'Bài mới',
+          subjects: [{ subjectId: s.subjectId, expectedRevision: s.revision,
+            expectedOpenPrimaryLessonId: s.slot.openPrimaryLessonId, action: 'assign', reason: 'Luyện tiếp',
+            skillChanges: [], primaryLesson: lesson, reviewSet: null, masteryProposals: [],
+            progressSummary: 'Luyện câu mới', requestsHandled: [] }],
+          explorations: [],
+        }, usage: { model: 'fixture', inputTokens: 0, outputTokens: 0, ms: 1 } };
+      },
+    };
+    const output = await processJob(hub, { ...lease, kind: 'plan', purpose: 'daily' }, engine);
+    assert.equal(output.status, 'succeeded', JSON.stringify(hub.calls));
+    const prompt = seen.system + seen.user;
+    assert.doesNotMatch(prompt, /Bài chính thông thường 8–10|Tối đa 4 câu mở|Ít nhất một nửa số câu có/);
+    assert.match(prompt, /THAY quy tắc số câu, câu mở và key/);
+    assert.match(prompt, /bài chính 5–8 câu, bài thêm 3–6 câu/);
+    assert.match(systemPrompt('plan', 'daily'), /Bài chính thông thường 8–10/);
+    const saved = db.sqlite.prepare('SELECT payload FROM learning_lessons WHERE origin_job_id=?').get(lease.jobId);
+    assert.equal(JSON.parse(saved.payload).gradingMode, 'whole-lesson');
+    assert.equal(JSON.parse(saved.payload).items.length, 5);
+  } finally {
+    db.sqlite.close();
+  }
+});

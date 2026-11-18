@@ -169,7 +169,10 @@ export function validateLessonPackage(
   if (lesson.items.length < minItems || lesson.items.length > maxItems)
     issue('/items', 'schema', `A ${lesson.kind} lesson has ${minItems}–${maxItems} items.`);
   else if (options.aiSizes && !options.adaptive) {
-    const [low, high] = AI_ITEM_RANGE[lesson.template === 'reading' && !review ? 'reading' : lesson.kind];
+    const wholeLesson = lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson';
+    const [low, high] = wholeLesson
+      ? lesson.kind === 'exploration' ? [3, 6] : [5, 8]
+      : AI_ITEM_RANGE[lesson.template === 'reading' && !review ? 'reading' : lesson.kind];
     if (lesson.items.length < low || lesson.items.length > high)
       issue(
         '/items',
