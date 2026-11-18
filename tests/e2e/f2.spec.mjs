@@ -38,7 +38,9 @@ test('bàn học offline và đổi hồ sơ trên hai tab', async ({ page, cont
   expect(response.ok()).toBe(true);
   expect(response.request().postDataJSON()).toMatchObject({ itemIds: null, stage: null });
   await expect(summary.getByText('Đã có kết quả bài làm.', { exact: true })).toBeVisible();
-  await second.getByRole('button', { name: /Đổi người/ }).tap();
+  const switchPerson = second.getByRole('button', { name: 'Đổi người', exact: true });
+  await expect(switchPerson).toHaveCSS('text-decoration-style', 'dotted');
+  await switchPerson.tap();
   await second.getByRole('button', { name: /Người học thử/ }).tap();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('lh-offline-profile'))).toBe('demo-adult');
   await page.waitForLoadState('domcontentloaded');

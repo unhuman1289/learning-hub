@@ -46,7 +46,9 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   const article = page.locator('article.lesson-item:visible');
   const play = article.getByRole('button', { name: 'Phát âm thanh' });
   await expect(play).toBeVisible();
-  expect((await play.boundingBox()).height).toBeGreaterThanOrEqual(56);
+  expect(await play.boundingBox()).toMatchObject({ width: 56, height: 56 });
+  await expect(article.getByRole('progressbar', { name: 'Tiến độ nghe' })).toHaveAttribute('aria-valuenow', '0');
+  await expect(article.getByRole('button', { name: 'Giọng nữ' })).toHaveAttribute('aria-pressed', 'true');
   const media = article.locator('audio');
   await expect(media).toHaveAttribute('preload', 'none');
   await expect.poll(() => heardRequests).toEqual(expect.arrayContaining([
@@ -76,7 +78,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await expect(article.getByText('Còn 1 lượt nghe')).toBeVisible();
   await expect.poll(savedPlays).toBe(1);
 
-  const voiceButton = article.getByRole('button', { name: 'Nam', exact: true });
+  const voiceButton = article.getByRole('button', { name: 'Giọng nam', exact: true });
   await voiceButton.tap();
   await expect(voiceButton).toHaveAttribute('aria-pressed', 'true');
   await expect(voiceButton).toBeEnabled();
@@ -104,7 +106,10 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await expect(article.getByText('Còn 1 lượt nghe')).toBeVisible();
   expect(await savedPlays()).toBe(1);
 
-  await article.getByRole('button', { name: 'Chậm hơn' }).tap();
+  const slow = article.getByRole('button', { name: 'Nghe chậm' });
+  await expect(slow).toHaveAttribute('aria-pressed', 'false');
+  await slow.tap();
+  await expect(slow).toHaveAttribute('aria-pressed', 'true');
   await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
   expect(await media.evaluate(node => [node.playbackRate, node.preservesPitch])).toEqual([0.8, true]);
   if (simulated) await media.dispatchEvent('ended');
@@ -113,16 +118,18 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   expect(await savedPlays()).toBe(2);
   await screenshot('03-het-luot');
 
-  const reveal = article.getByRole('button', { name: 'Xem lời thoại', exact: true }).first();
+  const reveal = article.getByRole('button', { name: 'Lời thoại', exact: true }).first();
   await reveal.tap();
   const confirm = article.getByRole('alertdialog');
-  await expect(confirm).toBeVisible();
-  await confirm.getByRole('button', { name: 'Huỷ' }).tap();
+  await expect(confirm).toHaveAccessibleName('Xem lời thoại bây giờ thì câu này tính là đã dùng gợi ý nha.');
+  await expect(confirm.getByRole('button', { name: 'Thôi' })).toBeFocused();
+  await confirm.getByRole('button', { name: 'Thôi' }).tap();
+  await expect(reveal).toBeFocused();
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toHaveCount(0);
   await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
   const beforeSubmit = page.waitForResponse(response => response.url().endsWith(itemUrl + '/reveal') && response.ok());
   await reveal.tap();
-  await confirm.getByRole('button', { name: 'Xem lời thoại', exact: true }).tap();
+  await confirm.getByRole('button', { name: 'Mở xem', exact: true }).tap();
   expect(await (await beforeSubmit).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint2' });
   await expect(confirm).toHaveCount(0);
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
@@ -162,7 +169,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   const before = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/items/i2/reveal') && response.ok());
   await reveal.tap();
   await expect(confirm).toBeVisible();
-  await confirm.getByRole('button', { name: 'Xem lời thoại', exact: true }).tap();
+  await confirm.getByRole('button', { name: 'Mở xem', exact: true }).tap();
   expect(await (await before).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint2' });
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
   await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
@@ -224,7 +231,7 @@ for (const { id, mode, level } of ASSISTED_LESSONS) {
       await held;
       await route.continue();
     });
-    const replay = article.getByRole('button', { name: level === 'slow' ? 'Chậm hơn' : 'Nghe thêm (tính là gợi ý)', exact: true });
+    const replay = article.getByRole('button', { name: level === 'slow' ? 'Nghe chậm' : 'Nghe thêm (tính là gợi ý)', exact: true });
     await replay.tap();
     try {
       expect((await reveal).postDataJSON()).toEqual({ level });

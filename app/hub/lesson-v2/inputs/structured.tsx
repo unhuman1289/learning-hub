@@ -11,7 +11,7 @@ type StructuredItem = Extract<ItemView, { input: "cloze" | "match" | "order" | "
 type Props = { value: string; onChange: (value: string) => void; disabled: boolean };
 type InputProps<T extends StructuredItem["input"]> = Props & { item: Extract<StructuredItem, { input: T }> };
 const field = "min-h-11 min-w-0 border-b border-rule bg-transparent px-2 text-ink-paper outline-none focus:border-accent focus:ring-2 focus:ring-accent-paper/50 disabled:opacity-70";
-const choice = "notebook-button notebook-choice min-w-0 flex-col items-start text-left text-ink-paper";
+const choice = "notebook-button notebook-choice min-w-0 flex-col items-start text-left";
 
 function cells(value: string, count: number) {
   const saved = parseStructuredAnswer(value);

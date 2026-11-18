@@ -256,6 +256,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
 
 function AudioTranscript({ audio, item, answered = false, automatic = false, active }:
   { audio: ListeningAudio; item: ListeningItem; answered?: boolean; automatic?: boolean; active: boolean }) {
+  const transcriptTab = useRef<HTMLButtonElement>(null);
   const [transcript, setTranscript] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [request, setRequest] = useState(0);
@@ -286,10 +287,11 @@ function AudioTranscript({ audio, item, answered = false, automatic = false, act
     <p lang={audio.lang} className="whitespace-pre-wrap break-words">{transcript}</p>
   </div>;
   return <div>
-    {!automatic && <button type="button" className="notebook-button audio-transcript-tab" disabled={status === "Đang tải lời thoại…"}
+    {!automatic && <button type="button" ref={transcriptTab} className={confirm ? "sr-only" : "notebook-button audio-transcript-tab"}
+      aria-hidden={confirm || undefined} tabIndex={confirm ? -1 : undefined} disabled={status === "Đang tải lời thoại…"}
       onClick={() => answered ? load() : setConfirm(true)}><FileText size={16} aria-hidden /> Lời thoại</button>}
     <PaperConfirm open={confirm} message="Xem lời thoại bây giờ thì câu này tính là đã dùng gợi ý nha."
-      confirmLabel="Mở xem" cancelLabel="Thôi" onCancel={() => setConfirm(false)} onConfirm={load} />
+      confirmLabel="Mở xem" cancelLabel="Thôi" returnFocus={transcriptTab} onCancel={() => setConfirm(false)} onConfirm={load} />
     {(status || automatic) && <p role="status" className="text-sm text-muted-paper">{status || "Đang tải lời thoại…"}</p>}
     {automatic && status === "Lời thoại chưa sẵn sàng." && !item.readOnly &&
       <button type="button" className={buttonClass("secondary")} onClick={load}>Thử lại</button>}
