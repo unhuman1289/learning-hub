@@ -27,6 +27,7 @@
 | 17/11 | Claude được gộp PR vào `codex/hub-next-wip` và deploy staging khi CI đạt và bước nằm trong plan này | Production, xoá dữ liệu và đổi quyền vẫn cần chủ dự án |
 | 17/11 | **Duyệt M5: gia sư là một nhân vật nhỏ (sprite) để trò chuyện** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX)) | T3 làm tấm trò chuyện; T3b gắn nhân vật. Sprite không vào Git (repo public), nằm trong R2 sau cổng gia đình |
 | 17/11 | **Chấm bài ảnh bằng OpenAI cho mọi sổ, kể cả trẻ em** | G5 không còn giới hạn sổ người lớn. Chỉ gửi ảnh, không gửi tên hay id; giám hộ đọc mọi lời phê; ảnh xoá sau 30 ngày |
+| 18/11 | **Gia sư tên Bột, một Bột cho cả bài.** Bột nói như em bé ("Chỗ này sai ạ!"), đứng cạnh trang sổ (điện thoại: nút nổi), luôn biết toàn bài, chỉ trả lời trong nội dung bài và kiến thức liền kề | Thay gia sư theo từng câu của T3/T3b bằng T5. T4 nghiệm thu trên Bột |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
@@ -70,7 +71,7 @@ Các luồng chờ AI chưa có số đo: **Nộp bài → có lời phê** (Lun
 | 1b | **A1** điều khiển AI an toàn · **H1** cổng gia đình trên staging | A1 chặn nghiệm thu G4, L7, T2 và chạy thật G3. H1 làm trước khi chuyển repo sang public. Hai bước không sửa chung tệp |
 | 1 | **D** kiểm giao bài 00:00 (Claude làm, chỉ đọc) · **N** máy thật ở Đức (chủ dự án) | Song song |
 | 2 | **T3** chặn lộ đáp án và giao diện Hỏi · **G3** hiệu chuẩn · **F1** giảm JS | Sau T2 (T3), sau F0 (F1) |
-| 3 | **T4** nghiệm thu gia sư · **G5** chấm bài ảnh · **F2** service worker · **F3** tải trước bài kế tiếp | Sau T3; G5 sau quyết định dữ liệu (mục 11) |
+| 3 | **T5** Bột, một gia sư cho cả bài (sau M5b) · **T4** nghiệm thu gia sư trên Bột · **G5** chấm bài ảnh · **F2** service worker · **F3** tải trước bài kế tiếp | Sau T3; G5 sau quyết định dữ liệu (mục 11) |
 | 4 | **F4** chờ AI dễ chịu hơn · **F5** vị trí Worker · **F6** mượt khi thao tác · **F7** chỉnh giao diện | Sau F0–F3 |
 | 5 | **R** phát hành production | Sau khi các đợt trên đạt, và chủ dự án duyệt mục 9 |
 
@@ -219,7 +220,43 @@ Việc:
 - `TutorPet` hoạt hình bằng CSS `steps()` theo manifest. Chỉ tải hàng đang cần; preload hàng `idle` khi mở bài. Khi giảm chuyển động thì đứng yên ở khung 1. Ảnh có `aria-hidden`; tải lỗi thì hiện chỗ giữ tĩnh, không vỡ bố cục.
 - e2e: đổi state thì đổi hàng; giảm chuyển động thì không có animation; JS bàn học không tăng.
 
+### T5. Bột, một gia sư cho cả bài (quyết định 18/11)
+
+**Vì sao:** người học thường hỏi chéo giữa các câu ("câu 2 với câu 4 khác nhau chỗ nào?"). Mỗi câu một gia sư làm mất mạch và tốn chỗ trên trang. Một nhân vật cố định cũng dễ nhận ra và gần gũi hơn.
+
+**Nhân vật và giọng:**
+- Tên **Bột**. Đầu tấm trò chuyện ghi "Bột" thay cho "Gia sư nhỏ".
+- Bột tự xưng "Bột", nói như em bé lễ phép: câu ngắn, cuối câu thường có "ạ". Ví dụ: "Chỗ này sai ạ!", "Câu này cần làm lại ạ!", "Vì động từ phải đứng ở vị trí thứ 2 trong câu, ví dụ: *Heute gehe ich…* ạ!".
+- Bột không gọi tên và không dùng đại từ cho người học (tránh sai vai vế giữa người lớn và trẻ em). Viết lại các câu cố định của T3 theo giọng này, ví dụ lời chào: "Bột đây ạ! Câu nào chưa rõ thì hỏi Bột nhé ạ. Bột gợi hướng thôi, không nói đáp án đâu ạ."
+- Vẫn tiếng Việt; ví dụ và thuật ngữ theo ngôn ngữ của sổ (Đức, Anh…).
+
+**Vị trí:**
+- Màn rộng (≥ 1024 px): Bột đứng ở lề bàn bên phải trang sổ, ngoài vùng chữ, dùng chung cho mọi trang. Tấm trò chuyện mở cạnh trang, không che đề.
+- Điện thoại: một nút nổi góc dưới phải có Bột ngồi. Chạm thì mở tấm như T3 (cao tối đa 55%, không làm tối trang).
+- Bỏ nút gia sư trong từng câu (`item.tsx`). Giữ các state của `TutorPet` và gán hàng sprite của T3b.
+- Thiết kế M5b (Claude vẽ, chủ dự án duyệt trước khi code): màn rộng, điện thoại, trẻ em, chọn câu.
+
+**Ngữ cảnh toàn bài:**
+- Mỗi lượt gửi ngữ cảnh của cả bài: đề và loại từng câu, phương án, câu trả lời hiện tại của người học, kết quả và lời phê của các câu đã chấm. Câu đang mở trên trang là câu mặc định. Ô hỏi có các chip "Câu 1…N" để chọn; người học cũng có thể gõ "câu 3".
+- Đặt phần ngữ cảnh bài ở đầu prompt, giữ nguyên giữa các lượt để OpenAI cache được; câu hỏi mới ở cuối. Giới hạn ngữ cảnh khoảng 4.000 token; vượt thì rút gọn các câu xa câu đang hỏi.
+- **Đáp án:** với câu chưa chấm hoặc chưa hiện lời giải, không gửi khoá, lời giải, rubric. Lọc lộ đáp án của T3 chạy trên mọi câu chưa hiện lời giải trong bài, không chỉ câu đang hỏi. Với câu mà trang đã hiện lời giải cho người học, Bột được dùng lời giải để giải thích.
+
+**Phạm vi (prompt và kiểm ở Worker):**
+- Chỉ trả lời về bài này: đề, cách làm, lỗi trong lời phê, và kiến thức trực tiếp cần cho các câu trong bài.
+- Được đào sâu một bậc để hiểu: giải thích quy tắc đằng sau, thêm một ví dụ tương tự, nói vì sao cách khác sai. Không mở sang chủ đề mới hoặc trình độ cao hơn bài.
+- Ngoài phạm vi (chuyện khác, bài khác, làm hộ việc khác, thông tin cá nhân): Bột từ chối ngắn gọn, ví dụ "Bột chỉ giúp bài này thôi ạ! Mình quay lại câu 3 nhé ạ?" Lượt đó vẫn tính vào giới hạn và được ghi cờ `off_topic` (migration số trống kế tiếp nếu cần cột).
+- Trẻ em: giữ mọi luật cũ (chỉ gửi biệt danh, giám hộ đọc mọi lời, không trò chuyện tự do).
+
+**Giữ nguyên:** 20 lượt mỗi bài, 60 lượt mỗi hồ sơ mỗi ngày, ≤ 2 lời gọi mỗi lượt, `queued` khi OpenAI lỗi, `recordSupport()` ghi hint1 cho câu được hỏi.
+
+**Xong khi:**
+- e2e: một Bột cho cả bài trên iPhone 13 và Pixel 7; hỏi về câu 2 khi đang ở câu 4; chặn lộ đáp án của câu khác; câu đã hiện lời giải thì được giải thích; câu ngoài phạm vi bị từ chối và có cờ; JS bàn học không tăng quá 5 KB nén.
+- Test prompt bằng adapter giả: giọng "ạ", không gọi tên người học.
+- Sau deploy, T4 chạy trên Bột, thêm 2 lượt: một câu hỏi chéo câu, một câu ngoài phạm vi.
+
 ### T4. Nghiệm thu gia sư trên staging
+
+**18/11:** chạy sau T5, trên Bột.
 
 1. Deploy (không có migration mới). Kiểm health và smoke.
 2. Hồ sơ QA người lớn hỏi 3 lượt trong một bài. Kiểm:
