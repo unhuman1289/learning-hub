@@ -6,6 +6,7 @@ import { HintNote, RevealedSolution } from "../lesson-v2/hints";
 import { pencil, pencilLink, ResultStamp } from "../paper-bits";
 import { SketchIcon } from "../sketch-icons";
 import { words } from "../words";
+import { submitAfterPhoto } from "./photo-submit";
 import { uploadPhoto } from "../lesson-v2/photo";
 import { germanCharacters, hasVietnameseTyping } from "../lesson-v2/keyboard";
 import { LessonAudio, type ListeningControls } from "./audio";
@@ -276,7 +277,7 @@ export function LessonItem({
         <button type="button" disabled={disabled || awaitingFeedback} className="brick min-h-11 px-4 font-hand text-xl disabled:opacity-60"
           onClick={async () => {
             if (uploadInFlight.current && uploading && allowUploadSubmit) {
-              try { await uploadInFlight.current; setCheckNotice(false); onSubmit?.(); } catch {}
+              await submitAfterPhoto(uploadInFlight.current, () => { setCheckNotice(false); onSubmit?.(); });
               return;
             }
             if (canSubmit) { setCheckNotice(false); onSubmit?.(); }

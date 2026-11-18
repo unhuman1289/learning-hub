@@ -5,7 +5,7 @@ import { memoryDb } from './d1-adapter.mjs';
 import { queueSubmission } from '../lib/ai-jobs/queue.ts';
 import { autoGrade } from '../lib/evidence/autograde.ts';
 import { evidenceStrength } from '../lib/evidence/strength.ts';
-import { parseSubmission, submitLesson, readSubmission } from '../lib/evidence/submit.ts';
+import { parseSubmission, submitLesson, readSubmission, readLessonSubmissions } from '../lib/evidence/submit.ts';
 import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 import { saveDraft, reveal, completeLesson } from '../lib/lesson-v2/actions.ts';
 import { importLesson } from '../lib/lesson-v2/import.ts';
@@ -385,4 +385,6 @@ test('whole lesson submits a photo for grading', async () => {
   assert.equal(submission.attempts.length,1);
   assert.equal(submission.attempts[0].status,'pending');
   assert.deepEqual(submission.attempts[0].attachmentIds,[photo]);
+  const history = await readLessonSubmissions(db, 'learner', id);
+  assert.deepEqual(history[0].attempts[0].attachmentIds, [photo]);
 });
