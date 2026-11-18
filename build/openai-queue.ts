@@ -1,3 +1,4 @@
+import { notifySavedFeedback } from '../lib/ai-jobs/feedback-signal.ts';
 import { consumeCalibration, recoverCalibrationJobs } from './calibration-queue.ts';
 import { answerTutor } from '../lib/tutor/openai.ts';
 import { QueueAudioError, speechJobLimit, uploadOpenAiPlanAudio } from './openai-tts.ts';
@@ -183,6 +184,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
           stage = dry ? 'validate_result' : 'save_result';
           const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket, ttsSubjectIds);
+          if (!dry && response.status === 200 && !response.replayed) await notifySavedFeedback(env.FEEDBACK_EVENTS, db, id).catch(() => {});
           return { status: response.status, body: response };
         },
         state: async () => {

@@ -188,6 +188,16 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   }, [history]);
 
   const waitingForGrade = lesson?.items.some(item => waitingForFeedback(feedbackForItems(history, [item.id])[0])) ?? false;
+  const [feedbackStream, setFeedbackStream] = useState(false);
+  useEffect(() => {
+    if (!lesson?.id || busy || !waitingForGrade || typeof EventSource === "undefined") return;
+    const query = new URLSearchParams(suffix.slice(1));
+    const events = new EventSource(url + "/feedback/events" + (query.size ? "?" + query : ""));
+    events.onopen = () => { setFeedbackStream(true); void refreshFeedback(); };
+    events.addEventListener("saved", () => void refreshFeedback());
+    events.onerror = () => setFeedbackStream(false);
+    return () => { events.close(); setFeedbackStream(false); };
+  }, [lesson?.id, busy, waitingForGrade, suffix, url, refreshFeedback]);
   useLiveRefresh(async () => {
     const active = lesson?.items.flatMap(item => {
       const submission = feedbackForItems(history, [item.id])[0];
@@ -198,7 +208,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     query.set("rechecks", active.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(","));
     const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
     if (value.changed) await refreshFeedback();
-  }, !!lesson && !busy && waitingForGrade, 5000);
+  }, !!lesson && !busy && waitingForGrade, feedbackStream ? 30_000 : 5000);
   const storeDraft = useCallback((value: string | undefined) => {
     cache.current.set(cacheKey, value);
     writeOfflineDraft(cacheKey, value);

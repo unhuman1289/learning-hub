@@ -29,12 +29,15 @@
       "bucket_name": "learning-hub-uploads-local"
     }
   ],
+  "durable_objects": { "bindings": [{ "name": "FEEDBACK_EVENTS", "class_name": "FeedbackSignal" }] },
+  "migrations": [{ "tag": "feedback-signal-v1", "new_sqlite_classes": ["FeedbackSignal"] }],
   "observability": {
     "enabled": true
   },
   "env": {
     "staging": {
       "name": "learning-hub-staging",
+      "durable_objects": { "bindings": [{ "name": "FEEDBACK_EVENTS", "class_name": "FeedbackSignal" }] },
       "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "staging",
@@ -103,6 +106,7 @@
     "production": {
       "placement": { "region": "azure:westeurope" },
       "name": "learning-hub-prod",
+      "durable_objects": { "bindings": [{ "name": "FEEDBACK_EVENTS", "class_name": "FeedbackSignal" }] },
       "workers_dev": true,
       "routes": [
         {

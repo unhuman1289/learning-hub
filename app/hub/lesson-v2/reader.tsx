@@ -118,7 +118,7 @@ export function LessonReader({
               const itemIndex = lesson.items.findIndex(item => item.id === itemId);
               if (itemIndex >= 0) jump(itemIndex + 1);
             }}
-            progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
+            progressKey={history.map(entry => entry.id + ":" + entry.job_status + ":" + entry.attempts.map(a => a.result + ":" + a.feedback).join("~")).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
             completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
             {lesson.wholeLesson && !readonly && !lesson.completedAt &&
               <button type="button" className={buttonClass("primary")} disabled={busy || !!session.verification || session.waitingForGrade || savingPlays.length > 0}

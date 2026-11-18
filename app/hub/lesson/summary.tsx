@@ -4,7 +4,6 @@ import { Stamp } from "../../../components/notebook/paper";
 import { useEffect, useState, type ReactNode } from "react";
 import type { LessonSummaryData } from "../../../lib/lesson-v2/summary";
 import { apiJson, learnerQuery } from "../api";
-import { useLiveRefresh } from "../use-live-refresh";
 import { pencil, RedPen, skillLabel } from "../paper-bits";
 import { buttonClass, RouteLink } from "../ui";
 import type { Route } from "../use-route";
@@ -54,10 +53,6 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
       .catch((e: Error) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [url, waiting, progressKey]);
-  useLiveRefresh(async () => {
-    const {summary} = await apiJson<{summary: LessonSummaryData}>(url);
-    setData(summary); setError("");
-  }, waiting || !!data?.pending, 5000);
   const needsWork = data && (data.needsCorrection > 0 || data.unanswered > 0);
   const current = items.map(item => feedbackForItems(history, [item.id])[0]);
   const queued = current.some(entry => entry?.job_status === "queued" && entry.attempts.some(a => !a.result));

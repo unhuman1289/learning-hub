@@ -1,3 +1,4 @@
+export { FeedbackSignal } from "./feedback-signal";
 import tutorPrompt from '../integrations/runner-prompts/tutor.md?raw';
 import planPrompt from '../integrations/runner-prompts/plan-request.md?raw';
 import assessPrompt from '../integrations/runner-prompts/assess-local.md?raw';
