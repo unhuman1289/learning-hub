@@ -6,7 +6,7 @@ import type { StudyDay } from "../../../lib/study-sql";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { Drafts } from "../lesson-page";
-import { useLiveRefresh } from "../use-live-refresh";
+import { startFeedbackPolling } from "./feedback-poll";
 import { rumAfterPaint } from "../rum";
 import { useRunnerStatus, type RunnerStatus } from "../runner-status";
 import type { SubmissionView } from "../lesson-v2/feedback";
@@ -188,27 +188,28 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   }, [history]);
 
   const waitingForGrade = lesson?.items.some(item => waitingForFeedback(feedbackForItems(history, [item.id])[0])) ?? false;
-  const [feedbackStream, setFeedbackStream] = useState(false);
+  const activeFeedback = lesson?.items.flatMap(item => {
+    const submission = feedbackForItems(history, [item.id])[0];
+    return waitingForFeedback(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
+  }) ?? [];
+  const watch = activeFeedback.map(attempt => attempt.id).join(",");
+  const rechecks = activeFeedback.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(",");
+  const waitingCreated = history.find(entry => waitingForFeedback(entry))?.created_at;
   useEffect(() => {
-    if (!lesson?.id || busy || !waitingForGrade || typeof EventSource === "undefined") return;
+    if (!waitingForGrade || busy || !watch) return;
+    const parsed = waitingCreated ? Date.parse(waitingCreated) : NaN;
     const query = new URLSearchParams(suffix.slice(1));
-    const events = new EventSource(url + "/feedback/events" + (query.size ? "?" + query : ""));
-    events.onopen = () => { setFeedbackStream(true); void refreshFeedback(); };
-    events.addEventListener("saved", () => void refreshFeedback());
-    events.onerror = () => setFeedbackStream(false);
-    return () => { events.close(); setFeedbackStream(false); };
-  }, [lesson?.id, busy, waitingForGrade, suffix, url, refreshFeedback]);
-  useLiveRefresh(async () => {
-    const active = lesson?.items.flatMap(item => {
-      const submission = feedbackForItems(history, [item.id])[0];
-      return waitingForFeedback(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
-    }) ?? [];
-    const query = new URLSearchParams(suffix.slice(1));
-    query.set("watch", active.map(attempt => attempt.id).join(","));
-    query.set("rechecks", active.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(","));
-    const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
-    if (value.changed) await refreshFeedback();
-  }, !!lesson && !busy && waitingForGrade, feedbackStream ? 30_000 : 5000);
+    query.set("watch", watch); query.set("rechecks", rechecks);
+    return startFeedbackPolling({
+      startedAt: Number.isFinite(parsed) ? parsed : Date.now(),
+      visible: () => document.visibilityState === "visible",
+      subscribe: change => { document.addEventListener("visibilitychange", change); return () => document.removeEventListener("visibilitychange", change); },
+      read: async () => {
+        const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
+        if (value.changed) await refreshFeedback();
+      },
+    });
+  }, [waitingForGrade, busy, watch, rechecks, waitingCreated, suffix, url, refreshFeedback]);
   const storeDraft = useCallback((value: string | undefined) => {
     cache.current.set(cacheKey, value);
     writeOfflineDraft(cacheKey, value);

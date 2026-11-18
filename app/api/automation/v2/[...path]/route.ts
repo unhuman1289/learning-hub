@@ -1,4 +1,3 @@
-import { notifySavedFeedback } from '../../../../../lib/ai-jobs/feedback-signal';
 import { aiSubjects } from '../../../../../lib/ai-controls';
 import { uploadAudio } from '../../../../../lib/audio/upload';
 import { callKnowledgeTool,routeKnowledge } from '../../../../../lib/knowledge/tools';
@@ -149,8 +148,6 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         env.UPLOADS,
         env.OPENAI_API_KEY && env.UPLOADS ? await aiSubjects(db, env, true) : [],
       );
-      if (result.status === 200 && !result.replayed && new URL(req.url).searchParams.get('dryRun') !== '1')
-        await notifySavedFeedback(env.FEEDBACK_EVENTS, db, id).catch(() => {});
       // Email only when the third failed check ends the job; the 06:00 digest covers the rest.
       if (result.status === 422 && (await readJob(db, id))?.status === 'failed') await sendAlertDigest(db, env).catch(() => {});
       return Response.json(result, { status: result.status, headers });

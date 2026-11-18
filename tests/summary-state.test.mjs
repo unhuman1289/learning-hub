@@ -6,7 +6,7 @@ test('checking reports only pending answers and never invents an ETA', () => {
  const s = summaryState(attempts, true, false, false, false, '');
  assert.equal(s.phase, 'checking'); assert.equal(s.pet, 'think'); assert.match(s.message, /1 câu viết/); assert.doesNotMatch(s.message, /giây/);
 });
-test('queued or 30s slow reassures without claiming a result', () => {
+test('queued or slow reassures without claiming a result', () => {
  for (const [queued, slow] of [[true,false],[false,true]]) { const s = summaryState(attempts,true,queued,slow,false,''); assert.equal(s.phase,'queued'); assert.equal(s.pet,'busy'); assert.match(s.message,/đã lưu/); }
 });
 test('graded counts corrections and praises child before suggesting fixes', () => {

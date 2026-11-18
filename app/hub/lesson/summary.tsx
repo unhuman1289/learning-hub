@@ -26,7 +26,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
   const waitingSince = history.find(entry => entry.attempts.some(a => !a.result))?.created_at;
   useEffect(() => {
     const elapsed = waitingSince ? Math.max(0, Date.now() - Date.parse(waitingSince)) : 0;
-    const timer = setTimeout(() => setSlow(waiting), waiting ? Math.max(0, 30_000 - (Number.isFinite(elapsed) ? elapsed : 0)) : 0);
+    const timer = setTimeout(() => setSlow(waiting), waiting ? Math.max(0, 120_000 - (Number.isFinite(elapsed) ? elapsed : 0)) : 0);
     return () => clearTimeout(timer);
   }, [waiting, waitingSince]);
   const [opening, setOpening] = useState(false);

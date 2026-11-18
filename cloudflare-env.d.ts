@@ -9,7 +9,6 @@ declare namespace Cloudflare {
     AI_COST_ALERT_USD?:string;
     AI_PRICE_TABLE?:string;
     AI_QUEUE?:Queue;
-    FEEDBACK_EVENTS?: DurableObjectNamespace;
     OPENAI_API_KEY?: string;
     OPENAI_SPEECH_MAX_PER_JOB?: string;
     HOUSEHOLD_LIMITER?: RateLimit;
