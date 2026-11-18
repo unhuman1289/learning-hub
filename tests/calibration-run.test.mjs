@@ -33,3 +33,17 @@ test('one invalid submission is counted once and all eight submissions are proce
  const metrics=await runCalibration(fixture,'job_00000000000000000000',engine,'prompt');
  assert.equal(calls,8);assert.equal(metrics.invalid,1);assert.equal(metrics.agreement,28/32);assert.equal(metrics.inputTokens,80);
 });
+
+test('finalize failure after the s6 model response becomes invalid and the last submission still runs', async () => {
+ let calls=0;
+ const engine={name:'openai',vision:false,async run({user}) {
+  const context=JSON.parse(user.split('\n')[2]), submission=fixture.submissions[calls++];
+  const grades=context.attempts.map(a=>{const expected=submission.answers[a.itemId].expected, score=expected==='correct'?1:expected==='partial'?0.5:0;
+   return {attemptId:a.attemptId,result:expected,score,rubricScores:a.rubric.map(r=>({criterion:r.criterion,max:r.points,points:r.points*score})),feedback:'ok',correction:'',errors:[],checkItem:null};});
+  return {json:{contract:'assess-result/1',summary:'',grades,diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null},
+   usage:{model:submission.id==='s6'?Object.create(null):'fake',inputTokens:10,outputTokens:5,ms:20}};
+ }};
+ const metrics=await runCalibration(fixture,'job_00000000000000000000',engine,'prompt');
+ assert.equal(calls,8);assert.equal(metrics.invalid,1);assert.deepEqual(metrics.invalidReasons,['s6=finalize_error']);
+ assert.equal(metrics.agreement,28/32);assert.equal(metrics.inputTokens,80);
+});
