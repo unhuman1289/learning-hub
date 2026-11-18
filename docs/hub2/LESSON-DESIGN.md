@@ -188,7 +188,7 @@ Bìa (câu hỏi trung tâm) → `read` (2–8 phần, nguồn đã mở thật)
 | `recognize` | Chọn câu đúng: *Ich kann heute kochen / kocht* | `choice`; key, phương án sai mang `errorLabel` |
 | `correct` | Sửa: *Wir kann morgen kommen.* | `short`; key nếu chỉ một cách đúng |
 | `transform` | Câu thường → Modalverb → phủ định → câu hỏi | `short`; thường dùng rubric |
-| `apply` | Bài toán có lời văn; email | Đáp số dùng key; lời giải dùng ảnh và rubric |
+| `apply` | Bài toán có lời văn; email | Lời giải dùng rubric; có thể gửi ảnh hoặc gõ chữ |
 | `explain` | Vì sao VAF 30% không có nghĩa 30% tế bào mang biến thể? | `long`; rubric |
 | `create` | Viết 5 câu về cuối tuần theo yêu cầu | `long`; rubric |
 | `investigate` | Chỉ ra giới hạn của một nghiên cứu | `long`; rubric |
@@ -202,6 +202,8 @@ Câu trong bài `connect` hoặc `synthesis` ghi thêm `concepts`, và có thể
 > *Paul kauft einen Kuchen.* → 1. thêm *möchten* → 2. phủ định → 3. câu hỏi Có/Không → 4. câu hỏi với *Was*.
 
 Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiếp → tìm lỗi trong lời giải → bài thực tế → giải thích vì sao phương pháp đúng → tự đặt một bài tương tự.
+
+Ảnh bài làm chỉ là lựa chọn bổ sung: với sổ `normal`, tối đa hai câu mở có rubric trong mỗi bài có thể đặt `attachment: optional` khi lời giải toán viết tay, sơ đồ hoặc bài viết tay giúp thể hiện quá trình. Các câu khác đặt `none`; không bao giờ yêu cầu ảnh. Sổ có sensitivity khác `normal` luôn đặt `none`. Đề, rubric và lời giải phải cho phép người học trả lời bằng chữ và được chấm đầy đủ ngay cả khi không gửi ảnh.
 
 ### 5.3 `key` hay `rubric`
 
@@ -298,7 +300,7 @@ Không được:
   - biến cố và xác suất;
   - hình khối trong thực tiễn.
 - **Cách ra bài:**
-  - Đáp số trên web; lời giải trên giấy kèm ảnh, chấm theo bước: lập đúng, tính đúng, kết luận có đơn vị.
+  - Lời giải có thể gõ chữ hoặc viết trên giấy và gửi ảnh tùy chọn, chấm theo bước: lập đúng, tính đúng, kết luận có đơn vị.
   - Xen kẽ các dạng đã học.
   - Theo sát "Tuần này ở trường".
 
@@ -312,7 +314,7 @@ Không được:
   - liên kết ion và cộng hoá trị;
   - hoá trị và công thức hoá học.
 - Công thức gõ dạng thường (`H2O`).
-- Câu tính dùng đáp số kèm ảnh.
+- Câu tính có thể cho gửi ảnh tùy chọn khi có rubric; luôn chấp nhận lời giải gõ chữ.
 - Không giao thí nghiệm có hoá chất ở nhà.
 - Là cặp kết nối gần với Toán (tỉ lệ, phần trăm khối lượng).
 

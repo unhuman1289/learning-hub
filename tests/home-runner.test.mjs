@@ -14,7 +14,7 @@ import { applyResult } from '../lib/ai-jobs/result.ts';
 import { saveDraft } from '../lib/lesson-v2/actions.ts';
 import { submitLesson } from '../lib/evidence/submit.ts';
 import { assessResult } from '../lib/contracts/ai-common.ts';
-import { processJob, userPrompt, systemPrompt, normalizePlan, compactPlanContext } from '../integrations/home-runner/job.mjs';
+import { processJob, userPrompt, systemPrompt, normalizePlan, normalizePlanAttachments, compactPlanContext } from '../integrations/home-runner/job.mjs';
 import { strictSchema, stripOptionalNulls, parseJsonReply } from '../integrations/home-runner/schema.mjs';
 import { childEnv, codexEngine, qwenEngine } from '../integrations/home-runner/engines.mjs';
 import { leaseRequest, pollDelay, parseEnvFile, runOnce } from '../integrations/home-runner/runner.mjs';
@@ -828,9 +828,9 @@ test('OpenAI whole-lesson daily prompt replaces key quotas and saves the generat
         lesson.reasonRefs = [];
         lesson.items = lesson.items.slice(0, 5).map((item, index) => ({
           id: item.id, input: 'short', activity: 'apply', skills: [skill], difficulty: 1,
-          prompt: 'Schreibe einen Satz über deinen Tagesplan ' + index + '.',
-          rubric: [{ criterion: 'Đúng ngữ pháp', points: 1 }, { criterion: 'Đúng yêu cầu', points: 1 }],
-          hints: ['Dùng động từ khuyết thiếu.'], solution: 'Ich kann morgen kochen.', attachment: 'none',
+          prompt: `Tính giá trị biểu thức 2 × (${index + 2} + 3) và trình bày cách làm.`,
+          rubric: [{ criterion: 'Đúng thứ tự phép tính', points: 1 }, { criterion: 'Kết quả đúng', points: 1 }],
+          hints: ['Tính trong ngoặc trước.'], solution: `2 × (${index + 2} + 3) = ${2 * (index + 5)}.`, attachment: index === 0 ? 'optional' : 'none',
         }));
         lesson.stages = [{ stage: 'independent', itemIds: lesson.items.map(item => item.id) }];
         return { json: {
@@ -853,7 +853,21 @@ test('OpenAI whole-lesson daily prompt replaces key quotas and saves the generat
     const saved = db.sqlite.prepare('SELECT payload FROM learning_lessons WHERE origin_job_id=?').get(lease.jobId);
     assert.equal(JSON.parse(saved.payload).gradingMode, 'whole-lesson');
     assert.equal(JSON.parse(saved.payload).items.length, 5);
+    assert.equal(JSON.parse(saved.payload).items[0].attachment, 'optional');
+    assert.match(prompt, /không gửi ảnh/);
   } finally {
     db.sqlite.close();
   }
+});
+
+
+test('photo policy limits normal open rubric items and removes photos from sensitive or ungraded items', () => {
+  const item = (overrides = {}) => ({ input: 'short', rubric: [{ criterion: 'Cách làm', points: 1 }], attachment: 'optional', ...overrides });
+  const plan = { subjects: [
+    { subjectId: 'normal', primaryLesson: { items: [item(), item(), item(), item({ rubric: undefined }), item({ attachment: 'required' })] }, reviewSet: null },
+    { subjectId: 'sensitive', primaryLesson: { items: [item()] }, reviewSet: null },
+  ], explorations: [] };
+  normalizePlanAttachments(plan, { subjects: [{ subjectId: 'normal', sensitivity: 'normal' }, { subjectId: 'sensitive', sensitivity: 'clinical' }] });
+  assert.deepEqual(plan.subjects[0].primaryLesson.items.map(i => i.attachment), ['optional', 'optional', 'none', 'none', 'none']);
+  assert.equal(plan.subjects[1].primaryLesson.items[0].attachment, 'none');
 });
