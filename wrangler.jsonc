@@ -34,6 +34,7 @@
   },
   "env": {
     "staging": {
+      "placement": { "region": "azure:westeurope" },
       "name": "learning-hub-staging",
       "workers_dev": true,
       "vars": {
