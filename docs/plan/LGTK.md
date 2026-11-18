@@ -146,6 +146,8 @@ Thay thiết kế cũ `runner --calibrate`. Hiệu chuẩn chạy trong Worker, 
 
 Đóng #175 sau khi T2 gộp.
 
+**Nghiệm thu 18/11 (Claude):** trên staging `39b9fac`, hồ sơ QA nộp ảnh viết tay tự tạo (không dữ liệu cá nhân) ở câu mở có rubric, ô chữ để trống. Ảnh từ Safari tải lên được sau G5c (`img_e6c9…`, 60 KB). Job `job_f2c637c802ae4e9883c2`: `needs_vision=1`, 2 lời gọi Luna, 4.694/338 token, 20 giây; lời phê nói đúng nội dung ảnh (không đến được 10 giờ, đề nghị 11 giờ), đủ 2 tiêu chí rubric. Lỗi trật tự từ cố ý ("Leider ich kann") không được nhắc vì rubric không có tiêu chí ngữ pháp; đưa vào việc sau: lời phê nhắc lỗi ngoài rubric mà không đổi điểm. Câu i6 của bài QA được bật ảnh bằng tay trong D1 để thử.
+
 ### T2. Worker gọi OpenAI và stream về trình duyệt
 
 - `POST /api/tutor` (đã có từ T1) gọi OpenAI Responses API với `stream: true`. Dùng Luna. Lời trả lời tối đa khoảng 2000 ký tự, giới hạn bằng `max_output_tokens`.
