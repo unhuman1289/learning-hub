@@ -19,7 +19,7 @@ test('Queue grades eight submissions with Luna, counts before fetch, saves and w
  };
  assert.equal(await consumeCalibration(db,env,job.id,'real assess prompt',fetcher),'succeeded');
  assert.equal(calls,8); const row=db.sqlite.prepare('SELECT * FROM grader_calibrations').get();
- assert.equal(row.n,32);assert.equal(row.input_tokens,80);assert.ok(row.injection_shifted>0);
+ assert.equal(row.n,32);assert.equal(row.input_tokens,80);assert.equal(db.sqlite.prepare('SELECT count(*) n FROM grader_calibration_details WHERE calibration_id=?').get(job.id).n,32);assert.ok(row.injection_shifted>0);
  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM alert_events WHERE code='grader_calibration_low'").get().n,1);
  assert.equal(await consumeCalibration(db,env,job.id,'real assess prompt',fetcher),'not-claimed');assert.equal(calls,8);
  db.sqlite.close();

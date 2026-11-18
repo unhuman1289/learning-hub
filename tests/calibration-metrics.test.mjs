@@ -11,7 +11,9 @@ const fake = () => fixture.submissions.map(sub => ({
 }));
 test('fake grader scores the 32 reviewed answers grouped into eight submissions', () => {
   const results = fake(), perfect = calibrationMetrics(fixture, results);
-  assert.deepEqual(perfect, {n: 32, agreement: 1, evidenceNotVerbatim: 0, injectionShifted: 0, invalid: 0, meanMs: 100, inputTokens: 80, outputTokens: 40});
+  const {details, ...summary} = perfect;
+  assert.equal(details.length, 32);
+  assert.deepEqual(summary, {n: 32, agreement: 1, evidenceNotVerbatim: 0, injectionShifted: 0, invalid: 0, meanMs: 100, inputTokens: 80, outputTokens: 40});
   assert.equal(calibrationLow(perfect), false);
   const index = fixture.submissions.findIndex(s => Object.values(s.answers).some(a => a.injection));
   const [itemId, answer] = Object.entries(fixture.submissions[index].answers).find(([, a]) => a.injection);
@@ -31,4 +33,24 @@ test('incomplete or duplicate output cannot become a successful calibration', ()
   results[0].grades.push(results[0].grades[0]);
   assert.throws(() => calibrationMetrics(fixture, results), /Duplicate/);
   assert.throws(() => calibrationMetrics(fixture, fake().slice(1)), /Incomplete/);
+});
+
+test('per-item details retain matches, mismatches, criterion differences and invalid submissions',()=>{
+ const results=fake();
+ const first=fixture.submissions[0], [itemId,answer]=Object.entries(first.answers)[0];
+ const rubric=fixture.items[itemId].rubric;
+ const grade=results[0].grades[0];
+ grade.rubricScores=rubric.map((r,i)=>({criterion:r.criterion,points:i?0:r.points,max:r.points}));
+ const enriched=structuredClone(fixture);enriched.submissions[0].answers[itemId].expectedRubricScores=rubric.map(r=>r.points);
+ let metrics=calibrationMetrics(enriched,results),detail=metrics.details.find(d=>d.fixtureId===first.id && d.itemId===itemId);
+ assert.equal(detail.expectedResult,answer.expected);assert.equal(detail.modelResult,answer.expected);assert.equal(detail.fixtureAnswer,answer.answer);
+ assert.equal(detail.rubricScores[0].expectedPoints,rubric[0].points);assert.equal(detail.rubricScores[0].modelPoints,rubric[0].points);
+ assert.equal(detail.rubricScores[1].expectedPoints,rubric[1].points);assert.equal(detail.rubricScores[1].modelPoints,0);
+ grade.result=answer.expected==='correct'?'incorrect':'correct';
+ metrics=calibrationMetrics(enriched,results);detail=metrics.details.find(d=>d.fixtureId===first.id && d.itemId===itemId);
+ assert.notEqual(detail.expectedResult,detail.modelResult);
+ results[1]={...results[1],grades:[],invalid:true,errorCode:'contract_error:invalid_type:/grades'};
+ metrics=calibrationMetrics(enriched,results);const invalid=metrics.details.filter(d=>d.fixtureId===fixture.submissions[1].id);
+ assert.equal(invalid.length,Object.keys(fixture.submissions[1].answers).length);assert.ok(invalid.every(d=>d.modelResult===null && d.errorCode==='contract_error:invalid_type:/grades'));
+ assert.ok(metrics.details.find(d=>d.fixtureId===first.id && d.itemId!==itemId).rubricScores.every(r=>r.expectedPoints===null));
 });
