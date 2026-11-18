@@ -40,7 +40,7 @@ Khung staging G5/D/G3 sửa đã đóng lúc 07:38 Europe/Berlin ngày 18/11.
 
 Khung staging F6.1/G3/G5b/G5c đã đóng lúc 09:31 Europe/Berlin ngày 18/11.
 
-staging: G3 #215, đến 12:30 Europe/Berlin
+staging: G3 #215 và T5 (migration 0037), đến 13:30 Europe/Berlin
 
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
