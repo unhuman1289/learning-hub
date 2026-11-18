@@ -44,7 +44,7 @@ test('one invalid schema still completes all eight calls and counts the affected
  assert.equal(await consumeCalibration(db,env,job.id,'prompt',fetcher),'succeeded');
  assert.equal(calls,8);assert.equal(db.sqlite.prepare('SELECT calls FROM calibration_jobs WHERE id=?').get(job.id).calls,8);
  const row=db.sqlite.prepare('SELECT * FROM grader_calibrations').get();assert.equal(row.n,32);assert.equal(row.agreement,28/32);assert.equal(row.input_tokens,80);
- assert.equal(db.sqlite.prepare('SELECT error FROM calibration_jobs WHERE id=?').get(job.id).error,'invalid_submissions=1');
+ assert.match(db.sqlite.prepare('SELECT error FROM calibration_jobs WHERE id=?').get(job.id).error, /^invalid_submissions=1;s3=contract_error:\/grades\/0\/rubricScores$/);
  db.sqlite.close();
 });
 test('HTTP error is recorded without provider response content',async()=>{
@@ -65,6 +65,6 @@ test('invalid JSON consumes one call, keeps usage, and the remaining submissions
   return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:calls===3?'not json':JSON.stringify(result)}]}],usage:{input_tokens:10,output_tokens:5}});
  };
  assert.equal(await consumeCalibration(db,env,job.id,'prompt',fetcher),'succeeded');assert.equal(calls,8);
- assert.equal(db.sqlite.prepare('SELECT error FROM calibration_jobs WHERE id=?').get(job.id).error,'invalid_submissions=1');
+ assert.equal(db.sqlite.prepare('SELECT error FROM calibration_jobs WHERE id=?').get(job.id).error,'invalid_submissions=1;s3=invalid_json');
  assert.equal(db.sqlite.prepare('SELECT input_tokens FROM grader_calibrations WHERE id=?').get(job.id).input_tokens,80);db.sqlite.close();
 });

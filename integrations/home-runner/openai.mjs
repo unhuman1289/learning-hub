@@ -70,14 +70,20 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
         error.retryable = response.status >= 500 || (response.status === 429 && code === 'rate_limit_exceeded');
         throw error;
       }
+      const responseUsage = body?.usage ? { model: body.model || model, inputTokens: body.usage.input_tokens ?? 0, outputTokens: body.usage.output_tokens ?? 0, ms: Date.now() - started } : null;
+      const invalidResponse = (message, code) => {
+        const error = new Error(message);
+        if (responseUsage) { error.invalidOutput = true; error.invalidCode = code; error.usage = responseUsage; }
+        return error;
+      };
       if (body?.status !== 'completed') {
         const status = ['failed', 'incomplete', 'cancelled', 'queued', 'in_progress'].includes(body?.status) ? body.status : 'unknown';
         const reason = ['max_output_tokens', 'content_filter'].includes(body?.incomplete_details?.reason) ? body.incomplete_details.reason : null;
-        throw new Error('OpenAI response status: ' + status + (reason ? ' (' + reason + ')' : ''));
+        throw invalidResponse('OpenAI response status: ' + status + (reason ? ' (' + reason + ')' : ''), 'response_status');
       }
 
       const content = (body.output ?? []).filter(item => item.type === 'message').flatMap(item => item.content ?? []);
-      if (content.some(item => item.type === 'refusal')) throw new Error('OpenAI declined this response.');
+      if (content.some(item => item.type === 'refusal')) throw invalidResponse('OpenAI declined this response.', 'response_refused');
       const output = content.filter(item => item.type === 'output_text').map(item => item.text).join('');
       let json;
       try {
@@ -85,12 +91,16 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
       } catch {
         const error = new Error('OpenAI response was not valid JSON.');
         error.invalidOutput = true;
+        error.invalidCode = 'invalid_json';
         error.usage = { model: body.model || model, inputTokens: body.usage?.input_tokens ?? 0, outputTokens: body.usage?.output_tokens ?? 0, ms: Date.now() - started };
         throw error;
       }
 
+      let clean;
+      try { clean = stripOptionalNulls(schema, json); }
+      catch { throw invalidResponse('OpenAI response normalization failed.', 'response_normalization'); }
       return {
-        json: stripOptionalNulls(schema, json),
+        json: clean,
         usage: {
           model: body.model || model,
           inputTokens: body.usage?.input_tokens ?? 0,

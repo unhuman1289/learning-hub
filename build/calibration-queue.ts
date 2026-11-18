@@ -27,7 +27,7 @@ export async function consumeCalibration(db: D1Database, env: Cloudflare.Env, id
         .bind('alert_' + (await sha256Hex(day + ':grader_calibration_low')).slice(0,20), day, stamp, Number(calibrationLow(metrics)), id, token),
       db.prepare(`UPDATE calibration_jobs SET status='succeeded',error=?,finished_at=?,updated_at=?,lease_token=NULL,lease_expires_at=NULL
         WHERE id=? AND status='leased' AND lease_token=? AND EXISTS(SELECT 1 FROM grader_calibrations WHERE id=?)`)
-        .bind('invalid_submissions=' + metrics.invalid, stamp, stamp, id, token, id),
+        .bind('invalid_submissions=' + metrics.invalid + (metrics.invalidReasons.length ? ';' + metrics.invalidReasons.join(';') : ''), stamp, stamp, id, token, id),
     ]);
     if (!result[2].meta.changes) throw new Error('Calibration was not saved');
     return 'succeeded';
