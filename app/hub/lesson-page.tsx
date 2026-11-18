@@ -234,7 +234,7 @@ function LessonSheet({ meta, date, title, stamp, stampPressed = false, body, ans
                 type="button"
                 aria-expanded={!!revealed[index]}
                 onClick={() => setRevealed((current) => ({ ...current, [index]: !current[index] }))}
-                className="min-h-7 text-sm font-semibold leading-7 text-accent hover:underline"
+                className={buttonClass("secondary")}
               >
                 {revealed[index] ? "Ẩn đáp án gợi ý" : "Xem đáp án gợi ý"}
               </button>

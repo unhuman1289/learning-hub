@@ -50,7 +50,7 @@ export function StudyMeter({ clock, labelFor }: { clock: StudyClock; labelFor: (
         <div
           id="study-meter-note"
           role="tooltip"
-          className="postit invisible absolute right-0 top-full z-30 mt-3 w-64 rotate-1 rounded-[1px] bg-postit-yellow p-3.5 text-left opacity-0 transition-[opacity,translate,visibility] duration-200 -translate-y-1 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100"
+          className="postit invisible absolute right-0 top-full z-30 mt-3 w-64 rotate-1 rounded-[1px] bg-postit-yellow p-3.5 text-left opacity-0 transition-[opacity,translate,visibility] duration-200 -translate-y-1 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:w-auto"
         >
           <p className="font-hand text-lg leading-6">Đã học hôm nay: {minutes} / {targetMinutes} phút{reached ? " ✓" : ""}</p>
           {byTrack.length ? (
@@ -99,7 +99,7 @@ function TargetEditor({ clock, onDone }: { clock: StudyClock; onDone: () => void
       role="dialog"
       aria-label="Mục tiêu học mỗi ngày"
       onSubmit={(event) => { event.preventDefault(); if (valid) void save(); }}
-      className="postit absolute right-0 top-full z-30 mt-3 w-72 animate-sheet-in rounded-[1px] bg-postit-yellow p-4 text-left"
+      className="postit absolute right-0 top-full z-30 mt-3 w-72 animate-sheet-in rounded-[1px] bg-postit-yellow p-4 text-left max-sm:fixed max-sm:inset-x-4 max-sm:top-16 max-sm:w-auto"
     >
       <label htmlFor="study-target" className="font-hand text-lg leading-6">Mục tiêu mỗi ngày</label>
       <div className="mt-2 flex items-center gap-2">

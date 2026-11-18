@@ -107,7 +107,7 @@ export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, cur
         return <div key={mode} className="min-w-0 font-hand">
           <button type="button" ref={mode === "personal" ? personalButton : undefined}
             aria-expanded={mode === "personal" ? personal : undefined}
-            className="w-full disabled:opacity-60" disabled={busy || pending}
+            className="notebook-button notebook-ghost w-full flex-col" disabled={busy || pending}
             onClick={() => mode === "personal" ? setPersonal(!personal) : void send(mode)}>
             <span className="mx-auto grid size-14 place-items-center rounded border border-rule bg-paper text-ink-paper">
               <SketchIcon name={mode} size={32} />
@@ -129,8 +129,8 @@ export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, cur
         <textarea className="block w-full resize-y border-0 bg-transparent p-0 font-hand text-xl leading-7 placeholder:text-muted/70 focus:border-b-2 focus:border-accent-paper" rows={2} autoFocus required maxLength={1000} value={note} onChange={event => setNote(event.target.value)} placeholder="Ví dụ: phân số, viết thư cho bạn." />
       </label>
       <div className="flex h-14 items-center gap-4">
-        <button className={buttonClass("secondary", "min-h-11")} disabled={busy || !note.trim()}>Gửi</button>
-        <button type="button" className={pencilLink} onClick={() => { setPersonal(false); personalButton.current?.focus(); }}>Đóng</button>
+        <button className={buttonClass("secondary", "text-postit-ink")} disabled={busy || !note.trim()}>Gửi</button>
+        <button type="button" className={buttonClass("secondary", "text-postit-ink")} onClick={() => { setPersonal(false); personalButton.current?.focus(); }}>Đóng</button>
       </div>
     </form>}
     {error && <p role="alert" className="text-brick">{error} {attempt && <button type="button" disabled={busy} className={pencilLink} onClick={() => void send(attempt.mode, attempt)}>{words.action.retry}</button>}</p>}
