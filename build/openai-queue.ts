@@ -210,7 +210,9 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
             throw error;
           }
         } } : {}),
-        log: (entry?: { event: string; errors?: unknown[] }) => {
+        log: (entry?: { event: string; errors?: unknown[]; passed?: boolean }) => {
+          if (job.kind === 'assess' && entry?.event === 'assess_first_validation' && typeof entry.passed === 'boolean')
+            console.info(JSON.stringify({component:'openai-queue',jobId:id,event:'assess_first_validation',passed:entry.passed}));
           if (job.kind === 'assess' && entry) assessDiagnostic = assessIssue(entry) ?? assessDiagnostic;
           if (tts && entry && contentEvents.has(entry.event))
             logAudioFailure(entry.event, { stage: 'lesson_validation', issues: contentIssues(entry.event, entry.errors) });

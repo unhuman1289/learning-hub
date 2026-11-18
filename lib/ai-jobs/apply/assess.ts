@@ -8,6 +8,7 @@ import {roadmapProgressWrite} from '../../roadmap/progress.ts';
 import { prepareJobStates } from '../../learner-model/job-state.ts';
 import type { ValidationIssue } from './plan.ts';
 import { checkGradeEvidence } from './evidence.ts';
+import { matchRubricScores, rubricIssues } from './rubric.ts';
 import { promptHash } from '../../lesson-v2/store.ts';
 export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessContext, result: AssessResult, token: string, now: Date) {
   const errors: ValidationIssue[] = [],
@@ -55,30 +56,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
     )
       issue(path, 'privacy', 'Lời phê có thể chứa định danh.');
     const solutionSeen = appended.gradingMode === 'whole-lesson' && a.support === 'solution';
-    const rubric = a.rubric ?? [];
-    if (g.result === 'ungradable') {
-      if (!g.feedback.trim() || g.score !== 0) issue(path, 'schema', 'Câu không chấm được cần lý do và score 0.');
-    } else {
-      if (g.rubricScores.length !== rubric.length || new Set(g.rubricScores.map((r) => r.criterion)).size !== rubric.length)
-        issue(path + '/rubricScores', 'schema', 'Cần điểm cho đúng từng tiêu chí rubric.');
-      let points = 0,
-        max = 0;
-      for (const r of g.rubricScores) {
-        const expected = rubric.find((x) => x.criterion === r.criterion);
-        if (!expected || r.max !== expected.points || r.points > r.max)
-          issue(path + '/rubricScores', 'schema', 'Tiêu chí hoặc số điểm không khớp rubric.');
-        points += r.points;
-        max += r.max;
-      }
-      if (
-        !max ||
-        Math.abs(points / max - g.score) > 0.001 ||
-        (g.result === 'correct' && g.score !== 1) ||
-        (g.result === 'incorrect' && g.score !== 0) ||
-        (g.result === 'partial' && (g.score <= 0 || g.score >= 1))
-      )
-        issue(path, 'schema', 'Kết quả phải nhất quán với điểm rubric.');
-    }
+    errors.push(...rubricIssues(g, a, path));
     const evidence = checkGradeEvidence(g, current.answer, a.attachments.some((img) => !img.expired));
     if (evidence.invalid)
       issue(path + '/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản.');
@@ -105,7 +83,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
           job.id,
           solutionSeen ? 'incorrect' : g.result,
           solutionSeen ? 0 : g.score,
-          JSON.stringify(solutionSeen ? [] : g.rubricScores),
+          JSON.stringify(solutionSeen ? [] : matchRubricScores(g, a)),
           solutionSeen ? 'Đã xem lời giải. ' + evidence.feedback : evidence.feedback,
           g.correction,
           JSON.stringify(solutionSeen ? [] : evidence.errors),

@@ -636,6 +636,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       if (lease.kind === 'plan') normalizePlanAttachments(result, context);
       const local = contract.zod.safeParse(result);
       if (!local.success) {
+        if (lease.kind === 'assess' && round === 0) log({jobId: lease.jobId, event: 'assess_first_validation', passed: false});
         repair = local.error.issues.slice(0, 20).map((i) => ({ path: '/' + i.path.join('/'), message: i.message }));
         if (lease.kind === 'plan') draft = result;
         lastError = qwen.name + ': kết quả sai hợp đồng';
@@ -711,6 +712,8 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         }
         dry = await hub.result(lease, validResult, true);
       }
+      if (lease.kind === 'assess' && round === 0 && (dry.status === 200 || dry.status === 422))
+        log({jobId: lease.jobId, event: 'assess_first_validation', passed: dry.status === 200});
       if (dry.status === 422) {
         repair = dry.body?.errors ?? [];
         if (lease.kind === 'plan') draft = validResult;

@@ -1594,3 +1594,30 @@ test('Queue retains safe validation diagnostic after two invalid assessment resp
  const saved=await readJob(db,job.id);assert.equal(saved.status,'failed');assert.equal(calls,2);
  assert.match(saved.error,/^contract_error:invalid_type \/grades\/0\/rubricScores$/);assert.doesNotMatch(saved.error,/private response|ok lah/);
 });
+
+test('Queue matches normalized rubric names on first validation and saves original criteria', async t => {
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ for (const kind of ['normalized','positional','missing','wrong_max']) {
+  const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+  await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+  const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+  const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}};
+  const job=await queueSubmission(db,env,learner,sub.id,new Date());let calls=0;const logs=[];
+  const original=console.info;console.info=(...args)=>logs.push(args.join(' '));
+  try {
+   await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail('unexpected retry')}]},env,()=> 'prompt',async(_url,request)=>{
+    calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+    const scores=a.rubric.map((r,i)=>({criterion:kind==='positional'?'Different '+i:'  '+r.criterion.toUpperCase()+'  .  ',points:0,max:r.points}));
+    if(kind==='missing')scores.pop();if(kind==='wrong_max')scores[0].max+=1;
+    const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:scores,feedback:'Hãy trả lời theo yêu cầu.',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+    return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+   });
+  } finally {console.info=original;}
+  const saved=await readJob(db,job.id), valid=['normalized','positional'].includes(kind);
+  assert.equal(saved.status,valid?'succeeded':'failed',saved.error);assert.equal(calls,valid?1:2);
+  assert.ok(logs.some(line=>line.includes('assess_first_validation') && line.includes(`"passed":${valid}`)));
+  if(valid){const grade=db.sqlite.prepare('SELECT rubric_scores FROM grades WHERE job_id=?').get(job.id);
+   const item=JSON.parse(db.sqlite.prepare("SELECT payload FROM lesson_items WHERE lesson_id=? AND item_id='i3'").get(lesson).payload);
+   assert.deepEqual(JSON.parse(grade.rubric_scores).map(x=>x.criterion),item.rubric.map(x=>x.criterion));}
+ }
+});
