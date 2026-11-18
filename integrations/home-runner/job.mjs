@@ -370,6 +370,30 @@ function compactOnce(context) {
   };
 }
 
+// The OpenAI projection retains decision inputs and grading evidence while omitting
+// duplicated history. The original context remains intact for validation and apply.
+export function compactOpenAiContext(context) {
+  if (context.contract.startsWith('plan')) {
+    const result = compactPlanContext(context);
+    for (const subject of result.subjects) {
+      subject.recentLessons = subject.recentLessons.slice(-2).map(({ lessonId, assignedDay, kind, title, completed, items }) => ({
+        lessonId, assignedDay, kind, title, completed,
+        items: items.map(({ attemptId, activity, skills, prompt, result, errorLabels }) => ({ attemptId, activity, skills, prompt, result, errorLabels })),
+      }));
+      if (context.adaptive?.roadmapTask === 'none' && subject.roadmap?.length) {
+        const target = context.adaptive.step?.id;
+        const index = subject.roadmap.findIndex(step => step.id === target);
+        subject.roadmap = index < 0 ? subject.roadmap.slice(-5) : subject.roadmap.slice(Math.max(0, index - 2), index + 4);
+      }
+    }
+    return result;
+  }
+  const { contract, contextHash, purpose, learner, subject, lesson, attempts, openErrorPatterns, recheck, calibration, knowledge } = context;
+  return { contract, contextHash, purpose, learner: { role: learner.role, explainLanguage: learner.explainLanguage, ...(purpose === 'recheck' ? {} : { displayName: 'Người học' }) },
+    subject: { title: subject.title, level: subject.level, sensitivity: subject.sensitivity }, lesson,
+    attempts: attempts.map(attempt => Object.fromEntries(Object.entries(attempt).filter(([key]) => key !== 'previousAttempts'))), openErrorPatterns, recheck, calibration, ...(knowledge ? { knowledge } : {}) };
+}
+
 const normalizeNumericKey = key => key.type === 'numeric' ? { ...key, value: normalizeNumericKeyValue(key.value) } : key;
 
 export function normalizeLesson(lesson) {
@@ -579,7 +603,8 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
     let retryable = true;
     let draft;
     if (qwen.name === 'openai') {
-      if (context.purpose !== 'recheck') promptContext.learner = { ...promptContext.learner, displayName: 'Người học', personalPrompt: '' };
+      promptContext = compactOpenAiContext(promptContext);
+      if (lease.kind === 'plan' && context.purpose !== 'recheck') promptContext.learner = { ...promptContext.learner, displayName: 'Người học', personalPrompt: '' };
       for (const attempt of promptContext.attempts ?? []) attempt.previousAttempts = [];
       if (promptContext.recentEvidence) promptContext.recentEvidence = [];
     }
@@ -590,6 +615,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         !line.startsWith('- Ít nhất một nửa số câu có '),
       ).join('\n');
     }
+    if (openAiWholeLesson) planInstructions += '\nQuy tắc whole-lesson này THAY quy tắc số câu, câu mở và key trong hướng dẫn soạn bài: bài chính 5–8 câu, bài thêm 3–6 câu. Tất cả là câu văn bản mở có rubric 2–5 tiêu chí và lời giải, dùng gradingMode whole-lesson. Viết lại mọi yêu cầu chọn/nối/xếp thành câu trả lời tự nhập. Không tạo đáp án chấm máy. Chỉ đặt attachment optional cho tối đa 2 câu mở có rubric trong mỗi bài khi ảnh lời giải toán, sơ đồ hoặc bài viết tay hữu ích; các câu khác đặt none, không bao giờ required. Sổ có sensitivity khác normal luôn đặt none. Đề, rubric và lời giải phải cho phép chấm đầy đủ khi người học chỉ gõ chữ, không gửi ảnh.';
     const uploadedAudio = new Set();
     for (let round = 0; round < maxRounds; round++) {
       let result;
@@ -607,9 +633,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         const out = await qwen.run({
           system: planInstructions + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
-          user: userPrompt(promptContext, repair) + (openAiWholeLesson
-            ? '\nQuy tắc whole-lesson này THAY quy tắc số câu, câu mở và key trong hướng dẫn soạn bài: bài chính 5–8 câu, bài thêm 3–6 câu. Tất cả là câu văn bản mở có rubric 2–5 tiêu chí và lời giải, dùng gradingMode whole-lesson. Viết lại mọi yêu cầu chọn/nối/xếp thành câu trả lời tự nhập. Không tạo đáp án chấm máy. Chỉ đặt attachment optional cho tối đa 2 câu mở có rubric trong mỗi bài khi ảnh lời giải toán, sơ đồ hoặc bài viết tay hữu ích; các câu khác đặt none, không bao giờ required. Sổ có sensitivity khác normal luôn đặt none. Đề, rubric và lời giải phải cho phép chấm đầy đủ khi người học chỉ gõ chữ, không gửi ảnh.'
-            : ''),
+          user: userPrompt(promptContext, repair),
           schema,
           images,
         });
