@@ -2,13 +2,13 @@
 
 Thuộc bộ [Learning Hub 2.0](README.md). Áp dụng cho bài soạn tay, cho runner đêm (job **plan**) và cho Worker chấm bài (job **assess**).
 
-- Prompt `integrations/runner-prompts/plan.md` và `assess.md` lấy nội dung từ tài liệu này.
+- Prompt `integrations/runner-prompts/plan-request.md` và `assess-openai.md` lấy nội dung từ tài liệu này.
 - Phần đo được (số câu, độ khó, chống lặp, thành thạo, lịch ôn, điều kiện bài kết nối) do server kiểm ([AI-API §6](AI-API.md#6-hợp-đồng), [DATA-MODEL §3–4](DATA-MODEL.md#3-luật-thuần-hàm-có-test)).
 - Phần ở đây là phán đoán sư phạm mà server không kiểm được.
 
 ## Pilot Deutsch
 
-Trong pilot, Hub chọn bước, kỹ năng và lý do theo bằng chứng. Bài chính lúc 00:00 Berlin hướng tới 45 phút. Bài xin thêm qua Học mới, Luyện tập hoặc Cá nhân hóa hướng tới 15 phút. Từ 1 đến 25 câu tùy đầu ra. Một bài viết dài có thể chỉ cần một câu. Mỗi câu giữ rubric hoặc đáp án, gợi ý và lời giải. Chấm câu mở bằng Qwen, chấm lại theo yêu cầu bằng Codex CLI. Xem [plan pilot](../plan/DEUTSCH-ADAPTIVE-PILOT.md).
+Trong pilot, Hub chọn bước, kỹ năng và lý do theo bằng chứng. Bài thử adaptive giữ 5–6 câu, phủ các kỹ năng đích và không đưa gợi ý để đo khả năng tự vận dụng. Bài xếp chỗ khi mở sổ giữ 5 câu và tối đa 20 phút để lấy bằng chứng ban đầu cho 5 bước. Cả hai đều chấm cuối bài. Xem [plan pilot](../plan/DEUTSCH-ADAPTIVE-PILOT.md).
 
 ## 1. Nguyên tắc
 
@@ -150,13 +150,15 @@ Không bắt Ếch vừa tính, vừa giải thích Hóa, vừa viết tiếng �
 | Giai đoạn | Mục đích | Câu | Gợi ý | Ghi chú |
 | --- | --- | --- | --- | --- |
 | Bìa | Học gì, vì sao, đạt gì, bao lâu | | | `why` nêu bằng chứng cụ thể |
-| `retrieval` (Nhớ lại) | Gợi nhớ trước khi xem phiếu | 2–5, chủ yếu câu đóng | Không | Trộn kỹ năng cũ (xen kẽ); không hiện đáp án trước khi trả lời |
+| `retrieval` (Nhớ lại) | Gợi nhớ trước khi xem phiếu | 1–5, ưu tiên câu ngắn | Không | Trộn kỹ năng cũ (xen kẽ); không hiện đáp án trước khi trả lời |
 | `sheet` (Phiếu) | Đủ để tự làm | | | Mục tiêu, quy tắc, giải thích ngắn, ví dụ đúng, ví dụ sai kèm sửa, lỗi hay gặp, mẹo, checklist; gập lại được |
-| `guided` (Luyện có hướng dẫn) | Nhiều quy tắc trên một cấu trúc | 3–6 | 2 bậc | Chuỗi biến đổi kiểu Eck (§5.2) |
+| `guided` (Luyện có hướng dẫn) | Nhiều quy tắc trên một cấu trúc | 2–6 | 2 bậc | Chuỗi biến đổi kiểu Eck (§5.2) |
 | `independent` (Tự làm) | Bằng chứng tự vận dụng | 2–5 | Ẩn sau "Cần trợ giúp?" | `create`, `apply`; rubric gắn kỹ năng |
 | `check` (Kiểm tra lại) | Câu tương đương sau lời phê | 0–2 | Không | Chỉ Assess thêm |
 
-Bài `new` thường 15–30 phút với trẻ em, 20–45 phút với người lớn.
+Bài chính (`daily`, 00:00 Berlin) hướng tới 30 phút mỗi sổ mỗi ngày, 10–14 câu. Bài thêm qua Học mới, Luyện tập hoặc Cá nhân hóa và bộ ôn riêng hướng tới 15 phút, 6–8 câu. Bài thử adaptive giữ 5–6 câu với thời lượng của lượt soạn. Bài xếp chỗ giữ quy tắc riêng của pilot. Trần hợp đồng là 25 câu.
+
+Điều chỉnh số câu ở từng giai đoạn để đủ thời lượng và số câu của lượt soạn. Mỗi câu mới có `estMinutes` tính bằng phút nguyên. Dự trù khoảng 2 phút cho câu ngắn, 4–5 phút cho câu dài. Có thể dùng câu nhanh 1 phút để chừa thời gian cho một câu dài. Tổng `estMinutes` của các câu phải bằng `estMinutes` của bài.
 
 **Gợi ý hai bậc:**
 
@@ -166,15 +168,15 @@ Bài `new` thường 15–30 phút với trẻ em, 20–45 phút với người 
 
 ### 4.2 Khuôn `reading` (AI, MTB, Cardio, Bột)
 
-Bìa (câu hỏi trung tâm) → `read` (2–8 phần, nguồn đã mở thật) → `analyze` (2–6 câu `explain` hoặc `investigate`, có rubric) → `output` (sản phẩm dùng được ngoài Hub).
+Bìa (câu hỏi trung tâm) → `read` (2–8 phần, nguồn đã mở thật) → `analyze` (câu `explain` hoặc `investigate`, có rubric) → `output` (sản phẩm dùng được ngoài Hub). Chia câu hỏi giữa phân tích và sản phẩm theo thời lượng của lượt soạn.
 
 ### 4.3 Các loại bài khác
 
 | Loại | Hình dạng |
 | --- | --- |
-| `review` (bộ ôn) | 3–10 câu, 5–20 phút. Chỉ `retrieval` và `independent`. Kỹ năng đến hạn, trộn dạng, ngữ cảnh mới. |
-| `diagnostic` (khi mở sổ mới) | 8–15 câu trải khắp lộ trình, không gợi ý, ≤20 phút. Bìa ghi "làm sai cũng không sao". |
-| `exploration` | Trả lời ngắn, nêu kiến thức tiên quyết, 2–4 câu luyện, liên hệ với sổ. Không tự phá lộ trình chính. |
+| `review` (bộ ôn) | Bộ ôn riêng 6–8 câu, 15 phút. Bài chính dạng ôn theo thời lượng bài chính. Chỉ `retrieval` và `independent`. Kỹ năng đến hạn, trộn dạng, ngữ cảnh mới. |
+| `diagnostic` (khi mở sổ mới) | 5 câu cho 5 bước đầu, không gợi ý, tối đa 20 phút. Bìa ghi "làm sai cũng không sao". |
+| `exploration` | Trả lời ngắn, nêu kiến thức tiên quyết, 6–8 câu luyện trong 15 phút, liên hệ với sổ. Không tự phá lộ trình chính. |
 | `connect` (trong Sổ kết nối) | Khuôn `reading` rút gọn: nguyên lý → từng môn → giống, khác, giới hạn → một câu áp dụng ở bối cảnh mới. 10–20 phút. |
 | `synthesis` (trong Sổ kết nối) | Một case hoặc vấn đề thật. Câu hỏi tách theo kỹ năng thành phần, cộng một câu tổng hợp. 20–60 phút. |
 
@@ -203,9 +205,13 @@ Câu trong bài `connect` hoặc `synthesis` ghi thêm `concepts`, và có thể
 
 Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiếp → tìm lỗi trong lời giải → bài thực tế → giải thích vì sao phương pháp đúng → tự đặt một bài tương tự.
 
-Ảnh bài làm chỉ là lựa chọn bổ sung: với sổ `normal`, tối đa hai câu mở có rubric trong mỗi bài có thể đặt `attachment: optional` khi lời giải toán viết tay, sơ đồ hoặc bài viết tay giúp thể hiện quá trình. Các câu khác đặt `none`; không bao giờ yêu cầu ảnh. Sổ có sensitivity khác `normal` luôn đặt `none`. Đề, rubric và lời giải phải cho phép người học trả lời bằng chữ và được chấm đầy đủ ngay cả khi không gửi ảnh.
+Với sổ `normal`, đặt `attachment: optional` cho mọi câu có phép tính, chứng minh hoặc lời giải nhiều bước. Các câu khác đặt `none`. Sổ có sensitivity khác `normal` luôn đặt `none`. Đề, rubric và lời giải phải cho phép chấm đầy đủ mọi bước khi người học chỉ gõ chữ.
 
-### 5.3 `key` hay `rubric`
+### 5.3 Rubric cho bài mới
+
+Bài mới do Worker soạn dùng `gradingMode: whole-lesson` và chấm một lượt khi nộp cả bài. Mọi câu dùng rubric và lời giải mẫu, kể cả câu nghe. Câu nghe giữ lời thoại và thông số phát audio. Rubric và lời giải bám thông tin nghe được. Viết các câu chọn, điền, nối hoặc xếp thành câu trả lời tự nhập.
+
+Quy tắc đáp án sau đây áp dụng cho bài được soạn theo hợp đồng chấm từng câu:
 
 - **`key`** chỉ khi đáp án duy nhất: trắc nghiệm, đáp số, ≤3 từ, hoặc một câu sửa chỉ có một cách đúng.
 - **`rubric`** khi tiếng Đức có thể đảo trật tự hợp lệ.
@@ -215,7 +221,7 @@ Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiế
 
 ### 5.4 Dạng câu theo sổ
 
-Bài mới dùng `lesson-package/3`. Chỉ dùng các dạng trong `limits.itemKinds` của sổ. Sổ ngôn ngữ mặc định có trắc nghiệm, trả lời ngắn, tự luận và điền chỗ trống. Một bài có thể dùng một dạng và không dùng khối mã trong `knowledge`.
+Bài mới dùng `lesson-package/3`. Với bài chấm cuối lượt, dùng các dạng tự nhập do schema cho phép dựa trên `limits.itemKinds` của sổ. Sổ ngôn ngữ mặc định có trắc nghiệm, trả lời ngắn, tự luận và điền chỗ trống. Một bài có thể dùng một dạng và không dùng khối mã trong `knowledge`.
 
 Sổ lập trình mặc định có trắc nghiệm, trả lời ngắn, điền chỗ trống, sắp xếp và viết mã. Sổ Toán và khoa học mặc định có trắc nghiệm, trả lời ngắn, tự luận, điền chỗ trống, điền bảng và gắn nhãn. Cả hai nhóm cần ít nhất hai dạng trong mỗi bài. Sổ khác mặc định có trắc nghiệm, trả lời ngắn và tự luận. Dùng hình có sẵn, bảng và sơ đồ dựa trên dữ liệu của bài.
 
@@ -392,7 +398,7 @@ Hôm sau không giao lại bài này. Bài tiếp theo có thể là hội tho�
 
 ## Deutsch người lớn — unhuman (nội dung thủ công đầu tiên)
 
-Tự đánh giá A2, chưa có kiểm tra xác nhận; B2 cho công việc/chứng chỉ trong một năm, C2 dài hạn. Ưu tiên viết và nói trong đời sống/công việc nghiên cứu. Bài 35–45 phút, kiểm tra nền trước, một đầu ra thực tế và bài mở có rubric. Không dùng profile/bài trẻ em của Ếch để thay mục tiêu này. Không hứa đạt chứng chỉ từ số bài đã hoàn thành.
+Tự đánh giá A2, chưa có kiểm tra xác nhận; B2 cho công việc/chứng chỉ trong một năm, C2 dài hạn. Ưu tiên viết và nói trong đời sống/công việc nghiên cứu. Kiểm tra nền trước, một đầu ra thực tế và bài mở có rubric. Không dùng profile/bài trẻ em của Ếch để thay mục tiêu này. Không hứa đạt chứng chỉ từ số bài đã hoàn thành.
 
 Bài 01 có email đổi lịch và đối thoại, củng cố V2/modal, hướng dẫn weil và đề nghị lịch sự. Chỉ chọn bài kế tiếp dựa trên câu trả lời đã có; chưa có dữ liệu thì ghi rõ. Nói phải có tương tác; bản chép chỉ chứng minh nội dung, không chứng minh phát âm/độ trôi chảy. Thời lượng và số từ là mục tiêu riêng của bài luyện, không phải mô phỏng đề thi chính thức.
 

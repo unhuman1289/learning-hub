@@ -113,6 +113,7 @@ export async function readLessonV2(db: Db, learnerId: string, lessonId: string, 
     draft: JSON.parse(row.draft) as Record<string, { answer: string; attachmentIds?: string[] }>,
     draftRevision: row.draft_revision,
     listen_log: JSON.parse(row.listen_log ?? "{}") as Record<string, number>,
-    wholeLesson: lesson.contract === "lesson-package/3" && lesson.gradingMode === "whole-lesson",
+    // Keep the capability flag for readers loaded before the whole-lesson rollout.
+    wholeLesson: true,
   };
 }

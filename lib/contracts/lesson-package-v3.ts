@@ -59,7 +59,10 @@ export const audioSpec = z.object({
 
 export type AudioSpec = z.infer<typeof audioSpec>;
 
-const basicItemV3 = lessonItem.extend({ audio: audioSpec.optional() });
+const basicItemV3 = lessonItem.extend({
+  audio: audioSpec.optional(),
+  estMinutes: z.number().int().min(1).max(90).optional(),
+});
 const base = basicItemV3.omit({ input: true, choices: true, key: true, rubric: true });
 const itemV3 = z.union([
   basicItemV3,
@@ -84,11 +87,15 @@ export const lessonPackageV3 = lessonPackageV2.extend({
   gradingMode: z.literal("whole-lesson").optional(),
 }).superRefine((lesson, ctx) => {
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
-  if (lesson.gradingMode === "whole-lesson" && (lesson.items.length > 8 ||
+  if (lesson.gradingMode === "whole-lesson" &&
     lesson.items.some(item => !["short", "long", "code"].includes(item.input) || !("rubric" in item) || !item.rubric ||
-      ("key" in item && item.key) || item.attachment === "required") ||
-    lesson.items.filter(item => item.attachment === "optional").length > 2)) {
-    issue(["items"], "Bài chấm cuối lượt có tối đa 8 câu mở dạng văn bản, mỗi câu có rubric.");
+      ("key" in item && item.key) || item.attachment === "required")) {
+    issue(["items"], "Bài chấm cuối lượt dùng câu mở dạng văn bản, mỗi câu có rubric và chỉ có thể nhận ảnh tùy chọn.");
+  }
+  if (lesson.items.some(item => item.estMinutes !== undefined) &&
+    (!lesson.items.every(item => item.estMinutes !== undefined) ||
+      lesson.items.reduce((total, item) => total + (item.estMinutes ?? 0), 0) !== lesson.estMinutes)) {
+    issue(["estMinutes"], "Mỗi câu cần có estMinutes và tổng số phút của các câu phải bằng estMinutes của bài.");
   }
   const ids = lesson.items.map(item => item.id);
   if (new Set(ids).size !== ids.length) issue(["items"], "Mã câu phải khác nhau.");

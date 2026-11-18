@@ -4,7 +4,7 @@ import {decideNext,roadmapSignals} from '../../roadmap/progress.ts';
 import { itemPolicy, listeningLanguage } from "../../subjects/item-kinds.ts";
 import {frameworks,inferFramework} from '../../roadmap/frameworks.ts';
 import { contextExcerpt } from '../../knowledge/service.ts';
-import { decideAdaptivePlan } from '../adaptive.ts';
+import { DAILY_LESSON_MINUTES, EXTRA_LESSON_MINUTES, decideAdaptivePlan } from '../adaptive.ts';
 import {openWorkMinutesSql} from '../open-work.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
@@ -62,7 +62,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     contextHash: 'sha256:' + '0'.repeat(64),
     learner: {
       ...learner.public,
-      targetMinutes: job.adaptive ? (job.purpose === 'daily' ? 45 : 15) : target,
+      targetMinutes: job.purpose === 'daily' ? DAILY_LESSON_MINUTES : job.purpose === 'request' ? EXTRA_LESSON_MINUTES : target,
       preferences: cleanPreferences(learningPreferences(JSON.parse(String(learner.settings?.preferences ?? '{}')))),
       studyMinutes14d: study,
     },

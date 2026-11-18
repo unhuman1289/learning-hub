@@ -1,3 +1,4 @@
+import { openLessonSummary } from './lesson-summary.mjs';
 import { ASSISTED_LESSONS, LISTENING_LESSON, TRANSCRIPT, VOICE_HASHES } from './fixtures/listening.mjs';
 import { expect, test } from '@playwright/test';
 import { routeMetrics } from './route-metrics.mjs';
@@ -22,7 +23,6 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   expect(gzip).toBeGreaterThan(0);
   expect(gzip).toBeLessThanOrEqual(180_000);
 
-  let failMaleAudio = true;
   const heardRequests = [];
   const plays = [];
   page.on('response', response => {
@@ -30,7 +30,6 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
     if (path.startsWith('/api/audio/')) heardRequests.push({ url: path, status: response.status() });
     if (path === itemUrl + '/plays' && response.ok()) plays.push(response.request().postDataJSON().slow);
   });
-  await page.route('**' + voiceSrc.m, route => failMaleAudio ? route.abort('failed') : route.continue());
   const clips = await Promise.all(Object.values(voiceSrc).map(async src => {
     const clip = await context.request.get(src, { headers: { Range: 'bytes=0-4095' } });
     expect(clip.status()).toBe(206);
@@ -86,14 +85,15 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   const settingsUrl = '/api/learners/me/settings';
   expect((await (await context.request.get(settingsUrl)).json()).settings.preferences.listeningVoice).toBe('m');
   await expect(article.getByText('Còn 1 lượt nghe')).toBeVisible();
-  if (simulated) await media.evaluate(node => {
+  // WebKit can fetch media outside Playwright's page routes on macOS.
+  await media.evaluate(node => {
     node.play = async () => { throw new Error('Simulated interrupted playback'); };
   });
   await play.tap();
   const retry = article.getByRole('button', { name: 'Phát lại', exact: true });
   await expect(retry).toBeVisible();
   expect(await savedPlays()).toBe(1);
-  failMaleAudio = false;
+  await media.evaluate(node => { delete node.play; });
   if (simulated) await media.evaluate(node => {
     node.play = async () => { node.dispatchEvent(new Event('playing')); };
   });
@@ -120,19 +120,16 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await confirm.getByRole('button', { name: 'Huỷ' }).tap();
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toHaveCount(0);
   await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
-  const saved = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/submissions') && response.ok());
-  await article.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
-  const { submission } = await (await saved).json();
-  expect(submission.attempts[0].support).toBe('hint1');
-  await expect(article.getByRole('button', { name: /Kiểm tra lại/ })).toBeVisible();
-  const postAnswer = page.waitForResponse(response => response.url().endsWith(itemUrl + '/reveal') && response.ok());
+  const beforeSubmit = page.waitForResponse(response => response.url().endsWith(itemUrl + '/reveal') && response.ok());
   await reveal.tap();
-  expect(await (await postAnswer).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint1' });
+  await confirm.getByRole('button', { name: 'Xem lời thoại', exact: true }).tap();
+  expect(await (await beforeSubmit).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint2' });
   await expect(confirm).toHaveCount(0);
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
   await screenshot('04-loi-thoai');
 
   // Exercise the real profile form and the reader's text-only setting.
+  await expect.poll(async () => (await (await context.request.get(lessonUrl)).json()).lesson.draft.i1?.answer).toBe(TRANSCRIPT);
   const currentUrl = page.url();
   await page.goto('/');
   await page.getByRole('button', { name: 'Cài đặt', exact: true }).tap();
@@ -144,8 +141,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   await page.goto(currentUrl);
   await expect(page.getByText('Mở bằng Safari/Chrome để dùng đầy đủ')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sao chép liên kết' })).toBeVisible();
-  const previous = page.getByRole('button', { name: 'Trang trước' });
-  await previous.tap();
+  await expect(article.getByRole('heading')).toHaveAttribute('data-question-number', '1');
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
   await expect(media).toHaveCount(0);
   const preferences = (await (await context.request.get(settingsUrl)).json()).settings.preferences;
@@ -156,7 +152,7 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
     headers: { origin }, data: { preferences: { ...preferences, replaceAudioWithText: false } },
   })).ok()).toBe(true);
   await page.reload();
-  await previous.tap();
+  await expect(article.getByRole('heading')).toHaveAttribute('data-question-number', '1');
   await expect(article.getByRole('button', { name: 'Nghe thêm (tính là gợi ý)' })).toBeVisible();
   await expect(media).toHaveAttribute('src', voiceSrc.m);
   expect(await savedPlays()).toBe(2);
@@ -170,9 +166,10 @@ test('nghe, đổi giọng, nghe chậm và mở lời thoại', async ({ page, 
   expect(await (await before).json()).toMatchObject({ transcript: TRANSCRIPT, support: 'hint2' });
   await expect(article.locator('p[lang="de-DE"]').filter({ hasText: TRANSCRIPT })).toBeVisible();
   await article.getByRole('textbox', { name: 'Bài làm của bạn' }).fill(TRANSCRIPT);
-  const second = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/submissions') && response.ok());
-  await article.getByRole('button', { name: 'Kiểm tra', exact: true }).tap();
+  const second = page.waitForResponse(response => response.url().endsWith(lessonUrl + '/submissions') && response.request().method() === 'POST' && response.ok());
+  await (await openLessonSummary(page)).getByRole('button', { name: 'Nộp bài', exact: true }).tap();
   expect((await (await second).json()).submission.attempts).toEqual([
+    expect.objectContaining({ item_id: 'i1', support: 'hint2' }),
     expect.objectContaining({ item_id: 'i2', support: 'hint2' }),
   ]);
 });
@@ -238,9 +235,9 @@ for (const { id, mode, level } of ASSISTED_LESSONS) {
     }
     await expect(article.getByText('Đang phát', { exact: true })).toBeVisible();
 
-    if (mode === 'whole-lesson') await page.getByRole('button', { name: 'Sang Tổng kết' }).tap();
+    const summary = await openLessonSummary(page);
     const saved = page.waitForResponse(response => response.url().endsWith(url + '/submissions') && response.request().method() === 'POST');
-    await page.getByRole('button', { name: mode === 'whole-lesson' ? 'Nộp bài' : 'Kiểm tra', exact: true }).tap();
+    await summary.getByRole('button', { name: 'Nộp bài', exact: true }).tap();
     const response = await saved;
     const result = await response.json();
     expect(response.status(), result.error).toBe(200);

@@ -53,7 +53,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
     apiJson<{summary: LessonSummaryData}>(url).then(({summary}) => { if (live) { setData(summary); setError(""); } })
       .catch((e: Error) => { if (live) setError(e.message); });
     return () => { live = false; };
-  }, [url, waiting, progressKey]);
+  }, [url, waiting, progressKey, offlinePending]);
   const needsWork = data && (data.needsCorrection > 0 || data.unanswered > 0);
   const current = items.map(item => feedbackForItems(history, [item.id])[0]);
   const queued = current.some(entry => entry?.job_status === "queued" && entry.attempts.some(a => !a.result));
@@ -66,8 +66,12 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
   return (
     <section aria-label="Tổng kết bài">
       <h1 tabIndex={-1} data-lesson-heading className="mb-3 font-print text-4xl leading-tight">Tổng kết bài</h1>
-      {error && <p role="alert">{error}</p>}
-      {!data && !error && <p role="status" className={pencil}>Đang đọc tổng kết…</p>}
+      {offlinePending && <div className="my-5 flex items-end gap-2" role="alert">
+        <TutorPet size="panel" state="offline" />
+        <p className="mb-3 rounded bg-[#f5ebd8] px-3 py-2 text-[#5e3f0e]">Chưa nộp được vì mất mạng ạ. Bài còn trên trang; có mạng lại con sẽ kiểm tra và nộp tiếp.</p>
+      </div>}
+      {!offlinePending && error && <p role="alert">{error}</p>}
+      {!offlinePending && !data && !error && <p role="status" className={pencil}>Đang đọc tổng kết…</p>}
       {data && <>
         {!history.length && <p>Đã làm {items.filter(item => hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length).length}/{items.length} câu. {items.filter(item => !hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") && !answers[item.id]?.attachmentIds?.length).length ? "Vẫn còn câu trống; bạn vẫn có thể nộp." : ""}</p>}
         {waiting && <p className="font-hand text-lg text-muted-paper">{results.filter(a => !!a?.result).length} câu đã có kết quả.</p>}
@@ -89,10 +93,6 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
             </button></li>;
           })}
         </ul>
-        {offlinePending && <div className="my-5 flex items-end gap-2" role="alert">
-          <TutorPet size="panel" state="offline" />
-          <p className="mb-3 rounded bg-[#f5ebd8] px-3 py-2 text-[#5e3f0e]">Chưa nộp được vì mất mạng ạ. Bài còn trên trang; có mạng lại con sẽ kiểm tra và nộp tiếp.</p>
-        </div>}
         {presentation.pet && <div className="my-5 flex items-end gap-2" role="status">
           <TutorPet size="panel" state={presentation.pet} />
           <p className="mb-3 rounded-xl rounded-bl-sm border border-rule bg-white px-3 py-2 font-print">{presentation.message}</p>

@@ -143,20 +143,23 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     .all<{ item_id: string; stage: string; payload: string; skill_ids: string; activity: string }>(),
     db
     .prepare(
-      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.attachment_ids,a.status,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.attachment_ids,a.status,a.support,g.result,g.correction,
+        CASE WHEN j.status IN ('cancelled','failed','expired') THEN 1 ELSE 0 END AS grading_stopped
+       FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+       LEFT JOIN submissions s ON s.id=a.submission_id LEFT JOIN ai_jobs j ON j.id=s.ai_job_id
        WHERE a.lesson_id=? AND a.learner_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
     )
     .bind(lessonId, learnerId)
-    .all<{ item_id: string; id: string; attempt_no: number; answer: string; attachment_ids: string; status: string; support: string; result: string | null; correction: string | null }>(),
+    .all<{ item_id: string; id: string; attempt_no: number; answer: string; attachment_ids: string; status: string; support: string; result: string | null; correction: string | null; grading_stopped: number }>(),
   ]);
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
   if (lesson.completed_at) throw new ApiError(409, 'Bỏ dấu đã học trước khi nộp sửa lại.');
   if (lesson.draft_revision !== input.draftRevision) throw new ApiError(409, 'Nháp đã thay đổi. Lưu lại nháp trước khi nộp.');
   if ((rate?.n ?? 0) >= 30) throw new ApiError(429, 'Bạn vừa nộp nhiều lần. Thử lại sau một phút.');
-  const wholeLesson = JSON.parse(lesson.payload).gradingMode === 'whole-lesson';
-  if (wholeLesson && (input.stage || input.itemIds))
+  const wholeLesson = input.stage == null && input.itemIds == null;
+  if (!wholeLesson && JSON.parse(lesson.payload).gradingMode === 'whole-lesson')
     throw new ApiError(400, 'Bài này cần nộp cả lượt ở cuối bài.');
-  if (wholeLesson && latest.some(attempt => attempt.status === 'pending'))
+  if (wholeLesson && latest.some(attempt => attempt.status === 'pending' && !attempt.grading_stopped))
     throw new ApiError(409, 'Lượt trước đang chờ chấm.');
   let selected = all.filter((row) => (!input.stage || row.stage === input.stage) && (!input.itemIds || input.itemIds.includes(row.item_id)));
   if (!selected.length || (input.itemIds && selected.length !== input.itemIds.length))
@@ -169,7 +172,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   if (wholeLesson) {
     selected = selected.filter(row => {
       const previous = latest.find(attempt => attempt.item_id === row.item_id);
-      return !previous || (draft[row.item_id]?.answer ?? '') !== previous.answer ||
+      return !previous || (previous.status === 'pending' && !!previous.grading_stopped) || (draft[row.item_id]?.answer ?? '') !== previous.answer ||
         JSON.stringify(draft[row.item_id]?.attachmentIds ?? []) !== previous.attachment_ids ||
         (support[row.item_id] === 'solution' && previous.support !== 'solution');
     });
@@ -177,6 +180,12 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   }
   const id = makeId('subm_'),
     stamp = now.toISOString();
+  const attachmentIds = selected.flatMap(row => draft[row.item_id]?.attachmentIds ?? []);
+  const { results: availablePhotos = [] } = attachmentIds.length
+    ? await db.prepare('SELECT id FROM attachments WHERE learner_id=? AND deleted_at IS NULL AND expires_at>? AND id IN (SELECT value FROM json_each(?))')
+      .bind(learnerId, stamp, JSON.stringify(attachmentIds)).all<{ id: string }>()
+    : {};
+  const ownedPhotos = new Set(availablePhotos.map(photo => photo.id));
   const gate = 'EXISTS(SELECT 1 FROM submissions WHERE id=?)';
   const statements = [
     db
@@ -224,13 +233,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     if (item.attachment === 'none' && photos.length) throw new ApiError(400, `Câu ${row.item_id} không nhận ảnh.`);
     if (containsContactDetails(answer) || containsPossibleClinicalIdentifier(answer, lesson.sensitivity))
       throw new ApiError(400, 'Bài làm có thể chứa thông tin định danh. Hãy dùng ví dụ giả lập.');
-    for (const photo of photos) {
-      const image = await db
-        .prepare('SELECT id FROM attachments WHERE id=? AND learner_id=? AND deleted_at IS NULL AND expires_at>?')
-        .bind(photo, learnerId, stamp)
-        .first();
-      if (!image) throw new ApiError(400, 'Ảnh không thuộc người học hoặc đã hết hạn.');
-    }
+    if (photos.some(photo => !ownedPhotos.has(photo))) throw new ApiError(400, 'Ảnh không thuộc người học hoặc đã hết hạn.');
     const previous = latest.find((attempt) => attempt.item_id === row.item_id);
     // Only a correction actually shown (or a manually revealed solution) counts as solution support.
     const shownCorrection = previous?.correction && previous.result !== 'correct' && !hiddenCorrection(previous, support).correctionHidden;

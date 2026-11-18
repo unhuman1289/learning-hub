@@ -821,12 +821,6 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   padding-top: var(--paper-line-height);
   border-top: 1px solid var(--color-rule);
 }
-.lesson-item[data-keyboard-open]:focus-within .lesson-check {
-  position: sticky;
-  z-index: 10;
-  background-color: var(--color-paper);
-  bottom: max(env(safe-area-inset-bottom), var(--keyboard-inset, 0px));
-}
 /* The turn: the old sheet folds away along a line from the bottom corner. A wrapper rotates
    around the fold line and the sheet inside counter-rotates, so only transforms animate; the
    rolled back of the paper shades the curl and its shadow falls on the new page (U6). */

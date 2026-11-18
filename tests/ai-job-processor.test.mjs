@@ -1,3 +1,4 @@
+import { openAiEngine } from '../lib/ai/openai.mjs';
 import { uploadPlanAudio } from '../lib/ai/upload-plan-audio.mjs';
 import { audioVariant } from '../lib/audio/hash.mjs';
 import { test } from 'node:test';
@@ -5,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
 import { memoryDb } from './d1-adapter.mjs';
+import { buildAssessContext } from '../lib/ai-jobs/context/assess.ts';
 import { enqueue, queueSubmission } from '../lib/ai-jobs/queue.ts';
 import { leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { applyResult } from '../lib/ai-jobs/result.ts';
@@ -549,7 +551,7 @@ test('Hub leases a listening quota only for notebooks whose language has two run
     });
     const shape = lessonProperties.items;
     if (expected.max) {
-      assert(!lessonProperties.gradingMode);
+      assert.deepEqual(lessonProperties.gradingMode, { type: 'string', const: 'whole-lesson' });
       assert.equal(shape.prefixItems.length, expected.max);
       for (const [index, item] of shape.prefixItems.entries()) {
         for (const branch of item.anyOf) {
@@ -620,69 +622,115 @@ test('listening quota and quoted grading evidence are enforced through lease, up
   assert.equal(accepted.status, 200, JSON.stringify(accepted));
 });
 
-test('OpenAI whole-lesson daily prompt replaces key quotas and saves the generated lesson', async () => {
+test('OpenAI daily plans save 14 timed rubric questions and keep the previous lesson', async t => {
   const { db } = await openSubmission();
-  try {
-    db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?').run('2026-11-11T08:00:00.000Z');
-    await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, new Date('2026-11-13T09:00:00Z'));
-    const hub = memoryHub(db);
-    const [lease] = await hub.lease({ kinds: ['plan'], max: 1, runner, capabilities: ['lesson-v3'] });
-    const context = await hub.context(lease);
-    let seen;
-    const engine = {
-      name: 'openai',
-      run: async input => {
-        seen = input;
-        const s = context.subjects[0];
-        const skill = s.skills[0].id ?? s.skills[0].skillId;
-        const lesson = structuredClone(fixture);
-        lesson.gradingMode = 'whole-lesson';
-        lesson.targetSkills = [skill];
-        lesson.reasonRefs = [];
-        lesson.items = lesson.items.slice(0, 5).map((item, index) => ({
-          id: item.id, input: 'short', activity: 'apply', skills: [skill], difficulty: 1,
-          prompt: `Tính giá trị biểu thức 2 × (${index + 2} + 3) và trình bày cách làm.`,
-          rubric: [{ criterion: 'Đúng thứ tự phép tính', points: 1 }, { criterion: 'Kết quả đúng', points: 1 }],
-          hints: ['Tính trong ngoặc trước.'], solution: `2 × (${index + 2} + 3) = ${2 * (index + 5)}.`, attachment: index === 0 ? 'optional' : 'none',
-        }));
-        lesson.stages = [{ stage: 'independent', itemIds: lesson.items.map(item => item.id) }];
-        return { json: {
-          contract: 'plan-result/1', summary: 'Bài mới',
-          subjects: [{ subjectId: s.subjectId, expectedRevision: s.revision,
-            expectedOpenPrimaryLessonId: s.slot.openPrimaryLessonId, action: 'assign', reason: 'Luyện tiếp',
-            skillChanges: [], primaryLesson: lesson, reviewSet: null, masteryProposals: [],
-            progressSummary: 'Luyện câu mới', requestsHandled: [] }],
-          explorations: [],
-        }, usage: { model: 'fixture', inputTokens: 0, outputTokens: 0, ms: 1 } };
-      },
-    };
-    const output = await processJob(hub, { ...lease, kind: 'plan', purpose: 'daily' }, engine);
-    assert.equal(output.status, 'succeeded', JSON.stringify(hub.calls));
-    const prompt = seen.system + seen.user;
-    assert.doesNotMatch(prompt, /Bài chính thông thường 8–10|Tối đa 4 câu mở|Ít nhất một nửa số câu có/);
-    assert.match(prompt, /THAY quy tắc số câu, câu mở và key/);
-    assert.match(prompt, /bài chính 5–8 câu, bài thêm 3–6 câu/);
-    assert.match(systemPrompt('plan', 'daily'), /Bài chính thông thường 8–10/);
-    const saved = db.sqlite.prepare('SELECT payload FROM learning_lessons WHERE origin_job_id=?').get(lease.jobId);
-    assert.equal(JSON.parse(saved.payload).gradingMode, 'whole-lesson');
-    assert.equal(JSON.parse(saved.payload).items.length, 5);
-    assert.equal(JSON.parse(saved.payload).items[0].attachment, 'optional');
-    assert.match(prompt, /không gửi ảnh/);
-  } finally {
-    db.sqlite.close();
+  t.after(() => db.sqlite.close());
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?').run('2026-11-11T08:00:00.000Z');
+  const readOld = () => db.sqlite.prepare('SELECT payload, draft, completed_at FROM learning_lessons ORDER BY rowid LIMIT 1').get();
+  const previous = readOld();
+  await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, new Date('2026-11-13T09:00:00Z'));
+  const hub = memoryHub(db);
+  const [lease] = await hub.lease({ kinds: ['plan'], max: 1, runner, capabilities: ['lesson-v3'] });
+  const context = await hub.context(lease);
+  const [subject] = context.subjects;
+  assert.equal(context.learner.targetMinutes, 30);
+  const skill = subject.skills[0].skillId;
+  const lesson = structuredClone(fixture);
+  Object.assign(lesson, { gradingMode: 'whole-lesson', targetSkills: [skill], reasonRefs: [], estMinutes: 30 });
+  const scenarios = [
+    'Chuẩn bị thư mời cho buổi họp', 'Sắp xếp ca trực ở thư viện', 'Xin phép đổi giờ phỏng vấn',
+    'Lên lịch tập đàn thứ Bảy', 'Chuẩn bị bàn cho khách', 'Hỏi đường đi đến bưu điện',
+    'Viết biển báo cho trường học', 'Mời hàng xóm tới buổi chiếu phim', 'Hỏi quy định ở hồ bơi',
+    'Đề nghị giúp một bạn kẹt xe', 'Đặt lịch khám cho thú cưng', 'Viết kế hoạch cho nhóm làm bánh',
+    'Xin nghỉ buổi tập bóng', 'Hẹn mang sách trả cho bạn',
+  ];
+  lesson.items = scenarios.map((scenario, index) => ({
+    id: 'i' + (index + 1), input: index < 2 ? 'long' : 'short', activity: 'apply', skills: [skill], difficulty: 1,
+    prompt: `${scenario}. Viết một yêu cầu phù hợp bằng tiếng Đức và cho biết động từ ở đâu.`,
+    estMinutes: index < 2 ? 4 : index < 4 ? 1 : 2,
+    rubric: [{ criterion: 'Đúng vị trí động từ', points: 1 }, { criterion: 'Yêu cầu phù hợp tình huống', points: 1 },
+      { criterion: 'Trình bày cách tính giờ và kết quả đúng', points: 1 }],
+    hints: ['Chọn động từ khuyết thiếu.', 'Đặt động từ nguyên mẫu cuối câu.'],
+    solution: 'Ví dụ: Kannst du mir helfen? Động từ khuyết thiếu đứng đầu câu hỏi, còn động từ nguyên mẫu đứng cuối câu.',
+    attachment: 'optional',
+  }));
+  for (const [index, item] of lesson.items.entries()) {
+    const duration = 10 + index;
+    item.prompt += ` Việc bắt đầu lúc 9 giờ và mất ${duration} phút. Tính giờ xong và ghi kèm cách tính.`;
+    item.solution += ` 9:00 + ${duration} phút = 9:${duration}.`;
+  }
+  lesson.stages = [{ stage: 'independent', itemIds: lesson.items.map(item => item.id) }];
+  const result = {
+    contract: 'plan-result/1', summary: 'Luyện dùng động từ khuyết thiếu trong nhiều tình huống.',
+    subjects: [{ subjectId: subject.subjectId, expectedRevision: subject.revision,
+      expectedOpenPrimaryLessonId: subject.slot.openPrimaryLessonId, action: 'assign', reason: 'Luyện tiếp',
+      skillChanges: [], primaryLesson: lesson, reviewSet: null, masteryProposals: [],
+      progressSummary: 'Luyện câu mới', requestsHandled: [] }],
+    explorations: [],
+  };
+  const mismatched = structuredClone(result);
+  mismatched.subjects[0].primaryLesson.items[0].estMinutes++;
+  let calls = 0;
+  const engine = openAiEngine({ apiKey: 'fixture', kind: 'plan', purpose: 'daily', fetcher: async (_url, init) => {
+    const request = JSON.parse(init.body);
+    const schema = JSON.parse(request.input.split('optional fields:\n')[1].split('\nDữ liệu')[0]);
+    const primary = schema.properties.subjects.items.properties.primaryLesson.anyOf[0].properties;
+    assert.deepEqual(primary.estMinutes, { const: 30 });
+    assert.equal(primary.items.minItems, 10);
+    assert.equal(primary.items.maxItems, 14);
+    assert(primary.items.items.anyOf.every(item => item.required.includes('estMinutes') && !item.properties.key));
+    assert.match(request.instructions, /30 phút, 10–14 câu/);
+    assert.match(request.instructions, /15 phút, 6–8 câu/);
+    assert.match(request.instructions, /chỉ gõ chữ/);
+    assert.equal(request.max_output_tokens, 16_000);
+    const draft = calls++ ? result : mismatched;
+    if (draft === result) assert.match(request.input, /tổng số phút/);
+    return Response.json({
+      status: 'completed', usage: { input_tokens: 0, output_tokens: 0 },
+      output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(draft) }] }],
+    });
+  } });
+  const output = await processJob(hub, { ...lease, purpose: 'daily' }, engine);
+  assert.equal(output.status, 'succeeded', JSON.stringify(hub.calls));
+  assert.equal(calls, 2);
+  const saved = db.sqlite.prepare('SELECT id, payload, est_minutes FROM learning_lessons WHERE origin_job_id=?').get(lease.jobId);
+  assert.equal(saved.est_minutes, 30);
+  assert.equal(JSON.parse(saved.payload).gradingMode, 'whole-lesson');
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM lesson_items WHERE lesson_id=(SELECT id FROM learning_lessons WHERE origin_job_id=?)').get(lease.jobId).n, 14);
+  assert.deepEqual(readOld(), previous);
+
+  // One optional image per question must survive submission and enter the same assessment.
+  const answers = {};
+  for (const [index, item] of lesson.items.entries()) {
+    const photo = 'img_' + String(index).padStart(20, '0');
+    db.sqlite.prepare(`INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at)
+      VALUES(?,?,?,'image/png',20,2,2,?,'2026-01-01','2099-01-01')`).run(photo, learner, photo, '0'.repeat(64));
+    answers[item.id] = { answer: '', attachmentIds: [photo] };
+  }
+  const submission = await submitLesson(db, learner, saved.id, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 0, stage: null, answers,
+  }, now);
+  const assessmentJob = await queueSubmission(db, {}, learner, submission.id, now);
+  const assessment = await buildAssessContext(db, await readJob(db, assessmentJob.id), 'test', now);
+  assert.equal(assessment.attempts.length, 14);
+  for (const attempt of assessment.attempts) {
+    assert.deepEqual(attempt.attachments.map(photo => photo.attachmentId), answers[attempt.itemId].attachmentIds);
+    assert.equal(attempt.attachments[0].expired, false);
   }
 });
 
-
-test('photo policy limits normal open rubric items and removes photos from sensitive or ungraded items', () => {
+test('photo policy keeps every optional rubric item in normal notebooks and clears invalid or sensitive choices', () => {
   const item = (overrides = {}) => ({ input: 'short', rubric: [{ criterion: 'Cách làm', points: 1 }], attachment: 'optional', ...overrides });
   const plan = { subjects: [
     { subjectId: 'normal', primaryLesson: { items: [item(), item(), item(), item({ rubric: undefined }), item({ attachment: 'required' })] }, reviewSet: null },
     { subjectId: 'sensitive', primaryLesson: { items: [item()] }, reviewSet: null },
+    { subjectId: 'child', primaryLesson: { items: [item()] }, reviewSet: null },
   ], explorations: [] };
-  normalizePlanAttachments(plan, { subjects: [{ subjectId: 'normal', sensitivity: 'normal' }, { subjectId: 'sensitive', sensitivity: 'clinical' }] });
-  assert.deepEqual(plan.subjects[0].primaryLesson.items.map(i => i.attachment), ['optional', 'optional', 'none', 'none', 'none']);
+  normalizePlanAttachments(plan, { subjects: [{ subjectId: 'normal', sensitivity: 'normal' },
+    { subjectId: 'sensitive', sensitivity: 'clinical' }, { subjectId: 'child', sensitivity: 'child_dev' }] });
+  assert.deepEqual(plan.subjects[0].primaryLesson.items.map(i => i.attachment), ['optional', 'optional', 'optional', 'none', 'none']);
   assert.equal(plan.subjects[1].primaryLesson.items[0].attachment, 'none');
+  assert.equal(plan.subjects[2].primaryLesson.items[0].attachment, 'none');
 });
 
 test('runner accepts off-topic, blank and other-language answers without invented evidence', async t => {

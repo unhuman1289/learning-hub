@@ -1,3 +1,4 @@
+import { openLessonSummary } from './lesson-summary.mjs';
 import { test, expect } from '@playwright/test';
 import { shapeNetwork } from './network.mjs';
 
@@ -21,6 +22,22 @@ test('bàn học offline và đổi hồ sơ trên hai tab', async ({ page, cont
   await expect(page.getByRole('status')).toContainText('Đang mất mạng');
   await expect(page.locator('main')).toContainText(title);
   await context.setOffline(false);
+  await page.getByRole('button', { name: 'Thử kết nối lại' }).tap();
+  await page.getByRole('region', { name: 'Bài tiếp theo' }).getByRole('listitem').filter({ hasText: 'Deutsch' })
+    .getByRole('link', { name: /Mở bài|Học tiếp/ }).first().tap();
+  await expect(page.locator('.lesson-flow')).toBeVisible();
+  const firstPage = page.getByRole('button', { name: 'Bắt đầu bài' });
+  if (await firstPage.isVisible()) await firstPage.tap();
+  const choice = page.locator('.lesson-flow-window-page[data-active]').getByRole('checkbox').first();
+  await expect(choice).toBeEnabled();
+  await choice.press('Space');
+  const summary = await openLessonSummary(page);
+  const request = page.waitForResponse(r => r.url().endsWith('/submissions') && r.request().method() === 'POST');
+  await summary.getByRole('button', { name: 'Nộp bài', exact: true }).tap();
+  const response = await request;
+  expect(response.ok()).toBe(true);
+  expect(response.request().postDataJSON()).toMatchObject({ itemIds: null, stage: null });
+  await expect(summary.getByText('Đã có kết quả bài làm.', { exact: true })).toBeVisible();
   await second.getByRole('button', { name: /Đổi người/ }).tap();
   await second.getByRole('button', { name: /Người học thử/ }).tap();
   await expect.poll(() => page.evaluate(() => localStorage.getItem('lh-offline-profile'))).toBe('demo-adult');

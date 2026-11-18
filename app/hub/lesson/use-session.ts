@@ -64,7 +64,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     [busy, setBusy] = useState(false),
     [history,setHistory]=useState<SubmissionView[]>(prefetched?.submissions ?? []),
     [feedbackError,setFeedbackError]=useState(""),
-    [pending, setPending] = useState<string | null>(null);
+    [pending, setPending] = useState(false);
   const revision = useRef(0),
     latest = useRef<DraftAnswers>({}),
     saved = useRef("{}"),
@@ -73,6 +73,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     generation = useRef(0);
   const pendingSubmission = useRef<PendingSubmission | null>(null);
   const submissionInFlight = useRef(false);
+  const reconnectRequested = useRef(false);
   const [offline, setOffline] = useState(false);
   useEffect(() => {
     const update = () => setOffline(!navigator.onLine);
@@ -108,13 +109,9 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         if (storedSubmission) {
           try {
             const queued = JSON.parse(storedSubmission) as PendingSubmission;
-            const queuedItem = queued.itemIds?.length === 1 ? queued.itemIds[0] : null;
-            const pendingId = result.wholeLesson
-              ? (queued.itemIds === null && queued.stage === null ? "whole-lesson" : null)
-              : (result.items.some(item => item.id === queuedItem) ? queuedItem : null);
-            if (pendingId && typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
+            if (typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
               pendingSubmission.current = queued;
-              setPending(pendingId);
+              setPending(true);
             }
           } catch {
             writeOfflineDraft(submissionKey, undefined);
@@ -303,8 +300,8 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setBusy(false);
     }
   }
-  async function submit(itemId: string) {
-    if (!lesson || busy || submissionInFlight.current || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+  async function submit() {
+    if (!lesson || submissionInFlight.current || (!pendingSubmission.current && (busy || !ready.current))) return;
     submissionInFlight.current = true;
     const started = performance.now();
     setBusy(true);
@@ -312,17 +309,15 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     try {
       if (!pendingSubmission.current) {
         if (saveInFlight.current) await saveInFlight.current;
-        const item = lesson.items.find(i => i.id === itemId);
-        if (!item && !lesson.wholeLesson) return;
         pendingSubmission.current = {
           clientSubmissionId: crypto.randomUUID(),
           draftRevision: revision.current,
-          stage: lesson.wholeLesson ? null : item!.stage,
-          itemIds: lesson.wholeLesson ? null : [itemId],
+          stage: null,
+          itemIds: null,
           ...(JSON.stringify(latest.current) !== saved.current ? { answers: latest.current } : {}),
         };
         writeOfflineDraft(submissionKey, JSON.stringify(pendingSubmission.current));
-        setPending(itemId);
+        setPending(true);
       }
       const input = pendingSubmission.current;
       const request = () => json<{ submission: SubmissionView & { replayed: boolean }; draftRevision: number }>(url + "/submissions", {
@@ -334,6 +329,18 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       // a later explicit retry or reconnect will read again before any POST.
       const check = await json<{ submission: (SubmissionView & { replayed: boolean }) | null; draftRevision?: number; draft?: DraftAnswers | null }>(
         url + "/submissions?clientSubmissionId=" + encodeURIComponent(input.clientSubmissionId));
+      // A cached request from the old reader may already have been saved. If
+      // absent, keep its draft and let the learner submit from the summary.
+      if (!check.submission && (input.stage !== null || input.itemIds !== null)) {
+        pendingSubmission.current = null;
+        writeOfflineDraft(submissionKey, undefined);
+        setPending(false);
+        if (input.answers) storeDraft(JSON.stringify({ revision: input.draftRevision, answers: latest.current }));
+        if (input.draftRevision !== lesson.draftRevision) ready.current = false;
+        setError(ready.current ? "Bài làm vẫn còn. Bấm Nộp bài để gửi cả bài." :
+          "Bài trên máy này khác bản đã lưu. Chép bài làm ra trước, rồi tải lại trang.");
+        return;
+      }
       const response = check.submission && check.draftRevision !== undefined
         ? { submission: check.submission, draftRevision: check.draftRevision }
         : await request();
@@ -341,7 +348,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         && response.submission.attempts.every(attempt => attempt.result)) {
         gradeStarted.current = { submissionId: response.submission.id, at: started };
       }
-      if (itemId === "whole-lesson" && !response.submission.replayed) feedbackStarted.current = { submissionId: response.submission.id, at: started };
+      if (!response.submission.replayed) feedbackStarted.current = { submissionId: response.submission.id, at: started };
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
       const changedOnServer = !!check.submission && !!input.answers && JSON.stringify(check.draft) !== JSON.stringify(input.answers);
       if (changedOnServer) {
@@ -357,25 +364,39 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       }
       pendingSubmission.current = null;
       writeOfflineDraft(submissionKey, undefined);
-      setPending(null);
+      setPending(false);
       setState(!changedOnServer && JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
       void refreshFeedback();
     } catch (e) {
-
+      if (e instanceof RequestError && [400, 413].includes(e.status)) {
+        const input = pendingSubmission.current;
+        if (input?.answers) storeDraft(JSON.stringify({ revision: input.draftRevision, answers: latest.current }));
+        pendingSubmission.current = null;
+        writeOfflineDraft(submissionKey, undefined);
+        setPending(false);
+      }
       setError((e as Error).message + (pendingSubmission.current ? " Sẽ kiểm tra lại khi có mạng; bạn cũng có thể bấm Thử nộp lại." : ""));
     } finally {
+      const resume = reconnectRequested.current && !!pendingSubmission.current;
+      reconnectRequested.current = false;
       submissionInFlight.current = false;
       setBusy(false);
+      if (resume) void submitRef.current();
     }
   }
   const submitRef = useRef(submit);
   useEffect(() => { submitRef.current = submit; });
   useEffect(() => {
-    const reconnect = () => { if (pending) void submitRef.current(pending); };
+    const reconnect = () => {
+      if (!pendingSubmission.current) return;
+      // The failed request may still be settling when the network comes back.
+      if (submissionInFlight.current) reconnectRequested.current = true;
+      else void submitRef.current();
+    };
     window.addEventListener("online", reconnect);
     return () => window.removeEventListener("online", reconnect);
-  }, [pending]);
+  }, []);
   async function complete(confirmed = false) {
     if (!lesson || busy || pending) return;
     if (!lesson.completedAt && unanswered > 0 && !confirmed) {

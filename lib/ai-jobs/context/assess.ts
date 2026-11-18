@@ -31,34 +31,34 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
     // A recheck looks only at the disputed answer, graded by the grade under dispute.
     .bind(sub.id, job.learner_id, ...(dispute ? [dispute.attempt_id] : []))
     .all<Record<string, unknown>>();
+  const attachmentIds = attempts.flatMap(attempt => JSON.parse(String(attempt.attachment_ids)) as string[]);
+  const { results: images = [] } = attachmentIds.length
+    ? await db.prepare('SELECT id,mime,expires_at,deleted_at FROM attachments WHERE learner_id=? AND id IN (SELECT value FROM json_each(?))')
+      .bind(job.learner_id, JSON.stringify(attachmentIds))
+      .all<{ id: string; mime: string; expires_at: string; deleted_at: string | null }>()
+    : {};
+  const imagesById = new Map(images.map(image => [image.id, image]));
   const items = [];
-  let imageCount = 0;
   for (const a of attempts) {
     if (lesson.gradingMode === 'whole-lesson' && !dispute && a.grader === 'auto') continue;
     const item = JSON.parse(String(a.payload));
-    const photos = [];
-    for (const id of JSON.parse(String(a.attachment_ids)) as string[]) {
-      const img = await db
-        .prepare('SELECT id,mime,expires_at,deleted_at FROM attachments WHERE id=? AND learner_id=?')
-        .bind(id, job.learner_id)
-        .first<{ id: string; mime: string; expires_at: string; deleted_at: string | null }>();
-      if (imageCount < 12) {
-        photos.push({
-          attachmentId: img?.id ?? id,
-          url: `/api/automation/v2/jobs/${job.id}/attachments/${img?.id ?? id}`,
-          mime: img?.mime ?? 'image/jpeg',
-          expired: !img || !!img.deleted_at || img.expires_at <= now.toISOString(),
-        });
-        imageCount++;
-      }
-    }
+    const photos = (JSON.parse(String(a.attachment_ids)) as string[]).map(id => {
+      const image = imagesById.get(id);
+      return {
+        attachmentId: id,
+        url: `/api/automation/v2/jobs/${job.id}/attachments/${id}`,
+        mime: image?.mime ?? 'image/jpeg',
+        expired: !image || !!image.deleted_at || image.expires_at <= now.toISOString(),
+      };
+    });
     const { results: previous = [] } = await db
       .prepare(
         'SELECT a.answer,g.result,g.feedback FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.learner_id=? AND a.lesson_id=? AND a.item_id=? AND a.attempt_no<? ORDER BY a.attempt_no DESC LIMIT 3',
       )
       .bind(job.learner_id, a.lesson_id, a.item_id, a.attempt_no)
       .all<{ answer: string; result: string | null; feedback: string | null }>();
-    const transcript = item.input === 'long' ? audioSpec.shape.lines.safeParse(item.audio?.lines) : undefined;
+    const transcript = item.audio && (item.input === 'long' || lesson.gradingMode === 'whole-lesson')
+      ? audioSpec.shape.lines.safeParse(item.audio.lines) : undefined;
     items.push({
       ...(transcript?.success ? { transcript: transcript.data.map(line => ({ ...line, text: safeText(line.text, sensitivity) })) } : {}),
       attemptId: a.id,

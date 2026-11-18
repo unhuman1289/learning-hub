@@ -2,9 +2,12 @@ import { z } from 'zod/v4';
 import { reasons } from '../roadmap/reasons.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 
+export const DAILY_LESSON_MINUTES = 30;
+export const EXTRA_LESSON_MINUTES = 15;
+
 export const adaptiveDecision = z.object({
   mode: z.enum(['learn', 'practice', 'review', 'challenge', 'personal', 'none']),
-  minutes: z.union([z.literal(15), z.literal(45)]),
+  minutes: z.literal([EXTRA_LESSON_MINUTES, DAILY_LESSON_MINUTES]),
   step: z.object({ id: z.string(), title: z.string(), skills: z.array(z.string()) }).strict().nullable(),
   targetSkills: z.array(z.string()),
   needsScaffold: z.boolean(),
@@ -58,5 +61,5 @@ export async function decideAdaptivePlan(
     ? needsScaffold ? 'Bài mới có ví dụ để ôn lại kỹ năng nền.' : 'Đây là bước kế tiếp trong lộ trình.'
     : mode === 'practice' ? (needsScaffold ? 'Luyện kỹ năng nền và kiểm tra phần còn thiếu.' : 'Luyện theo kết quả gần đây.')
     : mode === 'personal' ? 'Luyện theo nội dung bạn chọn.' : 'Chưa có bước mới hoặc kỹ năng đến hạn ôn.';
-  return { mode, minutes: daily ? 45 : 15, step, targetSkills, needsScaffold, reason };
+  return { mode, minutes: daily ? DAILY_LESSON_MINUTES : EXTRA_LESSON_MINUTES, step, targetSkills, needsScaffold, reason };
 }
