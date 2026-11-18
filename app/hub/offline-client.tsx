@@ -37,7 +37,7 @@ export function OfflineClient() {
     return () => { alive = false; channel?.close(); };
   }, []);
   if (!update) return null;
-  return <button type="button" className="fixed bottom-4 right-4 z-50 rounded bg-paper px-4 py-3 text-ink-paper shadow-page" onClick={() => {
+  return <button type="button" className="notebook-button notebook-secondary fixed bottom-4 right-4 z-50 bg-paper text-ink-paper shadow-page" onClick={() => {
     navigator.serviceWorker.addEventListener('controllerchange', () => location.reload(), { once: true });
     update.postMessage({ type: 'activate' });
   }}>Có bản mới — tải lại</button>;

@@ -14,8 +14,7 @@ import { SpineShelves, type SpineBook } from "../../components/notebook/spine-sh
 import { berlinKey, coverTitle, coverTransition, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi } from "./use-shelf";
-import { postitAction } from "./paper-bits";
-import { RouteLink } from "./ui";
+import { buttonClass, RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { Route } from "./use-route";
 
@@ -133,7 +132,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
     { label: "Bài đã học", onOpen: () => setDrawer("learned") },
     ...(!readOnly && selfId ? [{ label: "Cài đặt", onOpen: () => setDrawer("settings") }] : []),
   ] : [];
-  const notes = lessons.map(({ track, lesson }, index) => {
+  const notes = (highlightFirst: boolean) => lessons.map(({ track, lesson }, index) => {
                 const route: Route = { view: "notebook", track, tab: "bai", page: lesson.id };
                 const isNew = lesson.assignedDate === today && !lesson.response.trim();
                 return (
@@ -145,7 +144,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
                     <p className="mt-2 self-start font-hand text-[22px] leading-7">{lesson.content.title}</p>
                     <div className="mt-auto flex flex-wrap items-center justify-between gap-2 pt-4">
                       <span className="font-hand text-base opacity-75">{isNew ? "Bài mới hôm nay" : `Đang học · nhận ${shortDate(lesson.assignedDate)}`}</span>
-                      {!readOnly && <RouteLink route={route} go={go} className={postitAction}>{lesson.response.trim() ? words.action.continue : words.action.open}</RouteLink>}
+                      {!readOnly && <RouteLink route={route} go={go} className={buttonClass(highlightFirst && index === 0 ? "primary" : "secondary", highlightFirst && index === 0 ? undefined : "text-postit-ink")}>{lesson.response.trim() ? words.action.continue : words.action.open}</RouteLink>}
                     </div>
                   </PostIt>
                 );
@@ -204,7 +203,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
                 endDecoration={<SeasonItem place="shelf" month={clock?.month} />}
                 onNew={canOpenNotebook && spineBooks.length ? onNewNotebook : null} />}
           {canOpenNotebook && shelf.subjects?.length === 0 && <button type="button" onClick={onNewNotebook}
-            className="brick m-2 min-h-11 justify-self-start px-4 font-hand text-lg">Mở sổ</button>}
+            className={buttonClass("primary", "m-2 justify-self-start")}>Mở sổ</button>}
         </Bookcase>
       </div>
       {drawer === "learned" && <PaperDialog title="Bài đã học" labelId="drawer-learned" onClose={() => setDrawer(null)}>
@@ -212,18 +211,18 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
       </PaperDialog>}
       {drawer === "settings" && selfId && <PaperDialog title="Cài đặt" labelId="drawer-settings" onClose={() => setDrawer(null)}>
         <LazyProfileSettings learner={selfId} title="Về bạn" />
-        <button type="button" className="mt-4 min-h-11 underline" onClick={async event => { const button = event.currentTarget; try { if (!await workerMessage("clear")) throw new Error(); button.textContent = "Đã xoá cache"; } catch { button.textContent = "Chưa xoá được cache"; } }}>Xoá cache</button>
+        <button type="button" className={buttonClass("secondary", "mt-4")} onClick={async event => { const button = event.currentTarget; try { if (!await workerMessage("clear")) throw new Error(); button.textContent = "Đã xoá cache"; } catch { button.textContent = "Chưa xoá được cache"; } }}>Xoá cache</button>
       </PaperDialog>}
       {hub2 && !!shelf.subjects?.length && (
         <details className="mx-auto w-full max-w-3xl" onToggle={event => setShowProgress(event.currentTarget.open)}>
-          <summary className="w-fit cursor-pointer py-3 font-hand text-lg text-accent">Tiến độ theo sổ</summary>
+          <summary className="notebook-button notebook-secondary w-fit cursor-pointer">Tiến độ theo sổ</summary>
           {showProgress && <Suspense fallback={<p role="status">Đang mở tiến độ…</p>}><DeskProgress key={viewing.id ?? "self"} subjects={shelf.subjects} learner={viewing.id} go={go} /></Suspense>}
         </details>
       )}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
       {hub2 && readOnly && viewing.id && shelf.subjects && (
         <details className="mx-auto w-full max-w-3xl" onToggle={event => setShowContactBook(event.currentTarget.open)}>
-          <summary className="w-fit cursor-pointer py-3 font-hand text-lg text-accent">Sổ liên lạc</summary>
+          <summary className="notebook-button notebook-secondary w-fit cursor-pointer">Sổ liên lạc</summary>
           {showContactBook && <Suspense fallback={<p role="status">Đang mở sổ liên lạc…</p>}><ContactBook key={viewing.id} learner={viewing.id} name={viewedName} subjects={shelf.subjects} /></Suspense>}
         </details>
       )}

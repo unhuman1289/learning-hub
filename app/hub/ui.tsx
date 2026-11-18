@@ -7,14 +7,7 @@ import { routeHref, type Route } from "./use-route";
 type Variant = "primary" | "secondary" | "ghost";
 
 export function buttonClass(variant: Variant = "primary", extra?: string) {
-  return cx(
-    "inline-flex min-h-11 items-center justify-center gap-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-    // Main action is a fired brick; other actions are sandstone blocks.
-    variant === "primary" && "brick px-4",
-    variant === "secondary" && "stone px-4",
-    variant === "ghost" && "rounded-md px-2 text-accent hover:text-accent-hover hover:underline",
-    extra,
-  );
+  return cx("notebook-button", `notebook-${variant}`, extra);
 }
 
 /** A real link (open in new tab works) that navigates in-page on a plain click. */

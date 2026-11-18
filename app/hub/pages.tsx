@@ -70,7 +70,7 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
       <h1 className="mb-4 font-print text-4xl font-medium">Quản trị</h1>
       <nav aria-label="Khu quản trị" className="flex flex-wrap gap-1 pb-1">
         {visibleSections.map(section => <button key={section} type="button" aria-pressed={selection === section} aria-controls="admin-current"
-          onClick={() => select(section)} className="admin-section-button min-h-11 rounded-t-sm px-3 font-hand text-lg focus-visible:outline-2 focus-visible:outline-offset-2">
+          onClick={() => select(section)} className="notebook-button notebook-choice admin-section-button px-3">
           {sections[section]}
         </button>)}
       </nav>

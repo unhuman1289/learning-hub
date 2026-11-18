@@ -17,10 +17,10 @@ import { summaryScore, summaryState } from "../../../lib/lesson-v2/summary-state
 import { feedbackForItems } from "../../../lib/feedback-history";
 import type { TodayItem } from "../../../lib/today";
 
-export function LessonSummary({ lessonId, subjectId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false, go, children, items, answers, history, child, displayName, offlinePending }: {
+export function LessonSummary({ lessonId, subjectId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false, go, submission, finish, children, items, answers, history, child, displayName, offlinePending }: {
   lessonId: string; learner: string | null; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
   items: ItemView[]; answers: DraftAnswers; history: SubmissionView[]; child: boolean; displayName: string; offlinePending: boolean;
-  completed?: boolean; justCompleted?: boolean; subjectId: string; go: (route: Route) => void; children: ReactNode;
+  completed?: boolean; justCompleted?: boolean; subjectId: string; go: (route: Route) => void; submission: ReactNode; finish: ReactNode; children: ReactNode;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
   const [slow, setSlow] = useState(false);
@@ -63,6 +63,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
   const gradedCount = results.filter(a => !!a?.result).length;
   const corrections = presentation.corrections.map(i => items[i].id);
   const graded = presentation.phase === "graded";
+  const firstBlank = items.findIndex(item => item.id === blanks[0]?.id);
   return (
     <section aria-label="Tổng kết bài">
       <h1 tabIndex={-1} data-lesson-heading className="mb-3 font-print text-4xl leading-tight">Tổng kết bài</h1>
@@ -111,14 +112,16 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
         </section>}
       </>}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        {graded && blanks.length > 0 && <button type="button" className={buttonClass("primary")} onClick={() => onQuestion?.(blanks[0].id)}>Làm tiếp câu còn trống</button>}
-        {graded && blanks.length === 0 && corrections.length > 0 && <button type="button" className={buttonClass("primary")} onClick={() => onQuestion?.(corrections[0])}>Làm lại {corrections.length} câu cần sửa</button>}
-        {completed && <button type="button" disabled={opening} className={buttonClass("primary")} onClick={() => void openNext()}>
+        {submission}
+        {!waiting && firstBlank >= 0 && <button type="button" className={buttonClass("secondary")} onClick={() => onQuestion?.(blanks[0].id)}>Làm tiếp câu {firstBlank + 1}</button>}
+        {graded && blanks.length === 0 && corrections.length > 0 && <button type="button" className={buttonClass("secondary")} onClick={() => onQuestion?.(corrections[0])}>Làm lại {corrections.length} câu cần sửa</button>}
+        {completed && <button type="button" disabled={opening} className={buttonClass(submission ? "secondary" : "primary")} onClick={() => void openNext()}>
           {opening ? "Đang tìm bài…" : "Bài tiếp theo"}
         </button>}
+        {finish}
         <RouteLink route={{ view: "desk" }} go={go} className={buttonClass("secondary")}>Về bàn</RouteLink>
-        {children}
       </div>
+      {children}
       {nextError && <p role="alert" className="mt-2 text-brick">{nextError}</p>}
     </section>
   );

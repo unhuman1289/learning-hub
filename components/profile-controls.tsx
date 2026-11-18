@@ -88,7 +88,7 @@ function EmojiForm({ avatar, id, name, onSaved, onClose }: {
       <p className="text-sm text-muted">Nhập hoặc dán một emoji. Để trống để dùng mặc định.</p>
       {error && <p role="alert" className="text-sm text-accent">{error}</p>}
       <div className="flex flex-wrap gap-2">
-        <button disabled={busy} className="brick min-h-11 px-4 text-sm font-semibold disabled:opacity-50">{busy ? "Đang lưu…" : "Lưu emoji"}</button>
+        <button disabled={busy} className="notebook-button notebook-primary">{busy ? "Đang lưu…" : "Lưu emoji"}</button>
         <button type="button" disabled={busy} onClick={onClose} className="min-h-11 px-3 text-sm underline">Huỷ</button>
       </div>
     </form>
@@ -321,7 +321,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
         aria-expanded={editing}
         aria-controls={editing ? editorId : undefined}
         onClick={() => setEditing((open) => !open)}
-        className="grid size-11 shrink-0 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-paper"
+        className="notebook-button notebook-wood size-11 shrink-0 px-0"
       >
         <Badge avatar={avatar} />
       </button>
@@ -348,7 +348,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
           type="button"
           disabled={busy}
           onClick={() => void act({ action: "unmanage" })}
-          className="min-h-11 shrink-0 rounded-md border border-oak-dark/60 bg-paper/85 px-3 text-sm text-ink-paper disabled:opacity-50"
+          className="notebook-button notebook-ghost notebook-wood shrink-0"
         >
           Thoát quản lý
         </button>
@@ -357,7 +357,7 @@ export function ProfileControls({ name, manage, initialAvatar, settingsLearner }
         type="button"
         disabled={busy}
         onClick={() => void act({ action: "leave" })}
-        className="min-h-11 shrink-0 rounded-md border border-oak-dark/60 bg-paper/85 px-3 text-sm text-ink-paper hover:border-accent hover:text-accent-hover disabled:opacity-50"
+        className="notebook-button notebook-wood notebook-switch shrink-0"
       >
         Đổi người
       </button>

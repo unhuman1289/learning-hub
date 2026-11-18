@@ -78,7 +78,7 @@ export function NewNotebookDialog({ shelf, forName, onClose, onCreated }: {
         {error && <p role="alert" className="rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">{error}</p>}
         <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
           {prepared.length > 0 && (
-            <button type="button" disabled={busy} onClick={switchNotebookType} className="min-h-11 text-left text-sm font-medium text-accent-hover hover:underline">
+            <button type="button" disabled={busy} onClick={switchNotebookType} className={buttonClass("secondary", "text-left")}>
               {usePrepared ? "Tạo sổ theo chủ đề mới" : "Dùng sổ có sẵn"}
             </button>
           )}

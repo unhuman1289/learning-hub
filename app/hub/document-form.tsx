@@ -74,7 +74,7 @@ export function DocumentForm({ request, workspace, onClose }: { request: FormReq
         className="max-h-[92dvh] w-full max-w-xl animate-sheet-in overflow-auto rounded-t-xl shadow-page sm:rounded-md"
       >
         <RuledPage>
-          <button type="button" aria-label="Đóng" onClick={onClose} className="absolute right-3 top-3 grid size-11 place-items-center rounded-full text-muted hover:bg-paper-2 hover:text-ink"><X size={20} /></button>
+          <button type="button" aria-label="Đóng" onClick={onClose} className="notebook-button absolute right-3 top-3 size-11 text-muted hover:text-ink"><X size={20} /></button>
           <h2 id="document-form-title" className="font-hand text-[28px] leading-[3.5rem] relative top-2.5 text-accent">{request.note ? "Sửa tài liệu" : "Thêm tài liệu"}</h2>
           <form className="grid gap-7" onSubmit={(event) => { event.preventDefault(); submit(); }}>
             <label className="block text-sm font-semibold leading-7 text-muted">Sổ

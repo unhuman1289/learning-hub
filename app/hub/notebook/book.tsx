@@ -42,14 +42,14 @@ export function Book({ title, go, children, paged = false, focusedLesson = false
       <WindowStrip />
     </div>}
     <OakDesk className={reading ? "sm:[&>.bg-oak-planks]:pt-2" : undefined}>
-    <div className="flex items-center justify-between gap-3 text-oak-ink">
-      <RouteLink route={close} go={go} className="inline-flex min-h-11 items-center gap-2 rounded-sm bg-oak-dark px-2 font-hand text-lg hover:underline">
+    <div className="flex items-center justify-between gap-3 bg-oak-dark/35 text-oak-ink">
+      <RouteLink route={close} go={go} className="notebook-button notebook-ghost notebook-wood">
         <SketchIcon name="closeBook" size={24} />{words.action.close}
       </RouteLink>
       {!legacy && <span aria-hidden="true" style={{ viewTransitionName: `cover-${current.id}` }}><MiniCover className="w-8" /></span>}
       {legacy && <h1 className="truncate rounded-sm bg-oak-dark px-2 font-print text-2xl" style={{ viewTransitionName: coverTransition[current.track] }}>{title}</h1>}
       <RouteLink route={settings} go={go} aria-label={words.place.settings} aria-haspopup={compactNotebook ? "dialog" : undefined}
-        aria-current={active === "cai-dat" || active === "muc-tieu" ? "page" : undefined} className="grid size-11 place-items-center rounded-sm bg-oak-dark hover:underline"><SketchIcon name="settings" /></RouteLink>
+        aria-current={active === "cai-dat" || active === "muc-tieu" ? "page" : undefined} className="notebook-button notebook-wood"><SketchIcon name="settings" /></RouteLink>
     </div>
     <div style={{ viewTransitionName: "book" }} className={`grid min-w-0 items-start gap-y-1 ${focusedLesson || compactNotebook ? "" : "sm:grid-cols-[minmax(0,1fr)_6rem]"}`}>
       {!focusedLesson && !compactNotebook && <nav aria-label="Trang trong sổ" className="flex flex-wrap items-center gap-1 sm:col-start-2 sm:row-start-1 sm:mt-9 sm:flex-col sm:items-stretch">

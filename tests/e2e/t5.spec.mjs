@@ -18,7 +18,9 @@ test('một Bột cho cả bài, chọn câu khác và giữ hội thoại khi l
   const trigger=page.getByRole('button',{name:'Hỏi Bột'}); await expect(trigger).toHaveCount(1); await trigger.tap();
   const panel=page.getByRole('dialog',{name:'Trò chuyện với Bột'}); await expect(panel).toBeVisible();
   await expect(panel.getByText(/Con chào Ếch/)).toBeVisible();
-  await panel.getByRole('button',{name:'Câu 2',exact:true}).tap();
+  const pickSecond = panel.getByRole('button', { name: 'Câu 2', exact: true });
+  await pickSecond.tap();
+  await expect(pickSecond).toHaveAttribute('aria-pressed', 'true');
   await panel.getByRole('textbox',{name:'Câu hỏi cho Bột'}).fill('Câu này khác gì?'); await panel.getByRole('button',{name:'Gửi'}).tap();
   await expect(panel.getByText('Con gợi ý nha.')).toBeVisible(); expect(sent.itemId).toBe('i2');
   await panel.getByRole('button',{name:/Đóng/}).tap(); await expect(trigger).toBeFocused();
