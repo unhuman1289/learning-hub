@@ -112,3 +112,5 @@ Khung staging F4+F7 sửa #227 đã đóng lúc 15:09 Europe/Berlin ngày 18/11.
 Khung staging G3 chi tiết hiệu chuẩn #228 đã đóng lúc 18:40 Europe/Berlin ngày 18/11.
 
 Khung staging Q0 đã đóng lúc 18:44 Europe/Berlin ngày 18/11.
+
+staging: G3 fixture #230, đến 20:30 Europe/Berlin
