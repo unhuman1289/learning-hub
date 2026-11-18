@@ -1746,3 +1746,21 @@ test('Queue cleans auxiliary assess fields before validation and saves rubric-de
  assert.ok(JSON.parse(grade.rubric_scores).every(r=>r.max>0));
  for(const code of ['auto_diagnosis','rubric_max','check_item'])assert.ok(logs.some(x=>x.includes('assess_cleanup') && x.includes(code)),code);
 });
+
+test('Queue drops only unsupported mastery proposals and saves the valid proposal on first call',async t=>{
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}},job=await queueSubmission(db,env,learner,sub.id,new Date());
+ let calls=0;const logs=[],original=console.info;console.info=(...a)=>logs.push(a.join(' '));
+ try {await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail()}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Hãy thử lại.',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[{skillId:a.skills[0],status:'needs_review',reason:'valid proposal',evidenceAttemptIds:[a.attemptId]},{skillId:a.skills[0],status:'needs_review',reason:'private invalid',evidenceAttemptIds:['att_missing']}],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });}finally{console.info=original;}
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+ assert.ok(logs.some(x=>x.includes('assess_cleanup')&&x.includes('mastery_proposal')));assert.ok(logs.every(x=>!x.includes('private invalid')));
+ const state=db.sqlite.prepare('SELECT mastery_source,mastery_reason FROM skill_states WHERE skill_id=(SELECT json_extract(skill_ids,\'$[0]\') FROM attempts WHERE submission_id=?)').get(sub.id);
+ assert.equal(state.mastery_source,'ai');assert.equal(state.mastery_reason,'valid proposal');
+});

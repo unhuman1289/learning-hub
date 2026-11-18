@@ -2,7 +2,7 @@ import {matchRubricScores} from './rubric.ts';
 import {lessonItem} from '../../contracts/lesson-items.ts';
 import type {AssessContext, AssessResult} from '../../contracts/ai-common.ts';
 
-export type CleanupCode = 'auto_diagnosis' | 'rubric_max' | 'check_item';
+export type CleanupCode = 'auto_diagnosis' | 'rubric_max' | 'check_item' | 'mastery_proposal';
 /** Clean auxiliary fields without changing earned points or inventing evidence. */
 export function deriveAssessScores(input: unknown, context: AssessContext, onCleanup: (code: CleanupCode) => void = () => {}): unknown {
   if (!input || typeof input !== 'object') return input;
@@ -39,5 +39,15 @@ export function deriveAssessScores(input: unknown, context: AssessContext, onCle
     grade.score=points/max;
     grade.result=points===0?'incorrect':points===max?'correct':'partial';
   }
+  if (Array.isArray(body.masteryProposals)) body.masteryProposals = body.masteryProposals.filter(proposal => {
+    if (!proposal || typeof proposal.skillId !== 'string' || !Array.isArray(proposal.evidenceAttemptIds)) return true;
+    const knownSkill = context.skills.some(skill => skill.skillId === proposal.skillId);
+    const validEvidence = proposal.evidenceAttemptIds.every(id => context.attempts.some(attempt =>
+      attempt.attemptId === id && attempt.skills.includes(proposal.skillId) &&
+      (!!attempt.autoGrade || body.grades.some(grade => grade?.attemptId === id && grade.result !== 'ungradable'))
+    ) || context.recentEvidence.some(evidence => evidence.attemptId === id && evidence.skillId === proposal.skillId));
+    if (!knownSkill || !validEvidence) { onCleanup('mastery_proposal'); return false; }
+    return true;
+  });
   return body;
 }
