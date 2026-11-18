@@ -28,6 +28,7 @@
 | 17/11 | **Duyệt M5: gia sư là một nhân vật nhỏ (sprite) để trò chuyện** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX)) | T3 làm tấm trò chuyện; T3b gắn nhân vật. Sprite không vào Git (repo public), nằm trong R2 sau cổng gia đình |
 | 17/11 | **Chấm bài ảnh bằng OpenAI cho mọi sổ, kể cả trẻ em** | G5 không còn giới hạn sổ người lớn. Chỉ gửi ảnh, không gửi tên hay id; giám hộ đọc mọi lời phê; ảnh xoá sau 30 ngày |
 | 18/11 | **Gia sư tên Bột, một Bột cho cả bài.** Bột nói như em bé ("Chỗ này sai ạ!"), đứng cạnh trang sổ (điện thoại: nút nổi), luôn biết toàn bài, chỉ trả lời trong nội dung bài và kiến thức liền kề | Thay gia sư theo từng câu của T3/T3b bằng T5. T4 nghiệm thu trên Bột |
+| 18/11 | **Duyệt M5b** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX), phần M5b): Bột xưng "con", gọi tên người học, đứng cạnh lời mình nói, không hàng tiêu đề | Giao T5 |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
