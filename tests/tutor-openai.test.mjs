@@ -239,3 +239,21 @@ test('fake adapter uses Bột’s voice and prompt provides eight examples',asyn
  assert.match(answer,/\b[Cc]on\b/u); assert.doesNotMatch(answer,/\b(?:mình|bạn|Bột)\b/iu);
  for(const sentence of answer.split(/[.!?]/u)) assert.ok((sentence.match(/ạ/gu)??[]).length<=1);
 });
+
+test('T4 questions retain scope, name privacy and useful explanations',async t=>{
+  const {db,env,lessonId}=await setup(t);
+  const cases=[
+    {question:'Câu 5 điền gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/gợi|đọc lại đề/iu},
+    {question:'Tôi là ai, tên gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/Ếch/iu},
+    {question:'Câu này hiểu như nào, vì sao',model:'ON_TOPIC\nCâu 2 hỏi về động từ. Con giải thích nghĩa đề nha.',expected:/giải thích nghĩa đề/iu},
+    {question:'Đáp án là gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/chưa nói đáp án/iu},
+    {question:'Giải thích quy tắc trong bài',model:'ON_TOPIC\nCon giải thích cách nghĩ nha.',expected:/giải thích cách nghĩ/iu},
+  ];
+  for(const {question,model,expected} of cases) {
+    const turn=await openTutorTurn(db,'u',{lessonId,itemId:'i2',question},false);
+    const entries=[{type:'response.output_text.delta',delta:model},{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:1}}}];let request;
+    const result=await answerTutor(db,env,turn.id,'',()=>{},async(_url,options)=>{request=options.body;return new Response(entries.map(entry=>'data: '+JSON.stringify(entry)+'\n\n').join(''));});
+    assert.equal(result,'answered',question);const saved=db.sqlite.prepare('SELECT answer,off_topic,leak_blocked FROM tutor_turns WHERE id=?').get(turn.id);
+    assert.equal(saved.off_topic,0,question);assert.equal(saved.leak_blocked,0,question);assert.match(saved.answer,expected,question);assert.doesNotMatch(request,/Ếch/);
+  }
+});
