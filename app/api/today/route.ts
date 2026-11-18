@@ -41,7 +41,7 @@ export async function GET(req: Request) {
       return [{ subjectId: subject.id, title: subject.title, writing: plan.some(job => job.status === 'leased') }];
     });
     return Response.json(
-      { ...today, subjects, learners, adaptiveSubjects, preparing, gradingWaits },
+      { ...today, subjects, learners, adaptiveSubjects, preparing, gradingWaits, gradingActive: grading },
       { headers: { ...headers, "Server-Timing": timing.header(), "X-LH-Profile": user.id } },
     );
   } catch (e) {

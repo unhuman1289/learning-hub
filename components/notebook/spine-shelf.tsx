@@ -10,6 +10,7 @@ export type SpineBook = {
   id: string;
   title: string;
   status: string;
+  hasFeedback?: boolean;
   /** Where the book opens; null when it may only be looked at. */
   route: Route | null;
   /** Name for the cover while it opens into the notebook. */
@@ -92,7 +93,7 @@ function Spine({ book, isOut, shift, go, touch, setOut }: {
   const clear = () => setOut((current) => (current === book.id ? null : current));
   const props = {
     "data-out": isOut,
-    "aria-label": book.route ? `Mở sổ ${book.title}` : `Sổ ${book.title}`,
+    "aria-label": book.route ? `Mở sổ ${book.title}${book.hasFeedback ? ", có lời phê" : ""}` : `Sổ ${book.title}${book.hasFeedback ? ", có lời phê" : ""}`,
     className: "spine-slot group rounded-[2px]",
     style: { "--shift": `${shift}px` } as CSSProperties,
     onPointerDown: (event: React.PointerEvent) => { touch.note(event.pointerType); },
@@ -105,8 +106,10 @@ function Spine({ book, isOut, shift, go, touch, setOut }: {
   const body = (
     <span className="spine-box">
       <SpineFace title={book.title} color={color} />
+      {book.hasFeedback && <span aria-hidden="true" className="absolute right-0 top-2 z-10 size-2.5 rounded-full bg-brick ring-2 ring-paper" />}
       <span className="spine-cover" style={isOut && book.transition ? { viewTransitionName: book.transition } : undefined}>
         <NotebookCover title={book.title} lines={[book.status]} spineColor={color} className="size-full !aspect-auto" />
+        {book.hasFeedback && <span aria-hidden="true" className="absolute right-3 top-3 size-3 rounded-full bg-brick ring-2 ring-paper" />}
       </span>
     </span>
   );

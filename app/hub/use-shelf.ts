@@ -30,6 +30,7 @@ type TodayData = {
   adaptiveSubjects: string[];
   preparing: { subjectId: string; title: string; writing: boolean }[];
   gradingWaits: boolean;
+  gradingActive?: boolean;
 };
 
 /** Keep a shelf snapshot scoped to its learner, including the desk payload when on the desk. */
@@ -92,7 +93,7 @@ export function useShelf(learner: string | null, desk: boolean, ready: boolean, 
   }, [desk, learners.length, ready]);
 
   useLiveRefresh(() => load(), ready, desk && current?.today &&
-    (current.today.preparing.length || current.today.gradingWaits) ? 15_000 : null);
+    (current.today.preparing.length || current.today.gradingActive) ? 15_000 : null);
 
   const create = useCallback(async (input: NewSubject) => {
     const body = await readJson<{ subject: ShelfSubject }>(await fetch(`/api/subjects${query(learner)}`, {
