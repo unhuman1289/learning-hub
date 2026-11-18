@@ -120,6 +120,7 @@
         "AI_JOBS_DAILY_CAP": "300",
         "HUB2_ENABLED": "true",
         "MCP_ENABLED": "true",
+        "OPENAI_ENABLED": "true",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",
@@ -149,7 +150,27 @@
       ],
       "triggers": {
         "crons": [
+          "0 1-5,22,23 * * *",
           "*/5 * * * *"
+        ]
+      },
+      "ratelimits": [
+        { "name": "HOUSEHOLD_LIMITER", "namespace_id": "1102", "simple": { "limit": 10, "period": 60 } }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "queue": "learning-hub-ai-production",
+            "binding": "AI_QUEUE"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "learning-hub-ai-production",
+            "max_batch_size": 1,
+            "max_batch_timeout": 0,
+            "max_retries": 3
+          }
         ]
       }
     }
