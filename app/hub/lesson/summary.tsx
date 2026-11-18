@@ -1,4 +1,5 @@
 "use client";
+import { renderEmphasis } from "../inline-emphasis";
 import type { TutorTurn } from "../../../lib/contracts/tutor";
 import { Stamp } from "../../../components/notebook/paper";
 import { useEffect, useState, type ReactNode } from "react";
@@ -12,7 +13,7 @@ import type { SubmissionView } from "../lesson-v2/feedback";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
-import { summaryState } from "../../../lib/lesson-v2/summary-state";
+import { summaryScore, summaryState } from "../../../lib/lesson-v2/summary-state";
 import { feedbackForItems } from "../../../lib/feedback-history";
 import type { TodayItem } from "../../../lib/today";
 
@@ -57,7 +58,9 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
   const current = items.map(item => feedbackForItems(history, [item.id])[0]);
   const queued = current.some(entry => entry?.job_status === "queued" && entry.attempts.some(a => !a.result));
   const results = current.map(entry => entry?.attempts[0]);
-  const presentation = summaryState(results, waiting, queued, slow, child, displayName);
+  const blanks = items.filter((item, index) => !results[index] && !item.revealed.solutionSeen && !hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") && !answers[item.id]?.attachmentIds?.length);
+  const presentation = summaryState(results, waiting, queued, slow, child, displayName, blanks.length);
+  const gradedCount = results.filter(a => !!a?.result).length;
   const corrections = presentation.corrections.map(i => items[i].id);
   const graded = presentation.phase === "graded";
   return (
@@ -69,7 +72,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
         {!history.length && <p>Đã làm {items.filter(item => hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length).length}/{items.length} câu. {items.filter(item => !hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") && !answers[item.id]?.attachmentIds?.length).length ? "Vẫn còn câu trống; bạn vẫn có thể nộp." : ""}</p>}
         {waiting && <p className="font-hand text-lg text-muted-paper">{results.filter(a => !!a?.result).length} câu đã có kết quả.</p>}
         {graded && <p className="font-hand text-lg text-muted-paper">Đã có kết quả bài làm.</p>}
-        {graded && <p className="font-hand text-3xl text-brick">{presentation.correct}/{items.length} câu đúng</p>}
+        {graded && <p className="font-hand text-3xl text-brick">{summaryScore(presentation.correct, gradedCount, items.length, blanks.length)}</p>}
         {completed && <Stamp label={needsWork ? "Cố lên!" : data.pending || data.solutionsSeen ? "Đã học" : "Giỏi lắm!"}
           className={needsWork ? "border-warn! text-warn!" : undefined} pressed={justCompleted} />}
         <ul aria-label="Từng câu" className="divide-y divide-rule">
@@ -82,7 +85,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
             return <li key={item.id}><button type="button" onClick={() => onQuestion?.(item.id)} className={"flex w-full items-baseline gap-3 py-1 text-left focus-visible:outline-2 focus-visible:outline-accent-paper " + (child ? "min-h-12 text-lg" : "min-h-11")}>
               <span className="shrink-0 font-hand text-xl">Câu {index + 1}</span>
               <span className={"shrink-0 rounded border px-2 font-hand text-lg " + (mark === "ĐÚNG" ? "border-[#6d8a62] text-[#4f6b45]" : mark === "SỬA LẠI" ? "border-brick text-brick" : "border-rule text-muted-paper")}>{mark}</span>
-              <span className="min-w-0 truncate text-sm">{comment}</span>
+              <span className="min-w-0 truncate text-sm">{renderEmphasis(comment)}</span>
             </button></li>;
           })}
         </ul>
@@ -96,19 +99,20 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
         </div>}
         <p className={pencil}>{data.minutes} phút học sổ này hôm nay{data.hintsUsed ? ` · ${data.hintsUsed} lần xem gợi ý` : ""}.</p>
         {data.needsPractice.length > 0 && <p>Nên luyện thêm: {data.needsPractice.map(skillLabel).join(", ")}.</p>}
-        {data.comments.map(comment => <RedPen key={comment} className="mt-7">{comment}</RedPen>)}
-        {!!data.tutorTurns?.length && <section aria-label="Nhận xét của gia sư" className="mt-7">
+        {data.comments.map(comment => <RedPen key={comment} className="mt-7">{renderEmphasis(comment)}</RedPen>)}
+        {learner !== null && !!data.tutorTurns?.length && <section aria-label="Nhận xét của gia sư" className="mt-7">
           <h2 className="font-hand text-xl">Nhận xét của gia sư</h2>
           <ul className="space-y-3">
             {data.tutorTurns.map(turn => <li key={turn.id} className="break-words">
               <p className="whitespace-pre-wrap">{turn.question}</p>
-              <RedPen>{turn.answer ?? tutorStatus[turn.status]}</RedPen>
+              <RedPen>{renderEmphasis(turn.answer ?? tutorStatus[turn.status])}</RedPen>
             </li>)}
           </ul>
         </section>}
       </>}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        {graded && corrections.length > 0 && <button type="button" className={buttonClass("primary")} onClick={() => onQuestion?.(corrections[0])}>Làm lại {corrections.length} câu cần sửa</button>}
+        {graded && blanks.length > 0 && <button type="button" className={buttonClass("primary")} onClick={() => onQuestion?.(blanks[0].id)}>Làm tiếp câu còn trống</button>}
+        {graded && blanks.length === 0 && corrections.length > 0 && <button type="button" className={buttonClass("primary")} onClick={() => onQuestion?.(corrections[0])}>Làm lại {corrections.length} câu cần sửa</button>}
         {completed && <button type="button" disabled={opening} className={buttonClass("primary")} onClick={() => void openNext()}>
           {opening ? "Đang tìm bài…" : "Bài tiếp theo"}
         </button>}

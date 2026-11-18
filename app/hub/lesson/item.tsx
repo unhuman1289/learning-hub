@@ -1,4 +1,5 @@
 "use client";
+import { renderEmphasis } from "../inline-emphasis";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
@@ -265,7 +266,7 @@ export function LessonItem({
           {feedbackResult && <ResultStamp result={feedbackResult} className={feedbackSupported ? "opacity-60" : undefined} />}
           <span>{feedbackSupported && feedbackResult === "correct"
             ? "Đã xem lời giải, không tính điểm."
-            : gradeLater ? words.status.gradeLater : feedbackPreview}</span>
+            : gradeLater ? words.status.gradeLater : renderEmphasis(feedbackPreview ?? "")}</span>
         </div>
         <RevealedSolution item={item} formatText={formatText} />
         {feedback && <details open={showFeedback} onToggle={event => setShowFeedback(event.currentTarget.open)}>

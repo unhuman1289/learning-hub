@@ -74,6 +74,7 @@ export function LessonReader({
     const answer = answers[item.id]?.answer ?? "";
     return previous ? previous.answer !== answer || JSON.stringify(previous.attachmentIds ?? []) !== JSON.stringify(answers[item.id]?.attachmentIds ?? []) : hasAnswer(item);
   });
+  const blankCount = lesson.items.filter(item => !answered.has(item.id) && !item.revealed.solutionSeen && !hasAnswer(item)).length;
   const correctionIndex = correction ? lesson.items.findIndex(item =>
     ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
   const summaryIndex = lesson.items.length + 1;
@@ -137,7 +138,7 @@ export function LessonReader({
             </button>}
           </LessonSummary>
           <PaperConfirm open={session.confirmFinish && !busy && !pending}
-            message="Bạn vẫn muốn đánh dấu xong bài này?" confirmLabel={words.action.finish}
+            message={blankCount ? `Còn ${blankCount} câu chưa làm. Bạn vẫn muốn đánh dấu xong bài này?` : `Còn ${session.unanswered} câu chưa nộp. Bạn vẫn muốn đánh dấu xong bài này?`} confirmLabel={words.action.finish}
             onCancel={() => session.setConfirmFinish(false)} onConfirm={() => void session.complete(true)} />
           {reflection && <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />}
         </>;

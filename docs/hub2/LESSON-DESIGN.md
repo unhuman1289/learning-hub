@@ -397,3 +397,5 @@ Tự đánh giá A2, chưa có kiểm tra xác nhận; B2 cho công việc/chứ
 Bài 01 có email đổi lịch và đối thoại, củng cố V2/modal, hướng dẫn weil và đề nghị lịch sự. Chỉ chọn bài kế tiếp dựa trên câu trả lời đã có; chưa có dữ liệu thì ghi rõ. Nói phải có tương tác; bản chép chỉ chứng minh nội dung, không chứng minh phát âm/độ trôi chảy. Thời lượng và số từ là mục tiêu riêng của bài luyện, không phải mô phỏng đề thi chính thức.
 
 Prompt sử dụng ngay: [deutsch-unhuman.md](../../integrations/runner-prompts/deutsch-unhuman.md). Cách chuẩn bị, giao và học: [DEUTSCH-PILOT.md](../automation/DEUTSCH-PILOT.md). Đây là soạn tay và prompt chuẩn bị nội dung, **chưa triển khai H5/H7** hoặc vượt Cổng A.
+
+Lời phê gửi người học không dùng markdown; chỉ dùng « » hoặc ngoặc kép để trích.
