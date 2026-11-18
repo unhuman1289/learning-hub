@@ -11,7 +11,7 @@ export const fakeTutorOpenAi: typeof fetch = async (_url, options) => {
   const encoder=new TextEncoder();
   const events=[
     {type:'response.output_text.delta',delta:text},
-    ...(!special ? [{type:'response.output_text.delta',delta:'Em nghĩ gì?'}] : []),
+    ...(!special ? [{type:'response.output_text.delta',delta:'Con hỏi chút nha?'}] : []),
     {type:'response.completed',response:{status:'completed',usage:{input_tokens:12,output_tokens:8}}},
   ];
   return new Response(new ReadableStream({start(controller) { for(const entry of events) controller.enqueue(encoder.encode(`data: ${JSON.stringify(entry)}\n\n`)); controller.close(); }}), {headers:{'Content-Type':'text/event-stream'}});

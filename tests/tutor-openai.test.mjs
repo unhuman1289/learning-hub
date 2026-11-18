@@ -229,3 +229,13 @@ test('25-item lesson preserves nearby context and bounds the model input',async 
   assert.equal(input.selectedItem,'i3'); assert.ok(input.lesson.items[2].prompt.length>input.lesson.items[24].prompt.length);
   assert.doesNotMatch(sent.input,/secret(?:3|25)/);
 });
+
+test('fake adapter uses Bột’s voice and prompt provides eight examples',async t=>{
+ const {db,env,create}=await setup(t); const turn=await create();
+ const prompt=readFileSync(new URL('../integrations/runner-prompts/tutor.md',import.meta.url),'utf8');
+ assert.equal((prompt.match(/^- Hỏi:/gm) ?? []).length,8);
+ assert.equal(await answerTutor(db,env,turn.id,prompt,()=>{},fakeTutorOpenAi),'answered');
+ const answer=db.sqlite.prepare('SELECT answer FROM tutor_turns WHERE id=?').get(turn.id).answer;
+ assert.match(answer,/\b[Cc]on\b/u); assert.doesNotMatch(answer,/\b(?:mình|bạn|Bột)\b/iu);
+ for(const sentence of answer.split(/[.!?]/u)) assert.ok((sentence.match(/ạ/gu)??[]).length<=1);
+});
