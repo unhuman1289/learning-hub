@@ -687,6 +687,11 @@
           "minimum": 0,
           "maximum": 86400000
         },
+        "cachedInputTokens": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100000000
+        },
         "cacheReadTokens": {
           "type": "integer",
           "minimum": 0,

@@ -32,8 +32,8 @@ test('streamed request sends the lesson without nickname and saves tokens before
   const input=JSON.parse(request.input); assert.equal(input.nickname,undefined); assert.equal(input.lesson.items[0].answer,'draft'); assert.match(input.question,/email redacted/);
   assert.equal('key' in input,false); assert.equal('solution' in input,false);
   assert.equal(events[0].type,'turn'); assert.equal(events.at(-1).type,'done');
-  const row=db.sqlite.prepare('SELECT status,answer,input_tokens,output_tokens,first_token_ms FROM tutor_turns WHERE id=?').get(turn.id);
-  assert.equal(row.status,'answered'); assert.equal(row.input_tokens,12); assert.equal(row.output_tokens,8); assert.ok(row.first_token_ms>=0);
+  const row=db.sqlite.prepare('SELECT status,answer,input_tokens,output_tokens,cached_tokens,first_token_ms FROM tutor_turns WHERE id=?').get(turn.id);
+  assert.equal(row.status,'answered'); assert.equal(row.input_tokens,12); assert.equal(row.output_tokens,8); assert.equal(row.cached_tokens,5); assert.ok(row.first_token_ms>=0);
 });
 
 test('timeout queues and duplicate delivery cannot duplicate a completed answer',async t=>{
@@ -225,7 +225,7 @@ test('25-item lesson preserves nearby context and bounds the model input',async 
   }
   const turn=await openTutorTurn(db,'u',{lessonId,itemId:'i3',question:'Gợi ý?'},false); let sent;
   assert.equal(await answerTutor(db,{OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake'},turn.id,'',()=>{},async(_url,options)=>{sent=JSON.parse(options.body);return fakeTutorOpenAi();}),'answered');
-  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(Buffer.byteLength(sent.input)<=10500,`input bytes ${Buffer.byteLength(sent.input)}`);
+  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(Buffer.byteLength(sent.input)<=5500,`input bytes ${Buffer.byteLength(sent.input)}`);
   assert.equal(input.selectedItem,'i3'); assert.ok(input.lesson.items[2].prompt.length>input.lesson.items[24].prompt.length);
   assert.doesNotMatch(sent.input,/secret(?:3|25)/);
 });
