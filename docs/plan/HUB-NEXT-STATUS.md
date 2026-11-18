@@ -117,3 +117,5 @@ Khung staging G3 fixture #230 đã đóng lúc 19:20 Europe/Berlin ngày 18/11.
 
 
 Khung staging G3 #231–#234 đã đóng lúc 20:16 Europe/Berlin ngày 18/11.
+
+staging: OpenAI mọi sổ #235, đến 22:00 Europe/Berlin
