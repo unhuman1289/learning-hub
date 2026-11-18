@@ -1,7 +1,6 @@
 /**
  * Reads the type and size of an uploaded image from its bytes (never from the file name or the
- * Content-Type header), and reports embedded metadata. Learners' photos are re-encoded in the
- * browser, which drops EXIF (including GPS); a file that still carries it did not come that way.
+ * Content-Type header), and reports embedded metadata. JPEG and PNG metadata are removed separately before storage; metadata-bearing WebP is rejected.
  */
 export type ImageInfo = { mime: 'image/jpeg' | 'image/png' | 'image/webp'; width: number; height: number; hasMetadata: boolean };
 

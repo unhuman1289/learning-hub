@@ -17,6 +17,11 @@ if (process.env.E2E_TUTOR === '1') process.env.E2E_AI_CONTROLS='1';
 // The fixture starts with several open lessons. Give the fake runner room for one more.
 runLocalD1(['execute', 'learning-hub', '--command',
   "UPDATE learner_settings SET daily_target_minutes=120 WHERE user_id='demo-ech'"]);
+if (process.env.E2E_PHOTO === '1') {
+  runLocalD1(['execute', 'learning-hub', '--command', `
+    UPDATE lesson_items SET payload=json_set(payload, '$.attachment', 'optional') WHERE learner_id='demo-ech';
+  `]);
+}
 if (process.env.E2E_LISTENING === '1') {
   const { f, m, next } = VOICE_HASHES;
   const voices = {

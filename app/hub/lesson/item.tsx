@@ -205,7 +205,11 @@ export function LessonItem({
           <label htmlFor={"photo-" + item.id} className="block text-muted">
             Ảnh bài làm {item.attachment === "required" ? "(cần có)" : "(tuỳ chọn)"} · giữ tối đa 30 ngày, đừng chụp tên, địa chỉ hay giấy tờ
           </label>
+          <label className="relative mt-2 inline-flex min-h-11 cursor-pointer items-center rounded border border-rule px-3 font-hand text-base text-ink-paper focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent-paper has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-50">
+            Chụp hoặc chọn ảnh
           <input
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+            aria-label="Chụp hoặc chọn ảnh"
             id={"photo-" + item.id}
             type="file"
             accept="image/jpeg,image/png,image/webp"
@@ -226,6 +230,7 @@ export function LessonItem({
               }
             }}
           />
+          </label>
           {uploading && <p role="status">Đang gửi ảnh…</p>}
           {photoError && <p role="alert">{photoError}</p>}
           {value.attachmentIds?.map((photo) => (

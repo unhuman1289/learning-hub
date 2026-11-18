@@ -1,4 +1,6 @@
 import { test } from 'node:test';
+import { createHash } from 'node:crypto';
+import { stripImageMetadata } from '../lib/uploads/strip-metadata.ts';
 import assert from 'node:assert/strict';
 import { memoryDb } from './d1-adapter.mjs';
 import { sniffImage } from '../lib/uploads/image.ts';
@@ -44,7 +46,7 @@ function fakeBucket() {
 }
 const status = async (promise) => { try { await promise; } catch (error) { return error.status; } return 200; };
 
-test('uploads: stored under the learner, private, refused when fake, too big, with EXIF, or too many', async () => {
+test('uploads: stored under the learner, private, refused when fake, too big, WebP has metadata, or too many', async () => {
   const db = memoryDb();
   const bucket = fakeBucket();
   const now = new Date('2026-10-13T10:00:00Z');
@@ -56,7 +58,7 @@ test('uploads: stored under the learner, private, refused when fake, too big, wi
 
   assert.equal(await status(createAttachment(db, bucket, 'ech', bytes('<html>', pad(40)), now)), 400);
   assert.equal(await status(createAttachment(db, bucket, 'ech', jpeg(3000, 1000), now)), 400);
-  assert.equal(await status(createAttachment(db, bucket, 'ech', jpeg(1000, 800, { exif: true }), now)), 400);
+  assert.equal(await status(createAttachment(db, bucket, 'ech', webpX(100, 100, 0x08), now)), 400);
   assert.equal(await status(createAttachment(db, bucket, 'ech', new Uint8Array(3_000_001), now)), 413);
   for (let i = 1; i < 20; i += 1) await createAttachment(db, bucket, 'ech', png(100, 100), now);
   assert.equal(await status(createAttachment(db, bucket, 'ech', png(100, 100), now)), 429);
@@ -66,4 +68,33 @@ test('uploads: stored under the learner, private, refused when fake, too big, wi
   assert.equal(await status(readAttachment(db, bucket, 'vu', saved.id, now)), 404, 'another learner gets 404');
   assert.equal(await status(readAttachment(db, bucket, 'ech', saved.id, new Date('2026-11-12T10:00:01Z'))), 410, 'gone after 30 days');
   db.sqlite.close();
+});
+
+
+test('removes JPEG GPS metadata before storage and hashes the saved bytes', async () => {
+  const db = memoryDb(), bucket = fakeBucket();
+  const original = jpeg(400, 300);
+  const payload = bytes('Exif\0\0', [0x49, 0x49, 42, 0, 8, 0, 0, 0, 1, 0, 0x25, 0x88, 4, 0, 1, 0, 0, 0, 26, 0, 0, 0], 'GPS-FAKE');
+  const segment = bytes([0xff, 0xe1], u16(payload.length + 2), [...payload]);
+  const input = bytes([...original.slice(0, 2)], [...segment], [...original.slice(2)]);
+  const saved = await createAttachment(db, bucket, 'ech', input);
+  const stored = bucket.objects.get(`uploads/ech/${saved.id}`).value;
+  assert.equal(Buffer.from(stored).includes(Buffer.from('Exif')), false);
+  assert.equal(Buffer.from(stored).includes(Buffer.from('GPS-FAKE')), false);
+  assert.equal(saved.bytes, stored.length);
+  const row = db.sqlite.prepare('SELECT bytes, sha256 FROM attachments WHERE id = ?').get(saved.id);
+  assert.equal(row.bytes, stored.length);
+  assert.equal(row.sha256, createHash('sha256').update(stored).digest('hex'));
+  db.sqlite.close();
+});
+
+test('strips all requested segments and rejects truncated containers', () => {
+  const source = jpeg(100, 100);
+  const segments = bytes([0xff, 0xed, 0, 7], 'GPS13', [0xff, 0xfe, 0, 6], 'GPS!');
+  const clean = stripImageMetadata(bytes([...source.slice(0, 2)], [...segments], [...source.slice(2)]), 'image/jpeg');
+  assert.equal(Buffer.from(clean).includes(Buffer.from('GPS')), false);
+  const pngClean = stripImageMetadata(png(100, 100, { text: true }), 'image/png');
+  assert.equal(Buffer.from(pngClean).includes(Buffer.from('GPS')), false);
+  assert.equal(stripImageMetadata(bytes([...source.slice(0, 2)], [0xff, 0xe1, 0xff, 0xff]), 'image/jpeg'), null);
+  assert.equal(stripImageMetadata(png(100, 100).slice(0, -2), 'image/png'), null);
 });
