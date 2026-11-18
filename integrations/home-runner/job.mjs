@@ -506,10 +506,12 @@ function wholeLessonSchema(schema) {
 
 export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt, renderAudio, prepareAudio } = {}) {
   const context = await hub.context(lease);
-  if (qwen.name === 'openai' && !qwen.queueVision && (
-    context.learner?.role !== 'adult' ||
+  if (qwen.name === 'openai' && (
     (context.subjects ?? [context.subject]).some(subject => subject?.sensitivity !== 'normal') ||
-    (context.attempts ?? []).some(attempt => attempt.attachments?.length)
+    (!(qwen.queueVision && lease.kind === 'assess') && (
+      context.learner?.role !== 'adult' ||
+      (context.attempts ?? []).some(attempt => attempt.attachments?.length)
+    ))
   )) {
     await hub.fail(lease, 'Đợt thử OpenAI chỉ nhận văn bản của sổ người lớn đã chọn.', true);
     return { jobId: lease.jobId, status: 'returned' };
