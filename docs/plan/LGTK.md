@@ -227,8 +227,10 @@ Việc:
 **Nhân vật và giọng:**
 - Tên **Bột**, chỉ hiện ở bong bóng chờ "Hỏi Bột nè!". Đầu tấm trò chuyện chỉ có nhân vật và nút đóng: không ghi tên, không dòng hướng dẫn phụ (quy tắc giám hộ đọc được vẫn giữ). Ô hỏi không có placeholder; nhãn ẩn cho trình đọc màn hình là "Câu hỏi cho Bột", tấm có `aria-label` "Trò chuyện với Bột".
 - Bột **xưng "con"**, nói như em bé lễ phép mà tự nhiên, như đang nói chuyện thật chứ không đọc văn bản: câu ngắn, ấm, có "nha, nè, á, ta" và "ạ" vừa phải (không gắn "ạ" vào mọi câu), khen hoặc động viên cụ thể. Không dùng "mình" để tự xưng hay chỉ người học.
-- Bột không gọi tên và không dùng đại từ cho người học (tránh sai vai vế giữa người lớn và trẻ em). Ví dụ giọng:
-  - Chào: "Con đây ạ! Bài này có 8 câu, đang ở câu 4 nè. Chỗ nào chưa hiểu cứ hỏi con nha, con chỉ gợi ý thôi chứ không nói đáp án đâu."
+- Bột **gọi người học bằng tên hiển thị trong hồ sơ** (biệt danh), ví dụ "Con chào Unhuman ạ!", "Ếch ơi, câu 3…". Gọi tên khi chào và thỉnh thoảng trong lúc nói, không câu nào cũng gọi. Ngoài tên, không dùng đại từ cho người học.
+- **Tên không gửi cho OpenAI.** Prompt cho model viết `{ten}` ở chỗ cần gọi tên; Worker thay `{ten}` bằng tên hiển thị khi gom câu (cùng chỗ với bộ lọc lộ đáp án của T3), trước khi gửi xuống trình duyệt và trước khi lưu. Lời chào viết sẵn ghép tên ở trình duyệt. Tên rỗng thì bỏ cả cụm gọi tên.
+- Ví dụ giọng:
+  - Chào: "Con chào {ten} ạ! Bài này có 8 câu, đang ở câu 4 nè. Chỗ nào chưa hiểu cứ hỏi con nha, con chỉ gợi ý thôi chứ không nói đáp án đâu."
   - Sửa lỗi: "Câu 2 trượt ở chỗ động từ á! Tiếng Đức có luật nhỏ: động từ chia luôn đứng thứ 2 trong câu… Giống vầy nè: *Heute gehe ich ins Kino.* Sửa lại thử xem, chắc chắn được mà!"
   - Đang nghĩ: "Để con nghĩ xíu nha…"; chặn đáp án: "(Chỗ này lộ đáp án mất, con giữ lại nha.)"; ngoài phạm vi: "Hihi, chuyện đó để lúc khác nha, giờ con chỉ giúp bài này thôi ạ. Quay lại câu 4 nhé?"; hết lượt: "Hôm nay con trả lời đủ 20 lượt rồi, con đi ngủ xíu đây. Mai hỏi con tiếp nha!"
 - Prompt có 6–8 cặp ví dụ giọng như trên (few-shot), và test bằng adapter giả kiểm: có "con", không có "mình"/"bạn"/"Bột" ở ngôi thứ nhất, không quá một "ạ" mỗi câu.
@@ -237,6 +239,8 @@ Việc:
 **Vị trí:**
 - Màn rộng (≥ 1024 px): Bột đứng ở lề bàn bên phải trang sổ, ngoài vùng chữ, dùng chung cho mọi trang. Tấm trò chuyện mở cạnh trang, không che đề.
 - Điện thoại: một nút nổi góc dưới phải có Bột ngồi. Chạm thì mở tấm như T3 (cao tối đa 55%, không làm tối trang).
+- Chạm vào Bột hay bong bóng "Hỏi Bột nè!" đều mở (cả cụm là một nút).
+- Tấm trò chuyện không có hàng tiêu đề: hàng trên cùng là chip chọn câu và nút đóng. Bột (khoảng 77 × 83 px trên điện thoại, 96 × 104 px trên màn rộng) đứng ở góc dưới trái vùng tin nhắn, cạnh lời Bột vừa nói, và đổi động tác theo state.
 - Bỏ nút gia sư trong từng câu (`item.tsx`). Giữ các state của `TutorPet` và gán hàng sprite của T3b.
 - Thiết kế theo M5b trên [canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX) (18/11): màn rộng, điện thoại, chọn câu, hỏi chéo, đào sâu, chặn đáp án, ngoài phạm vi, trẻ em.
 
