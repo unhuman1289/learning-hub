@@ -1,6 +1,7 @@
+import type { LessonAudio } from '../audio/lesson.ts';
 import {cutoffFor} from '../daily-policy.ts';
 import { ApiError } from '../api-error.ts';
-import type { LessonItemAny, LessonPackage } from '../contracts/lesson-package-v3.ts';
+import type { AudioSpec, LessonItemAny, LessonPackage } from '../contracts/lesson-package-v3.ts';
 import type { Db } from '../subjects/service.ts';
 
 export type LessonSlot = 'primary' | 'review' | 'extra';
@@ -39,7 +40,7 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
     db.prepare(`INSERT INTO learning_lessons (id, user_id, track, payload, assigned_date, completed_at, response, updated, subject_id,
         package_version, template, kind, slot, reason, reason_refs, est_minutes, origin_job_id)
       SELECT ?, ?, NULL, ?, ?, NULL, '', ?, ?, ?, ?, ?, ?, ?, ?, ?, ? WHERE (?=0 OR NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR completed_at>=?)))
-        AND (?='2' OR EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND status='active' AND json_extract(limits,'$.package')=3))`)
+        AND (?='2' OR EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND status='active'))`)
       .bind(id, learnerId, JSON.stringify(lesson), day, now, subjectId, version, lesson.template, lesson.kind, slotFor(lesson.kind),
         (input.reason ?? lesson.why).slice(0, 400), JSON.stringify(lesson.reasonRefs), lesson.estMinutes, input.originJobId ?? null,input.guardCompletion?1:0,learnerId,subjectId,slotFor(lesson.kind),cutoffFor(day),version,subjectId,learnerId),
     ...lesson.items.map((item, index) => db.prepare(`INSERT INTO lesson_items (lesson_id, item_id, learner_id, subject_id, stage, activity, input_kind,
@@ -60,14 +61,16 @@ export async function insertLessonV2(db: Db & { batch(statements: unknown[]): Pr
 }
 
 /** What a learner may see of an item before revealing hints or the solution, or before it is graded. */
-type PublicItem<T> = T extends LessonItemAny ? Omit<T, 'key' | 'hints' | 'solution' | 'explanation'> : never;
+type PublicAudio = Omit<AudioSpec, 'lines'> & { src?: { f: string; m: string }; durationMs?: number };
+type PublicItem<T> = T extends LessonItemAny ? Omit<T, 'key' | 'hints' | 'solution' | 'explanation' | 'audio'> : never;
 export type ItemView = PublicItem<LessonItemAny> & {
+  audio?: PublicAudio;
   stage: string; hintCount: number; revealed: { hints: string[]; solution?: string; explanation?: string; solutionSeen: boolean }; flag: string | null;
 };
 export type Support = Record<string, 'hint1' | 'hint2' | 'solution'>;
 
-export function itemView(item: LessonItemAny, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
-  const { key: _key, hints, solution, explanation, ...visible } = item;
+export function itemView(item: LessonItemAny & { audio?: AudioSpec & Partial<LessonAudio> }, stage: string, support: Support[string] | undefined, graded: boolean, flag: string | null = null): ItemView {
+  const { key: _key, hints, solution, explanation, audio, ...visible } = item;
   void _key;
   const level = graded ? 'solution' : support;
   const shownHints = level === 'solution' ? hints : level === 'hint2' ? hints.slice(0, 2) : level === 'hint1' ? hints.slice(0, 1) : [];
@@ -75,13 +78,18 @@ export function itemView(item: LessonItemAny, stage: string, support: Support[st
   if (!graded && visible.choices) visible.choices = visible.choices.map(({ errorLabel: _label, ...choice }) => (void _label, choice));
   return {
     ...visible, stage, hintCount: hints.length, flag,
+    ...(audio ? { audio: {
+      ...(audio.hashF && audio.hashM ? { src: { f: '/api/audio/' + audio.hashF, m: '/api/audio/' + audio.hashM } } : {}),
+      lang: audio.lang, rate: audio.rate, maxPlays: audio.maxPlays,
+      durationMs: audio.durationMs, transcript: audio.transcript,
+    } } : {}),
     revealed: { hints: shownHints, solutionSeen: support === "solution", ...(level === 'solution' ? { solution, ...(explanation ? { explanation } : {}) } : {}) },
   };
 }
 
 type LessonRow = {
   id: string; subject_id: string; subject_title:string; payload: string; assigned_date: string; completed_at: string | null; updated: string; template: string;
-  kind: string; slot: string; reason: string; est_minutes: number | null; draft: string; draft_revision: number; support: string; snoozed_until: string | null;
+  kind: string; slot: string; reason: string; est_minutes: number | null; draft: string; draft_revision: number; support: string; listen_log?: string; snoozed_until: string | null;
 };
 type ItemRow = { item_id: string; stage: string; payload: string; flag: string | null };
 
@@ -104,5 +112,7 @@ export async function readLessonV2(db: Db, learnerId: string, lessonId: string, 
     items: items.map((item) => itemView(JSON.parse(item.payload) as LessonItemAny, item.stage, support[item.item_id], gradedItemIds.has(item.item_id), item.flag)),
     draft: JSON.parse(row.draft) as Record<string, { answer: string; attachmentIds?: string[] }>,
     draftRevision: row.draft_revision,
+    listen_log: JSON.parse(row.listen_log ?? "{}") as Record<string, number>,
+    wholeLesson: lesson.contract === "lesson-package/3" && lesson.gradingMode === "whole-lesson",
   };
 }

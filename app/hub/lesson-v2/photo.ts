@@ -1,11 +1,13 @@
 "use client";
 
+import { stripImageMetadata } from "../../../lib/uploads/strip-metadata";
+
 /** Longest edge after resizing; the server refuses anything larger. */
 const MAX_EDGE = 2400;
 
 /**
  * Turns a camera photo into a JPEG of at most 2400 px. Drawing it on a canvas and encoding again
- * drops EXIF (camera, time, GPS); `imageOrientation` keeps phone photos the right way up.
+ * and removes metadata (camera, time, GPS); `imageOrientation` keeps phone photos the right way up.
  */
 export async function preparePhoto(file: Blob): Promise<Blob> {
   const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -23,7 +25,11 @@ export async function preparePhoto(file: Blob): Promise<Blob> {
   bitmap.close();
   for (const quality of [0.85, 0.7, 0.55]) {
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
-    if (blob && blob.size <= 2_900_000) return blob;
+    if (blob) {
+      const clean = stripImageMetadata(new Uint8Array(await blob.arrayBuffer()), "image/jpeg");
+      if (!clean) throw Error("Trình duyệt không xử lý được ảnh.");
+      if (clean.length <= 2_900_000) return new Blob([new Uint8Array(clean)], { type: "image/jpeg" });
+    }
   }
   throw Error("Ảnh quá lớn sau khi thu nhỏ. Thử chụp lại gần hơn.");
 }

@@ -3,18 +3,18 @@ import type { Db } from '../subjects/service.ts';
 
 export type FamilyMember = {
   id: string; name: string; email: string; isAdmin: boolean;
-  role: 'adult' | 'child'; displayName: string | null; guardianIds: string[];
+  role: 'adult' | 'child'; displayName: string | null; guardianIds: string[]; tutorEnabled: boolean;
 };
 
 /** Active accounts with their learner role, nickname and guardians. Admin only. */
 export async function listFamily(db: Db): Promise<FamilyMember[]> {
-  const { results: users = [] } = await db.prepare(`SELECT u.id, u.name, u.email, u.role AS account_role, COALESCE(s.role, 'adult') AS role, s.display_name
+  const { results: users = [] } = await db.prepare(`SELECT u.id, u.name, u.email, u.role AS account_role, COALESCE(s.role, 'adult') AS role, s.display_name, COALESCE(s.tutor_enabled, 1) AS tutor_enabled
     FROM "user" u LEFT JOIN learner_settings s ON s.user_id = u.id WHERE u.status = 'active' ORDER BY u.created_at, u.id`)
-    .all<{ id: string; name: string; email: string; account_role: string | null; role: string; display_name: string | null }>();
+    .all<{ id: string; name: string; email: string; account_role: string | null; role: string; display_name: string | null; tutor_enabled: number }>();
   const { results: links = [] } = await db.prepare('SELECT guardian_id, learner_id FROM guardians ORDER BY created_at').all<{ guardian_id: string; learner_id: string }>();
   return users.map((user) => ({
     id: user.id, name: user.name, email: user.email, isAdmin: user.account_role === 'admin',
-    role: user.role === 'child' ? 'child' : 'adult', displayName: user.display_name,
+    role: user.role === 'child' ? 'child' : 'adult', displayName: user.display_name, tutorEnabled: user.tutor_enabled === 1,
     guardianIds: links.filter((link) => link.learner_id === user.id).map((link) => link.guardian_id),
   }));
 }
@@ -40,6 +40,14 @@ export async function setLearnerProfile(db: Db, userId: string, profile: { role?
   await db.prepare(`INSERT INTO learner_settings (user_id, daily_target_minutes, updated, role, display_name) VALUES (?, 60, ?, ?, ?)
     ON CONFLICT(user_id) DO UPDATE SET role = excluded.role, display_name = excluded.display_name, updated = excluded.updated`)
     .bind(userId, now.toISOString(), role, name).run();
+}
+
+export async function setTutorEnabled(db: Db, userId: string, enabled: unknown, now = new Date()) {
+  if (typeof enabled !== 'boolean') throw new ApiError(400, 'Chọn bật hoặc tắt gia sư.');
+  await requireActive(db, userId);
+  await db.prepare(`INSERT INTO learner_settings (user_id, updated, tutor_enabled) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET tutor_enabled = excluded.tutor_enabled, updated = excluded.updated`)
+    .bind(userId, now.toISOString(), Number(enabled)).run();
 }
 
 /** A guardian may read their child's work and set goals and minutes (lib/access.ts). */

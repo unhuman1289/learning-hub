@@ -77,7 +77,7 @@ test('knowledge backup restores active lineage and retrieval indexes without los
  await addProbe(db,client,{versionId:v.id,subjectId,query:'Nebensatz',expectSourceId:entry.sourceId,clientChangeId:'probe'});
  assert.equal((await activate(db,client,v.id)).status,'active');
  const tables=Object.fromEntries(Object.entries(backupColumns).map(([table,columns])=>[
-   table,db.sqlite.prepare('SELECT '+columns.join(',')+' FROM '+table).all(),
+   table,db.sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE name=?").get(table) ? db.sqlite.prepare('SELECT '+columns.join(',')+' FROM '+table).all() : [],
  ]));
  const restored=memoryDb();
  const restore=buildRestoreSql({format:4,tables});

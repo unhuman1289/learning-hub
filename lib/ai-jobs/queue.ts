@@ -1,18 +1,22 @@
+import { aiSubjectEnabled } from '../ai-controls.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { usesAdaptivePlan } from '../subjects/sql.ts';
 export type QueueBindings = {
-  AI_LOCAL_ONLY?: string;
+  ENVIRONMENT?: string;
+  OPENAI_ENABLED?: string;
+  OPENAI_SUBJECT_IDS?: string;
+  OPENAI_TTS_SUBJECT_IDS?: string;
   ADAPTIVE_PILOT_SUBJECT_ID?: string;
-  EVENT_DISPATCHER?:{dispatch(jobId:string):Promise<{delivered:number}>};
   AI_JOBS_DAILY_CAP?: string;
   AI_QUEUE?: { send(body: unknown): Promise<unknown> };
   AI_DISPATCH_URL?: string;
   AI_DISPATCH_SECRET?: string;
   HUB2_ENABLED?: string;
 };
+
 export async function dispatchJob(
   bindings: QueueBindings,
   job: { id: string; kind: string; purpose: string; priority: number },
@@ -56,6 +60,8 @@ export async function enqueue(
     dailyRunId?: string;
     manualRunId?: string;
     adaptiveRequest?: boolean;
+    learningDay?: string;
+    completedLessonId?: string;
     /** Wait for the nightly runner instead of asking for an answer now. */
     tonight?: boolean;
   },
@@ -68,9 +74,9 @@ export async function enqueue(
   const adaptive = input.kind === 'assess'
     ? !!input.subjectId && input.subjectId === bindings.ADAPTIVE_PILOT_SUBJECT_ID
     : !!subject && usesAdaptivePlan(subject.id, subject.legacy_track, bindings.ADAPTIVE_PILOT_SUBJECT_ID);
-  const day = berlinDay(now),
+  const day = input.learningDay ?? berlinDay(now),
     stamp = now.toISOString(),
-    dailyKey = input.manualRunId ? 'manual:' + input.manualRunId : adaptive ? day : input.dailyRunId ?? stamp,
+    dailyKey = input.manualRunId ? 'manual:' + input.manualRunId : input.subjectId && adaptive ? day : input.dailyRunId ?? stamp,
     dedupe =
       input.kind +
       ':' +
@@ -101,8 +107,7 @@ export async function enqueue(
     .first<{ n: number }>();
   const limit =
     input.purpose === 'submission'
-      ? // Open answers are graded by the family Mac's local model (no API cost), so retries stay on demand.
-        Number(budget.assessPerDay ?? 60)
+      ? Number(budget.assessPerDay ?? 60)
       : input.purpose === 'recheck'
         ? Number(budget.recheckPerDay ?? (adult ? 10 : 5))
         : input.purpose === 'request' && !adaptive
@@ -135,7 +140,7 @@ export async function enqueue(
   const result = await db
     .prepare(
       `INSERT OR IGNORE INTO ai_jobs(id,kind,purpose,trigger,learner_id,subject_id,ref_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at,needs_vision,adaptive)
- SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<?`,
+ SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<? AND (? IS NULL OR EXISTS(SELECT 1 FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id JOIN user u ON u.id=l.user_id WHERE l.id=? AND l.user_id=? AND l.subject_id=? AND l.slot='primary' AND l.completed_at IS NOT NULL AND l.completed_at<? AND l.assigned_date<? AND s.legacy_track IS NULL AND s.status='active' AND s.ai_enabled=1 AND u.status='active'))`,
     )
     .bind(
       id,
@@ -160,16 +165,20 @@ export async function enqueue(
       Number(adaptive),
       day,
       cap,
+      input.completedLessonId ?? null, input.completedLessonId ?? null, input.learnerId, input.subjectId ?? null, cutoffFor(day), day,
     )
     .run();
   const saved = await db
     .prepare('SELECT id,status,trigger,kind,purpose,priority FROM ai_jobs WHERE dedupe_key=?')
     .bind(dedupe)
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
+  if (!saved && input.completedLessonId) return { id: null, status: 'unchanged', trigger, created: false };
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
-  if (created && !adaptive && bindings.AI_LOCAL_ONLY !== 'true') {
-    await bindings.EVENT_DISPATCHER?.dispatch(saved.id).catch(() => console.error('Event dispatch unavailable; queued job retained.'));
+  if (input.subjectId && await aiSubjectEnabled(db, bindings, input.subjectId) && saved.status === 'queued' &&
+      (saved.trigger !== 'deferred' || input.purpose === 'submission' || input.purpose === 'recheck')) {
+    await bindings.AI_QUEUE?.send({ jobId: saved.id }).catch(() => console.error('OpenAI dispatch unavailable; queued job retained.'));
+  } else if (created && !adaptive) {
     if (saved.trigger === 'on_demand')
       await dispatchJob(bindings, saved, now).catch(() => console.error('Dispatch unavailable; queued job retained.'));
   }
@@ -182,10 +191,10 @@ export async function queueSubmission(db: EvidenceDb, bindings: QueueBindings, l
     .all<{ status: string; result: string | null }>();
   if (!results.length || (results.every((a) => a.status === 'graded') && results.filter((a) => a.result === 'incorrect').length <= 1)) return null;
   const sub = await db
-    .prepare('SELECT l.subject_id,s.ai_job_id FROM submissions s JOIN learning_lessons l ON l.id=s.lesson_id WHERE s.id=? AND s.learner_id=?')
+    .prepare("SELECT l.subject_id,s.ai_job_id,json_extract(l.payload,'$.gradingMode') AS grading_mode FROM submissions s JOIN learning_lessons l ON l.id=s.lesson_id WHERE s.id=? AND s.learner_id=?")
     .bind(id, learnerId)
-    .first<{ subject_id: string; ai_job_id: string | null }>();
-  if (!sub) return null;
+    .first<{ subject_id: string; ai_job_id: string | null; grading_mode: string | null }>();
+  if (!sub || (sub.grading_mode === 'whole-lesson' && results.every(a => a.status === 'graded'))) return null;
   const job = await enqueue(db, bindings, { learnerId, kind: 'assess', purpose: 'submission', subjectId: sub.subject_id, refId: id }, now);
   // Only link the job; never move a graded submission back to waiting (a replay returns the same job).
   await db.prepare('UPDATE submissions SET ai_job_id=? WHERE id=? AND learner_id=? AND ai_job_id IS NULL').bind(job.id, id, learnerId).run();
@@ -201,9 +210,9 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
          AND CASE WHEN s.legacy_track IS NULL OR s.id=? THEN
            l.slot='primary' AND (l.completed_at IS NULL OR l.completed_at>=? OR l.assigned_date=?)
          ELSE l.completed_at IS NULL END
-       ) ORDER BY s.learner_id,s.weight DESC,s.id`,
+       ) AND NOT EXISTS(SELECT 1 FROM ai_jobs j WHERE j.learner_id=s.learner_id AND j.subject_id=s.id AND j.kind='plan' AND j.purpose='daily' AND j.trigger='scheduled' AND j.learning_day=?) ORDER BY s.learner_id,s.weight DESC,s.id`,
     )
-    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now))
+    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', cutoffFor(berlinDay(now)), berlinDay(now), berlinDay(now))
     .all<{ id: string; learner_id: string }>();
   // One notebook's failure (daily cap, D1 hiccup) must not stop the others.
   let failed = 0;
@@ -216,4 +225,13 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
     }
   }
   return { subjects: results.length, failed };
+}
+
+/** Queue the next Berlin day only for a completed primary in a scheduled custom notebook. */
+export async function queuePreparedDaily(db: EvidenceDb, bindings: QueueBindings, learnerId: string, lessonId: string, now = new Date()) {
+  const row = await db.prepare("SELECT l.subject_id FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id WHERE l.id=? AND l.user_id=? AND l.slot='primary' AND l.completed_at IS NOT NULL AND s.legacy_track IS NULL AND s.status='active' AND s.ai_enabled=1")
+    .bind(lessonId, learnerId).first<{subject_id:string}>();
+  if (!row) return null;
+  const learningDay = addDays(berlinDay(now), 1);
+  return enqueue(db, bindings, {learnerId, subjectId:row.subject_id, kind:'plan', purpose:'daily', learningDay, refId:lessonId, completedLessonId:lessonId}, now);
 }

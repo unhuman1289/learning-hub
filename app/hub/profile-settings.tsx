@@ -5,7 +5,7 @@ import { fieldClass, labelClass } from "./paper-dialog";
 import { buttonClass } from "./ui";
 import { apiJson } from "./api";
 
-type Settings = { displayName: string | null; avatar: string; personalPrompt: string; explainLanguage: string };
+type Settings = { displayName: string | null; avatar: string; personalPrompt: string; explainLanguage: string; preferences: Record<string, unknown> };
 
 /** Profile card (L5.5): name, icon, explanation language and the personal prompt the lesson writers and graders read. */
 export function ProfileSettings({ learner, title = "Về bạn" }: { learner: string; title?: string }) {
@@ -32,12 +32,14 @@ export function ProfileSettings({ learner, title = "Về bạn" }: { learner: st
     setError("");
     try {
       const name = String(form.get("displayName") ?? "").trim();
+      const current = await apiJson<{ settings: Settings }>(url);
       const value = await apiJson<{ settings: Settings }>(url, {
         method: "PATCH",
         json: {
           displayName: name || null,
           explainLanguage: String(form.get("explainLanguage") ?? "vi"),
           personalPrompt: String(form.get("personalPrompt") ?? ""),
+          preferences: { ...current.settings.preferences, replaceAudioWithText: form.has("replaceAudioWithText") },
         },
       });
       setSettings(value.settings);
@@ -73,6 +75,10 @@ export function ProfileSettings({ learner, title = "Về bạn" }: { learner: st
         Lời dặn
         <span className="text-sm font-normal text-muted">Điều bạn muốn cô soạn và sửa bài lưu ý.</span>
         <textarea name="personalPrompt" maxLength={4000} rows={6} defaultValue={settings.personalPrompt} className={fieldClass} />
+      </label>
+      <label className="flex min-h-11 cursor-pointer items-center gap-3 sm:col-span-3">
+        <input type="checkbox" name="replaceAudioWithText" defaultChecked={settings.preferences?.replaceAudioWithText === true} />
+        Thay âm thanh bằng chữ
       </label>
       {error && (
         <p role="alert" className="sm:col-span-3">

@@ -1,4 +1,5 @@
-import { lessonPackageV2 } from '../contracts/lesson-package-v2.ts';
+import { itemPolicy, isMathFramework, listeningLanguage, type ItemKind } from '../subjects/item-kinds.ts';
+import { lessonPackageV2 } from '../contracts/lesson-items.ts';
 import { lessonPackageV3, type LessonItemAny, type LessonPackage } from '../contracts/lesson-package-v3.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../automation/privacy.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
@@ -15,6 +16,9 @@ export type ValidateOptions = {
   aiSizes?: boolean;
   adaptive?: boolean;
   subjectTitle?: string;
+  frameworkKey?: string;
+  itemKinds?: ItemKind[];
+  listening?: { min: number; max: number };
 };
 
 /** D20: items per lesson written by an AI runner, and at most four open answers so grading stays quick. */
@@ -35,6 +39,7 @@ const stagesFor = {
 } as const;
 
 const words = (value: string) => value.trim().split(/\s+/).filter(Boolean).length;
+const chineseWords = new Intl.Segmenter('zh-CN', { granularity: 'word' });
 
 export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: number): LessonIssue[] {
   const issues: LessonIssue[] = [];
@@ -53,10 +58,57 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
     const ids = new Set(item.choices?.map((choice) => choice.id));
     for (const id of item.key.correct) if (!ids.has(id)) issue('key/correct', 'schema', `Correct choice "${id}" is not among the choices.`);
   }
+  if (item.key?.type === 'dictation' && item.input !== 'short')
+    issue('input', 'schema', 'Câu chính tả dùng dạng trả lời ngắn.');
+  if (item.audio) {
+    const { lang, lines, rate } = item.audio;
+    const band = item.difficulty;
+    const expectedRate = band === 1 ? 0.8 : band <= 3 ? 0.9 : 1;
+    if (rate !== expectedRate) issue('audio/rate', 'difficulty_limit', `Tốc độ đọc ở band ${band} là ${expectedRate}.`);
+    if (band <= 3) {
+      const limit = band === 1 ? 8 : 15;
+      const turnLengths = lines.map(line => lang === 'zh-CN'
+        ? [...chineseWords.segment(line.text)].filter(word => word.isWordLike).length
+        : words(line.text));
+      turnLengths.forEach((length, index) => {
+        if (length > limit) issue(`audio/lines/${index}/text`, 'size_limit', `Mỗi lượt có tối đa ${limit} từ.`);
+      });
+      const totalWords = turnLengths.reduce((total, length) => total + length, 0);
+      if (band === 1 && totalWords > 15 * 2.5 * expectedRate)
+        issue('audio/lines', 'size_limit', 'Lời thoại band 1 dài tối đa khoảng 15 giây.');
+    }
+  }
   if (item.key?.type === 'numeric' && !parseNumericAnswer(item.key.value)) issue('key/value', 'schema', 'Numeric key value is not a number.');
+  if (item.key?.type === 'table') item.key.cells.forEach((cell, index) => {
+    if (cell.type === 'numeric' && !parseNumericAnswer(cell.value))
+      issue(`key/cells/${index}/value`, 'schema', 'Numeric key value is not a number.');
+  });
   if (item.key?.type === 'text' && item.key.accepted.length > 1 && item.key.accepted.some((answer) => words(answer) > 3)) {
     // Several accepted long answers means the answer is not unique: grade it with a rubric (LESSON-DESIGN §5.3).
     issue('key/accepted', 'schema', 'Text keys accept answers of at most 3 words, or a single exact sentence; use a rubric otherwise.');
+  }
+  return issues;
+}
+
+/** A leased quota applies to both the drafted lesson and the questions that can actually be saved. */
+export function listeningIssues(items: readonly LessonItemAny[], range: ValidateOptions['listening'], framework?: string): LessonIssue[] {
+  if (!range) return [];
+  const count = items.filter(item => item.audio).length;
+  if (count < range.min || count > range.max)
+    return [{ path: '/items', code: 'listening_count', message: `Bài cần ${range.min}–${range.max} câu nghe (hiện có ${count}).` }];
+  const lang = listeningLanguage(framework);
+  const wordsOnly = (text: string) => text.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}]+/gu, ' ').trim();
+  const issues: LessonIssue[] = [];
+  for (const [index, item] of items.entries()) {
+    if (!item.audio) continue;
+    if (item.audio.lang !== lang)
+      issues.push({ path: `/items/${index}/audio/lang`, code: 'listening_language', message: 'Cần dùng đúng ngôn ngữ của sổ.' });
+    const prompt = wordsOnly(item.prompt);
+    if (item.audio.lines.some(line => {
+      const dialogue = wordsOnly(line.text);
+      return dialogue && (lang === 'zh-CN' ? prompt.includes(dialogue) : ` ${prompt} `.includes(` ${dialogue} `));
+    }))
+      issues.push({ path: `/items/${index}/prompt`, code: 'listening_prompt', message: 'Đề câu nghe không được chép nguyên lượt thoại.' });
   }
   return issues;
 }
@@ -78,19 +130,49 @@ export function validateLessonPackage(
     };
   }
   const lesson = parsed.data;
+  if (options.aiSizes && lesson.contract === 'lesson-package/3' && isMathFramework(options.frameworkKey)) {
+    lesson.items = lesson.items.map(item => {
+      if ((item.input !== 'short' && item.input !== 'long') || item.key?.type !== 'text' ||
+          !item.key.accepted.some(answer => words(answer) > 3)) return item;
+      const { key: _key, ...open } = item;
+      void _key;
+
+      return {
+        ...open,
+        rubric: item.rubric ?? [
+          { criterion: 'Đáp ứng yêu cầu của đề bài', points: 1, skill: item.skills[0] },
+          { criterion: 'Nội dung toán học đúng theo lời giải mẫu hoặc cách giải tương đương', points: 1, skill: item.skills[0] },
+        ],
+      };
+    });
+  }
   const items: LessonItemAny[] = lesson.items;
   const issues: LessonIssue[] = [];
   const issue = (path: string, code: string, message: string) => issues.push({ path, code, message });
   const maxDifficulty = options.maxDifficulty ?? 5;
 
-  if (lesson.contract === 'lesson-package/3' && options.aiSizes && new Set(items.map(item => item.input)).size < 2)
-    issue('/items', 'schema', 'Bài soạn phiên bản 3 cần ít nhất hai dạng câu.');
+  if (options.itemKinds) {
+    const policy = itemPolicy(options.frameworkKey);
+    if (new Set(items.map(item => item.input)).size < policy.minimum)
+      issue('/items', 'item_kinds', 'Chuẩn học này cần ít nhất hai dạng câu.');
+    items.forEach((item, index) => {
+      if (!options.itemKinds?.includes(item.input))
+        issue(`/items/${index}/input`, 'item_kinds', `Sổ này không dùng dạng câu "${item.input}".`);
+    });
+    if (!policy.codeKnowledge && lesson.contract === 'lesson-package/3')
+      lesson.knowledge.forEach((block, index) => {
+        if (block.kind === 'code') issue(`/knowledge/${index}`, 'item_kinds', 'Sổ ngôn ngữ không dùng khối mã.');
+      });
+  }
   const review = lesson.kind === 'review';
   const [minItems, maxItems] = options.adaptive ? [1, 25] : review ? [3, 10] : [3, 25];
   if (lesson.items.length < minItems || lesson.items.length > maxItems)
     issue('/items', 'schema', `A ${lesson.kind} lesson has ${minItems}–${maxItems} items.`);
   else if (options.aiSizes && !options.adaptive) {
-    const [low, high] = AI_ITEM_RANGE[lesson.template === 'reading' && !review ? 'reading' : lesson.kind];
+    const wholeLesson = lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson';
+    const [low, high] = wholeLesson
+      ? lesson.kind === 'exploration' ? [3, 6] : [5, 8]
+      : AI_ITEM_RANGE[lesson.template === 'reading' && !review ? 'reading' : lesson.kind];
     if (lesson.items.length < low || lesson.items.length > high)
       issue(
         '/items',
@@ -98,8 +180,9 @@ export function validateLessonPackage(
         `A ${lesson.template === 'reading' ? 'reading' : lesson.kind} lesson has ${low}–${high} items (it has ${lesson.items.length}).`,
       );
     const open = items.filter((item) => !item.key).length;
-    if (open > AI_MAX_OPEN_ITEMS)
-      issue('/items', 'size_limit', `At most ${AI_MAX_OPEN_ITEMS} open-answer items per lesson (it has ${open}); give the others a key.`);
+    const limit = lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson' ? 8 : AI_MAX_OPEN_ITEMS;
+    if (open > limit)
+      issue('/items', 'size_limit', `At most ${limit} open-answer items per lesson (it has ${open}).`);
   }
   if (review && !options.adaptive && lesson.estMinutes > 20) issue('/estMinutes', 'schema', 'A review set takes at most 20 minutes.');
 
@@ -142,6 +225,14 @@ export function validateLessonPackage(
       issues.push({path:`/items/${index}/difficulty`,code:'difficulty_limit',message:'Câu quá dễ cho bước này.'});
   });
 
+  issues.push(...listeningIssues(items, options.listening, options.frameworkKey));
+  const listeningItems = items.filter(item => item.audio);
+  const wholeLessonWithoutQuota = !options.listening && lesson.contract === 'lesson-package/3' && lesson.gradingMode === 'whole-lesson';
+  if (!wholeLessonWithoutQuota && listeningItems.length && !listeningItems.some(item => item.key))
+    issue('/items', 'schema', 'Bài có câu nghe cần ít nhất một câu nghe chấm tự động.');
+  if (items.filter(item => item.key?.type === 'dictation').length > 2)
+    issue('/items', 'size_limit', 'Mỗi bài có tối đa hai câu chính tả.');
+
   const learnerText = [
     lesson.title,
     lesson.objective,
@@ -163,6 +254,8 @@ export function validateLessonPackage(
       : []),
     ...items.flatMap((item) => [
       item.prompt,
+      ...(item.audio?.lines.map(line => line.text) ?? []),
+      ...(item.key?.type === 'dictation' ? [item.key.text, item.key.pinyin ?? '', ...(item.key.variants?.flat() ?? [])] : []),
       item.instructions ?? '',
       item.explanation ?? '',
       item.solution,

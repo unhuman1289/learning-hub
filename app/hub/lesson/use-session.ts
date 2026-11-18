@@ -1,0 +1,423 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import { feedbackForItems } from "../../../lib/feedback-history";
+import type { StudyDay } from "../../../lib/study-sql";
+import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
+import type { readLessonV2 } from "../../../lib/lesson-v2/store";
+import type { Drafts } from "../lesson-page";
+import { startFeedbackPolling } from "./feedback-poll";
+import { rumAfterPaint } from "../rum";
+import type { SubmissionView } from "../lesson-v2/feedback";
+import { readOfflineDraft, writeOfflineDraft } from "../lesson-v2/offline-draft";
+import { takePrefetched } from "./prefetch";
+
+export function waitingForFeedback(submission?: SubmissionView) {
+  return !!submission && submission.attempts.some(attempt =>
+    (!attempt.result && !["cancelled", "failed", "expired"].includes(submission.job_status ?? "")) ||
+    attempt.dispute?.status === "rechecking",
+  );
+}
+
+type PendingSubmission = {
+  clientSubmissionId: string;
+  draftRevision: number;
+  stage: string | null;
+  itemIds: string[] | null;
+  answers?: DraftAnswers;
+};
+export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
+type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; study: StudyDay; displayName?: string; pageEdgeHint?: boolean };
+class RequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+async function json<T>(url: string, init?: RequestInit): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, { cache: "no-store", ...init });
+  } catch {
+    throw new RequestError("Mất kết nối. Bài làm vẫn còn trên trang.", 0);
+  }
+  const value = (await response.json().catch(() => null)) as (T & { error?: string }) | null;
+  if (!response.ok || !value) throw new RequestError(value?.error || "Chưa xác nhận thao tác.", response.status);
+  return value;
+}
+export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCompleted }: {
+  id: string;
+  ownerId: string;
+  learner: string | null;
+  drafts: Drafts;
+  onLoaded?: (id: string, subject: string, study: StudyDay) => void;
+  onCompleted?: () => Promise<void>;
+}) {
+  const [prefetched] = useState(() => takePrefetched(ownerId, learner, id) as ReaderPayload | undefined);
+  const [verification, setVerification] = useState<"loading" | "failed" | null>(prefetched ? "loading" : null);
+  const [lesson, setLesson] = useState<Lesson | null>(prefetched?.lesson ?? null);
+  const [answers, setAnswers] = useState<DraftAnswers>(prefetched?.lesson.draft ?? {}),
+    [error, setError] = useState(""),
+    [state, setState] = useState(""),
+    [busy, setBusy] = useState(false),
+    [history,setHistory]=useState<SubmissionView[]>(prefetched?.submissions ?? []),
+    [feedbackError,setFeedbackError]=useState(""),
+    [pending, setPending] = useState<string | null>(null);
+  const revision = useRef(0),
+    latest = useRef<DraftAnswers>({}),
+    saved = useRef("{}"),
+    saveInFlight = useRef<Promise<boolean> | null>(null),
+    ready = useRef(false),
+    generation = useRef(0);
+  const pendingSubmission = useRef<PendingSubmission | null>(null);
+  const submissionInFlight = useRef(false);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const update = () => setOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+  const cacheKey = "v2:" + ownerId + ":" + id,
+    readonly = learner !== null,
+    url = `/api/lessons/${id}`,
+    suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
+  const [child, setChild] = useState(prefetched?.child ?? false);
+  const [displayName, setDisplayName] = useState(prefetched?.displayName ?? "");
+  const [pageEdgeHint, setPageEdgeHint] = useState(false);
+  const submissionKey = cacheKey + ":submission";
+  const cache = useRef(drafts);
+  useEffect(() => {
+    cache.current = drafts;
+  }, [drafts]);
+  useEffect(() => {
+    const version = ++generation.current;
+    ready.current = false;
+    const query = new URLSearchParams(suffix.slice(1));
+    query.set("view", "reader");
+    json<ReaderPayload>(url + "?" + query)
+      .then(({ lesson: result, submissions, child, study, displayName, pageEdgeHint }) => {
+        if (generation.current !== version) return;
+        setChild(child);
+        setDisplayName(displayName ?? "");
+        setPageEdgeHint(!readonly && !!pageEdgeHint);
+        const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
+        if (storedSubmission) {
+          try {
+            const queued = JSON.parse(storedSubmission) as PendingSubmission;
+            const queuedItem = queued.itemIds?.length === 1 ? queued.itemIds[0] : null;
+            const pendingId = result.wholeLesson
+              ? (queued.itemIds === null && queued.stage === null ? "whole-lesson" : null)
+              : (result.items.some(item => item.id === queuedItem) ? queuedItem : null);
+            if (pendingId && typeof queued.clientSubmissionId === "string" && Number.isInteger(queued.draftRevision)) {
+              pendingSubmission.current = queued;
+              setPending(pendingId);
+            }
+          } catch {
+            writeOfflineDraft(submissionKey, undefined);
+          }
+        }
+        const cached = readonly ? undefined : cache.current.values[cacheKey] ?? readOfflineDraft(cacheKey);
+        let next = result.draft;
+        if (cached && !readonly) {
+          try {
+            const x = JSON.parse(cached);
+            next = x.answers;
+            revision.current = x.revision;
+            if (x.revision !== result.draftRevision && !pendingSubmission.current) {
+              setError("Bài trên máy này khác bản đã lưu. Chép bài làm ra trước, rồi tải lại trang.");
+              ready.current = false;
+            } else ready.current = true;
+          } catch {
+            next = result.draft;
+            revision.current = result.draftRevision;
+            ready.current = true;
+          }
+        } else {
+          revision.current = result.draftRevision;
+          ready.current = true;
+        }
+        if (pendingSubmission.current?.answers) next = pendingSubmission.current.answers;
+        latest.current = next;
+        saved.current = JSON.stringify(result.draft);
+        setAnswers(next);
+        setHistory(submissions);
+        setLesson(result);
+        onLoaded?.(result.id, result.subjectId, study);
+        setState(JSON.stringify(next) === saved.current ? "" : "Chưa lưu");
+        setVerification(null);
+      })
+      .catch((e) => {
+        if (generation.current === version) { setError(prefetched ? "Chưa cập nhật được bài. Kiểm tra kết nối rồi mở lại bài; bản đang xem chỉ để đọc." : e.message); if (prefetched) setVerification("failed"); }
+      });
+    return () => {
+      generation.current = version + 1;
+      ready.current = false;
+    };
+  }, [url, suffix, cacheKey, readonly, onLoaded, submissionKey, prefetched]);
+  const refreshFeedback=useCallback(async()=>{
+    const version=generation.current;
+    try{
+      const value=await json<{submissions:SubmissionView[];lesson:Pick<Lesson,"items"|"stages">}>(url+"/feedback"+suffix);
+      if(generation.current!==version)return;
+      setHistory(value.submissions);setFeedbackError("");
+      // Add server-authored check questions without touching draft revision, answers or current page.
+      setLesson(current=>current?{...current,items:value.lesson.items,stages:value.lesson.stages}:current);
+    }catch(e){if(generation.current===version)setFeedbackError((e as Error).message);}
+  },[url,suffix]);
+  const feedbackStarted = useRef<{ submissionId: string; at: number } | null>(null);
+  useEffect(() => {
+    const timing = feedbackStarted.current;
+    const entry = timing && history.find(item => item.id === timing.submissionId);
+    if (!timing || !entry || !entry.attempts.length || !entry.attempts.every(attempt => !!attempt.result)) return;
+    feedbackStarted.current = null;
+    return rumAfterPaint("submit_feedback", timing.at);
+  }, [history]);
+  const gradeStarted = useRef<{ submissionId: string; at: number } | null>(null);
+  useEffect(() => {
+    const timing = gradeStarted.current;
+    if (!timing || !history.some(entry => entry.id === timing.submissionId)) return;
+    gradeStarted.current = null;
+    return rumAfterPaint("grade", timing.at);
+  }, [history]);
+
+  const waitingForGrade = lesson?.items.some(item => waitingForFeedback(feedbackForItems(history, [item.id])[0])) ?? false;
+  const activeFeedback = lesson?.items.flatMap(item => {
+    const submission = feedbackForItems(history, [item.id])[0];
+    return waitingForFeedback(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
+  }) ?? [];
+  const watch = activeFeedback.map(attempt => attempt.id).join(",");
+  const rechecks = activeFeedback.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(",");
+  const waitingCreated = history.find(entry => waitingForFeedback(entry))?.created_at;
+  useEffect(() => {
+    if (!waitingForGrade || busy || !watch) return;
+    const parsed = waitingCreated ? Date.parse(waitingCreated) : NaN;
+    const query = new URLSearchParams(suffix.slice(1));
+    query.set("watch", watch); query.set("rechecks", rechecks);
+    return startFeedbackPolling({
+      startedAt: Number.isFinite(parsed) ? parsed : Date.now(),
+      visible: () => document.visibilityState === "visible",
+      subscribe: change => { document.addEventListener("visibilitychange", change); return () => document.removeEventListener("visibilitychange", change); },
+      read: async () => {
+        const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
+        if (value.changed) await refreshFeedback();
+      },
+    });
+  }, [waitingForGrade, busy, watch, rechecks, waitingCreated, suffix, url, refreshFeedback]);
+  const storeDraft = useCallback((value: string | undefined) => {
+    cache.current.set(cacheKey, value);
+    writeOfflineDraft(cacheKey, value);
+  }, [cacheKey]);
+  const save = useCallback(async (): Promise<boolean> => {
+    if (readonly || !ready.current) return false;
+    if (saveInFlight.current) {
+      await saveInFlight.current;
+      if (JSON.stringify(latest.current) === saved.current) return true;
+    }
+    const snapshot = JSON.stringify(latest.current);
+    if (snapshot === saved.current) return true;
+    const version = generation.current;
+    setState("Đang lưu…");
+    setError("");
+    const promise = json<{ revision: number }>(url + "/draft", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ revision: revision.current, answers: JSON.parse(snapshot) }),
+    })
+      .then((result) => {
+        if (generation.current !== version) return false;
+        revision.current = result.revision;
+        saved.current = snapshot;
+        if (JSON.stringify(latest.current) === snapshot) {
+          storeDraft(undefined);
+          setState("Đã lưu");
+        } else {
+          storeDraft(JSON.stringify({ revision: revision.current, answers: latest.current }));
+          setState("Chưa lưu");
+        }
+        return true;
+      })
+      .catch((e) => {
+        if (generation.current === version) {
+          setError(e.message);
+          setState("Chưa lưu");
+        }
+        return false;
+      })
+      .finally(() => {
+        saveInFlight.current = null;
+      });
+    saveInFlight.current = promise;
+    return promise;
+  }, [readonly, url, storeDraft]);
+  useEffect(() => {
+    if (!lesson || readonly || busy || pending || JSON.stringify(answers) === saved.current) return;
+    const timer = setTimeout(() => {
+      void save();
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [answers, lesson, readonly, busy, pending, save]);
+  useEffect(() => {
+    if (!lesson || readonly || busy || pending) return;
+    function reconnect() {
+      if (JSON.stringify(latest.current) !== saved.current) void save();
+    }
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [lesson, readonly, busy, pending, save]);
+  useEffect(() => {
+    const leave = (e: BeforeUnloadEvent) => {
+      if (JSON.stringify(latest.current) !== saved.current) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", leave);
+    return () => window.removeEventListener("beforeunload", leave);
+  }, []);
+  function change(itemId: string, value: DraftAnswers[string]) {
+    const next = { ...latest.current, [itemId]: value };
+    latest.current = next;
+    setAnswers(next);
+    storeDraft(JSON.stringify({ revision: revision.current, answers: next }));
+    setState("Chưa lưu");
+  }
+  async function reveal(itemId: string, level: "hint1" | "hint2" | "solution") {
+    setBusy(true);
+    setError("");
+    try {
+      const { support, submissions, ...revealed } = await json<Omit<Lesson["items"][number]["revealed"], "solutionSeen"> & { support: string; submissions?: SubmissionView[] }>(url + `/items/${itemId}/reveal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ level }),
+      });
+      setLesson(current => current && { ...current, items: current.items.map(item => item.id === itemId
+        ? { ...item, revealed: { ...revealed, solutionSeen: support === "solution" } } : item) });
+      if (submissions) setHistory(submissions);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function submit(itemId: string) {
+    if (!lesson || busy || submissionInFlight.current || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+    submissionInFlight.current = true;
+    const started = performance.now();
+    setBusy(true);
+    setError("");
+    try {
+      if (!pendingSubmission.current) {
+        if (saveInFlight.current) await saveInFlight.current;
+        const item = lesson.items.find(i => i.id === itemId);
+        if (!item && !lesson.wholeLesson) return;
+        pendingSubmission.current = {
+          clientSubmissionId: crypto.randomUUID(),
+          draftRevision: revision.current,
+          stage: lesson.wholeLesson ? null : item!.stage,
+          itemIds: lesson.wholeLesson ? null : [itemId],
+          ...(JSON.stringify(latest.current) !== saved.current ? { answers: latest.current } : {}),
+        };
+        writeOfflineDraft(submissionKey, JSON.stringify(pendingSubmission.current));
+        setPending(itemId);
+      }
+      const input = pendingSubmission.current;
+      const request = () => json<{ submission: SubmissionView & { replayed: boolean }; draftRevision: number }>(url + "/submissions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      // Always reconcile the key first. If the read fails, retain the pending request;
+      // a later explicit retry or reconnect will read again before any POST.
+      const check = await json<{ submission: (SubmissionView & { replayed: boolean }) | null; draftRevision?: number; draft?: DraftAnswers | null }>(
+        url + "/submissions?clientSubmissionId=" + encodeURIComponent(input.clientSubmissionId));
+      const response = check.submission && check.draftRevision !== undefined
+        ? { submission: check.submission, draftRevision: check.draftRevision }
+        : await request();
+      if (!response.submission.replayed && response.submission.attempts.length
+        && response.submission.attempts.every(attempt => attempt.result)) {
+        gradeStarted.current = { submissionId: response.submission.id, at: started };
+      }
+      if (itemId === "whole-lesson" && !response.submission.replayed) feedbackStarted.current = { submissionId: response.submission.id, at: started };
+      setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
+      const changedOnServer = !!check.submission && !!input.answers && JSON.stringify(check.draft) !== JSON.stringify(input.answers);
+      if (changedOnServer) {
+        ready.current = false;
+        storeDraft(JSON.stringify({ revision: input.draftRevision, answers: latest.current }));
+        setError("Lượt nộp đã lưu, nhưng nháp trên máy chủ đã đổi. Chép bài trên trang trước khi tải lại.");
+      } else if (input.answers) {
+        revision.current = response.draftRevision;
+        saved.current = JSON.stringify(input.answers);
+        ready.current = true;
+        storeDraft(JSON.stringify(latest.current) === saved.current ? undefined :
+          JSON.stringify({ revision: revision.current, answers: latest.current }));
+      }
+      pendingSubmission.current = null;
+      writeOfflineDraft(submissionKey, undefined);
+      setPending(null);
+      setState(!changedOnServer && JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
+      window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
+      void refreshFeedback();
+    } catch (e) {
+
+      setError((e as Error).message + (pendingSubmission.current ? " Sẽ kiểm tra lại khi có mạng; bạn cũng có thể bấm Thử nộp lại." : ""));
+    } finally {
+      submissionInFlight.current = false;
+      setBusy(false);
+    }
+  }
+  const submitRef = useRef(submit);
+  useEffect(() => { submitRef.current = submit; });
+  useEffect(() => {
+    const reconnect = () => { if (pending) void submitRef.current(pending); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [pending]);
+  async function complete(confirmed = false) {
+    if (!lesson || busy || pending) return;
+    if (!lesson.completedAt && unanswered > 0 && !confirmed) {
+      setConfirmFinish(true);
+      return;
+    }
+    setConfirmFinish(false);
+    setBusy(true);
+    setError("");
+    try {
+      if (!(await save())) return;
+      const fresh = await json<{ lesson: Lesson }>(url);
+      const result = await json<{ updated: string; completed: boolean; completedAt: string | null }>(url + "/completion", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ completed: !fresh.lesson.completedAt, expectedUpdated: fresh.lesson.updated }),
+      });
+      setLesson({ ...fresh.lesson, updated: result.updated, completedAt: result.completedAt });
+      setJustCompleted(result.completed);
+      window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
+      await onCompleted?.();
+      return result.completed;
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const [justCompleted, setJustCompleted] = useState(false);
+  const [confirmFinish, setConfirmFinish] = useState(false);
+  /** The learner turned a page: hide the hint now and remember it in the profile. */
+  const pageEdgeHintSeen = useCallback(() => {
+    setPageEdgeHint(false);
+    void fetch("/api/learners/me/hints", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ hint: "pageEdge" }),
+    }).then(response => response.body?.cancel(), () => {});
+  }, []);
+  const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
+
+  return {
+    lesson, child, displayName, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
+    waitingForGrade, unanswered, confirmFinish,
+    justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
+  };
+}

@@ -1,3 +1,6 @@
+import { readNotebookBook } from '../../../../lib/lesson-v2/notebook-book';
+import { readNotebookLessons } from '../../../../lib/lesson-v2/notebook-list';
+import { listRequests } from '../../../../lib/requests/service';
 import {readRoadmapProgress} from '../../../../lib/roadmap/report';
 import { measureStorage } from '../../../../db/timing';
 import { env } from 'cloudflare:workers';
@@ -32,18 +35,29 @@ export async function GET(req: Request, context: Context) {
     const readFacts = (id: string) => factsPromise ??= id === user.id && user.learnerRole
       ? Promise.resolve({ learnerRole: user.learnerRole, viewerIsGuardian: false })
       : learnerFacts(db, user, id);
-    const learnerId = await resolveLearner(db, user, req, 'read_progress', readFacts);
+    const view = new URL(req.url).searchParams.get('view');
+    const learnerId = await resolveLearner(db, user, req, view === 'book' ? 'read_work' : 'read_progress', readFacts);
     if (learnerId instanceof Response) return learnerId;
     const [{subject,steps},facts]=await Promise.all([subjectWithRoadmap(db,learnerId,id),readFacts(learnerId)]);
     const progress=await readRoadmapProgress(db,learnerId,id,steps);
     const includeSuspected = user.id !== learnerId || facts.learnerRole !== 'child';
-    if (new URL(req.url).searchParams.get('view') === 'overview') {
+    if (view === 'overview' || view === 'book') {
       const now = new Date();
       const reading = readNotebookOverview(db, learnerId, id, subject.legacyTrack, now, includeSuspected);
       const [overview, report] = await Promise.all([
         reading, readNotebookReport(db, learnerId, id, reading, now, facts.learnerRole, subject.roadmap),
       ]);
-      return Response.json({ ...overview, report:{...report,progress},progress }, { headers: { ...headers, "Server-Timing": timing.header() } });
+      const summary = { ...overview, report: { ...report, progress }, progress };
+      if (view === 'book') {
+        const [book, history, requests] = await Promise.all([
+          readNotebookBook(db, learnerId, id, { status: subject.status, legacy_track: subject.legacyTrack }, 'open', 0, env.ADAPTIVE_PILOT_SUBJECT_ID),
+          readNotebookLessons(db, learnerId, id, true, 0),
+          user.id === learnerId && subject.status === 'active' ? listRequests(db, learnerId, id) : [],
+        ]);
+        return Response.json({ subject, child: facts.learnerRole === 'child', overview: summary, book, history, requests },
+          { headers: { ...headers, "Server-Timing": timing.header() } });
+      }
+      return Response.json(summary, { headers: { ...headers, "Server-Timing": timing.header() } });
     }
     const details = await readSubjectSkills(db, learnerId, id);
     if (!includeSuspected) details.errors = details.errors.filter(e => e.confidence === 'confirmed');
@@ -82,10 +96,10 @@ export async function PATCH(req: Request, context: Context) {
     if (learnerId instanceof Response) return learnerId;
     if (patch.limits) {
       const subject = await getSubject(db, learnerId, id);
-      const previous = JSON.parse(subject.limits).package ?? 2;
-      patch.limits.package ??= previous;
-      if (patch.limits.package !== previous && (user.role !== 'admin' || subject.legacy_track))
-        return Response.json({ error: 'Chỉ quản trị viên có thể đổi phiên bản dạng bài cho sổ riêng.' }, { status: 403, headers });
+      const previous = JSON.parse(subject.limits).itemKinds;
+      patch.limits.itemKinds ??= previous;
+      if (JSON.stringify(patch.limits.itemKinds) !== JSON.stringify(previous) && user.role !== 'admin')
+        return Response.json({ error: 'Chỉ quản trị viên có thể đổi dạng câu.' }, { status: 403, headers });
     }
     return Response.json({ subject: await updateSubject(db, learnerId, id, patch) }, { headers });
   } catch (error) {

@@ -6,10 +6,12 @@ import { buttonClass } from "./ui";
 import { apiJson } from "./api";
 
 export type DisputeItem = {
-  id: string; learnerId?: string; status: string; reason: string; message: string; createdAt: string;
+  id: string; learnerId?: string; status: string; resolvedBy?: string | null; reason: string; message: string; createdAt: string;
   lessonTitle?: string; subjectTitle?: string; prompt?: string; answer?: string;
-  grade?: { grader: string; result: string; score: number; feedback: string };
+  grade?: Grade; recheckGrade?: Grade | null;
 };
+
+type Grade = { result: string; score: number; feedback: string; errors: { evidence: string }[] };
 
 const reasonText: Record<string, string> = {
   answer_correct: "Cho rằng câu trả lời đúng",
@@ -45,9 +47,15 @@ export function DisputeResolver({ dispute, learner, onDone }: { dispute: Dispute
       <p className="text-sm text-muted">{[dispute.subjectTitle, dispute.lessonTitle].filter(Boolean).join(" · ")}</p>
       {dispute.prompt && <p className="whitespace-pre-wrap font-semibold">{dispute.prompt}</p>}
       {dispute.answer !== undefined && <p className="whitespace-pre-wrap">Bài làm: {dispute.answer || "(chỉ có ảnh)"}</p>}
-      {dispute.grade && <p>Điểm đang bị phản đối: {resultText[dispute.grade.result] ?? dispute.grade.result}. {dispute.grade.feedback}</p>}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {([['Lần chấm đầu', dispute.grade], ['Lần chấm lại · đã có hiệu lực', dispute.recheckGrade]] as const).map(([label, grade]) => grade && <section key={label}>
+          <p className="font-semibold">{label}: {resultText[grade.result] ?? grade.result} ({grade.score})</p>
+          <p>{grade.feedback}</p>
+          {grade.errors?.map((error, index) => <p key={index}>Trích dẫn: “{error.evidence}”</p>)}
+        </section>)}
+      </div>
       <p className="text-sm">{reasonText[dispute.reason] ?? dispute.reason}{dispute.message ? `: “${dispute.message}”` : ""}</p>
-      <label className={labelClass}>Ghi chú (không bắt buộc)
+      {(dispute.status === "open" || dispute.status === "needs_human" || dispute.resolvedBy === "ai") && <><label className={labelClass}>Ghi chú (không bắt buộc)
         <input className={fieldClass} maxLength={1000} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
       {mode === "set" && (
@@ -78,7 +86,7 @@ export function DisputeResolver({ dispute, learner, onDone }: { dispute: Dispute
             <button type="button" className={buttonClass("ghost")} disabled={busy} onClick={() => void decide({ decision: "void" })}>Huỷ câu</button>
           </>
         )}
-      </div>
+      </div></>}
     </article>
   );
 }

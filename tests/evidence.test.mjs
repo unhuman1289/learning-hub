@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
+import { queueSubmission } from '../lib/ai-jobs/queue.ts';
 import { autoGrade } from '../lib/evidence/autograde.ts';
 import { evidenceStrength } from '../lib/evidence/strength.ts';
-import { parseSubmission, submitLesson, readSubmission } from '../lib/evidence/submit.ts';
+import { parseSubmission, submitLesson, readSubmission, readLessonSubmissions } from '../lib/evidence/submit.ts';
 import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
 import { saveDraft, reveal, completeLesson } from '../lib/lesson-v2/actions.ts';
 import { importLesson } from '../lib/lesson-v2/import.ts';
@@ -52,6 +53,73 @@ test('autograde matrix: exact sets, numeric units/tolerances and German normaliz
   assert.equal(autoGrade(text, 'kochen').feedback, 'Đúng.');
   assert.equal(autoGrade(text, 'kocht').feedback, 'Chưa đúng. Đọc lại đề và thử sửa nhé.');
 });
+test('text key normalization accepts typography variants while preserving spelling and meaning', () => {
+  const cases = [
+    ['nach Hause', 'nach\u00a0Hause', true],
+    ['nach Hause', 'nach\u202fHause', true],
+    ['"Hallo"', '„Hallo“', true],
+    ['"Hallo"', '“Hallo”', true],
+    ["geht's", 'geht‘s', true],
+    ["geht's", 'geht’s', true],
+    ['A-B', 'A‐B', true],
+    ['A-B', 'A‑B', true],
+    ['A-B', 'A–B', true],
+    ['A-B', 'A—B', true],
+    ['A-B', 'A－B', true],
+    ['A-B', 'AB', false],
+    ...Array.from('…,;:．！，；：？', mark => ['Hallo', 'Hallo' + mark, true]),
+    ['Hallo Welt', 'Hallo, Welt', false],
+    ['hòa', 'hoà', true],
+    ['thuỷ', 'thủy', true],
+    ['khỏe', 'khoẻ', true],
+    ['HÒA', 'HOÀ'.normalize('NFD'), true],
+    ['hòa', 'hóa', false],
+    ['hoàn', 'hòan', false],
+    ['3.5', '3,5', true],
+    ['Giá -3,5 kg', 'Giá -3.5 kg', true],
+    ['3.5', '3,5！', true],
+    ['3.5kg', '3,5kg', false],
+    ['A3.5', 'A3,5', false],
+    ['1.234.5', '1.234,5', false],
+    ['3.5', '35', false],
+    ['Häuser', 'Hause', false],
+    ['schön', 'schon', false],
+    ['für', 'fur', false],
+    ['Straße', 'Strase', false],
+    ['Straße', 'Strasse', false],
+    [['Straße', 'Strasse'], 'Strasse', true],
+    ['mà', 'ma', false],
+  ];
+  for (const [expected, answer, correct] of cases) {
+    const accepted = Array.isArray(expected) ? expected : [expected];
+    const key = { type: 'text', accepted, caseSensitive: true };
+    assert.equal(autoGrade(key, answer).result, correct ? 'correct' : 'incorrect',
+      `${JSON.stringify(accepted)} vs ${JSON.stringify(answer)}`);
+  }
+});
+
+test('ambiguous numbers ask for clarification without saving a submission or consuming an attempt', async () => {
+  const { db, id } = await seed();
+  const item = structuredClone(fixture.items[0]);
+  item.input = 'short';
+  item.key = { type: 'numeric', value: '1000', unit: null, tolerance: 0 };
+  db.sqlite.prepare('UPDATE lesson_items SET payload=? WHERE lesson_id=? AND item_id=?')
+    .run(JSON.stringify(item), id, item.id);
+  const request = { ...input(0, [item.id]), answers: { [item.id]: { answer: '1.000' } } };
+  await assert.rejects(submitLesson(db, 'learner', id, request), {
+    status: 422,
+    message: 'Bạn muốn viết 1000 hay 1?',
+  });
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM submissions').get().n, 0);
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 0);
+  const saved = await submitLesson(db, 'learner', id, {
+    ...request,
+    answers: { [item.id]: { answer: '1000' } },
+  });
+  assert.equal(saved.attempts[0].result, 'correct');
+  assert.equal(saved.attempts[0].attempt_no, 1);
+});
+
 test('evidence strength distinguishes help, retry, solution and ungradable', () => {
   assert.equal(evidenceStrength('correct', 'none', 1), 'E3');
   assert.equal(evidenceStrength('correct', 'none', 2), 'E2');
@@ -174,7 +242,7 @@ test('backup round trip retains fractional grades, retries and foreign keys', as
   db.sqlite.prepare("UPDATE grades SET score=0.75,result='partial'").run();
   const snapshot = {
     format: 4,
-    tables: Object.fromEntries(Object.keys(backupColumns).map((t) => [t, db.sqlite.prepare(`SELECT * FROM ${t}`).all()])),
+    tables: Object.fromEntries(Object.keys(backupColumns).map((t) => [t, db.sqlite.prepare("SELECT 1 FROM sqlite_schema WHERE name=?").get(t) ? db.sqlite.prepare(`SELECT * FROM ${t}`).all() : []])),
   };
   const restored = memoryDb();
   restored.sqlite.exec('PRAGMA foreign_keys=ON');
@@ -249,4 +317,74 @@ test('two-step correction: the fix stays hidden after a first wrong answer until
   assert.deepEqual(hiddenCorrection(first, { i3: 'solution' }), { correctionHidden: false });
   assert.deepEqual(hiddenCorrection(first, { i3: 'hint2' }), { correction: null, correctionHidden: true });
   assert.deepEqual(hiddenCorrection({ ...first, result: null }, {}), { correctionHidden: false });
+});
+
+test('whole-lesson mode rejects per-question submission and skips revealed short answers', async () => {
+  const { db } = await seed();
+  const lesson = {
+    ...fixture,
+    contract: 'lesson-package/3',
+    knowledge: [],
+    gradingMode: 'whole-lesson',
+    items: fixture.items.map(item => ({
+      ...item,
+      key: undefined,
+      choices: undefined,
+      input: 'short',
+      attachment: 'none',
+      hints: ['Hãy đọc lại câu.'],
+      rubric: [{ criterion: 'Đúng ý', points: 1 }],
+    })),
+  };
+  const id = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-12', slot: 'extra', lesson });
+  assert.equal(await status(submitLesson(db, 'learner', id, input(0))), 400);
+  const first = lesson.items[0].id;
+  const second = lesson.items[1].id;
+  await reveal(db, 'learner', id, first, 'solution');
+  await reveal(db, 'learner', id, second, 'hint1');
+  const answers = Object.fromEntries(lesson.items.slice(1).map(item => [item.id, { answer: 'Antwort' }]));
+  const packet = parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, answers });
+  const submitted = await submitLesson(db, 'learner', id, packet);
+  assert.equal(submitted.attempts.length, lesson.items.length);
+  assert.equal(submitted.attempts.find(attempt => attempt.item_id === first).score, 0);
+  assert.equal(submitted.attempts.find(attempt => attempt.item_id === second).support, 'hint1');
+  assert.equal(submitted.attempts.find(attempt => attempt.item_id === second).status, 'pending');
+  assert.equal((await submitLesson(db, 'learner', id, packet)).replayed, true);
+
+  const skippedId = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-13', slot: 'extra', lesson });
+  for (const item of lesson.items) await reveal(db, 'learner', skippedId, item.id, 'solution');
+  const skipped = await submitLesson(db, 'learner', skippedId, parseSubmission({
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 0,
+  }));
+  assert.equal(skipped.status, 'graded');
+  assert.ok(skipped.attempts.every(attempt => attempt.result === 'incorrect' && attempt.score === 0));
+  assert.equal(await queueSubmission(db, {}, 'learner', skipped.id), null);
+});
+
+test('whole lesson accepts blanks without creating attempts for them', async () => {
+  const { db } = await seed();
+  const lesson = { ...fixture, contract: 'lesson-package/3', knowledge: [], gradingMode: 'whole-lesson' };
+  const id = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-14', slot: 'extra', lesson });
+  const item = lesson.items.find(i => i.input === 'short');
+  const submission = await submitLesson(db, 'learner', id, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, answers: { [item.id]: { answer: 'Antwort' } } }));
+  assert.deepEqual(submission.attempts.map(a => a.item_id), [item.id]);
+  const allBlank = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-15', slot: 'extra', lesson });
+  const empty = await submitLesson(db, 'learner', allBlank, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0 }));
+  assert.equal(empty.attempts.length, 0);
+});
+
+test('whole lesson submits a photo for grading', async () => {
+  const { db } = await seed();
+  const lesson = { ...fixture, contract: 'lesson-package/3', knowledge: [], gradingMode: 'whole-lesson' };
+  const id = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-16', slot: 'extra', lesson });
+  const item = lesson.items.find(i => i.input === 'short');
+  db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload,'$.attachment','optional') WHERE lesson_id=? AND item_id=?").run(id, item.id);
+  const photo = 'img_aaaaaaaaaaaaaaaaaaaa';
+  db.sqlite.prepare("INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at) VALUES(?,?,'test','image/png',20,2,2,?,'2026-01-01','2099-01-01')").run(photo,'learner','0'.repeat(64));
+  const submission = await submitLesson(db, 'learner', id, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, answers: { [item.id]: { answer: '', attachmentIds: [photo] } } }));
+  assert.equal(submission.attempts.length,1);
+  assert.equal(submission.attempts[0].status,'pending');
+  assert.deepEqual(submission.attempts[0].attachmentIds,[photo]);
+  const history = await readLessonSubmissions(db, 'learner', id);
+  assert.deepEqual(history[0].attempts[0].attachmentIds, [photo]);
 });

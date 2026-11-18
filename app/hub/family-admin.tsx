@@ -66,35 +66,40 @@ function MemberRow({ member, members, nameOf, busy, send }: {
       </div>
       <div className="flex flex-wrap items-end gap-3">
         <label className="grid gap-1 text-sm text-muted">Vai trò
-          <select value={member.role} disabled={working} onChange={(event) => void send(`${member.id}:role`, { action: "profile", userId: member.id, role: event.target.value })} className="min-h-9 rounded-md border border-rule bg-paper px-2 text-ink">
+          <select value={member.role} disabled={working} onChange={(event) => void send(`${member.id}:role`, { action: "profile", userId: member.id, role: event.target.value })} className="min-h-11 max-w-full rounded-md border border-rule bg-paper px-2 text-ink">
             <option value="adult">Người lớn</option>
             <option value="child">Trẻ em</option>
           </select>
         </label>
         <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void send(`${member.id}:name`, { action: "profile", userId: member.id, displayName: nickname }); }}>
           <label className="grid gap-1 text-sm text-muted">Biệt danh
-            <input value={nickname} maxLength={40} onChange={(event) => setNickname(event.target.value)} className="min-h-9 rounded-md border border-rule bg-paper px-2 text-ink" />
+            <input value={nickname} maxLength={40} onChange={(event) => setNickname(event.target.value)} className="min-h-11 max-w-full rounded-md border border-rule bg-paper px-2 text-ink" />
           </label>
-          <button type="submit" disabled={working || nickname === (member.displayName ?? "")} className={buttonClass("secondary", "min-h-9 px-3")}>Lưu</button>
+          <button type="submit" disabled={working || nickname === (member.displayName ?? "")} className={buttonClass("secondary", "min-h-11 px-3")}>Lưu</button>
         </form>
       </div>
+      <label className="flex min-h-11 w-fit items-center gap-2 text-sm">
+        <input type="checkbox" checked={member.tutorEnabled} disabled={working}
+          onChange={(event) => void send(`${member.id}:tutor`, { action: "tutor", userId: member.id, enabled: event.target.checked })} />
+        Cho phép dùng gia sư
+      </label>
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-muted">Phụ huynh:</span>
         {member.guardianIds.length === 0 && <span className="text-muted">chưa có</span>}
         {member.guardianIds.map((id) => (
           <span key={id} className="inline-flex items-center gap-1 rounded-full border border-line px-2 py-0.5">
             {nameOf(id)}
-            <button type="button" aria-label={`Gỡ ${nameOf(id)} khỏi phụ huynh của ${member.name}`} disabled={working} onClick={() => void send(`${member.id}:unlink`, { action: "unlink", guardianId: id, learnerId: member.id })} className="grid size-6 place-items-center rounded-full hover:bg-rose-soft"><X size={14} aria-hidden="true" /></button>
+            <button type="button" aria-label={`Gỡ ${nameOf(id)} khỏi phụ huynh của ${member.name}`} disabled={working} onClick={() => void send(`${member.id}:unlink`, { action: "unlink", guardianId: id, learnerId: member.id })} className="grid size-11 place-items-center rounded-full hover:bg-rose-soft"><X size={14} aria-hidden="true" /></button>
           </span>
         ))}
         {candidates.length > 0 && (
-          <form className="inline-flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); if (guardian) void send(`${member.id}:link`, { action: "link", guardianId: guardian, learnerId: member.id }).then(() => setGuardian("")); }}>
+          <form className="flex min-w-0 flex-wrap items-center gap-2" onSubmit={(event) => { event.preventDefault(); if (guardian) void send(`${member.id}:link`, { action: "link", guardianId: guardian, learnerId: member.id }).then(() => setGuardian("")); }}>
             <label className="sr-only" htmlFor={`guardian-${member.id}`}>Thêm phụ huynh cho {member.name}</label>
-            <select id={`guardian-${member.id}`} value={guardian} onChange={(event) => setGuardian(event.target.value)} className="min-h-9 rounded-md border border-rule bg-paper px-2 text-ink">
+            <select id={`guardian-${member.id}`} value={guardian} onChange={(event) => setGuardian(event.target.value)} className="min-h-11 max-w-full rounded-md border border-rule bg-paper px-2 text-ink">
               <option value="">Thêm phụ huynh…</option>
               {candidates.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
             </select>
-            <button type="submit" disabled={!guardian || working} className={buttonClass("secondary", "min-h-9 px-3")}>Gắn</button>
+            <button type="submit" disabled={!guardian || working} className={buttonClass("secondary", "min-h-11 px-3")}>Gắn</button>
           </form>
         )}
       </div>

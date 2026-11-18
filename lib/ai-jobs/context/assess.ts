@@ -1,3 +1,4 @@
+import { audioSpec } from '../../contracts/lesson-package-v3.ts';
 import { contextExcerpt } from '../../knowledge/service.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
@@ -33,6 +34,7 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
   const items = [];
   let imageCount = 0;
   for (const a of attempts) {
+    if (lesson.gradingMode === 'whole-lesson' && !dispute && a.grader === 'auto') continue;
     const item = JSON.parse(String(a.payload));
     const photos = [];
     for (const id of JSON.parse(String(a.attachment_ids)) as string[]) {
@@ -40,12 +42,12 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
         .prepare('SELECT id,mime,expires_at,deleted_at FROM attachments WHERE id=? AND learner_id=?')
         .bind(id, job.learner_id)
         .first<{ id: string; mime: string; expires_at: string; deleted_at: string | null }>();
-      if (img && imageCount < 12) {
+      if (imageCount < 12) {
         photos.push({
-          attachmentId: img.id,
-          url: `/api/automation/v2/jobs/${job.id}/attachments/${img.id}`,
-          mime: img.mime,
-          expired: !!img.deleted_at || img.expires_at <= now.toISOString(),
+          attachmentId: img?.id ?? id,
+          url: `/api/automation/v2/jobs/${job.id}/attachments/${img?.id ?? id}`,
+          mime: img?.mime ?? 'image/jpeg',
+          expired: !img || !!img.deleted_at || img.expires_at <= now.toISOString(),
         });
         imageCount++;
       }
@@ -56,7 +58,9 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
       )
       .bind(job.learner_id, a.lesson_id, a.item_id, a.attempt_no)
       .all<{ answer: string; result: string | null; feedback: string | null }>();
+    const transcript = item.input === 'long' ? audioSpec.shape.lines.safeParse(item.audio?.lines) : undefined;
     items.push({
+      ...(transcript?.success ? { transcript: transcript.data.map(line => ({ ...line, text: safeText(line.text, sensitivity) })) } : {}),
       attemptId: a.id,
       itemId: a.item_id,
       stage: a.stage,
@@ -65,6 +69,10 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
       ...(item.input === 'code' ? { language: item.language, starter: safeText(item.starter, sensitivity) } : {}),
       skills: JSON.parse(String(a.skill_ids)),
       prompt: safeText(item.prompt, sensitivity),
+      ...(dispute ? Object.fromEntries(['choices', 'left', 'right', 'steps'].flatMap(field =>
+        Array.isArray(item[field]) ? [[field, item[field].map((option: { id: string; text: string }) => ({
+          id: option.id, text: safeText(option.text, sensitivity),
+        }))]] : [])) : {}),
       rubric: item.rubric ?? null,
       solution: safeText(item.solution, sensitivity),
       key: item.key ?? null,
@@ -103,7 +111,7 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
     jobId: job.id,
     purpose: job.purpose,
     contextHash: 'sha256:' + '0'.repeat(64),
-    learner: learner.public,
+    learner: dispute ? { role: learner.public.role, explainLanguage: learner.public.explainLanguage } : learner.public,
     subject: {
       subjectId: subject.id,
       title: safeText(subject.title, sensitivity),
@@ -141,13 +149,18 @@ export async function buildAssessContext(db: EvidenceDb, job: Job, environment: 
     calibration: calibration.map((x) => ({ ...x, note: safeText(x.note, sensitivity) })),
     truncated: [],
   };
+  // Rechecks do not send profile identity, including a profile name repeated in free text.
+  const displayName = learner.public.displayName;
+  const namePattern = dispute && displayName && displayName !== 'Người học'
+    ? new RegExp(`(?<![\\p{L}\\p{N}])${displayName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\p{L}\\p{N}])`, 'gu')
+    : null;
   const clean = (v: unknown): unknown =>
     Array.isArray(v)
       ? v.map(clean)
       : v && typeof v === 'object'
         ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, clean(x)]))
         : typeof v === 'string'
-          ? v.replaceAll(job.learner_id, '[id riêng]')
+          ? (namePattern ? v.replaceAll(job.learner_id, '[id riêng]').replace(namePattern, '[người học]') : v.replaceAll(job.learner_id, '[id riêng]'))
           : v;
   const safe = clean(context) as Record<string, unknown>,
     truncated = safe.truncated as string[];

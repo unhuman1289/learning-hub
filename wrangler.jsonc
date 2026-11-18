@@ -34,14 +34,17 @@
   },
   "env": {
     "staging": {
+      "placement": { "region": "azure:westeurope" },
       "name": "learning-hub-staging",
       "workers_dev": true,
       "vars": {
         "ENVIRONMENT": "staging",
+        "OPENAI_ENABLED": "true",
         "APP_ENV": "staging",
         "APP_VERSION": "hub2-adaptive-roadmap-2026-11-12",
         "DEPLOYMENT_ID": "learning-hub-staging",
         "STAGING_SPIKE_LOCKDOWN": "false",
+        "HOUSEHOLD_GATE": "passphrase",
         "APP_ORIGIN": "https://learning-hub-staging.tranvu-812.workers.dev",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",
         "ACCESS_TEAM_DOMAIN": "https://unhuman-lab.cloudflareaccess.com",
@@ -74,20 +77,29 @@
       ],
       "triggers": {
         "crons": [
-          "0 1-5,22,23 * * *"
+          "0 1-5,22,23 * * *",
+          "*/5 * * * *"
         ]
       },
+      "ratelimits": [
+        { "name": "HOUSEHOLD_LIMITER", "namespace_id": "1101", "simple": { "limit": 10, "period": 60 } }
+      ],
       "queues": {
         "producers": [
           {
             "queue": "learning-hub-ai-staging",
             "binding": "AI_QUEUE"
           }
+        ],
+        "consumers": [
+          {
+            "queue": "learning-hub-ai-staging",
+            "max_batch_size": 1,
+            "max_batch_timeout": 0,
+            "max_retries": 3
+          }
         ]
-      },
-      "services": [
-        {"binding":"EVENT_DISPATCHER","service":"learning-hub-mcp-staging","entrypoint":"EventDispatcher"}
-      ]
+      }
     },
     "production": {
       "placement": { "region": "azure:westeurope" },
@@ -108,8 +120,7 @@
         "AI_JOBS_DAILY_CAP": "300",
         "HUB2_ENABLED": "true",
         "MCP_ENABLED": "true",
-        "MCP_EVENTS_ENABLED": "false",
-        "AI_LOCAL_ONLY": "true",
+        "OPENAI_ENABLED": "true",
         "DEPLOYMENT_ID": "learning-hub-production",
         "APP_ORIGIN": "https://learn.unhuman.cc",
         "EMAIL_FROM": "Learning Hub <no-reply@notify.unhuman.cc>",
@@ -139,7 +150,27 @@
       ],
       "triggers": {
         "crons": [
+          "0 1-5,22,23 * * *",
           "*/5 * * * *"
+        ]
+      },
+      "ratelimits": [
+        { "name": "HOUSEHOLD_LIMITER", "namespace_id": "1102", "simple": { "limit": 10, "period": 60 } }
+      ],
+      "queues": {
+        "producers": [
+          {
+            "queue": "learning-hub-ai-production",
+            "binding": "AI_QUEUE"
+          }
+        ],
+        "consumers": [
+          {
+            "queue": "learning-hub-ai-production",
+            "max_batch_size": 1,
+            "max_batch_timeout": 0,
+            "max_retries": 3
+          }
         ]
       }
     }

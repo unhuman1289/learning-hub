@@ -1,15 +1,21 @@
+import { gradingQuality } from '../lib/quality.ts';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { memoryDb } from './d1-adapter.mjs';
-import { enqueue, queueSubmission, queueDaily, dispatchJob } from '../lib/ai-jobs/queue.ts';
+import { enqueue, queueSubmission, queueDaily, dispatchJob, queuePreparedDaily } from '../lib/ai-jobs/queue.ts';
 import { refreshSkills } from '../lib/learner-model/nightly.ts';
-import { createDispute, escalateDispute, resolveDispute } from '../lib/disputes/service.ts';
+import { skillEvidence } from '../lib/learner-model/recompute.ts';
+import { createDispute, escalateDispute, resolveDispute, listDisputes, listDisputesNeedingHuman } from '../lib/disputes/service.ts';
 import { createRequest, parseRequest } from '../lib/requests/service.ts';
-import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob } from '../lib/ai-jobs/lease.ts';
-import { applyResult } from '../lib/ai-jobs/result.ts';
+import { leaseJobs, leasedJob, heartbeat, maintainJobs, readJob, failLeasedJob } from '../lib/ai-jobs/lease.ts';
+import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
+import { aiSubjects, setAiControls } from '../lib/ai-controls.ts';
+import { applyResult, applyPreparedDaily } from '../lib/ai-jobs/result.ts';
+import { processJob } from '../lib/ai/job.mjs';
+import { openAiEngine } from '../lib/ai/openai.mjs';
 import { completeLesson, saveDraft } from '../lib/lesson-v2/actions.ts';
-import { submitLesson } from '../lib/evidence/submit.ts';
+import { readLessonSubmissions, submitLesson } from '../lib/evidence/submit.ts';
 import { authorizeAutomation, sha256Hex } from '../lib/auth/automation.ts';
 import { canonical, contextHash } from '../lib/ai-jobs/context/common.ts';
 import { sendAlertDigest } from '../lib/alerts.ts';
@@ -27,7 +33,7 @@ const client = {
   triggers: ['scheduled', 'on_demand', 'deferred'],
   learnerIds: [learner],
 };
-const fixture = JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8'));
+const fixture = { ...JSON.parse(readFileSync(new URL('../fixtures/lessons/deutsch-modalverb.json', import.meta.url), 'utf8')), contract: 'lesson-package/3', knowledge: [] };
 function seed() {
   const db = memoryDb();
   db.sqlite
@@ -47,7 +53,7 @@ function seed() {
     .run(subject, learner, learner);
   return db;
 }
-const input = { kinds: ['plan'], max: 1, runner: { name: 'fake', version: '1', model: 'none' } };
+const input = { kinds: ['plan'], capabilities: ['lesson-v3'], max: 1, runner: { name: 'fake', version: '1', model: 'none' } };
 async function leasePlan(db) {
   const q = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
   const [lease] = await leaseJobs(db, client, input, 'test', now);
@@ -326,15 +332,11 @@ test('dispatch is authenticated with HMAC and includes only job metadata', async
   assert.match(sent.headers['X-LH-Signature'], /^sha256:[a-f0-9]{64}$|^sha256=[a-f0-9]{64}$/);
   assert(!sent.body.includes(learner));
 });
-test('local-only jobs remain queued for the runner without external dispatch', async () => {
-  const sent = [];
-  const job = await enqueue(seed(), {
-    AI_LOCAL_ONLY: 'true',
-    AI_QUEUE: { send: async () => { sent.push('queue'); } },
-    EVENT_DISPATCHER: { dispatch: async () => { sent.push('event'); return { delivered: 1 }; } },
-  }, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
+test('jobs remain queued for API clients when no dispatch is configured', async () => {
+  const db = seed();
+  const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: subject }, now);
   assert.equal(job.status, 'queued');
-  assert.deepEqual(sent, []);
+  assert.equal((await readJob(db, job.id)).status, 'queued');
 });
 
 test('closed-only one wrong submission skips AI; open answers queue assess', async () => {
@@ -420,7 +422,7 @@ test('open-answer assess is atomic, rubric grounded, and replay does not add gra
 });
 test('wrong evidence and missing open grades reject without any mutation', async () => {
   const { db, lesson } = await assigned();
-  await saveDraft(db, learner, lesson, { revision: 0, answers: { i3: { answer: 'Paul möchte einen Kuchen kaufen.' } } }, now);
+  await saveDraft(db, learner, lesson, { revision: 0, answers: { i3: { answer: 'Paul mo\u0308chte\n  einen Kuchen kaufen.' } } }, now);
   const sub = await submitLesson(
     db,
     learner,
@@ -460,7 +462,18 @@ test('wrong evidence and missing open grades reject without any mutation', async
   ];
   x = await applyResult(db, client, lease.jobId, lease.leaseToken, result, true, now);
   assert(x.errors.some((e) => e.code === 'schema'));
+  const error = result.grades[0].errors[0];
+  error.evidence = 'Möchte einen';
+  x = await applyResult(db, client, lease.jobId, lease.leaseToken, result, true, now);
+  assert.equal(x.status, 422);
+  assert.ok(x.errors.some((issue) => issue.path === '/grades/0/errors'));
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 0);
+
+  error.evidence = 'möchte einen';
+  x = await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now);
+  assert.equal(x.status, 200);
+  const savedErrors = JSON.parse(db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(x.outcome.gradeIds[0]).errors);
+  assert.deepEqual(savedErrors, [error]);
   db.sqlite.close();
 });
 test('automatic grades are locked even when an assess job exists', async () => {
@@ -684,8 +697,16 @@ test('nightly refresh keeps an AI review date while evidence is unchanged and st
   db.sqlite.close();
 });
 
-async function gradedWrong() {
+async function gradedWrong(wrongKey = false) {
   const ctx = await assigned();
+  if (wrongKey) {
+    ctx.db.sqlite.prepare('UPDATE subjects SET title=? WHERE id=?').run('Deutsch Học thử', subject);
+    const row = ctx.db.sqlite.prepare("SELECT payload FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(ctx.lesson);
+    const item = JSON.parse(row.payload);
+    item.choices = [{ id: 'a', text: 'Ich kann heute kochen.' }, { id: 'b', text: 'Ich kann heute kocht.' }];
+    item.key = { type: 'choice', correct: ['b'] };
+    ctx.db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE lesson_id=? AND item_id='i1'").run(JSON.stringify(item), ctx.lesson);
+  }
   await saveDraft(ctx.db, learner, ctx.lesson, { revision: 0, answers: { i1: { answer: '["a"]' } } }, now);
   const sub = await submitLesson(
     ctx.db,
@@ -697,6 +718,19 @@ async function gradedWrong() {
   return { ...ctx, attempt: sub.attempts[0] };
 }
 const disputeInput = { reason: 'answer_correct', message: 'Mình nghĩ đáp án a cũng đúng.', recheck: true };
+
+test('a dispute queues recheck when the old answer has only an unresolved skill key', async () => {
+  const { db, attempt } = await gradedWrong();
+  try {
+    db.sqlite.prepare('UPDATE attempts SET skill_ids=? WHERE id=?').run('["key:legacy"]', attempt.id);
+    const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+    assert.equal(dispute.status, 'rechecking');
+    assert.equal((await readJob(db, dispute.jobId)).ref_id, dispute.id);
+    assert.equal(db.sqlite.prepare('SELECT status FROM attempts WHERE id=?').get(attempt.id).status, 'disputed');
+  } finally {
+    db.sqlite.close();
+  }
+});
 
 test('a dispute takes the answer out of the rules at once and cannot be opened twice', async () => {
   const { db, attempt } = await gradedWrong();
@@ -710,8 +744,8 @@ test('a dispute takes the answer out of the rules at once and cannot be opened t
   db.sqlite.close();
 });
 
-test('AI recheck overturning an automatic grade supersedes it, flags the key and recomputes', async () => {
-  const { db, attempt } = await gradedWrong();
+async function automaticRecheck(wrongKey = false) {
+  const { db, attempt } = await gradedWrong(wrongKey);
   const dispute = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(dispute.status, 'rechecking');
   const [lease] = await leaseJobs(db, { ...client }, { ...input, kinds: ['assess'] }, 'test', now);
@@ -745,6 +779,47 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
     recheckDecision: { decision: 'overturned', explanation: 'Đáp án gốc thiếu lựa chọn a.' },
     usage: { model: 'none', inputTokens: 0, outputTokens: 0, ms: 0 },
   };
+  return { db, attempt, dispute, lease, job, context, result };
+}
+
+test('recheck context includes choice text and selected ids without learner identity', async () => {
+  const { db, context } = await automaticRecheck(true);
+  try {
+    const attempt = context.attempts[0];
+    assert.equal(attempt.prompt, 'Câu nào đúng?');
+    assert.deepEqual(attempt.choices, [{ id: 'a', text: 'Ich kann heute kochen.' }, { id: 'b', text: 'Ich kann heute kocht.' }]);
+    assert.equal(attempt.answer, '["a"]');
+    assert.deepEqual(attempt.key, { type: 'choice', correct: ['b'] });
+    assert.deepEqual(Object.keys(context.learner).sort(), ['explainLanguage', 'role']);
+    assert.ok(!JSON.stringify(context).includes(learner));
+    assert.ok(!JSON.stringify(context).includes('Học thử'));
+  } finally { db.sqlite.close(); }
+});
+
+for (const [kind, fields, key, answer] of [
+  ['match', { left: [{ id: 'l1', text: 'eins' }, { id: 'l2', text: 'zwei' }], right: [{ id: 'r1', text: 'một' }, { id: 'r2', text: 'hai' }] }, { type: 'match', pairs: [['l1', 'r1'], ['l2', 'r2']] }, '{"l1":"r2","l2":"r1"}'],
+  ['order', { steps: [{ id: 's1', text: 'Frühstück' }, { id: 's2', text: 'Mittag' }] }, { type: 'order', sequence: ['s1', 's2'] }, '["s2","s1"]'],
+]) {
+  test(`recheck context retains ${kind} options and selected ids`, async () => {
+    const { db, attempt, lesson } = await gradedWrong();
+    try {
+      const row = db.sqlite.prepare("SELECT payload FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(lesson);
+      const item = { ...JSON.parse(row.payload), input: kind, ...fields, key };
+      delete item.choices;
+      db.sqlite.prepare("UPDATE lesson_items SET payload=? WHERE lesson_id=? AND item_id='i1'").run(JSON.stringify(item), lesson);
+      db.sqlite.prepare('UPDATE attempts SET answer=? WHERE id=?').run(answer, attempt.id);
+      await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
+      const [lease] = await leaseJobs(db, client, { ...input, kinds: ['assess'] }, 'test', now);
+      const saved = JSON.parse((await readJob(db, lease.jobId)).context_snapshot).attempts[0];
+      for (const [name, options] of Object.entries(fields)) assert.deepEqual(saved[name], options);
+      assert.deepEqual(saved.key, key);
+      assert.equal(saved.answer, answer);
+    } finally { db.sqlite.close(); }
+  });
+}
+
+test('AI recheck overturning an automatic grade supersedes it, flags the key and recomputes', async () => {
+  const { db, attempt, lease, job, result } = await automaticRecheck();
   const applied = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
   assert.equal(applied.status, 200);
   const row = db.sqlite
@@ -762,6 +837,208 @@ test('AI recheck overturning an automatic grade supersedes it, flags the key and
   // One AI recheck per answer: the next dispute goes to a person.
   const again = await createDispute(db, {}, learner, learner, attempt.id, disputeInput, now);
   assert.equal(again.status, 'needs_human');
+  db.sqlite.close();
+});
+
+
+test('guardian decision replaces an effective AI recheck and retains both grading histories', async () => {
+  const { db, attempt, dispute, lease, job, result } = await automaticRecheck();
+  await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+  const quality = await gradingQuality(db, learner, now);
+  assert.equal(quality[0].rechecksWeek, 1);
+  assert.equal(quality[0].changedWeek, 1);
+  assert.equal(quality[0].changeRateWeek, 1);
+  const review = (await listDisputesNeedingHuman(db)).find(d => d.id === dispute.id);
+  assert.equal(review.grade.result, 'incorrect');
+  assert.equal(review.recheckGrade.result, 'correct');
+  assert.equal((await listDisputes(db, learner)).find(d => d.id === dispute.id).recheckGrade.result, 'correct');
+  const aiGrade = db.sqlite.prepare('SELECT current_grade_id FROM attempts WHERE id=?').get(attempt.id).current_grade_id;
+  await resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'set', result: 'partial', score: 0.5, feedback: 'Một phần đúng.', note: '' }, new Date(now.getTime() + 1000));
+  const current = db.sqlite.prepare('SELECT g.id,g.result,g.grader FROM attempts a JOIN grades g ON g.id=a.current_grade_id WHERE a.id=?').get(attempt.id);
+  assert.equal(current.result, 'partial');
+  assert.equal(current.grader, 'guardian');
+  assert.equal(db.sqlite.prepare('SELECT superseded_by FROM grades WHERE id=?').get(aiGrade).superseded_by, current.id);
+  assert.equal((await listDisputes(db, learner)).find(d => d.id === dispute.id).recheckGrade.result, 'correct');
+  await assert.rejects(resolveDispute(db, learner, dispute.id, { id: 'parent', asAdmin: false }, { decision: 'keep', note: '' }, now), e => e.status === 409);
+  db.sqlite.close();
+});
+
+
+for (const decision of ['upheld', 'overturned']) {
+  test(`Terra recheck fixture persists ${decision} through the runner and D1 validator`, async () => {
+    const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck(decision === 'overturned');
+    try {
+      const originalGrade = db.sqlite.prepare('SELECT grade_id FROM disputes WHERE id=?').get(dispute.id).grade_id;
+      const explanation = decision === 'upheld' ? 'Giữ điểm theo đáp án đã công bố.' : result.recheckDecision.explanation;
+      const fixture = { ...result, grades: decision === 'upheld' ? [] : result.grades, recheckDecision: { decision, explanation } };
+      let calls = 0;
+      const engine = openAiEngine({ apiKey: 'fixture', kind: 'assess', purpose: 'recheck', fetcher: async (_url, options) => {
+        calls++;
+        const body = JSON.parse(options.body);
+        assert.equal(body.model, 'gpt-6.1-terra');
+        const source = body.input;
+        assert.match(body.instructions, /dữ liệu không đáng tin/);
+        assert.ok(source.includes('Ich kann heute kochen.'));
+        assert.ok(source.includes('Ich kann heute kocht.'));
+        assert.ok(source.includes('\"answer\":\"[\\\"a\\\"]\"'));
+        assert.ok(source.includes('\"correct\":[\"b\"]'));
+        assert.ok(!source.includes(learner));
+        assert.ok(!source.includes('Học thử'));
+        assert.ok(!source.includes('lrn_123456abcdef'));
+        assert.ok(!source.includes('Lời dặn riêng'));
+        assert.match(body.instructions, /`upheld`[^\n]+`grades: \[\]`/);
+        assert.match(body.instructions, /`overturned`[^\n]+đúng một `grade`/);
+        return Response.json({ status: 'completed', model: body.model, output: [{ type: 'message', content: [
+          { type: 'output_text', text: JSON.stringify(fixture) },
+        ] }] });
+      } });
+      const hub = {
+        context: async () => ({ ...context, learner: { ...context.learner, role: 'adult', ref: 'lrn_123456abcdef', displayName: 'Học thử', personalPrompt: 'Lời dặn riêng' } }),
+        result: async (current, draft, dryRun) => {
+          const saved = await applyResult(db, client, current.jobId, current.leaseToken, draft, dryRun, now);
+          return { status: saved.status, body: saved };
+        },
+        state: async id => ({ status: (await readJob(db, id)).status }),
+        fail: async (_lease, reason) => assert.fail(reason),
+      };
+      const processed = await processJob(hub, { ...lease, kind: 'assess', purpose: 'recheck' }, engine);
+      assert.equal(processed.status, 'succeeded');
+      assert.equal(calls, 1);
+      const saved = await readJob(db, job.id);
+      const row = db.sqlite.prepare('SELECT status,resolved_by,resolution_note,resolution_grade_id FROM disputes WHERE id=?').get(dispute.id);
+      const attemptRow = db.sqlite.prepare('SELECT status,current_grade_id FROM attempts WHERE id=?').get(attempt.id);
+      assert.equal(row.status, decision);
+      assert.equal(row.resolved_by, 'ai');
+      assert.equal(row.resolution_note, explanation);
+      assert.equal(attemptRow.status, 'graded');
+      assert.equal(JSON.parse(saved.usage).model, 'gpt-6.1-terra');
+      assert.deepEqual(JSON.parse(saved.outcome).gradeIds, decision === 'upheld' ? [] : [row.resolution_grade_id]);
+      assert.equal(attemptRow.current_grade_id, decision === 'upheld' ? originalGrade : row.resolution_grade_id);
+      const official = db.sqlite.prepare('SELECT result,score FROM grades WHERE id=?').get(attemptRow.current_grade_id);
+      assert.equal(official.result, decision === 'upheld' ? 'incorrect' : 'correct');
+      assert.equal(official.score, decision === 'upheld' ? 0 : 1);
+      const evidence = await skillEvidence(db, learner, context.attempts[0].skills[0]);
+      assert.equal(evidence.find(entry => entry.id === attempt.id).result, official.result);
+      assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, decision === 'upheld' ? 1 : 2);
+    } finally {
+      db.sqlite.close();
+    }
+  });
+}
+
+test('three rejected recheck submissions send the dispute to a person and preserve the existing grade', async () => {
+  const { db, attempt, dispute, lease, job, context, result } = await automaticRecheck();
+  const currentGrade = () => db.sqlite.prepare('SELECT current_grade_id FROM attempts WHERE id=?').get(attempt.id).current_grade_id;
+  const disputedGrade = currentGrade();
+  const disputeStatus = () => db.sqlite.prepare('SELECT status FROM disputes WHERE id=?').get(dispute.id).status;
+  result.grades[0].errors = [{ skillId: context.attempts[0].skills[0], label: 'Lỗi thử', category: 'application', evidence: 'b' }];
+
+  const dry = await applyResult(db, client, job.id, lease.leaseToken, result, true, now);
+  assert.equal(dry.status, 422);
+  assert.ok(dry.errors.some((issue) => issue.path === '/grades/0/errors'));
+  assert.equal((await readJob(db, job.id)).validation_failures, 0);
+  for (const count of [1, 2, 3]) {
+    const rejected = await applyResult(db, client, job.id, lease.leaseToken, result, false, now);
+    assert.equal(rejected.status, 422);
+    const saved = await readJob(db, job.id);
+    assert.equal(saved.validation_failures, count);
+    assert.equal(saved.status, count === 3 ? 'failed' : 'leased');
+    assert.equal(disputeStatus(), count === 3 ? 'needs_human' : 'rechecking');
+    assert.equal(currentGrade(), disputedGrade);
+  }
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 1);
+  db.sqlite.close();
+});
+
+test('the offline runner escalates a recheck after the third lease fails validation', async () => {
+  const { db, dispute, job, context, result, lease } = await automaticRecheck();
+  result.grades[0].errors = [{ skillId: context.attempts[0].skills[0], label: 'Lỗi thử', category: 'application', evidence: 'b' }];
+  const hub = {
+    context: async () => context,
+    result: async (current, draft, dryRun) => {
+      assert.equal(dryRun, true);
+      const checked = await applyResult(db, client, current.jobId, current.leaseToken, draft, dryRun, now);
+      assert.equal(checked.status, 422);
+      assert.equal(checked.errors[0].path, '/grades/0/errors');
+      return { status: checked.status, body: checked };
+    },
+    fail: async (current, _reason, retryable) => {
+      const leased = await leasedJob(db, client, current.jobId, current.leaseToken, now);
+      return failLeasedJob(db, leased, retryable, now);
+    },
+  };
+  const engine = { name: 'fixture', run: async () => ({ json: result, usage: result.usage }) };
+  let current = lease;
+  for (const count of [1, 2, 3]) {
+    if (count > 1) [current] = await leaseJobs(db, client, { ...input, kinds: ['assess'] }, 'test', now);
+    await processJob(hub, { ...current, kind: 'assess', purpose: 'recheck' }, engine);
+    assert.equal((await readJob(db, job.id)).status, count === 3 ? 'failed' : 'queued');
+    assert.equal(db.sqlite.prepare('SELECT status FROM disputes WHERE id=?').get(dispute.id).status,
+      count === 3 ? 'needs_human' : 'rechecking');
+  }
+  assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM grades').get().n, 1);
+  db.sqlite.close();
+});
+
+test('evidence from a photo stays unverified in grading and recheck feedback', async () => {
+  const { db, lesson } = await assigned();
+  const photo = 'img_aaaaaaaaaaaaaaaaaaaa';
+  db.sqlite.prepare(`INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at)
+    VALUES(?,?,'test-photo','image/png',20,2,2,?,?,'2026-11-01T00:00:00Z')`)
+    .run(photo, learner, '0'.repeat(64), now.toISOString());
+  db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload,'$.attachment','optional') WHERE lesson_id=? AND item_id='i3'").run(lesson);
+  await saveDraft(db, learner, lesson, { revision: 0, answers: { i3: { answer: '', attachmentIds: [photo] } } }, now);
+  const sub = await submitLesson(db, learner, lesson, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 1, stage: 'guided', itemIds: ['i3'],
+  }, now);
+  await queueSubmission(db, {}, learner, sub.id, now);
+  const leaseInput = { ...input, kinds: ['assess'], capabilities: [...input.capabilities, 'vision'] };
+  const [lease] = await leaseJobs(db, client, leaseInput, 'test', now);
+  const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
+  const [attempt] = context.attempts;
+  const error = { skillId: attempt.skills[0], label: 'Lỗi thử', category: 'application', evidence: 'Paul mögen' };
+  const grade = {
+    attemptId: attempt.attemptId,
+    result: 'incorrect',
+    score: 0,
+    rubricScores: attempt.rubric.map((r) => ({ criterion: r.criterion, points: 0, max: r.points })),
+    feedback: 'Xem lại cách chia động từ.',
+    correction: '',
+    errors: [error],
+    checkItem: null,
+  };
+  const result = {
+    contract: 'assess-result/1',
+    contextHash: context.contextHash,
+    summary: 'Chấm bài thử',
+    grades: [grade],
+    diagnosis: [],
+    masteryProposals: [],
+    errorPatternUpdates: [],
+    reviewProposals: [],
+    recheckDecision: null,
+    usage: { model: 'none', inputTokens: 0, outputTokens: 0, ms: 0 },
+  };
+  const checkFeedback = async (applied) => {
+    assert.equal(applied.status, 200);
+    const { errors } = db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(applied.outcome.gradeIds[0]);
+    assert.deepEqual(JSON.parse(errors), [{ ...error, unverified: true }]);
+    const [feedback] = await readLessonSubmissions(db, learner, lesson);
+    assert.match(feedback.attempts[0].feedback, /chưa đối chiếu được với bài viết tay/);
+    assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM error_patterns').get().n, 0);
+  };
+  await checkFeedback(await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, now));
+
+  const dispute = await createDispute(db, {}, learner, learner, attempt.attemptId, disputeInput, now);
+  const [recheck] = await leaseJobs(db, client, leaseInput, 'test', now);
+  assert.equal(recheck.jobId, dispute.jobId);
+  const recheckResult = {
+    ...result,
+    contextHash: (await readJob(db, recheck.jobId)).context_hash,
+    grades: [{ ...grade, result: 'partial', score: 0.5, rubricScores: grade.rubricScores.map((r, i) => ({ ...r, points: i ? 0 : 1 })) }],
+    recheckDecision: { decision: 'overturned', explanation: 'Câu đáp ứng một tiêu chí.' },
+  };
+  await checkFeedback(await applyResult(db, client, recheck.jobId, recheck.leaseToken, recheckResult, false, now));
   db.sqlite.close();
 });
 
@@ -923,7 +1200,7 @@ test('adaptive requests deduplicate concurrently and legacy clients cannot lease
   assert.equal(db.sqlite.prepare('SELECT count(*) AS n FROM ai_jobs').get().n, 1);
   await assert.rejects(createRequest(db, bindings, learner, learner, parseRequest({ ...data, note: 'Viết email xin nghỉ' }), now), { status: 409 });
   assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
-  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['adaptive-plan'] }, 'test', now);
+  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3','adaptive-plan'] }, 'test', now);
   assert.equal(lease.adaptive, true);
   const job = await readJob(db, lease.jobId);
   assert.equal(JSON.parse(job.context_snapshot).adaptive.mode, 'personal');
@@ -954,7 +1231,7 @@ test('adaptive personal request saves a one-item lesson and does not block the n
   const request = await createRequest(db, bindings, learner, learner, parseRequest({
     subjectId: subject, mode: 'personal', note: 'Luyện modal verb khi hẹn lịch', clientRequestId: crypto.randomUUID(),
   }), now);
-  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['adaptive-plan'] }, 'test', now);
+  const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3','adaptive-plan'] }, 'test', now);
   const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
   const result = plan(context, null);
   const lesson = { ...structuredClone(fixture), kind: 'exploration', estMinutes: 15, items: [fixture.items[0]],
@@ -981,7 +1258,7 @@ test('manual Học mới advances the same roadmap that the nightly planner read
   const request = await createRequest(db, bindings, learner, learner, parseRequest({
     subjectId: subject, mode: 'learn', clientRequestId: crypto.randomUUID(),
   }), now);
-  const withCapability = { ...input, capabilities: ['adaptive-plan'] };
+  const withCapability = { ...input, capabilities: ['lesson-v3','adaptive-plan'] };
   const [lease] = await leaseJobs(db, client, withCapability, 'test', now);
   const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
   assert.equal(context.adaptive.step.title, 'Sắp lịch');
@@ -1053,17 +1330,17 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   db.sqlite.close();
 });
 
-test('v3 planning requires runner support and does not write a new lesson after disabling v3', async () => {
+test('v3 planning requires runner support and does not write a new lesson after item kinds change', async () => {
   const db = seed();
   try {
-    const limits = enabled => JSON.stringify({ maxDifficulty: 3, allowNewTopics: true, maxNewSkillsPerWeek: 5, package: enabled ? 3 : 2 });
+    const limits = enabled => JSON.stringify({ maxDifficulty: 3, allowNewTopics: true, maxNewSkillsPerWeek: 5, itemKinds: enabled ? ['choice','short','long','cloze'] : ['choice','short','long'] });
     db.sqlite.prepare("UPDATE subjects SET title='Sổ thử',limits=? WHERE id=?").run(limits(true), subject);
     const queued = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily', subjectId: subject }, now);
-    assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
+    assert.deepEqual(await leaseJobs(db, client, { ...input, capabilities: [] }, 'test', now), []);
     const [lease] = await leaseJobs(db, client, { ...input, capabilities: ['lesson-v3'] }, 'test', now);
     assert.equal(lease.jobId, queued.id);
     const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
-    assert.equal(context.subjects[0].limits.package, 3);
+    assert.deepEqual(context.subjects[0].limits.itemKinds, ['choice','short','long','cloze']);
     const payload = structuredClone(fixture);
     const { choices, rubric, key, ...base } = payload.items[0];
     void choices; void rubric; void key;
@@ -1083,16 +1360,25 @@ test('v3 planning requires runner support and does not write a new lesson after 
   }
 });
 
-test('a capable runner saves a scoped stable opening roadmap and placement lesson', async () => {
-  const db = seed();
+test('a Deutsch notebook with TTS disabled saves its roadmap and places from text evidence', async () => {
+  const { db, lesson: openLesson } = await assigned();
+  db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(openLesson);
   const notebook = await createSubject(db, learner, learner, parseSubjectInput({
     title: 'Deutsch mới', goal: 'Đặt lịch làm việc, trình độ A2',
   }), now);
   const job = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'initial', subjectId: notebook.id }, now);
-  const [lease] = await leaseJobs(db, client, {...input, capabilities:['roadmap-v2']}, 'test', now);
+  const bucket = { head: async () => null };
+  await setAiControls(db,{OPENAI_ENABLED:'true'},notebook.id,{openaiEnabled:true,ttsEnabled:false},'admin');
+  const ttsSubjectIds = await aiSubjects(db, { OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', UPLOADS: bucket, OPENAI_API_KEY: 'fixture-key',
+    OPENAI_SUBJECT_IDS: notebook.id + ',' + subject, OPENAI_TTS_SUBJECT_IDS: subject }, true);
+  assert.deepEqual(ttsSubjectIds, [subject]);
+  const [lease] = await leaseJobs(db, client, {
+    ...input, capabilities: ['lesson-v3', 'roadmap-v2', 'tts'], ttsVoices: openAiGermanVoices,
+  }, 'test', now);
   assert.equal(lease.jobId, job.id);
   const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
   assert.equal(context.roadmapProtocol, 2);
+  assert.equal(context.policy.openMinutesNow, context.policy.maxOpenMinutes);
   assert.equal(context.subjects[0].framework.key, 'de-cefr');
   const lesson = {...structuredClone(fixture), kind:'diagnostic'};
   const body = plan(context, lesson);
@@ -1111,14 +1397,25 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     framework:{key:'de-cefr',levelFrom:'A2.1'}};
   lesson.targetSkills = skills.slice(0,5).map(ref);
   lesson.items.forEach((item,i)=>{item.skills=[ref(skills[i%5])];});
-  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now);
+  const saved=await applyResult(db,client,job.id,lease.leaseToken,body,false,now,undefined,bucket,ttsSubjectIds);
   assert.equal(saved.status,200,JSON.stringify(saved));
-  const steps=db.sqlite.prepare('SELECT id,requires FROM roadmap_steps WHERE learner_id=? AND subject_id=? ORDER BY ord').all(learner,notebook.id);
+  const steps=db.sqlite.prepare('SELECT id,requires,skill_ids,listening FROM roadmap_steps WHERE learner_id=? AND subject_id=? ORDER BY ord').all(learner,notebook.id);
   assert.equal(steps.length,5);
+  assert(steps.every(step=>step.listening===0));
   assert.match(steps[0].id,/^rs_[a-f0-9]{20}$/);
   assert.deepEqual(JSON.parse(steps[1].requires),[steps[0].id]);
   const placed=db.sqlite.prepare('SELECT id,step_role,updated FROM learning_lessons WHERE subject_id=?').get(notebook.id);
   assert.equal(placed.step_role,'placement');
+  const ordinaryRequest = await createRequest(db, {}, learner, learner, parseRequest({
+    kind: 'extra_practice', subjectId: subject, urgency: 'now',
+  }), now);
+  assert.equal(ordinaryRequest.deferred, true, 'ordinary requests still wait at the cap');
+  db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=85 WHERE id=?').run(openLesson);
+  const nextRequest = await createRequest(db, {}, learner, learner, parseRequest({
+    kind: 'extra_practice', subjectId: subject, urgency: 'now',
+  }), new Date(now.getTime() + 1));
+  assert.equal(nextRequest.deferred, false, 'open placement minutes do not block ordinary requests');
+  db.sqlite.prepare("UPDATE ai_jobs SET status='cancelled' WHERE purpose='request' AND learner_id=?").run(learner);
   assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(subject).n,0);
   db.sqlite.prepare("INSERT INTO submissions(id,learner_id,lesson_id,client_submission_id,request_hash,status,created_at) VALUES('placement',?,?, 'placement','hash','graded',?)")
     .run(learner,placed.id,now.toISOString());
@@ -1132,14 +1429,14 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     grade.run('gr-'+id,id,i===2?'incorrect':'correct',i===2?0:1,now.toISOString());
   }
   await completeLesson(db,learner,placed.id,true,placed.updated,new Date(now.getTime()+1));
-  assert.deepEqual(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(notebook.id).map(row=>row.status),
-    ['placed','placed','planned','planned','planned']);
+  const statuses=()=>db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE subject_id=? ORDER BY ord').all(notebook.id).map(row=>row.status);
+  assert.deepEqual(statuses(), ['placed','placed','planned','planned','planned']);
 
   const later=new Date(now.getTime()+2000);
   const request=await createRequest(db,{},learner,learner,parseRequest({
     subjectId:notebook.id,mode:'practice',stepId:steps[0].id,clientRequestId:crypto.randomUUID(),
   }),later);
-  const [followup]=await leaseJobs(db,client,{...input,capabilities:['adaptive-plan','roadmap-v2']},'test',later);
+  const [followup]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan','roadmap-v2']},'test',later);
   const next=JSON.parse((await readJob(db,followup.jobId)).context_snapshot);
   assert.equal(next.adaptive.roadmapTask,'extend');
   assert.equal(next.adaptive.step.id,steps[0].id);
@@ -1155,17 +1452,17 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     if(item.rubric)item.rubric=item.rubric.map(criterion=>({...criterion,skill:skillId}));
   });
   extension.explorations=[{requestId:request.id,subjectId:notebook.id,action:'assign',reason:'Luyện bước đã qua',lesson:practice}];
-  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later);
+  const more=await applyResult(db,client,followup.jobId,followup.leaseToken,extension,false,later,undefined,bucket,ttsSubjectIds);
   assert.equal(more.status,200,JSON.stringify(more));
   assert.equal(more.outcome.extraLessonIds.length,1);
-  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=?').get(notebook.id).n,8);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM roadmap_steps WHERE subject_id=? AND listening=0').get(notebook.id).n,8);
   assert.equal(db.sqlite.prepare('SELECT status FROM roadmap_steps WHERE id=?').get(steps[0].id).status,'placed');
   for (const valid of [true,false]) {
     const stamp=new Date(later.getTime()+(valid?1000:2000));
     const requested=await createRequest(db,{},learner,learner,parseRequest({
       subjectId:notebook.id,mode:'practice',stepId:steps[0].id,clientRequestId:crypto.randomUUID(),
     }),stamp);
-    const [pending]=await leaseJobs(db,client,{...input,capabilities:['adaptive-plan','roadmap-v2']},'test',stamp);
+    const [pending]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan','roadmap-v2']},'test',stamp);
     const ctx=JSON.parse((await readJob(db,pending.jobId)).context_snapshot);
     assert.equal(ctx.adaptive.roadmapTask,'none');
     const payload=plan(ctx,null);
@@ -1182,4 +1479,288 @@ test('a capable runner saves a scoped stable opening roadmap and placement lesso
     assert.equal((await applyResult(db,client,pending.jobId,pending.leaseToken,payload,false,stamp)).replayed,true);
   }
   db.sqlite.close();
+});
+
+test('staging OpenAI dispatch and claim are scoped to the selected notebook and exact queued job', async () => {
+  const db = seed();
+  const sent = [];
+  const bindings = { OPENAI_ENABLED:'true', ENVIRONMENT: 'staging', OPENAI_SUBJECT_IDS: subject, AI_QUEUE: { send: async body => sent.push(body) } };
+  const scheduled = await enqueue(db, bindings, { learnerId: learner, subjectId: subject, kind: 'plan', purpose: 'daily' }, now);
+  const other = await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, now);
+  assert.deepEqual(sent, [{ jobId: scheduled.id }]);
+  const enabled = await aiSubjects(db, bindings);
+  assert.deepEqual(enabled, [subject]);
+  assert.deepEqual(await leaseJobs(db, client, { ...input, jobId: scheduled.id, excludeSubjectIds: enabled }, 'staging', now), []);
+  const [legacy] = await leaseJobs(db, client, { ...input, excludeSubjectIds: enabled }, 'staging', now);
+  assert.equal(legacy.jobId, other.id);
+  const [selected] = await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject], capabilities: ['lesson-v3', 'adaptive-plan'] }, 'staging', now);
+  assert.equal(selected.jobId, scheduled.id);
+  assert.deepEqual(await leaseJobs(db, client, { ...input, jobId: scheduled.id, subjectIds: [subject] }, 'staging', now), []);
+});
+
+test('Queue sends a child photo as private image data and stops if the photo is gone or the notebook is disabled', async t => {
+  const { consumeOpenAi } = await import('../build/openai-queue.ts');
+  for (const mode of ['child', 'deleted', 'disabled', 'limit']) {
+    const {db, lesson} = await assigned();
+    t.after(() => db.sqlite.close());
+    db.sqlite.prepare("UPDATE learner_settings SET role='child',display_name='Học thử' WHERE user_id=?").run(learner);
+    const photo='img_aaaaaaaaaaaaaaaaaaaa';
+    db.sqlite.prepare(`INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at,deleted_at)
+      VALUES(?,?,'private-key','image/png',4,2,2,?,'2026-10-01','2099-01-01',?)`).run(photo,learner,'0'.repeat(64),null);
+    db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload,'$.attachment','optional') WHERE lesson_id=? AND item_id='i3'").run(lesson);
+    await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'',attachmentIds:[photo]}}},now);
+    const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+    if (mode==='deleted') db.sqlite.prepare("UPDATE attachments SET deleted_at='2026-11-01' WHERE id=?").run(photo);
+    const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}},UPLOADS:{get:async()=>({size:4,arrayBuffer:async()=>new Uint8Array([1,2,3,4]).buffer})}};
+    if(mode==='disabled') await setAiControls(db,env,subject,{openaiEnabled:false,ttsEnabled:true},'admin');
+    const job=await queueSubmission(db,env,learner,sub.id,new Date());
+    let calls=0,acks=0,captured;
+    const batch={messages:[{body:{jobId:job.id},ack:()=>acks++,retry:()=>assert.fail('unexpected retry')}]};
+    await consumeOpenAi(batch,env,()=> 'fixture',async (_url,request)=>{
+      calls++;
+      captured=JSON.parse(request.body);
+      if (mode==='limit') return Response.json({error:{}},{status:503});
+      const context=JSON.parse(captured.input[0].content[0].text.split('\n')[2]);
+      const a=context.attempts[0];
+      const result={contract:'assess-result/1',contextHash:context.contextHash,summary:'Chấm bài thử',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Xem lại cách chia động từ.',correction:'',errors:[{skillId:a.skills[0],label:'Lỗi thử',category:'application',evidence:'Paul mögen'}],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null,usage:{model:'fake',inputTokens:0,outputTokens:0,ms:0}};
+      return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+    });
+    if (captured) {
+      const body=captured, content=body.input[0].content;
+      assert.equal(body.model,'gpt-6-luna');
+      assert.equal(content[1].image_url,'data:image/png;base64,AQIDBA==');
+      assert(!JSON.stringify(body).includes(learner));
+      assert(!JSON.stringify(body).includes('Test adult'));
+      assert(!JSON.stringify(body).includes('Học thử'));
+      assert(!JSON.stringify(body).includes('/api/automation'));
+      assert.match(content[0].text,/Người học/);
+    }
+    assert.equal(acks,1);
+    assert.equal(calls,mode==='child'?1:mode==='limit'?2:0);
+    if(mode==='limit') assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').get(job.id).openai_calls,2);
+    const saved=await readJob(db,job.id);
+    if(mode==='child') {
+      assert.equal(saved.status,'succeeded',saved.error);
+      db.sqlite.prepare("INSERT INTO guardians VALUES('guardian',?,'admin','2026-11-18')").run(learner);
+      const {canAccessLearner}=await import('../lib/access.ts');
+      assert.equal(await canAccessLearner(db,{id:'guardian'},learner,'read_work'),true);
+      const [feedback]=await readLessonSubmissions(db,learner,lesson);
+      assert.match(feedback.attempts[0].feedback,/chưa đối chiếu được với bài viết tay/);
+      const grade=db.sqlite.prepare('SELECT errors FROM grades WHERE id=?').get(JSON.parse(saved.outcome).gradeIds[0]);
+      assert.equal(JSON.parse(grade.errors)[0].unverified,true);
+    }
+    if(mode==='deleted') { assert.equal(saved.status,'failed'); assert.match(saved.error,/xoá|hết hạn/); }
+    if(mode==='disabled') assert.equal(saved.status,'queued');
+  }
+});
+
+test('Queue grades short off-topic answers and blank attempts without fabricated evidence', async t => {
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ for(const answer of ['ok lah','','I like turtles']) {
+  const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+  await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'placeholder'}}},now);
+  const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+  db.sqlite.prepare('UPDATE attempts SET answer=? WHERE submission_id=?').run(answer,sub.id);
+  const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}};
+  const job=await queueSubmission(db,env,learner,sub.id,new Date());let calls=0;
+  await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail('unexpected retry')}]},env,()=> 'prompt',async(_url,request)=>{
+   calls++; const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0],blank=!answer;
+   const result={contract:'assess-result/1',contextHash:ctx.contextHash,summary:'',grades:[{attemptId:a.attemptId,result:blank?'ungradable':'incorrect',score:0,
+    rubricScores:blank?[]:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Hãy trả lời theo yêu cầu.',correction:'',errors:[],checkItem:null}],
+    diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+   return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+  });
+  const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+  const grade=db.sqlite.prepare('SELECT result,score,errors FROM grades WHERE job_id=?').get(job.id);
+  assert.equal(grade.result,answer?'incorrect':'ungradable');assert.equal(grade.score,0);assert.deepEqual(JSON.parse(grade.errors),[]);
+ }
+});
+
+test('Queue retains safe validation diagnostic after two invalid assessment responses', async t => {
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}};
+ const job=await queueSubmission(db,env,learner,sub.id,new Date());let calls=0;
+ await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail('unexpected retry')}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:'invalid',feedback:'private response',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'failed');assert.equal(calls,2);
+ assert.match(saved.error,/^contract_error:invalid_type \/grades\/0\/rubricScores$/);assert.doesNotMatch(saved.error,/private response|ok lah/);
+});
+
+test('Queue matches normalized rubric names on first validation and saves original criteria', async t => {
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ for (const kind of ['normalized','positional','missing','wrong_max']) {
+  const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+  await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+  const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+  const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}};
+  const job=await queueSubmission(db,env,learner,sub.id,new Date());let calls=0;const logs=[];
+  const original=console.info;console.info=(...args)=>logs.push(args.join(' '));
+  try {
+   await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail('unexpected retry')}]},env,()=> 'prompt',async(_url,request)=>{
+    calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+    const scores=a.rubric.map((r,i)=>({criterion:kind==='positional'?'Different '+i:'  '+r.criterion.toUpperCase()+'  .  ',points:0,max:r.points}));
+    if(kind==='missing')scores.pop();if(kind==='wrong_max')scores[0].max+=1;
+    const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:scores,feedback:'Hãy trả lời theo yêu cầu.',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+    return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+   });
+  } finally {console.info=original;}
+  const saved=await readJob(db,job.id), valid=['normalized','positional','wrong_max'].includes(kind);
+  assert.equal(saved.status,valid?'succeeded':'failed',saved.error);assert.equal(calls,valid?1:2);
+  assert.ok(logs.some(line=>line.includes('assess_first_validation') && line.includes(`"passed":${valid}`)));
+  if(valid){const grade=db.sqlite.prepare('SELECT rubric_scores FROM grades WHERE job_id=?').get(job.id);
+   const item=JSON.parse(db.sqlite.prepare("SELECT payload FROM lesson_items WHERE lesson_id=? AND item_id='i3'").get(lesson).payload);
+   assert.deepEqual(JSON.parse(grade.rubric_scores).map(x=>x.criterion),item.rubric.map(x=>x.criterion));}
+ }
+});
+
+test('Queue saves score and result derived from rubric even when model disagrees', async t => {
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}};
+ const job=await queueSubmission(db,env,learner,sub.id,new Date());let calls=0;
+ await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail()}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'correct',score:1,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Hãy thử lại.',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+ const grade=db.sqlite.prepare('SELECT result,score FROM grades WHERE job_id=?').get(job.id);assert.equal(grade.result,'incorrect');assert.equal(grade.score,0);
+});
+
+
+test('F4b stores a validated plan without learning writes and cron discards a stale revision', async () => {
+  const {db, lesson} = await assigned();
+  db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
+  const before = new Date('2026-10-24T21:59:00Z');
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?').run(before.toISOString(),before.toISOString(),lesson);
+  const q = await queuePreparedDaily(db, {}, learner, lesson, before);
+  assert.equal((await readJob(db,q.id)).learning_day,'2026-10-25');
+  const [lease] = await leaseJobs(db, client, {...input,capabilities:['lesson-v3','adaptive-plan']}, 'test', before);
+  const context=JSON.parse((await readJob(db,q.id)).context_snapshot);
+  const result=plan(context,null);
+  const r=await applyResult(db,client,q.id,lease.leaseToken,result,false,before);
+  assert.equal(r.status,200,JSON.stringify(r));
+  assert.equal(r.outcome.prepared,true);
+  assert.equal((await readJob(db,q.id)).status,'prepared');
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n,1);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM prepared_daily_plans').get().n,1);
+  db.sqlite.prepare('UPDATE subjects SET revision=revision+1 WHERE id=?').run(subject);
+  const midnight=new Date('2026-10-24T22:00:00Z');
+  await applyPreparedDaily(db,midnight);
+  assert.equal((await readJob(db,q.id)).status,'cancelled');
+  await queueDaily(db,{},midnight); await queueDaily(db,{},midnight);
+  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM ai_jobs WHERE subject_id=? AND purpose='daily' AND learning_day='2026-10-25'").get(subject).n,1);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n,1);
+  db.sqlite.close();
+});
+
+test('F4b queues tomorrow across Berlin DST and respects independent notebooks', async () => {
+  const {db,lesson}=await assigned();
+  db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
+  const before=new Date('2026-03-28T22:59:00Z');
+  db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-03-28',completed_at=? WHERE id=?").run(before.toISOString(),lesson);
+  const first=await queuePreparedDaily(db,{},learner,lesson,before);
+  assert.equal((await readJob(db,first.id)).learning_day,'2026-03-29');
+  assert.equal((await readJob(db,first.id)).expires_at,'2026-03-29T22:00:00.000Z');
+  const second=await createSubject(db,learner,learner,parseSubjectInput({title:'Second'}),before);
+  db.sqlite.prepare("UPDATE subjects SET status='active',ai_enabled=1 WHERE id=?").run(second.id);
+  db.sqlite.prepare("INSERT INTO learning_lessons(id,user_id,subject_id,track,payload,assigned_date,updated,package_version,slot,completed_at) SELECT 'les_bbbbbbbbbbbbbbbbbbbb',user_id,?,NULL,payload,'2026-03-29',updated,package_version,'primary',? FROM learning_lessons WHERE id=?").run(second.id,'2026-03-28T23:01:00.000Z',lesson);
+  const after=new Date('2026-03-28T23:01:00Z');
+  const q=await queuePreparedDaily(db,{},learner,'les_bbbbbbbbbbbbbbbbbbbb',after);
+  assert.equal((await readJob(db,q.id)).learning_day,'2026-03-30');
+  db.sqlite.close();
+});
+
+
+test('F4b undoes completion before midnight and discards expired prepared jobs', async () => {
+  for (const expired of [false,true]) {
+    const {db,lesson}=await assigned();
+    db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
+    const at=new Date('2026-10-13T21:30:00Z');
+    db.sqlite.prepare("UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?").run(at.toISOString(),at.toISOString(),lesson);
+    const q=await queuePreparedDaily(db,{},learner,lesson,at);
+    const [lease]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan']},'test',at);
+    const context=JSON.parse((await readJob(db,q.id)).context_snapshot);
+    const result=await applyResult(db,client,q.id,lease.leaseToken,plan(context,null),false,at);
+    assert.equal(result.outcome.prepared,true);
+    if (!expired) await completeLesson(db,learner,lesson,false,at.toISOString(),new Date('2026-10-13T21:35:00Z'));
+    await applyPreparedDaily(db,new Date(expired?'2026-10-14T22:00:00Z':'2026-10-13T22:00:00Z'));
+    const job=await readJob(db,q.id);
+    assert.equal(job.status,expired?'expired':'cancelled');
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM prepared_daily_plans').get().n,0);
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n,1);
+    db.sqlite.close();
+  }
+});
+
+
+for (const change of ['none','undo','revision']) test('F4b primary at midnight: '+change, async () => {
+  const {db,lesson}=await assigned();
+  const skill=db.sqlite.prepare('SELECT id FROM skills WHERE subject_id=?').get(subject).id;
+  db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL,roadmap=? WHERE id=?').run(JSON.stringify([{title:'Luyện tiếp',objective:'Viết câu',situation:'Công việc',skills:[skill],mode:'new'}]),subject);
+  const at=new Date('2026-10-13T21:59:00Z');
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?').run(at.toISOString(),at.toISOString(),lesson);
+  const q=await queuePreparedDaily(db,{},learner,lesson,at);
+  const [lease]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan']},'test',at);
+  const context=JSON.parse((await readJob(db,q.id)).context_snapshot);
+  const next=structuredClone(fixture);next.kind=context.adaptive.mode==='learn'?'new':'remediation';
+  next.items.forEach((item,i)=>item.prompt += ' Tình huống mới '+i);
+  const result=plan(context,next);result.subjects[0].skillChanges=[];
+  const r=await applyResult(db,client,q.id,lease.leaseToken,result,false,at);
+  assert.equal(r.status,200,JSON.stringify(r));
+  assert.equal(r.outcome.prepared,true);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n,1);
+  if(change==='undo') await completeLesson(db,learner,lesson,false,at.toISOString(),new Date('2026-10-13T21:59:30Z'));
+  if(change==='revision') db.sqlite.prepare('UPDATE subjects SET revision=revision+1 WHERE id=?').run(subject);
+  const midnight=new Date('2026-10-13T22:00:00Z');
+  await applyPreparedDaily(db,midnight); await applyPreparedDaily(db,midnight);
+  assert.equal((await readJob(db,q.id)).status,change==='none'?'succeeded':'cancelled');
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons WHERE origin_job_id=?').get(q.id).n,change==='none'?1:0);
+  await queueDaily(db,{},midnight);await queueDaily(db,{},midnight);
+  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM ai_jobs WHERE subject_id=? AND purpose='daily' AND learning_day='2026-10-14'").get(subject).n,1);
+  db.sqlite.close();
+});
+
+test('Queue cleans auxiliary assess fields before validation and saves rubric-derived grade',async t=>{
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}},job=await queueSubmission(db,env,learner,sub.id,new Date());
+ let calls=0;const logs=[],old=console.info;console.info=(...args)=>logs.push(args.join(' '));
+ try {await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail()}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'correct',score:1,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:0})),feedback:'Thử lại.',correction:'',errors:[],checkItem:{id:'wrong id'}}],diagnosis:[{attemptId:a.attemptId,errors:[]}],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });}finally{console.info=old;}
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+ const grade=db.sqlite.prepare('SELECT result,score,rubric_scores FROM grades WHERE job_id=?').get(job.id);assert.equal(grade.result,'incorrect');assert.equal(grade.score,0);
+ assert.ok(JSON.parse(grade.rubric_scores).every(r=>r.max>0));
+ for(const code of ['auto_diagnosis','rubric_max','check_item'])assert.ok(logs.some(x=>x.includes('assess_cleanup') && x.includes(code)),code);
+});
+
+test('Queue drops only unsupported mastery proposals and saves the valid proposal on first call',async t=>{
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}},job=await queueSubmission(db,env,learner,sub.id,new Date());
+ let calls=0;const logs=[],original=console.info;console.info=(...a)=>logs.push(a.join(' '));
+ try {await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail()}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'incorrect',score:0,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Hãy thử lại.',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[{skillId:a.skills[0],status:'needs_review',reason:'valid proposal',evidenceAttemptIds:[a.attemptId]},{skillId:a.skills[0],status:'needs_review',reason:'private invalid',evidenceAttemptIds:['att_missing']}],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });}finally{console.info=original;}
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+ assert.ok(logs.some(x=>x.includes('assess_cleanup')&&x.includes('mastery_proposal')));assert.ok(logs.every(x=>!x.includes('private invalid')));
+ const state=db.sqlite.prepare('SELECT mastery_source,mastery_reason FROM skill_states WHERE skill_id=(SELECT json_extract(skill_ids,\'$[0]\') FROM attempts WHERE submission_id=?)').get(sub.id);
+ assert.equal(state.mastery_source,'ai');assert.equal(state.mastery_reason,'valid proposal');
 });

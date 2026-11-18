@@ -1,0 +1,398 @@
+{
+  "source": "Qwen local, Rust demo. Hub từ chối tham chiếu kỹ năng trong openingSteps.requires.",
+  "frameworkKey": "rust-core",
+  "openingSteps": [
+    {
+      "ref": "step-1",
+      "requires": [],
+      "skills": [
+        "key:step-1"
+      ]
+    },
+    {
+      "ref": "step-2",
+      "requires": [
+        "key:step-1"
+      ],
+      "skills": [
+        "key:step-2"
+      ]
+    },
+    {
+      "ref": "step-3",
+      "requires": [
+        "key:step-2"
+      ],
+      "skills": [
+        "key:step-3"
+      ]
+    },
+    {
+      "ref": "step-4",
+      "requires": [
+        "key:step-1"
+      ],
+      "skills": [
+        "key:step-4"
+      ]
+    },
+    {
+      "ref": "step-5",
+      "requires": [
+        "key:step-4"
+      ],
+      "skills": [
+        "key:step-5"
+      ]
+    }
+  ],
+  "lesson": {
+    "contract": "lesson-package/3",
+    "kind": "diagnostic",
+    "template": "skill",
+    "title": "Văn bản mẫu",
+    "objective": "Văn bản mẫu",
+    "why": "Văn bản mẫu",
+    "reasonRefs": [],
+    "estMinutes": 15,
+    "level": "Văn bản mẫu",
+    "targetSkills": [
+      "key:demo-1",
+      "key:demo-2",
+      "key:demo-3",
+      "key:demo-4",
+      "key:demo-5"
+    ],
+    "sheet": {
+      "rules": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "explanation": "Văn bản mẫu",
+      "examples": [
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        },
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        }
+      ],
+      "mistakes": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "tips": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "checklist": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ]
+    },
+    "sections": [
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      },
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      },
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      },
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      }
+    ],
+    "diagram": null,
+    "stages": [
+      {
+        "stage": "retrieval",
+        "itemIds": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5",
+          "i6",
+          "i7",
+          "i8"
+        ]
+      }
+    ],
+    "items": [
+      {
+        "id": "i1",
+        "activity": "recall",
+        "skills": [
+          "key:demo-1"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 1",
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none",
+        "input": "code",
+        "language": "rust",
+        "starter": "Văn bản mẫu",
+        "lines": 10,
+        "rubric": [
+          {
+            "criterion": "Văn bản mẫu",
+            "points": 1
+          },
+          {
+            "criterion": "Văn bản mẫu",
+            "points": 1
+          },
+          {
+            "criterion": "Văn bản mẫu",
+            "points": 1
+          },
+          {
+            "criterion": "Văn bản mẫu",
+            "points": 1
+          },
+          {
+            "criterion": "Văn bản mẫu",
+            "points": 1
+          }
+        ]
+      },
+      {
+        "id": "i2",
+        "activity": "recall",
+        "skills": [
+          "key:demo-2"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 2",
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none",
+        "input": "cloze",
+        "fragments": [
+          "Beispiel",
+          "Beispiel"
+        ],
+        "key": {
+          "type": "cloze",
+          "blanks": [
+            {
+              "type": "text",
+              "accepted": [
+                "Wort"
+              ],
+              "caseSensitive": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "i3",
+        "activity": "recall",
+        "skills": [
+          "key:demo-3"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 3",
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none",
+        "input": "cloze",
+        "fragments": [
+          "Beispiel",
+          "Beispiel"
+        ],
+        "key": {
+          "type": "cloze",
+          "blanks": [
+            {
+              "type": "text",
+              "accepted": [
+                "Wort",
+                "Wort",
+                "Wort",
+                "Wort"
+              ],
+              "caseSensitive": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "i4",
+        "activity": "recall",
+        "skills": [
+          "key:demo-4"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 4",
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none",
+        "input": "cloze",
+        "fragments": [
+          "Beispiel",
+          "Beispiel"
+        ],
+        "key": {
+          "type": "cloze",
+          "blanks": [
+            {
+              "type": "text",
+              "accepted": [
+                "Wort Wort",
+                "Wort Wort",
+                "Wort Wort"
+              ],
+              "caseSensitive": false
+            }
+          ]
+        }
+      },
+      {
+        "id": "i5",
+        "activity": "recall",
+        "skills": [
+          "key:demo-5"
+        ],
+        "difficulty": 2,
+        "prompt": "Bài tập mẫu 5",
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none",
+        "input": "cloze",
+        "fragments": [
+          "",
+          ""
+        ],
+        "key": {
+          "type": "cloze",
+          "blanks": [
+            {
+              "type": "text",
+              "accepted": [
+                "Wort Wort",
+                "Wort",
+                "Wort",
+                "Wort Wort Wort Wort"
+              ],
+              "caseSensitive": false
+            }
+          ]
+        }
+      }
+    ],
+    "output": null,
+    "sources": [],
+    "nextTopic": "Văn bản mẫu",
+    "knowledge": [
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      },
+      {
+        "kind": "code",
+        "language": "rust",
+        "code": "Văn bản mẫu",
+        "notes": []
+      }
+    ]
+  },
+  "expectedIssues": []
+}

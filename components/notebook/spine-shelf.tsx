@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { RouteLink } from "../../app/hub/ui";
 import type { Route } from "../../app/hub/use-route";
 import { cx, NotebookCover } from "./paper";
@@ -10,6 +10,7 @@ export type SpineBook = {
   id: string;
   title: string;
   status: string;
+  hasFeedback?: boolean;
   /** Where the book opens; null when it may only be looked at. */
   route: Route | null;
   /** Name for the cover while it opens into the notebook. */
@@ -23,7 +24,7 @@ type Entry = { kind: "book"; book: SpineBook } | { kind: "new" };
  * or the first touch) is pulled out and turned to show its cover; the rest stay spine-out. A shelf fills
  * before the next one is started; the "new notebook" stub stands at the end like a small empty slot.
  */
-export function SpineShelves({ books, go, onNew }: { books: SpineBook[]; go: (route: Route) => void; onNew: (() => void) | null }) {
+export function SpineShelves({ books, go, onNew, endDecoration }: { endDecoration?: ReactNode; books: SpineBook[]; go: (route: Route) => void; onNew: (() => void) | null }) {
   const [out, setOut] = useState<string | null>(null);
   const [width, setWidth] = useState<number | null>(null);
   const measured = useRef<HTMLDivElement>(null);
@@ -64,7 +65,7 @@ export function SpineShelves({ books, go, onNew }: { books: SpineBook[]; go: (ro
     <div ref={root} className="grid gap-y-4">
       {rows.map((row, rowIndex) => (
         <div key={rowIndex} className="flex min-w-0 flex-col justify-end">
-          <div ref={rowIndex === 0 ? measured : undefined} className="mx-2 flex items-end pt-4 sm:mx-3" style={{ gap: SPINE.gap }}>
+          <div ref={rowIndex === 0 ? measured : undefined} className="relative mx-2 flex items-end pt-2 sm:mx-3" style={{ gap: SPINE.gap }}>
             {row.map((entry, index) => {
               const shift = width === null ? 0 : coverShift(index, width);
               return entry.kind === "new"
@@ -72,6 +73,9 @@ export function SpineShelves({ books, go, onNew }: { books: SpineBook[]; go: (ro
                 : <Spine key={entry.book.id} book={entry.book} isOut={out === entry.book.id} shift={shift} go={go}
                     touch={touch} setOut={setOut} />;
             })}
+            {rowIndex === 0 && endDecoration && (width === null || width - row.length * (SPINE.width + SPINE.gap) >= 34) && (
+              <span className="pointer-events-none absolute bottom-0 right-0">{endDecoration}</span>
+            )}
           </div>
           <div className="bg-oak h-3 border-b-2 border-oak-dark/70 shadow-[0_4px_6px_-2px_rgb(0_0_0/0.45)]" />
         </div>
@@ -89,7 +93,7 @@ function Spine({ book, isOut, shift, go, touch, setOut }: {
   const clear = () => setOut((current) => (current === book.id ? null : current));
   const props = {
     "data-out": isOut,
-    "aria-label": book.route ? `Mở sổ ${book.title}` : `Sổ ${book.title}`,
+    "aria-label": book.route ? `Mở sổ ${book.title}${book.hasFeedback ? ", có lời phê" : ""}` : `Sổ ${book.title}${book.hasFeedback ? ", có lời phê" : ""}`,
     className: "spine-slot group rounded-[2px]",
     style: { "--shift": `${shift}px` } as CSSProperties,
     onPointerDown: (event: React.PointerEvent) => { touch.note(event.pointerType); },
@@ -102,8 +106,10 @@ function Spine({ book, isOut, shift, go, touch, setOut }: {
   const body = (
     <span className="spine-box">
       <SpineFace title={book.title} color={color} />
+      {book.hasFeedback && <span aria-hidden="true" className="absolute right-0 top-2 z-10 size-2.5 rounded-full bg-brick ring-2 ring-paper" />}
       <span className="spine-cover" style={isOut && book.transition ? { viewTransitionName: book.transition } : undefined}>
         <NotebookCover title={book.title} lines={[book.status]} spineColor={color} className="size-full !aspect-auto" />
+        {book.hasFeedback && <span aria-hidden="true" className="absolute right-3 top-3 size-3 rounded-full bg-brick ring-2 ring-paper" />}
       </span>
     </span>
   );

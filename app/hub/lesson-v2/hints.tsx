@@ -6,8 +6,8 @@ import { pencilLink } from "../paper-bits";
 
 type Reveal = (level: "hint1" | "hint2" | "solution") => void;
 
-export function HintNote({ item, disabled, onReveal, formatText = (text: string) => text }: {
-  item: ItemView; disabled: boolean; onReveal: Reveal; formatText?: (text: string) => string;
+export function HintNote({ item, disabled, onReveal, active = true, formatText = (text: string) => text }: {
+  item: ItemView; disabled: boolean; onReveal: Reveal; active?: boolean; formatText?: (text: string) => string;
 }) {
   const [open, setOpen] = useState(false);
   const note = useRef<HTMLDivElement>(null);
@@ -20,7 +20,7 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
   useLayoutEffect(() => {
     const card = overlay.current;
     const button = trigger.current;
-    if (!open || !card || !button) return;
+    if (!active || !open || !card || !button) return;
     function position() {
       if (!card || !button) return;
       const anchor = button.getBoundingClientRect();
@@ -41,10 +41,10 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
       window.removeEventListener("resize", position);
       window.removeEventListener("scroll", position, true);
     };
-  }, [open]);
+  }, [active, open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!active || !open) return;
     function dismiss(event: PointerEvent) {
       if (event.target instanceof Node && !note.current?.contains(event.target)) {
         setOpen(false);
@@ -52,7 +52,7 @@ export function HintNote({ item, disabled, onReveal, formatText = (text: string)
     }
     document.addEventListener("pointerdown", dismiss);
     return () => document.removeEventListener("pointerdown", dismiss);
-  }, [open]);
+  }, [active, open]);
 
   if (!item.hintCount && item.revealed.solution) return null;
   return <div ref={note} className="relative shrink-0"

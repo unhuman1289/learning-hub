@@ -1,0 +1,281 @@
+{
+  "source": "Qwen local, Toán 7 demo. Hub từ chối danh sách đáp án text có nhiều phương án dài.",
+  "frameworkKey": "vn-gdpt-2018-toan",
+  "lesson": {
+    "contract": "lesson-package/3",
+    "kind": "diagnostic",
+    "template": "skill",
+    "title": "Văn bản mẫu",
+    "objective": "Văn bản mẫu",
+    "why": "Văn bản mẫu",
+    "reasonRefs": [],
+    "estMinutes": 15,
+    "level": "Văn bản mẫu",
+    "targetSkills": [
+      "key:demo-1",
+      "key:demo-2",
+      "key:demo-3",
+      "key:demo-4",
+      "key:demo-5"
+    ],
+    "sheet": {
+      "rules": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "explanation": "Văn bản mẫu",
+      "examples": [
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        },
+        {
+          "text": "Văn bản mẫu",
+          "correct": true
+        }
+      ],
+      "mistakes": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "tips": [
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ],
+      "checklist": [
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu",
+        "Văn bản mẫu"
+      ]
+    },
+    "sections": [
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      },
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      },
+      {
+        "heading": "Văn bản mẫu",
+        "text": "Văn bản mẫu"
+      }
+    ],
+    "diagram": null,
+    "stages": [
+      {
+        "stage": "retrieval",
+        "itemIds": [
+          "i1",
+          "i2",
+          "i3",
+          "i4",
+          "i5"
+        ]
+      },
+      {
+        "stage": "sheet",
+        "itemIds": []
+      },
+      {
+        "stage": "guided",
+        "itemIds": [
+          "i6",
+          "i7",
+          "i8"
+        ]
+      },
+      {
+        "stage": "independent",
+        "itemIds": [
+          "i9",
+          "i10"
+        ]
+      }
+    ],
+    "items": [
+      {
+        "id": "i1",
+        "activity": "recall",
+        "input": "choice",
+        "skills": [
+          "key:demo-1"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 1",
+        "choices": [
+          {
+            "id": "c",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "d",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "e",
+            "text": "Văn bản mẫu"
+          },
+          {
+            "id": "f",
+            "text": "Văn bản mẫu"
+          }
+        ],
+        "key": {
+          "type": "choice",
+          "correct": [
+            "c"
+          ]
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i2",
+        "activity": "recall",
+        "input": "short",
+        "skills": [
+          "key:demo-2"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 2",
+        "key": {
+          "type": "text",
+          "accepted": [
+            "Wort",
+            "Wort",
+            "Wort Wort Wort Wort Wort",
+            "Wort Wort Wort"
+          ],
+          "caseSensitive": false
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i3",
+        "activity": "recall",
+        "input": "short",
+        "skills": [
+          "key:demo-3"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 3",
+        "key": {
+          "type": "text",
+          "accepted": [
+            "Wort",
+            "Wort Wort Wort",
+            "Wort"
+          ],
+          "caseSensitive": false
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i4",
+        "activity": "recall",
+        "input": "short",
+        "skills": [
+          "key:demo-4"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 4",
+        "key": {
+          "type": "text",
+          "accepted": [
+            "Wort",
+            "Wort",
+            "Wort Wort Wort"
+          ],
+          "caseSensitive": false
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      },
+      {
+        "id": "i5",
+        "activity": "recall",
+        "input": "short",
+        "skills": [
+          "key:demo-5"
+        ],
+        "difficulty": 1,
+        "prompt": "Bài tập mẫu 5",
+        "key": {
+          "type": "text",
+          "accepted": [
+            "Wort",
+            "Wort"
+          ],
+          "caseSensitive": false
+        },
+        "hints": [
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "solution": "Văn bản mẫu",
+        "explanation": "Văn bản mẫu",
+        "attachment": "none"
+      }
+    ],
+    "output": null,
+    "sources": [],
+    "nextTopic": "key:demo-6",
+    "knowledge": [
+      {
+        "kind": "table",
+        "headers": [
+          "Văn bản mẫu",
+          "Văn bản mẫu",
+          "Văn bản mẫu"
+        ],
+        "rows": [
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ],
+          [
+            "Văn bản mẫu",
+            "Văn bản mẫu",
+            "Văn bản mẫu"
+          ]
+        ]
+      }
+    ]
+  },
+  "expectedIssues": [],
+  "expectedRubricItem": "i2"
+}

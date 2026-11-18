@@ -41,10 +41,14 @@ export function parseResolution(body: unknown): Resolution {
   return { decision: 'set', result: body.result as 'correct' | 'partial' | 'incorrect', score, feedback, note };
 }
 
-type AttemptRow = { id: string; subject_id: string; skill_ids: string; status: string; current_grade_id: string | null; lesson_id: string; item_id: string };
+type AttemptRow = { subject_id: string; status: string; current_grade_id: string | null };
 
-async function recomputeAttemptSkills(db: EvidenceDb, learnerId: string, skillIds: string, now: Date) {
-  for (const skillId of JSON.parse(skillIds) as string[]) await recomputeSkill(db, learnerId, skillId, now);
+async function recomputeAttemptSkills(db: EvidenceDb, learnerId: string, attemptId: string, now: Date) {
+  // Older lessons can store key: references without a corresponding skill row.
+  const { results = [] } = await db.prepare(
+    'SELECT DISTINCT sk.id,a.lesson_id FROM attempts a,json_each(a.skill_ids) j JOIN skills sk ON sk.id=j.value AND sk.learner_id=a.learner_id WHERE a.id=? AND a.learner_id=?',
+  ).bind(attemptId, learnerId).all<{ id: string; lesson_id: string }>();
+  for (const row of results) await recomputeSkill(db, learnerId, row.id, now, row.lesson_id);
 }
 
 /** The learner disputes a grade: the attempt leaves the rules at once; a recheck job is queued when allowed. */
@@ -58,7 +62,7 @@ export async function createDispute(
   now = new Date(),
 ) {
   const attempt = await db
-    .prepare('SELECT id,subject_id,skill_ids,status,current_grade_id,lesson_id,item_id FROM attempts WHERE id=? AND learner_id=?')
+    .prepare('SELECT subject_id,status,current_grade_id FROM attempts WHERE id=? AND learner_id=?')
     .bind(attemptId, learnerId)
     .first<AttemptRow>();
   if (!attempt) throw new ApiError(404, 'Không tìm thấy câu đã làm.');
@@ -81,7 +85,7 @@ export async function createDispute(
     db.prepare("UPDATE attempts SET status='disputed' WHERE id=? AND status='graded' AND EXISTS(SELECT 1 FROM disputes WHERE id=?)").bind(attemptId, id),
   ])) as { meta?: { changes?: number } }[];
   if (!changed?.meta?.changes) throw new ApiError(409, 'Câu này vừa được phản đối. Tải lại để xem.');
-  await recomputeAttemptSkills(db, learnerId, attempt.skill_ids, now);
+  await recomputeAttemptSkills(db, learnerId, attemptId, now);
 
   let status = 'open',
     jobId: string | null = null;
@@ -118,23 +122,23 @@ export async function escalateDispute(db: EvidenceDb, learnerId: string, id: str
 export async function resolveDispute(db: EvidenceDb, learnerId: string, id: string, resolver: { id: string; asAdmin: boolean }, input: Resolution, now = new Date()) {
   const dispute = await db
     .prepare(
-      `SELECT d.id,d.attempt_id,d.grade_id,d.status,a.skill_ids,a.lesson_id,a.item_id,g.grader,g.result FROM disputes d
-       JOIN attempts a ON a.id=d.attempt_id JOIN grades g ON g.id=d.grade_id WHERE d.id=? AND d.learner_id=?`,
+      `SELECT d.id,d.attempt_id,a.current_grade_id AS grade_id,d.status,d.resolved_by,a.lesson_id,a.item_id,g.grader,g.result FROM disputes d
+       JOIN attempts a ON a.id=d.attempt_id JOIN grades g ON g.id=a.current_grade_id WHERE d.id=? AND d.learner_id=?`,
     )
     .bind(id, learnerId)
-    .first<{ id: string; attempt_id: string; grade_id: string; status: string; skill_ids: string; lesson_id: string; item_id: string; grader: string; result: string }>();
+    .first<{ id: string; attempt_id: string; grade_id: string; status: string; resolved_by: string | null; lesson_id: string; item_id: string; grader: string; result: string }>();
   if (!dispute) throw new ApiError(404, 'Không tìm thấy phản đối.');
-  if (!['open', 'needs_human', 'upheld'].includes(dispute.status)) throw new ApiError(409, 'Phản đối đã được xử lý hoặc đang chấm lại.');
+  if (!['open', 'needs_human', 'upheld', 'overturned'].includes(dispute.status) || (dispute.status === 'overturned' && dispute.resolved_by !== 'ai')) throw new ApiError(409, 'Phản đối đã được xử lý hoặc đang chấm lại.');
   const stamp = now.toISOString();
   const statements = [
     db
-      .prepare(`UPDATE disputes SET status=?,resolved_by=?,resolution_note=?,resolved_at=? WHERE id=? AND status IN ('open','needs_human','upheld')`)
+      .prepare(`UPDATE disputes SET status=?,resolved_by=?,resolution_note=?,resolved_at=? WHERE id=? AND (status IN ('open','needs_human','upheld') OR (status='overturned' AND resolved_by='ai')) AND EXISTS (SELECT 1 FROM attempts WHERE id=? AND current_grade_id=? AND (status='graded' OR status='disputed' AND NOT EXISTS (SELECT 1 FROM disputes other WHERE other.attempt_id=attempts.id AND other.id<>? AND other.status IN ('open','rechecking','needs_human'))))`)
       .bind(
         input.decision === 'void' ? 'item_void' : input.decision === 'set' && input.result !== dispute.result ? 'overturned' : 'closed',
         resolver.id,
         input.note,
         stamp,
-        id,
+        id, dispute.attempt_id, dispute.grade_id, id,
       ),
   ];
   // Every following write requires the claim above, so two parents cannot both decide.
@@ -173,7 +177,7 @@ export async function resolveDispute(db: EvidenceDb, learnerId: string, id: stri
   }
   const [first] = (await db.batch(statements)) as { meta?: { changes?: number } }[];
   if (!first?.meta?.changes) throw new ApiError(409, 'Phản đối vừa được người khác xử lý.');
-  await recomputeAttemptSkills(db, learnerId, dispute.skill_ids, now);
+  await recomputeAttemptSkills(db, learnerId, dispute.attempt_id, now);
   return readDispute(db, learnerId, id);
 }
 
@@ -197,6 +201,7 @@ function disputeView(row: Record<string, unknown>) {
     message: row.message as string,
     recheckRequested: row.recheck_requested === 1,
     status: row.status as string,
+    resolvedBy: (row.resolved_by as string | null) ?? null,
     resolutionGradeId: (row.resolution_grade_id as string | null) ?? null,
     resolutionNote: (row.resolution_note as string | null) ?? null,
     createdAt: row.created_at as string,
@@ -208,7 +213,8 @@ function disputeView(row: Record<string, unknown>) {
           subjectTitle: (row.subject_title as string | null) ?? '',
           prompt: (row.prompt as string | null) ?? '',
           answer: row.answer as string,
-          grade: { grader: row.grader as string, result: row.result as string, score: row.score as number, feedback: row.feedback as string },
+          grade: { grader: row.grader as string, result: row.result as string, score: row.score as number, feedback: row.feedback as string, errors: JSON.parse((row.grade_errors as string) || '[]') },
+          recheckGrade: row.recheck_result ? { result: row.recheck_result as string, score: row.recheck_score as number, feedback: row.recheck_feedback as string, errors: JSON.parse((row.recheck_errors as string) || '[]') } : null,
         }
       : {}),
   };
@@ -219,9 +225,11 @@ export async function listDisputes(db: EvidenceDb, learnerId: string, filter: 'o
   const { results = [] } = await db
     .prepare(
       `SELECT d.*,a.lesson_id,a.answer,json_extract(i.payload,'$.prompt') AS prompt,json_extract(l.payload,'$.title') AS lesson_title,s.title AS subject_title,
-         g.grader,g.result,g.score,g.feedback
+         g.grader,g.result,g.score,g.feedback,g.errors AS grade_errors,
+         rg.result AS recheck_result,rg.score AS recheck_score,rg.feedback AS recheck_feedback,rg.errors AS recheck_errors
        FROM disputes d JOIN attempts a ON a.id=d.attempt_id JOIN lesson_items i ON i.lesson_id=a.lesson_id AND i.item_id=a.item_id
        JOIN learning_lessons l ON l.id=a.lesson_id JOIN subjects s ON s.id=l.subject_id JOIN grades g ON g.id=d.grade_id
+       LEFT JOIN grades rg ON rg.id=(SELECT gr.id FROM grades gr JOIN ai_jobs j ON j.id=gr.job_id WHERE j.ref_id=d.id AND j.purpose='recheck' ORDER BY gr.created_at DESC LIMIT 1)
        WHERE d.learner_id=? ${filter === 'open' ? `AND d.status IN ${OPEN}` : ''} ORDER BY d.created_at DESC LIMIT 50`,
     )
     .bind(learnerId)
@@ -234,10 +242,12 @@ export async function listDisputesNeedingHuman(db: EvidenceDb) {
   const { results = [] } = await db
     .prepare(
       `SELECT d.*,a.lesson_id,a.answer,json_extract(i.payload,'$.prompt') AS prompt,json_extract(l.payload,'$.title') AS lesson_title,s.title AS subject_title,
-         g.grader,g.result,g.score,g.feedback
+         g.grader,g.result,g.score,g.feedback,g.errors AS grade_errors,
+         rg.result AS recheck_result,rg.score AS recheck_score,rg.feedback AS recheck_feedback,rg.errors AS recheck_errors
        FROM disputes d JOIN attempts a ON a.id=d.attempt_id JOIN lesson_items i ON i.lesson_id=a.lesson_id AND i.item_id=a.item_id
        JOIN learning_lessons l ON l.id=a.lesson_id JOIN subjects s ON s.id=l.subject_id JOIN grades g ON g.id=d.grade_id
-       WHERE d.status='needs_human' ORDER BY d.created_at LIMIT 100`,
+       LEFT JOIN grades rg ON rg.id=(SELECT gr.id FROM grades gr JOIN ai_jobs j ON j.id=gr.job_id WHERE j.ref_id=d.id AND j.purpose='recheck' ORDER BY gr.created_at DESC LIMIT 1)
+       WHERE d.status='needs_human' OR (d.status='overturned' AND d.resolved_by='ai') ORDER BY d.created_at LIMIT 100`,
     )
     .all<Record<string, unknown>>();
   return results.map((row) => ({ ...disputeView(row), learnerId: row.learner_id as string }));

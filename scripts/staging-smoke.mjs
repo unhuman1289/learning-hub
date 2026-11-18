@@ -1,5 +1,8 @@
 const base = process.argv[2] ?? process.env.STAGING_URL;
 const locked = process.argv.includes('--locked');
+const household = process.argv.includes('--household');
+// Staging serves MCP from its own Worker; production serves /mcp from the Hub.
+const mcpOrigin = process.argv.find((arg) => arg.startsWith('--mcp='))?.slice('--mcp='.length);
 if (!base) throw new Error('Pass the staging workers.dev URL.');
 
 const url = new URL(base);
@@ -32,6 +35,22 @@ if (locked) {
   process.exit(0);
 }
 
+if (household) {
+  const page = await request('/household');
+  const wrong = await request('/api/household', { method: 'POST', headers: { Origin: url.origin }, body: new URLSearchParams({ passphrase: 'incorrect-smoke-' + crypto.randomUUID() }) });
+  const privateApi = await request('/api/today');
+  const register = await request('/register');
+  const signup = await request('/api/auth/sign-up/email', { method: 'POST', headers: { Origin: url.origin, 'Content-Type': 'application/json' }, body: '{}' });
+  const automation = await request('/api/automation/v2/jobs/lease', { method: 'POST' });
+  const mcp = mcpOrigin
+    ? await fetch(new URL('/mcp', mcpOrigin), { method: 'POST', redirect: 'manual' })
+    : await request('/mcp', { method: 'POST' });
+  if (page.status !== 200 || wrong.status !== 401 || privateApi.status !== 401 || register.status !== 302 || signup.status !== 404) throw Error('Household gate or registration check failed.');
+  if (![400, 401, 403, 405].includes(automation.status) || ![400, 401, 403, 405].includes(mcp.status)) throw Error('Automation or MCP did not reach its own authentication boundary.');
+  console.log(JSON.stringify({ mode: 'household', health: health.status, d1: healthBody.d1, page: page.status, wrong: wrong.status, privateApi: privateApi.status, register: register.status, signup: signup.status, automation: automation.status, mcp: mcp.status }));
+  process.exit(0);
+}
+
 const home = await request('/');
 if (home.status < 300 || home.status >= 400 || !home.headers.get('location')?.includes('/login')) {
   throw new Error(`Anonymous home request did not redirect to login (${home.status}).`);
@@ -58,13 +77,22 @@ for (const path of stylesheetPaths) {
 }
 if (!stylesheetLoaded) throw new Error('Login stylesheet is missing, has the wrong content type, or does not contain account styles.');
 
-const accountFormScript = [...loginHtml.matchAll(/(?:src|href)=["']([^"']*account-form-[^"']+\.js(?:\?[^"']*)?)["']/g)]
-  .map((match) => match[1])[0];
-if (!accountFormScript) throw new Error('Login page did not include the interactive account form script.');
-const accountFormResponse = await request(accountFormScript);
-if (accountFormResponse.status !== 200 || !accountFormResponse.headers.get('content-type')?.includes('javascript')) {
-  throw new Error(`Account form script is missing or has the wrong content type (${accountFormResponse.status}).`);
+// Vinext emits content-hashed client chunks. Check that the login page
+// references a served JavaScript chunk containing the sign-in handler.
+const scriptPaths = new Set([...loginHtml.matchAll(/(?:src|href)=["']([^"']+\.js(?:\?[^"']*)?)["']/g)]
+  .map((match) => new URL(match[1], url))
+  .filter((script) => script.origin === url.origin)
+  .map((script) => script.href));
+let accountFormScriptLoaded = false;
+for (const path of scriptPaths) {
+  const response = await request(path);
+  if (response.ok && response.headers.get('content-type')?.includes('javascript') &&
+      (await response.text()).includes('sign-in/email')) {
+    accountFormScriptLoaded = true;
+    break;
+  }
 }
+if (!accountFormScriptLoaded) throw new Error('Login page did not serve its interactive account form script.');
 
 const forged = {
   'oai-authenticated-user-id': 'forged-user',
@@ -93,13 +121,15 @@ const protectedChecks = [
 const protectedStatus = {};
 for (const [label, path, options] of protectedChecks) {
   const response = await request(path, options);
-  if (response.status !== 401) throw new Error(`${label} returned ${response.status} to an unauthenticated forged-header request.`);
+  const retired = path === '/api/state' || (path === '/api/daily' && options.method === 'POST');
+  const expected = retired ? 410 : 401;
+  if (response.status !== expected) throw new Error(`${label} returned ${response.status} to an unauthenticated forged-header request.`);
   protectedStatus[label] = response.status;
 }
 
 console.log(JSON.stringify({
   mode: 'open', url: url.origin, health: health.status, d1: healthBody.d1,
   pages, stylesheetLoaded, anonymousHome: home.status, legacyLearningRun: [oldRunGet.status, oldRunPost.status],
-  accountFormScriptLoaded: true,
+  accountFormScriptLoaded,
   forgedIdentityApiStatus: protectedStatus,
 }));

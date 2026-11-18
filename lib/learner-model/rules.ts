@@ -2,7 +2,7 @@ import { berlinDay } from '../daily-policy.ts';
 
 export type Activity = 'recall' | 'recognize' | 'correct' | 'transform' | 'apply' | 'explain' | 'create' | 'investigate';
 export type Mastery = 'not_assessed' | 'introduced' | 'developing' | 'demonstrated' | 'needs_review';
-export type ErrorCategory = 'knowledge' | 'application' | 'slip' | 'reading' | 'unknown';
+export type ErrorCategory = 'knowledge' | 'application' | 'slip' | 'reading' | 'unknown' | 'extra';
 export type Evidence = {
   id: string;
   submissionId: string;
@@ -11,6 +11,7 @@ export type Evidence = {
   result: 'correct' | 'partial' | 'incorrect' | 'ungradable';
   support: 'none' | 'hint1' | 'hint2' | 'solution';
   attemptNo: number;
+  stimulus?: 'audio' | 'text';
   status: 'graded' | 'pending' | 'disputed' | 'void';
   itemVoid?: boolean;
   context: 'lesson' | 'review' | 'check';
@@ -117,7 +118,7 @@ function patterns(rows: Evidence[]): ErrorPattern[] {
       const norm = normalizeErrorLabel(error.label);
       if (!norm || seen.has(norm)) continue;
       seen.add(norm);
-      const category =
+      const category = error.category === 'extra' ? 'unknown' :
         error.category === 'slip' &&
         !rows.some((other) => other.id !== e.id && other.submissionId === e.submissionId && evidenceStrength(other) === 3)
           ? 'unknown'
@@ -201,6 +202,13 @@ function review(rows: Evidence[], errorPatterns: ErrorPattern[]): Review {
     if (strength === 3 || strength < 2) nextReviewDay = maintained ? null : addDays(day, intervalDays);
   }
   return { intervalDays, nextReviewDay, kind, stepDay, maintained };
+}
+
+export function computeListening(input: readonly Evidence[], now: Date) {
+  const audio = input.filter(e => e.stimulus === 'audio' && Date.parse(e.at) <= now.getTime() && evidenceStrength(e) !== null);
+  const days = [...new Set(audio.filter(e => e.result === 'correct' && e.support === 'none').map(e => berlinDay(new Date(e.at))))].sort();
+  const level = days.length >= 2 ? 'secure' : audio.length ? 'emerging' : 'none';
+  return { level, days };
 }
 
 export function computeSkillState(input: readonly Evidence[], now: Date) {

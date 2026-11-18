@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { observeInp, startRumNavigation } from "./rum.ts";
 import { findStaticTrack, isTrack, type TrackId } from "./model.ts";
 
 export type NotebookTab = "bai" | "muc-luc" | "muc-tieu" | "tai-lieu";
@@ -76,6 +77,7 @@ const deskRoute: Route = { view: "desk" };
 
 /** Address-bar routing inside the signed-in page, so lessons can be resumed and shared. */
 export function useRoute() {
+  useEffect(() => observeInp(), []);
   const [matched, setRoute] = useState<Route | null>(null);
   const route = matched ?? deskRoute;
   const current = useRef(route);
@@ -84,13 +86,19 @@ export function useRoute() {
   }, [route]);
 
   useEffect(() => {
-    const sync = () => setRoute(parseRoute(window.location.search));
+    const sync = (event?: PopStateEvent) => {
+      const next = parseRoute(window.location.search);
+      if (event) markNavigation(next);
+      setRoute(next);
+    };
     sync();
     window.addEventListener("popstate", sync);
     return () => window.removeEventListener("popstate", sync);
   }, []);
 
   const go = useCallback((next: Route) => {
+    if (next.view === "lesson") performance.mark("f3:go");
+    markNavigation(next);
     const href = routeHref(next);
     if (href !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.pushState({}, "", href);
     const update = () => {
@@ -98,7 +106,7 @@ export function useRoute() {
       window.scrollTo({ top: 0 });
     };
     const doc = document as ViewTransitionDocument;
-    if (!doc.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if ((next.view === "lesson" && document.documentElement.dataset.prefetchedLesson === next.id) || !doc.startViewTransition || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       update();
       return;
     }
@@ -110,4 +118,8 @@ export function useRoute() {
   }, []);
 
   return { route, go, ready: matched !== null };
+}
+
+function markNavigation(route: Route) {
+  startRumNavigation(route.view === "desk" ? "desk" : route.view === "lesson" ? "first_question" : undefined);
 }

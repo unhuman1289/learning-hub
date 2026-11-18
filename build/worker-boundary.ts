@@ -1,5 +1,5 @@
 /** Hub 2 APIs answer only where Hub 2 is switched on; elsewhere they do not exist. */
-const hub2Prefixes = ["/api/lessons", "/api/submissions", "/api/attempts", "/api/disputes", "/api/requests", "/api/quality", "/api/skills", "/api/today", "/api/uploads", "/api/admin/ai-jobs", "/api/admin/alerts", "/api/admin/lessons", "/api/admin/quality", "/api/runner-status", "/api/history"];
+const hub2Prefixes = ["/api/lessons", "/api/submissions", "/api/attempts", "/api/disputes", "/api/requests", "/api/quality", "/api/skills", "/api/today", "/api/uploads", "/api/admin/ai-jobs", "/api/admin/alerts", "/api/admin/lessons", "/api/admin/quality", "/api/history"];
 
 export function hub2Guard(request: Request, env: { HUB2_ENABLED?: string }): Response | null {
   if (env.HUB2_ENABLED === "true") return null;
@@ -8,7 +8,7 @@ export function hub2Guard(request: Request, env: { HUB2_ENABLED?: string }): Res
   return Response.json({ error: "Not found" }, { status: 404, headers: { "Cache-Control": "no-store" } });
 }
 
-export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.Env, "ENVIRONMENT" | "STAGING_SPIKE_LOCKDOWN">): Response | null {
+export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.Env, "ENVIRONMENT" | "STAGING_SPIKE_LOCKDOWN" | "HUB2_ENABLED">): Response | null {
   const { pathname } = new URL(request.url);
 
   // The old scheduled endpoint relies on Sites' dispatch boundary. It must
@@ -18,6 +18,14 @@ export function standaloneRequestGuard(request: Request, env: Pick<Cloudflare.En
       { error: "This endpoint is not available on standalone Workers." },
       { status: 410, headers: { "Cache-Control": "no-store" } },
     );
+  }
+
+  const legacyAutomation = pathname === "/api/automation/v1" || pathname.startsWith("/api/automation/v1/");
+  const legacyWrite = pathname === "/api/daily" && request.method === "POST";
+  if (env.HUB2_ENABLED === "true" && (legacyAutomation || legacyWrite || pathname === "/api/state")) {
+    return Response.json({ error: "Tính năng v1 đã ngừng." }, {
+      status: 410, headers: { "Cache-Control": "no-store" },
+    });
   }
 
   // workers.dev is public. Until standalone authentication is complete,

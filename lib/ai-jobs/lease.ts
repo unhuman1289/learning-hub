@@ -1,3 +1,5 @@
+import type { TtsVoices } from '../contracts/lesson-package-v3.ts';
+import type { PlanContext } from '../contracts/ai-common.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { berlinDay } from '../daily-policy.ts';
 import { ApiError } from '../api-error.ts';
@@ -6,7 +8,7 @@ import { buildPlanContext } from './context/plan.ts';
 import { buildAssessContext } from './context/assess.ts';
 import type { Job } from './context/common.ts';
 export async function readJob(db: EvidenceDb, id: string) {
-  return db.prepare('SELECT * FROM ai_jobs WHERE id=?').bind(id).first<Job>();
+  return db.prepare("SELECT j.*, CASE WHEN EXISTS(SELECT 1 FROM prepared_daily_plans p WHERE p.job_id=j.id) THEN 'prepared' ELSE j.status END AS status FROM ai_jobs j WHERE id=?").bind(id).first<Job>();
 }
 export function permits(client: AutomationClient, job: Pick<Job, 'kind' | 'purpose' | 'trigger' | 'learner_id'>) {
   return (
@@ -16,31 +18,23 @@ export function permits(client: AutomationClient, job: Pick<Job, 'kind' | 'purpo
     (!client.learnerIds || client.learnerIds.includes(job.learner_id))
   );
 }
-/** At most one write a minute per client: polling every 15 s must not spend the D1 write budget. */
-export async function recordPresence(db: EvidenceDb, clientId: string, runner: unknown, capabilities: string[], now = new Date()) {
-  const stamp = now.toISOString();
-  await db
-    .prepare(
-      'INSERT INTO runner_presence(client_id,runner,capabilities,last_seen_at) VALUES(?,?,?,?) ON CONFLICT(client_id) DO UPDATE SET runner=excluded.runner,capabilities=excluded.capabilities,last_seen_at=excluded.last_seen_at WHERE runner_presence.last_seen_at<? OR runner_presence.runner<>excluded.runner OR runner_presence.capabilities<>excluded.capabilities',
-    )
-    .bind(clientId, JSON.stringify(runner).slice(0, 400), JSON.stringify(capabilities), stamp, new Date(now.getTime() - 60000).toISOString())
-    .run();
-}
-/** The grading runner counts as online when it asked for work within the last 3 minutes. */
-export async function runnerStatus(db: EvidenceDb, clientId: string, now = new Date()) {
-  const row = await db.prepare('SELECT last_seen_at FROM runner_presence WHERE client_id=?').bind(clientId).first<{ last_seen_at: string }>();
-  const lastSeenAt = row?.last_seen_at ?? null;
-  return { online: !!lastSeenAt && Date.parse(lastSeenAt) >= now.getTime() - 3 * 60000, lastSeenAt };
-}
 export async function maintainJobs(db: EvidenceDb, now = new Date()) {
   const stamp = now.toISOString();
   await db.batch([
+    db.prepare(`UPDATE disputes SET status='needs_human' WHERE status='rechecking' AND EXISTS (
+      SELECT 1 FROM ai_jobs j WHERE j.ref_id=disputes.id AND j.learner_id=disputes.learner_id
+      AND j.purpose='recheck' AND j.status='leased' AND j.lease_client_id='openai-staging'
+      AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=j.id))`).bind(stamp),
+    db.prepare(`UPDATE ai_jobs SET status='failed',error='Không hoàn tất được công việc sau khi gọi AI.',
+      finished_at=?,updated_at=?,lease_token_sha256=NULL,lease_expires_at=NULL
+      WHERE status='leased' AND lease_client_id='openai-staging' AND lease_expires_at<=?
+      AND openai_calls>=2 AND apply_token IS NULL AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)`).bind(stamp, stamp, stamp),
     db
-      .prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=?")
+      .prepare("UPDATE ai_jobs SET status='expired',finished_at=?,updated_at=? WHERE status IN ('queued','leased') AND expires_at<=? AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)")
       .bind(stamp, stamp, stamp),
     db
       .prepare(
-        "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,error='Lease hết hạn',finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL,updated_at=? WHERE status='leased' AND lease_expires_at<=?",
+        "UPDATE ai_jobs SET status=CASE WHEN lease_count>=3 THEN 'failed' ELSE 'queued' END,error='Lease hết hạn',finished_at=CASE WHEN lease_count>=3 THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL,updated_at=? WHERE status='leased' AND lease_expires_at<=? AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)",
       )
       .bind(stamp, stamp, stamp),
     db
@@ -51,7 +45,7 @@ export async function maintainJobs(db: EvidenceDb, now = new Date()) {
 export async function leaseJobs(
   db: EvidenceDb,
   client: AutomationClient,
-  input: { kinds: string[]; subjectIds?: string[]; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string }; capabilities?: string[] },
+  input: { kinds: string[]; subjectIds?: string[]; excludeSubjectIds?: string[]; jobId?: string; textOnly?: boolean; purposes?: string[]; triggers?: string[]; max: number; runner: { name: string; version: string; model: string }; capabilities?: string[]; ttsVoices?: TtsVoices },
   environment: string,
   now = new Date(),
 ) {
@@ -61,13 +55,12 @@ export async function leaseJobs(
   const purposes = (client.purposes ?? []).filter((x) => !input.purposes || input.purposes.includes(x));
   const triggers = (client.triggers ?? []).filter((x) => !input.triggers || input.triggers.includes(x));
   if (!kinds.length || !purposes.length || !triggers.length) throw new ApiError(403, 'Client không được lease loại công việc này.');
-  await recordPresence(db, client.id, input.runner, input.capabilities ?? [], now);
+  const languages = Object.keys(input.ttsVoices ?? {}) as NonNullable<PlanContext['tts']>['languages'];
+  const tts = input.capabilities?.includes('tts') && input.ttsVoices && languages.length
+    ? { languages, voices: input.ttsVoices } : undefined;
   const vision = input.capabilities?.includes('vision') && client.scopes.includes('attachments:read') ? 1 : 0;
   const packageFilter = input.capabilities?.includes('lesson-v3') ? '' : `
-    AND (kind<>'plan' OR NOT EXISTS(
-      SELECT 1 FROM subjects s WHERE s.learner_id=ai_jobs.learner_id AND json_extract(s.limits,'$.package')=3
-      AND (s.id=ai_jobs.subject_id OR (ai_jobs.purpose='daily' AND ai_jobs.subject_id IS NULL AND s.status='active' AND s.ai_enabled=1))
-    ))
+    AND kind<>'plan'
     AND (kind<>'assess' OR NOT EXISTS(
       SELECT 1 FROM learning_lessons l WHERE l.user_id=ai_jobs.learner_id AND l.package_version='3' AND l.id=CASE ai_jobs.purpose
         WHEN 'submission' THEN (SELECT s.lesson_id FROM submissions s WHERE s.id=ai_jobs.ref_id AND s.learner_id=ai_jobs.learner_id)
@@ -82,7 +75,7 @@ export async function leaseJobs(
       stamp = now.toISOString();
     const job = await db
       .prepare(
-        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND (adaptive=0 OR (kind='plan' AND ?=1) OR (kind='assess' AND purpose='submission' AND ?=1) OR (kind='assess' AND purpose='recheck' AND ?=1)) AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (SELECT value FROM json_each(?))' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ${packageFilter} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
+        `UPDATE ai_jobs SET status='leased',learning_day=CASE WHEN kind='plan' AND purpose<>'daily' THEN ? ELSE learning_day END,lease_client_id=?,lease_token_sha256=?,lease_expires_at=strftime('%Y-%m-%dT%H:%M:%fZ',?,CASE WHEN kind='plan' THEN '+60 minutes' ELSE '+10 minutes' END),lease_count=lease_count+1,context_snapshot=NULL,context_hash=NULL,runner=?,updated_at=? WHERE id=(SELECT id FROM ai_jobs WHERE status='queued' AND kind IN (${placeholders(kinds)}) AND purpose IN (${placeholders(purposes)}) AND trigger IN (${placeholders(triggers)}) AND expires_at>? AND needs_vision<=? AND (adaptive=0 OR (kind='plan' AND ?=1) OR (kind='assess' AND purpose='submission' AND ?=1) OR (kind='assess' AND purpose='recheck' AND ?=1)) AND NOT (purpose='request' AND trigger='deferred' AND learning_day>=? AND created_at=updated_at AND EXISTS (SELECT 1 FROM learner_requests r WHERE r.id=ai_jobs.ref_id AND r.kind='extra_practice')) ${client.learnerIds ? 'AND learner_id IN (SELECT value FROM json_each(?))' : ''} ${input.subjectIds ? 'AND subject_id IN (' + placeholders(input.subjectIds) + ')' : ''} ${input.textOnly ? `AND NOT EXISTS (SELECT 1 FROM attempts a WHERE a.learner_id=ai_jobs.learner_id AND a.attachment_ids<>'[]' AND (a.submission_id=ai_jobs.ref_id OR a.id=(SELECT attempt_id FROM disputes WHERE id=ai_jobs.ref_id AND learner_id=ai_jobs.learner_id)))` : ''} ${input.jobId ? 'AND id=?' : ''} ${input.excludeSubjectIds?.length ? 'AND (subject_id IS NULL OR subject_id NOT IN (SELECT value FROM json_each(?)))' : ''} ${packageFilter} ORDER BY priority DESC,created_at,id LIMIT 1) AND status='queued' RETURNING *`,
       )
       .bind(
         berlinDay(now),
@@ -102,11 +95,13 @@ export async function leaseJobs(
         berlinDay(now),
         ...(client.learnerIds ? [JSON.stringify(client.learnerIds)] : []),
         ...(input.subjectIds ?? []),
+        ...(input.jobId ? [input.jobId] : []),
+        ...(input.excludeSubjectIds?.length ? [JSON.stringify(input.excludeSubjectIds)] : []),
       )
       .first<Job>();
     if (!job) break;
     try {
-      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment, input.capabilities?.includes('roadmap-v2') ?? false) : await buildAssessContext(db, job, environment, now);
+      const context = job.kind === 'plan' ? await buildPlanContext(db, job, environment, input.capabilities?.includes('roadmap-v2') ?? false, tts) : await buildAssessContext(db, job, environment, now);
       const changed = await db
         .prepare("UPDATE ai_jobs SET context_snapshot=?,context_hash=? WHERE id=? AND status='leased' AND lease_token_sha256=?")
         .bind(JSON.stringify(context), context.contextHash, job.id, hash)
@@ -141,7 +136,7 @@ export async function leasedJob(db: EvidenceDb, client: AutomationClient, id: st
   const job = await readJob(db, id);
   if (!job || job.lease_client_id !== client.id || !permits(client, job)) throw new ApiError(404, 'Không tìm thấy công việc.');
   if (!token || (await sha256Hex(token)) !== job.lease_token_sha256) throw new ApiError(401, 'Lease token không hợp lệ.');
-  if (allowFinished && job.status === 'succeeded') return job;
+  if (allowFinished && (job.status === 'succeeded' || await db.prepare('SELECT 1 FROM prepared_daily_plans WHERE job_id=?').bind(id).first())) return job;
   if (job.status !== 'leased' || !job.lease_expires_at || job.lease_expires_at <= now.toISOString() || job.expires_at <= now.toISOString())
     throw new ApiError(410, 'Lease đã hết hạn. Đọc lại trạng thái công việc.');
   return job;
@@ -157,4 +152,33 @@ export async function heartbeat(db: EvidenceDb, client: AutomationClient, id: st
     .bind(expires, id, job.lease_token_sha256)
     .run();
   return { leaseExpiresAt: expires };
+}
+
+/** A dispute owns the human-review state. Batch this before the terminal job update. */
+export function recheckEscalation(db: EvidenceDb, job: Job, minimumValidationFailures: number) {
+  return db
+    .prepare(
+      `UPDATE disputes SET status='needs_human'
+       WHERE id=? AND learner_id=? AND status='rechecking' AND EXISTS(
+         SELECT 1 FROM ai_jobs WHERE id=? AND status='leased' AND lease_token_sha256=?
+           AND apply_token IS NULL AND validation_failures>=?
+       )`,
+    )
+    .bind(job.ref_id, job.learner_id, job.id, job.lease_token_sha256, minimumValidationFailures);
+}
+
+export async function failLeasedJob(db: EvidenceDb, job: Job, retryable: boolean, now = new Date()) {
+  const status = retryable && job.lease_count < 3 ? 'queued' : 'failed';
+  const stamp = now.toISOString();
+  // Runner text may contain answers or credentials.
+  const update = db
+    .prepare(
+      "UPDATE ai_jobs SET status=?,error='Runner báo thất bại',updated_at=?,finished_at=?,lease_token_sha256=NULL,lease_expires_at=NULL WHERE id=? AND status='leased' AND lease_token_sha256=? AND apply_token IS NULL",
+    )
+    .bind(status, stamp, status === 'failed' ? stamp : null, job.id, job.lease_token_sha256);
+  const changed = status === 'failed' && job.purpose === 'recheck'
+    ? (await db.batch([recheckEscalation(db, job, 0), update]) as { meta: { changes?: number } }[])[1]
+    : await update.run();
+  if (!changed.meta.changes) throw new ApiError(409, 'Lease vừa thay đổi.');
+  return { status };
 }

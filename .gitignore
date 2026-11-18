@@ -55,3 +55,6 @@ next-env.d.ts
 *.tsbuildinfo
 **/graphify-out/
 !.env.example
+
+.release-checkout
+.staging-checkout

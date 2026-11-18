@@ -43,8 +43,8 @@ export async function POST(req: Request) {
       input.limits = { ...DEFAULT_LIMITS };
       input.weight = 3;
     }
-    if (input.limits.package === 3 && (user.role !== 'admin' || input.legacyTrack))
-      return Response.json({ error: 'Chỉ quản trị viên có thể bật thử dạng bài mới cho sổ riêng.' }, { status: 403, headers });
+    if (input.limits.itemKinds && user.role !== 'admin')
+      return Response.json({ error: 'Chỉ quản trị viên có thể đổi dạng câu.' }, { status: 403, headers });
     const subject = await createSubject(db, learnerId, user.id, input);
     // The notebook is saved; if the initial plan job cannot be queued, an adult can still activate it by hand.
     if (subject.status === 'setup' && env.HUB2_ENABLED === 'true') {

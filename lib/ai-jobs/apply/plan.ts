@@ -1,10 +1,13 @@
+import { openAiGermanVoices } from '../../audio/openai-voices.ts';
+import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {applyRoadmapChanges,listSteps} from '../../roadmap/store.ts';
+import { listeningLanguage } from '../../subjects/item-kinds.ts';
 import {frameworkFor,inferFramework} from '../../roadmap/frameworks.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
-import { validateLessonPackage } from '../../lesson-v2/validate.ts';
-import { promptHash, newLessonId, lessonVersion } from '../../lesson-v2/store.ts';
+import { listeningIssues, validateLessonPackage } from '../../lesson-v2/validate.ts';
+import { promptHash, newLessonId } from '../../lesson-v2/store.ts';
 import { cutoffFor } from '../../daily-policy.ts';
 import { addDays, clampMastery } from '../../learner-model/rules.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
@@ -12,7 +15,7 @@ import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
-export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date) {
+export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>, ttsSubjectIds: readonly string[] = []) {
   const errors: ValidationIssue[] = [],
     statements: ReturnType<EvidenceDb['prepare']>[] = [],
     applyGuards: ReturnType<EvidenceDb['prepare']>[] = [],
@@ -22,7 +25,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     expected = context.subjects.map((s) => s.subjectId);
   if (ids.length !== new Set(ids).size || ids.length !== expected.length || expected.some((id) => !ids.includes(id)))
     issue('/subjects', 'unknown_reference', 'Mỗi sổ trong ngữ cảnh phải xuất hiện đúng một lần.');
-  const extra = await prepareExplorations(db, job, context, result, token, now, issue);
+  const extra = await prepareExplorations(db, job, context, result, token, now, issue, audioBucket);
   let newMinutes = extra.minutes;
   const savedIds: string[] = [...extra.savedIds];
   statements.push(...extra.statements);
@@ -45,9 +48,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       continue;
     }
     const current = await db
-      .prepare('SELECT revision,status,ai_enabled FROM subjects WHERE id=? AND learner_id=?')
+      .prepare('SELECT revision,status,ai_enabled,framework FROM subjects WHERE id=? AND learner_id=?')
       .bind(s.subjectId, job.learner_id)
-      .first<{ revision: number; status: string; ai_enabled: number }>();
+      .first<{ revision: number; status: string; ai_enabled: number; framework: string | null }>();
     const slot = await db
       .prepare(
         "SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND completed_at IS NULL ORDER BY assigned_date DESC,updated DESC LIMIT 1",
@@ -87,7 +90,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     if(initial&&(!s.openingSteps||!setup?.framework||s.primaryLesson?.kind!=='diagnostic'))
       issue(path,'schema','Sổ mới cần chuẩn học, 5–10 bước và một bài xếp chỗ.');
     if(modern&&s.roadmap)issue(path+'/roadmap','schema','Dùng thao tác trên từng bước.');
-    if(modern&&!initial&&task==='replan'&&!s.openingSteps)issue(path+'/openingSteps','schema','Cần lập lại 5–10 bước.');
+    if(modern&&!initial&&task==='replan'&&!deferReplan&&!s.openingSteps)issue(path+'/openingSteps','schema','Cần lập lại 5–10 bước.');
     if(modern&&!initial&&task!=='replan'&&s.openingSteps)issue(path+'/openingSteps','schema','Chỉ lập bước đầu khi Hub yêu cầu.');
     if(modern&&task==='extend'&&(s.roadmapChanges?.filter(change=>change.op==='append').length??0)<3)
       issue(path+'/roadmapChanges','schema','Cần thêm ít nhất ba bước.');
@@ -257,13 +260,19 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             ),
         );
     }
+    const selected = initial || (task === 'replan' && !deferReplan)
+      ? (setup?.framework ? frameworkFor(setup.framework,c.title,c.goal,c.curriculum) : inferFramework(c.title,c.goal,c.curriculum))
+      : undefined;
+    const stepFramework = current.framework ? c.framework?.key : selected?.key ?? c.framework?.key;
+    const language = listeningLanguage(stepFramework);
+    const requireListening = ttsSubjectIds.includes(s.subjectId) && !!language && Object.hasOwn(openAiGermanVoices, language);
     let resultingSteps: Awaited<ReturnType<typeof listSteps>>|undefined;
     if(modern&&(s.openingSteps||s.roadmapChanges?.length)){
       try{
         const changes=s.openingSteps?s.openingSteps.map(step=>({op:'append' as const,step})):s.roadmapChanges!;
         const edit=await applyRoadmapChanges(db,{learnerId:job.learner_id,subjectId:s.subjectId,changes,jobId:job.id,
           stamp:now.toISOString(),gate,bind:gateValues,resolveSkill:ref=>{const id=resolve(ref);return id&&skillMap.get(id)?.status!=='retired'?id:undefined;},
-          initialize:!!s.openingSteps,replan:task==='replan',
+          initialize:!!s.openingSteps,replan:task==='replan',requireListening,
           mastered:new Set(c.skills.filter(skill=>skill.mastery==='demonstrated').map(skill=>skill.skillId))});
         resultingSteps=edit.steps;
         statements.push(...edit.statements);
@@ -275,8 +284,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         if(task==='replan')statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
       }catch(error){issue(path+'/roadmapChanges','roadmap',String((error as Error).message).slice(0,300));}
     }
-    if(initial||task==='replan'){
-      const selected=setup?.framework?frameworkFor(setup.framework,c.title,c.goal,c.curriculum):inferFramework(c.title,c.goal,c.curriculum);
+    if(selected){
       statements.push(db.prepare(`UPDATE subjects SET framework=coalesce(framework,?),topic_key=coalesce(topic_key,?) WHERE id=? AND learner_id=? AND ${gate}`)
         .bind(JSON.stringify(selected),selected.topicKey,s.subjectId,job.learner_id,...gateValues));
     }
@@ -287,16 +295,18 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       ['reviewSet', s.reviewSet],
     ] as const) {
       if (!packageInput) continue;
-      const checked = validateLessonPackage(packageInput, { maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, aiSizes: true, adaptive: !!context.adaptive });
+      const listening = context.adaptive?.listening;
+      const draftIssues = listeningIssues(packageInput.items, listening, c.framework?.key);
+      for (const problem of draftIssues) issue(path + '/' + field + problem.path, problem.code, problem.message);
+      if (draftIssues.length) continue;
+      const audio = await resolveLessonAudio(db, packageInput, context.tts, audioBucket);
+      const checked = validateLessonPackage(audio.lesson, { listening, maxDifficulty: context.adaptive?.difficulty?.max ?? c.limits.maxDifficulty, minDifficulty: context.adaptive?.difficulty?.min, sensitivity: c.sensitivity, subjectTitle:c.title, frameworkKey:c.framework?.key, itemKinds:c.limits.itemKinds, aiSizes: true, adaptive: !!context.adaptive });
       for (const e of checked.issues) issue(path + '/' + field + e.path, e.code, e.message);
       if (!checked.lesson) continue;
       if(modern&&checked.lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))
         issue(path+'/'+field+'/template','roadmap','Bước chưa có nguồn. Hãy soạn bài kỹ năng.');
       const l = checked.lesson,
         slotKind = field === 'reviewSet' ? 'review' : 'primary';
-      const version = lessonVersion(l);
-      if (Number(version) !== (c.limits.package ?? 2))
-        issue(path + '/' + field + '/contract', 'schema', 'Phiên bản bài phải khớp cấu hình của sổ.');
       if ((field === 'reviewSet' && l.kind !== 'review') || (field === 'primaryLesson' && (l.kind === 'exploration' || (!context.adaptive && l.kind === 'review'))))
         issue(path + '/' + field, 'schema', 'Loại bài không khớp slot.');
       if (context.adaptive?.mode === 'learn' && !context.adaptive.targetSkills.some(id => l.targetSkills.includes(id) ||
@@ -334,7 +344,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           .first();
         if (old) issue(itemPath, 'duplicate_item', 'Câu đã dùng trong 90 ngày. Đổi tình huống hoặc dạng bài, giữ kỹ năng cần luyện.');
       }
-      newMinutes += l.estMinutes;
+      const openingDiagnostic = job.purpose === 'initial' && current.status === 'setup' &&
+        field === 'primaryLesson' && l.kind === 'diagnostic';
+      if (!openingDiagnostic) newMinutes += l.estMinutes;
       const id = newLessonId();
       lessonIds.push(id);
       savedIds.push(id);
@@ -352,8 +364,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       const stepId=stepRole&&stepRole!=='placement'?context.adaptive?.step?.id??null:l.kind==='new'?context.adaptive?.step?.id??null:null;
       const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
       if(modern)checkRoadmapLesson(resolved,context.adaptive,resultingSteps,initial,c.limits.maxDifficulty,msg=>issue(path+'/'+field,'roadmap',msg));
-      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))
-        AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=?)`;
+      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))`;
       const guardParams = [
         ...gateValues,
         job.learner_id,
@@ -361,7 +372,6 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         slotKind,
         job.learning_day,
         ...(slotKind === 'primary' ? [cutoffFor(job.learning_day)] : []),
-        s.subjectId, job.learner_id, Number(version),
       ];
       statements.push(
         db
@@ -375,7 +385,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             JSON.stringify(resolved),
             job.learning_day,
             now.toISOString(),
-            version,
+            '3',
             l.template,
             l.kind,
             slotKind,
@@ -393,7 +403,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
         statements.push(
           db
             .prepare(
-              `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at) SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
+              `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at,stimulus,audio_hash_f,audio_hash_m) SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
             )
             .bind(
               id,
@@ -407,8 +417,9 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
               item.difficulty,
               item.key ? 1 : 0,
               hashes[i],
-              JSON.stringify(item),
+              JSON.stringify('audio' in item && item.audio ? { ...item, audio: { ...item.audio, ...audio.assets.get(item.id) } } : item),
               now.toISOString(),
+              ...audioColumns(audio.assets.get(item.id)),
               id,
               job.id,
               token,

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { finishRum, rumNow } from "../rum";
 import { words } from "../words";
 import { apiJson } from "../api";
 import { clockTime, pencilLink } from "../paper-bits";
@@ -27,10 +28,10 @@ function current(rows: RequestRow[], now: number, currentLessonId?: string) {
 const waiting = (row: RequestRow) => !row.resultLessonId && ["queued", "in_job"].includes(row.status) &&
   !["failed", "expired", "cancelled"].includes(row.jobStatus ?? "");
 
-export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLessonId }: {
-  subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; currentLessonId?: string;
+export function AdaptiveRequests({ initial, subjectId, learner, go, onSaved, currentLessonId }: {
+  initial: RequestRow[]; subjectId: string; learner: string | null; go: (route: Route) => void; onSaved: () => void; currentLessonId?: string;
 }) {
-  const [rows, setRows] = useState<RequestRow[]>([]);
+  const [rows, setRows] = useState<RequestRow[]>(() => current(initial, Date.now(), currentLessonId));
   const [personal, setPersonal] = useState(false);
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -38,7 +39,8 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
   const [attempt, setAttempt] = useState<Input>();
   const inflight = useRef(false);
   const personalButton = useRef<HTMLButtonElement>(null);
-  const seen = useRef(new Set<string>());
+  const timings = useRef(new Map<string, number>());
+  const seen = useRef(new Set(initial.filter(row => row.resultLessonId).map(row => row.id)));
   const query = new URLSearchParams({ subjectId, ...(learner ? { learner } : {}) });
   const listUrl = "/api/requests?" + query.toString();
   const postUrl = "/api/requests" + (learner ? "?learner=" + encodeURIComponent(learner) : "");
@@ -51,14 +53,17 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
         const { requests } = await apiJson<{ requests: RequestRow[] }>(listUrl);
         if (!active) return;
         if (requests.some(row => row.resultLessonId && !seen.current.has(row.id))) onSaved();
-        requests.forEach(row => { if (row.resultLessonId) seen.current.add(row.id); });
+        requests.forEach(row => {
+          const started = timings.current.get(row.id);
+          if (row.resultLessonId && started !== undefined) { finishRum("lesson_ready", started); timings.current.delete(row.id); }
+          if (row.resultLessonId) seen.current.add(row.id);
+        });
         setRows(current(requests, Date.now(), currentLessonId));
       } catch (cause) {
         if (active) setError((cause as Error).message);
       }
     };
     const visible = () => { if (!document.hidden) void load(); };
-    void load();
     document.addEventListener("visibilitychange", visible);
     const timer = pending ? window.setInterval(visible, 5000) : undefined;
     return () => {
@@ -74,9 +79,14 @@ export function AdaptiveRequests({ subjectId, learner, go, onSaved, currentLesso
     setBusy(true);
     setError("");
     const input = replay ?? { mode, subjectId, clientRequestId: crypto.randomUUID(), note: mode === "personal" ? note.trim() : "" };
+    const started = rumNow();
     setAttempt(input);
     try {
       const { request } = await apiJson<{ request: RequestRow }>(postUrl, { method: "POST", json: input });
+      if (!replay) {
+        if (request.resultLessonId) finishRum("lesson_ready", started);
+        else timings.current.set(request.id, started);
+      }
       setRows(shown => [request, ...shown.filter(row => actionFor(row.mode) !== mode)]);
       setAttempt(undefined);
       if (mode === "personal") { setPersonal(false); setNote(""); personalButton.current?.focus(); }

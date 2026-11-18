@@ -13,7 +13,7 @@ export const emptyWorkspace: Workspace = { done: [], notes: [], logs: [], starts
  * Every change is saved right away; saves run one at a time so a later save always
  * carries the revision returned by the previous one.
  */
-export function useWorkspace() {
+export function useWorkspace(enabled = true) {
   const [data, setData] = useState<Workspace>(emptyWorkspace);
   const [loaded, setLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -41,8 +41,8 @@ export function useWorkspace() {
   }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+    if (enabled) void Promise.resolve().then(load);
+  }, [enabled, load]);
 
   const save = useCallback((): Promise<boolean> => {
     queue.current = queue.current.then(async () => {

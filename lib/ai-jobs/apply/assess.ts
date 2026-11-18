@@ -1,12 +1,14 @@
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { AssessContext, AssessResult } from '../../contracts/ai-common.ts';
 import { itemIssues } from '../../lesson-v2/validate.ts';
-import { lessonItem } from '../../contracts/lesson-package-v2.ts';
+import { lessonItem } from '../../contracts/lesson-items.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
 import type { Job } from '../context/common.ts';
 import {roadmapProgressWrite} from '../../roadmap/progress.ts';
 import { prepareJobStates } from '../../learner-model/job-state.ts';
 import type { ValidationIssue } from './plan.ts';
+import { checkGradeEvidence } from './evidence.ts';
+import { matchRubricScores, rubricIssues } from './rubric.ts';
 import { promptHash } from '../../lesson-v2/store.ts';
 export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessContext, result: AssessResult, token: string, now: Date) {
   const errors: ValidationIssue[] = [],
@@ -53,38 +55,19 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
       containsPossibleClinicalIdentifier(g.feedback + '\n' + g.correction, context.subject.sensitivity)
     )
       issue(path, 'privacy', 'Lời phê có thể chứa định danh.');
-    const rubric = a.rubric ?? [];
-    if (g.result === 'ungradable') {
-      if (!g.feedback.trim() || g.score !== 0) issue(path, 'schema', 'Câu không chấm được cần lý do và score 0.');
-    } else {
-      if (g.rubricScores.length !== rubric.length || new Set(g.rubricScores.map((r) => r.criterion)).size !== rubric.length)
-        issue(path + '/rubricScores', 'schema', 'Cần điểm cho đúng từng tiêu chí rubric.');
-      let points = 0,
-        max = 0;
-      for (const r of g.rubricScores) {
-        const expected = rubric.find((x) => x.criterion === r.criterion);
-        if (!expected || r.max !== expected.points || r.points > r.max)
-          issue(path + '/rubricScores', 'schema', 'Tiêu chí hoặc số điểm không khớp rubric.');
-        points += r.points;
-        max += r.max;
-      }
-      if (
-        !max ||
-        Math.abs(points / max - g.score) > 0.001 ||
-        (g.result === 'correct' && g.score !== 1) ||
-        (g.result === 'incorrect' && g.score !== 0) ||
-        (g.result === 'partial' && (g.score <= 0 || g.score >= 1))
-      )
-        issue(path, 'schema', 'Kết quả phải nhất quán với điểm rubric.');
-    }
+    const solutionSeen = appended.gradingMode === 'whole-lesson' && a.support === 'solution';
+    errors.push(...rubricIssues(g, a, path));
+    if (g.errors.filter(e => e.category === 'extra').length > 2)
+      issue(path + '/errors', 'schema', 'Tối đa hai lỗi ngoài rubric.');
+    const evidence = checkGradeEvidence(g, current.answer, a.attachments.some((img) => !img.expired));
+    if (evidence.invalid)
+      issue(path + '/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản.');
     for (const e of g.errors) {
       if (
         !a.skills.includes(e.skillId) ||
         (e.patternId && !context.openErrorPatterns.some((p) => p.patternId === e.patternId && p.skillId === e.skillId))
       )
         issue(path + '/errors', 'unknown_reference', 'Lỗi không thuộc kỹ năng/ngữ cảnh.');
-      if (!e.evidence.trim() || (!current.answer.includes(e.evidence) && !a.attachments.some((img) => !img.expired)))
-        issue(path + '/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản. Ảnh chưa hỗ trợ trích văn bản đã xác minh.');
       if (containsContactDetails(e.label + e.evidence) || containsPossibleClinicalIdentifier(e.label + e.evidence, context.subject.sensitivity))
         issue(path + '/errors', 'privacy', 'Chẩn đoán lỗi có định danh.');
     }
@@ -100,13 +83,12 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
           id,
           a.attemptId,
           job.id,
-          g.result,
-          g.score,
-          JSON.stringify(g.rubricScores),
-          g.feedback,
+          solutionSeen ? 'incorrect' : g.result,
+          solutionSeen ? 0 : g.score,
+          JSON.stringify(solutionSeen ? [] : matchRubricScores(g, a)),
+          solutionSeen ? 'Đã xem lời giải. ' + evidence.feedback : evidence.feedback,
           g.correction,
-          // An error quoted from a photo cannot be checked against the text, so it stays in the feedback but never builds an error pattern.
-          JSON.stringify(g.errors.map((e) => (current.answer.includes(e.evidence) ? e : { ...e, unverified: true }))),
+          JSON.stringify(solutionSeen ? [] : evidence.errors),
           now.toISOString(),
           job.id,
           token,
@@ -121,7 +103,7 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
         )
         .bind(id, a.attemptId, job.learner_id, id, job.id, token),
     );
-    if (g.checkItem) {
+    if (g.checkItem && appended.gradingMode !== 'whole-lesson') {
       checks++;
       const checked = lessonItem.safeParse(g.checkItem);
       if (!checked.success) issue(path + '/checkItem', 'schema', 'Câu kiểm tra không hợp lệ.');

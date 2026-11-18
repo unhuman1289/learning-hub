@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   computeSkillState,
+  computeListening,
   evidenceStrength,
   clampReviewDays,
   clampMastery,
@@ -258,4 +259,19 @@ test('AI resolution needs 14 error-free days and actual clean positive evidence'
   assert.equal(canResolveError(pattern, rows, ['bad'], new Date('2026-10-15T12:00:00Z')), false);
   rows.push(evidence('again', 12, { result: 'incorrect', errors: [{ label: 'Rule', category: 'knowledge' }] }));
   assert.equal(canResolveError(pattern, rows, ['good'], new Date('2026-10-15T12:00:00Z')), false);
+});
+
+for (const [season, before, midnight, changed, days] of [
+  ['spring', '2026-03-28T22:59:59Z', '2026-03-28T23:00:00Z', '2026-03-29T01:00:00Z', ['2026-03-28', '2026-03-29']],
+  ['autumn', '2026-10-24T21:59:59Z', '2026-10-24T22:00:00Z', '2026-10-25T01:00:00Z', ['2026-10-24', '2026-10-25']],
+]) test('listening evidence across the Berlin day and DST change in ' + season, () => {
+  const asOf = new Date(changed);
+  const audioAt = (at, changes) => evidence(at, 1, { at, stimulus: 'audio', ...changes });
+  const first = audioAt(before);
+  assert.deepEqual(computeListening([audioAt(midnight, { stimulus: 'text' })], asOf), { level: 'none', days: [] });
+  for (const excluded of [{ support: 'hint1' }, { support: 'hint2' }, { result: 'partial' }, { status: 'disputed' }, { itemVoid: true }]) {
+    assert.deepEqual(computeListening([first, audioAt(midnight, excluded)], asOf), { level: 'emerging', days: days.slice(0, 1) });
+  }
+  assert.deepEqual(computeListening([audioAt(midnight), audioAt(changed)], asOf), { level: 'emerging', days: days.slice(1) });
+  assert.deepEqual(computeListening([first, audioAt(midnight), audioAt(changed)], asOf), { level: 'secure', days });
 });

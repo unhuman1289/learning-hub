@@ -1,27 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
 import { CalendarLeaf, LubeckWindow, SeasonItem, useSkyClock } from "./lubeck/window";
-import { DeskProgress } from "./desk-progress";
-import { LearnedLessons } from "./learned-lessons";
+import { workerMessage } from "./offline-client";
+import { LazyProfileSettings } from "./profile-settings-loader";
 import { PaperDialog } from "./paper-dialog";
-import { ProfileSettings } from "./profile-settings";
 import { PostIt } from "../../components/notebook/post-it";
-import { TodayBoard, type TodayData } from "./today-board";
-import { useLiveRefresh } from "./use-live-refresh";
-import { apiJson } from "./api";
+import { TodayBoard } from "./today-board";
+import { rumAfterPaint, rumNavigationStart } from "./rum";
 import { words } from "./words";
-import { ContactBook } from "./guardian/contact-book";
-import { SketchIcon } from "./sketch-icons";
 import { Bookcase, OakDesk } from "../../components/notebook/house";
 import { SpineShelves, type SpineBook } from "../../components/notebook/spine-shelf";
-import { berlinKey, coverTitle, coverTransition, notebookPages, shortDate, trackIds, trackInfo, type TrackId } from "./model";
+import { berlinKey, coverTitle, coverTransition, shortDate, trackIds, trackInfo, type TrackId } from "./model";
 import type { LearnerSummary } from "../../lib/learners/list";
 import type { ShelfApi } from "./use-shelf";
 import { postitAction } from "./paper-bits";
 import { RouteLink } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { Route } from "./use-route";
+
+const DeskProgress = lazy(() => import("./desk-progress").then(module => ({ default: module.DeskProgress })));
+const LearnedLessons = lazy(() => import("./notebook/history").then(module => ({ default: module.LearnedLessons })));
+const ContactBook = lazy(() => import("./guardian/contact-book").then(module => ({ default: module.ContactBook })));
 
 // Each notebook's note keeps its colour; the track name is always written on it as well.
 const postitColor: Record<TrackId, string> = {
@@ -32,8 +32,14 @@ const postitColor: Record<TrackId, string> = {
   "Bột": "bg-postit-lilac",
 };
 
-/** The greeting follows the learner's own hour, read each time the desk asks. */
-const fetchToday = (url: string) => apiJson<TodayData>(`${url}${url.includes("?") ? "&" : "?"}hour=${new Date().getHours()}`);
+function subscribeNetwork(update: () => void) {
+  window.addEventListener("online", update);
+  window.addEventListener("offline", update);
+  return () => {
+    window.removeEventListener("online", update);
+    window.removeEventListener("offline", update);
+  };
+}
 
 export type Viewing = {
   learners: LearnerSummary[];
@@ -42,7 +48,8 @@ export type Viewing = {
   set: (id: string | null) => void;
 };
 
-export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
+export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook, onNewNotebook, hub2 = false }: {
+  ownerId: string;
   name: string;
   go: (route: Route) => void;
   daily: DailyApi;
@@ -58,27 +65,14 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
   const clock = useSkyClock();
   // How dark it is outside the window; after dusk the desk lamp comes on.
   const [darkness, setDarkness] = useState(0);
+  const [showProgress, setShowProgress] = useState(false);
+  const [showContactBook, setShowContactBook] = useState(false);
   const [drawer, setDrawer] = useState<"learned" | "settings" | null>(null);
   const selfId = viewing.learners.find((item) => item.relation === "self")?.id;
   const viewedName = readOnly ? viewing.learners.find((item) => item.id === viewing.id)?.name ?? "" : "";
   const today = berlinKey(new Date());
-  const [todayData, setTodayData] = useState<{ url: string; value: TodayData | null } | null>(null);
-  const [todayError, setTodayError] = useState("");
   const [postItsDay, setPostItsDay] = useState<string | null>(null);
-  const todayUrl = "/api/today" + (viewing.id ? "?learner=" + encodeURIComponent(viewing.id) : "");
-  useEffect(() => {
-    if (!hub2) return;
-    let live = true;
-    fetchToday(todayUrl).then(value => {
-      if (live) { setTodayData({ url: todayUrl, value }); setTodayError(""); }
-    }).catch(() => { if (live) setTodayError(words.error.unknown); });
-    return () => { live = false; };
-  }, [hub2, todayUrl]);
-  useLiveRefresh(async () => {
-    const value = await fetchToday(todayUrl);
-    setTodayData({ url: todayUrl, value });
-    setTodayError("");
-  }, hub2, null);
+  const online = useSyncExternalStore(subscribeNetwork, () => navigator.onLine, () => true);
   useEffect(() => {
     try {
       if (sessionStorage.getItem("lh-postits-day") === today) return;
@@ -87,7 +81,28 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
       return () => cancelAnimationFrame(frame);
     } catch { /* Animation is optional. */ }
   }, [today]);
-  const data = todayData?.url === todayUrl ? todayData.value : null;
+  const data = shelf.today;
+  const ownDeskReady = hub2 && !readOnly && !!data;
+  const prefetchId = data?.items.find(item => item.lessonId)?.lessonId;
+  useEffect(() => {
+    if (!hub2 || !prefetchId || shelf.offline) return;
+    let cancelled = false;
+    const run = () => {
+      const connection = (navigator as Navigator & { connection?: { saveData?: boolean; effectiveType?: string } }).connection;
+      if (cancelled || document.hidden || connection?.saveData || /(^|-)2g$/.test(connection?.effectiveType ?? "")) return;
+      void import("./lesson/prefetch").then(module => {
+        if (!cancelled) module.prefetchLesson(ownerId, viewing.id, prefetchId);
+      });
+    };
+    let idle = 0;
+    const delay = window.setTimeout(() => {
+      idle = window.requestIdleCallback ? window.requestIdleCallback(run) : window.setTimeout(run, 0);
+    }, 4000);
+    return () => { cancelled = true; clearTimeout(delay); if (window.cancelIdleCallback) window.cancelIdleCallback(idle); else clearTimeout(idle); };
+  }, [hub2, prefetchId, ownerId, viewing.id, shelf.offline]);
+  useEffect(() => {
+    if (ownDeskReady) return rumAfterPaint("desk", rumNavigationStart("desk"));
+  }, [ownDeskReady]);
   const animate = postItsDay === today;
   // The desk only holds lessons that still need attention.
   const visibleTracks=hub2?trackIds.filter(track=>shelf.subjects?.some(s=>s.legacyTrack===track)):trackIds;
@@ -95,20 +110,21 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
     const lesson = daily.data?.active.find((item) => item.track === track);
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
-  const v2Lessons=daily.data?.v2Active??[];
+  const activeSubjects = new Set(data?.items.filter(item => item.lessonId).map(item => item.subjectId));
+  const feedbackSubjects = new Set(data?.items.filter(item => item.hasFeedback).map(item => item.subjectId));
   const loading = !daily.data && !daily.error;
   const subjects = shelf.subjects ?? [];
   const spineBooks: SpineBook[] = subjects.map((subject) => {
     if (subject.legacyTrack && !hub2) {
       const track = subject.legacyTrack;
-      const current = notebookPages(track, daily.data).active;
+      const current = daily.data?.active.find(lesson => lesson.track === track);
       return {
         id: subject.id, title: coverTitle[track], status: current && !current.completedAt ? "đang học" : "chưa có bài",
         route: readOnly ? null : { view: "notebook", track, tab: "bai" }, transition: coverTransition[track],
       };
     }
     return {
-      id: subject.id, title: subject.title, status: v2Lessons.some(l => l.subjectId === subject.id) ? "đang học" : "chưa có bài",
+      id: subject.id, title: subject.title, hasFeedback: feedbackSubjects.has(subject.id), status: activeSubjects.has(subject.id) ? "đang học" : subject.status === "setup" ? "đang chuẩn bị" : "xem sổ",
       route: { view: "book", id: subject.id }, transition: `cover-${subject.id}`,
     };
   });
@@ -145,7 +161,7 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
           <p aria-live="off" className="min-h-7 font-hand text-lg text-accent">{data?.greeting.cheer}</p>
           {viewing.learners.length > 1 && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem bàn của
-              <select value={viewing.id ?? ""} onChange={(event) => viewing.set(event.target.value || null)} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
+              <select value={viewing.id ?? ""} onChange={(event) => { window.dispatchEvent(new Event("lh:profile-change")); viewing.set(event.target.value || null); }} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
                 {viewing.learners.map((item) => (
                   <option key={item.id} value={item.relation === "self" ? "" : item.id}>{item.relation === "self" ? `${item.name} (tôi)` : item.name}</option>
                 ))}
@@ -155,50 +171,62 @@ export function Desk({ name, go, daily, shelf, viewing, canOpenNotebook, onNewNo
         </div>
       </section>
 
-      <div className="grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
+      {(!online || shelf.offline) && <p role="status" className="rounded-sm bg-paper px-4 py-3 text-sm text-ink-paper shadow-page">
+        Đang mất mạng. Kết nối lại để cập nhật bàn học.
+      </p>}
+
+      <div className="grid min-w-0 items-start gap-7 lg:grid-cols-[minmax(0,1fr)_21rem] lg:gap-8">
         <div className="min-w-0">
-        {/* The window sits on the wall directly above the desk; its sill meets the desk top. */}
-        <LubeckWindow clock={clock} onDarkness={setDarkness} className="mx-auto max-w-[44rem]" />
-        <OakDesk lamp={darkness * 0.5}>
-          <div className="mb-4 flex items-end justify-between gap-2 px-1">
-            <h2 className="font-hand text-[26px] leading-8 text-oak-ink">Trên bàn hôm nay</h2>
-            <SeasonItem place="desk" month={clock?.month} />
-          </div>
-          <TodayBoard key={viewing.id ?? "self"} learner={viewing.id} go={go} enabled={hub2} notes={notes} loadingLegacy={loading}
-            data={data} loadError={todayError} animate={animate}
-            setData={update => setTodayData(current => ({
-              url: todayUrl,
-              value: typeof update === "function" ? update(current?.url === todayUrl ? current.value : null) : update,
-            }))} />
-          {daily.error && (
-            <p role="alert" className="mt-5 flex gap-2 rounded-md bg-rose-soft px-3 py-2 text-sm leading-6 text-accent-hover">
-              <SketchIcon name="notice" size={16} className="mt-1 shrink-0" />
-              <span>{daily.error} {daily.error === "Sign in required" && <a href="/login" className="underline">Đăng nhập lại</a>} <button type="button" onClick={() => void daily.load()} className="underline">Tải lại</button></span>
-            </p>
-          )}
-        </OakDesk>
+          <LubeckWindow clock={clock} onDarkness={setDarkness} waitingForDesk={hub2 && !data && !shelf.error} className="relative z-[1] mx-auto max-w-[44rem]" />
+          <section aria-label="Bàn học">
+            <OakDesk lamp={darkness * 0.5} apron>
+              <div className="flex min-w-0 items-end gap-2 sm:items-center sm:gap-4">
+                <div className="min-w-0 flex-1">
+                  <TodayBoard key={`${viewing.id ?? "self"}:${data?.study.day ?? today}`} learner={viewing.id} go={go} notes={notes} items={data?.items ?? []}
+                    loading={hub2 ? !data && !shelf.error : loading}
+                    emptyShelf={shelf.subjects?.length === 0} adaptiveSubjects={data?.adaptiveSubjects ?? []} preparing={data?.preparing ?? []}
+                    animate={animate}
+                    loadError={hub2 ? shelf.error : daily.error} reload={hub2 ? shelf.load : daily.load} />
+                </div>
+                <SeasonItem place="desk" month={clock?.month} className="h-20 w-14 shrink-0 sm:h-[103px] sm:w-[84px]" />
+              </div>
+            </OakDesk>
+          </section>
         </div>
 
         <Bookcase
-          // Two shelves of spines still fit the screen; more than that scroll with the page.
-          className={subjects.length < 15 ? "lg:sticky lg:top-24" : undefined}
           doors={doors}
-          counterDecoration={<SeasonItem place="shelf" month={clock?.month} />}
-          title={<><h2 className="font-print text-xl font-medium">Tủ sách</h2><span className="text-sm opacity-80">Lấy một cuốn sổ</span></>}
+          title={<h2 className="font-print text-2xl font-medium">Kệ sách</h2>}
         >
-          {shelf.subjects === null && <p className="px-1 text-sm text-cabinet-ink">{shelf.error || "Đang mở tủ sách…"}</p>}
-          {shelf.subjects !== null && <SpineShelves books={spineBooks} go={go} onNew={canOpenNotebook ? onNewNotebook : null} />}
+          {shelf.subjects === null
+            ? <p role="status" className="px-2 pb-3 text-sm text-cabinet-ink">{shelf.error || "Đang mở kệ sách…"}</p>
+            : <SpineShelves key={viewing.id ?? "self"} books={spineBooks} go={go}
+                endDecoration={<SeasonItem place="shelf" month={clock?.month} />}
+                onNew={canOpenNotebook && spineBooks.length ? onNewNotebook : null} />}
+          {canOpenNotebook && shelf.subjects?.length === 0 && <button type="button" onClick={onNewNotebook}
+            className="brick m-2 min-h-11 justify-self-start px-4 font-hand text-lg">Mở sổ</button>}
         </Bookcase>
       </div>
       {drawer === "learned" && <PaperDialog title="Bài đã học" labelId="drawer-learned" onClose={() => setDrawer(null)}>
-        <LearnedLessons subjects={shelf.subjects ?? []} learner={viewing.id} go={(route) => { setDrawer(null); go(route); }} />
+        <Suspense fallback={<p role="status">Đang mở bài đã học…</p>}><LearnedLessons subjects={shelf.subjects ?? []} learner={viewing.id} go={(route) => { setDrawer(null); go(route); }} /></Suspense>
       </PaperDialog>}
       {drawer === "settings" && selfId && <PaperDialog title="Cài đặt" labelId="drawer-settings" onClose={() => setDrawer(null)}>
-        <ProfileSettings learner={selfId} title="Về bạn" />
+        <LazyProfileSettings learner={selfId} title="Về bạn" />
+        <button type="button" className="mt-4 min-h-11 underline" onClick={async event => { const button = event.currentTarget; try { if (!await workerMessage("clear")) throw new Error(); button.textContent = "Đã xoá cache"; } catch { button.textContent = "Chưa xoá được cache"; } }}>Xoá cache</button>
       </PaperDialog>}
-      {hub2 && <DeskProgress key={viewing.id ?? "self"} subjects={shelf.subjects ?? []} learner={viewing.id} go={go} />}
+      {hub2 && !!shelf.subjects?.length && (
+        <details className="mx-auto w-full max-w-3xl" onToggle={event => setShowProgress(event.currentTarget.open)}>
+          <summary className="w-fit cursor-pointer py-3 font-hand text-lg text-accent">Tiến độ theo sổ</summary>
+          {showProgress && <Suspense fallback={<p role="status">Đang mở tiến độ…</p>}><DeskProgress key={viewing.id ?? "self"} subjects={shelf.subjects} learner={viewing.id} go={go} /></Suspense>}
+        </details>
+      )}
       {/* A parent (or the admin) on someone else's shelf also gets their contact book. */}
-      {hub2 && readOnly && viewing.id && shelf.subjects && <ContactBook learner={viewing.id} name={viewedName} subjects={shelf.subjects} />}
+      {hub2 && readOnly && viewing.id && shelf.subjects && (
+        <details className="mx-auto w-full max-w-3xl" onToggle={event => setShowContactBook(event.currentTarget.open)}>
+          <summary className="w-fit cursor-pointer py-3 font-hand text-lg text-accent">Sổ liên lạc</summary>
+          {showContactBook && <Suspense fallback={<p role="status">Đang mở sổ liên lạc…</p>}><ContactBook key={viewing.id} learner={viewing.id} name={viewedName} subjects={shelf.subjects} /></Suspense>}
+        </details>
+      )}
     </div>
   );
 }

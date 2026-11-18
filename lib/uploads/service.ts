@@ -1,6 +1,7 @@
 import { ApiError } from '../api-error.ts';
 import type { Db } from '../subjects/service.ts';
 import { sniffImage } from './image.ts';
+import { stripImageMetadata } from './strip-metadata.ts';
 
 export const MAX_UPLOAD_BYTES = 3_000_000;
 export const MAX_EDGE = 2400;
@@ -21,7 +22,11 @@ export async function createAttachment(db: Db, bucket: Bucket, learnerId: string
   const info = sniffImage(bytes);
   if (!info) throw new ApiError(400, 'Chỉ nhận ảnh JPEG, PNG hoặc WebP.');
   if (info.width > MAX_EDGE || info.height > MAX_EDGE || info.width < 1 || info.height < 1) throw new ApiError(400, `Cạnh dài của ảnh tối đa ${MAX_EDGE} px.`);
-  if (info.hasMetadata) throw new ApiError(400, 'Ảnh còn thông tin máy chụp (EXIF). Hãy chụp hoặc chọn ảnh bằng nút trong bài.');
+  if (info.mime === 'image/webp' && info.hasMetadata) throw new ApiError(400, 'Ảnh còn thông tin máy chụp (EXIF). Hãy chụp hoặc chọn ảnh bằng nút trong bài.');
+
+  const clean = stripImageMetadata(bytes, info.mime);
+  if (!clean) throw new ApiError(400, 'Ảnh không hợp lệ. Hãy chọn ảnh khác.');
+  bytes = clean;
 
   const since = new Date(now.getTime() - RATE_WINDOW_MS).toISOString();
   const recent = await db.prepare('SELECT COUNT(*) AS n FROM attachments WHERE learner_id = ? AND created_at > ?').bind(learnerId, since).first<{ n: number }>();

@@ -122,40 +122,65 @@
       "additionalProperties": false
     },
     "learner": {
-      "type": "object",
-      "properties": {
-        "ref": {
-          "type": "string",
-          "pattern": "^lrn_[a-f0-9]{12}$"
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "ref": {
+              "type": "string",
+              "pattern": "^lrn_[a-f0-9]{12}$"
+            },
+            "displayName": {
+              "type": "string",
+              "maxLength": 80
+            },
+            "role": {
+              "type": "string",
+              "enum": [
+                "adult",
+                "child"
+              ]
+            },
+            "explainLanguage": {
+              "type": "string",
+              "maxLength": 10
+            },
+            "personalPrompt": {
+              "type": "string",
+              "maxLength": 4000
+            }
+          },
+          "required": [
+            "ref",
+            "displayName",
+            "role",
+            "explainLanguage",
+            "personalPrompt"
+          ],
+          "additionalProperties": false
         },
-        "displayName": {
-          "type": "string",
-          "maxLength": 80
-        },
-        "role": {
-          "type": "string",
-          "enum": [
-            "adult",
-            "child"
-          ]
-        },
-        "explainLanguage": {
-          "type": "string",
-          "maxLength": 10
-        },
-        "personalPrompt": {
-          "type": "string",
-          "maxLength": 4000
+        {
+          "type": "object",
+          "properties": {
+            "role": {
+              "type": "string",
+              "enum": [
+                "adult",
+                "child"
+              ]
+            },
+            "explainLanguage": {
+              "type": "string",
+              "maxLength": 10
+            }
+          },
+          "required": [
+            "role",
+            "explainLanguage"
+          ],
+          "additionalProperties": false
         }
-      },
-      "required": [
-        "ref",
-        "displayName",
-        "role",
-        "explainLanguage",
-        "personalPrompt"
-      ],
-      "additionalProperties": false
+      ]
     },
     "subject": {
       "type": "object",
@@ -282,6 +307,33 @@
             "type": "string",
             "maxLength": 5000
           },
+          "transcript": {
+            "minItems": 1,
+            "maxItems": 12,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "speaker": {
+                  "type": "string",
+                  "enum": [
+                    "a",
+                    "b"
+                  ]
+                },
+                "text": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 600
+                }
+              },
+              "required": [
+                "speaker",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
           "skills": {
             "maxItems": 3,
             "type": "array",
@@ -293,6 +345,94 @@
           "prompt": {
             "type": "string",
             "maxLength": 2000
+          },
+          "choices": {
+            "maxItems": 6,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 30
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "left": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 30
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 150
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "right": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 30
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 150
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "steps": {
+            "maxItems": 8,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string",
+                  "maxLength": 30
+                },
+                "text": {
+                  "type": "string",
+                  "maxLength": 150
+                }
+              },
+              "required": [
+                "id",
+                "text"
+              ],
+              "additionalProperties": false
+            }
           },
           "rubric": {
             "anyOf": [

@@ -15,7 +15,7 @@ function addUser(db, id, email, status = 'active') {
 }
 
 test('start is idempotent per client and rejects a reused key with different input', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   const input = startRunSchema.parse(runner);
   const first = await createAutomationRun(db, 'test-runner', input, 'daily-2026-10-09', now);
   const replay = await createAutomationRun(db, 'test-runner', input, 'daily-2026-10-09', now);
@@ -27,7 +27,7 @@ test('start is idempotent per client and rejects a reused key with different inp
 });
 
 test('context is stable, excludes account identifiers, and only contains active learners', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   addUser(db, 'admin', 'owner@example.test');
   addUser(db, 'pending', 'pending@example.test', 'pending');
   const input = startRunSchema.parse(runner);
@@ -45,7 +45,7 @@ test('context is stable, excludes account identifiers, and only contains active 
 });
 
 test('context withholds likely identifiable clinical answers and redacts contact details', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   addUser(db, 'admin', 'owner@example.test');
   db.sqlite.prepare('INSERT INTO learning_lessons(id,user_id,track,payload,assigned_date,completed_at,response,updated) VALUES(?,?,?,?,?,?,?,?)')
     .run('clinical-answer', 'admin', 'MTB', JSON.stringify(lesson), '2026-10-08', '2026-10-08T22:00:00.000Z', 'Patient: Jane Doe, MRN 123456, diagnosis details', '2026-10-08T22:00:00.000Z');
@@ -59,7 +59,7 @@ test('context withholds likely identifiable clinical answers and redacts contact
 });
 
 test('result assignment is atomic, replay-safe, scoped, and never replaces unfinished work', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   addUser(db, 'admin', 'owner@example.test');
   addUser(db, 'learner-b', 'second@example.test');
   db.sqlite.prepare('INSERT INTO learning_lessons(id,user_id,track,payload,assigned_date,completed_at,response,updated) VALUES(?,?,?,?,?,?,?,?)')
@@ -96,7 +96,7 @@ test('result assignment is atomic, replay-safe, scoped, and never replaces unfin
 });
 
 test('result with a stale expected lesson returns kept instead of overwriting concurrent progress', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   addUser(db, 'admin', 'owner@example.test');
   const run = await createAutomationRun(db, 'test-runner', startRunSchema.parse(runner), null, now);
   const context = await serveAutomationContext(db, run.runId, 'test-runner', now);
@@ -113,7 +113,7 @@ test('result with a stale expected lesson returns kept instead of overwriting co
 });
 
 test('automation refuses lesson content containing identifiable clinical or contact details', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   addUser(db, 'admin', 'owner@example.test');
   const run = await createAutomationRun(db, 'test-runner', startRunSchema.parse(runner), null, now);
   const context = await serveAutomationContext(db, run.runId, 'test-runner', now);
@@ -142,7 +142,7 @@ test('published contract schema exposes the versioned runner payloads', () => {
 });
 
 test('expired runs transition once, emit an event, and cannot accept context or results', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   const run = await createAutomationRun(db, 'test-runner', startRunSchema.parse(runner), null, now);
   const afterExpiry = new Date(now.getTime() + 2 * 60 * 60 * 1000 + 1000);
   assert.equal((await readAutomationRun(db, run.runId, 'test-runner', afterExpiry)).status, 'expired');

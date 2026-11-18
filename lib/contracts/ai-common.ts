@@ -1,8 +1,10 @@
+import { audioLanguage, audioSpec, ttsVoices } from "./lesson-package-v3.ts";
 import {frameworkInput} from '../roadmap/frameworks.ts';
 import {roadmapChanges,newStep} from '../roadmap/changes.ts';
 import { z } from 'zod/v4';
-import { lessonItem } from './lesson-package-v2.ts';
-import { lessonPackage } from './lesson-package-v3.ts';
+import { lessonItem } from './lesson-items.ts';
+import { itemKindsInput } from '../subjects/item-kinds.ts';
+import { lessonPackageV3 } from './lesson-package-v3.ts';
 z.config({ jitless: true });
 export const text = (max: number) => z.string().max(max);
 export const ref = z.string().regex(/^(sk_|key:)[a-zA-Z0-9_-]{1,80}$/);
@@ -13,6 +15,7 @@ export const usage = z
     inputTokens: z.number().int().min(0).max(1e8),
     outputTokens: z.number().int().min(0).max(1e8),
     ms: z.number().int().min(0).max(86400000),
+    cachedInputTokens: z.number().int().min(0).max(1e8).optional(),
     cacheReadTokens: z.number().int().min(0).optional(),
     cacheWriteTokens: z.number().int().min(0).optional(),
   })
@@ -97,8 +100,8 @@ export const planResult = z
             action: z.enum(['assign', 'no_action', 'issue']),
             reason: text(1000),
             skillChanges: z.array(skillChanges).max(40),
-            primaryLesson: lessonPackage.nullable(),
-            reviewSet: lessonPackage.nullable(),
+            primaryLesson: lessonPackageV3.nullable(),
+            reviewSet: lessonPackageV3.nullable(),
             masteryProposals: z.array(proposal).max(40),
             progressSummary: text(3000),
             roadmap: roadmap.optional(),
@@ -124,7 +127,7 @@ export const planResult = z
             requestId: z.string(),
             action: z.enum(['assign', 'decline']),
             subjectId: z.string().nullable(),
-            lesson: lessonPackage.nullable(),
+            lesson: lessonPackageV3.nullable(),
             reason: text(1000),
           })
           .strict(),
@@ -138,8 +141,8 @@ export const error = z
     skillId: ref,
     patternId: z.string().nullable().optional(),
     label: text(120),
-    category: z.enum(['knowledge', 'application', 'slip', 'reading', 'unknown']),
-    evidence: text(200),
+    category: z.enum(['knowledge', 'application', 'slip', 'reading', 'unknown', 'extra']),
+    evidence: text(80),
   })
   .strict();
 export const assessResult = z
@@ -258,7 +261,7 @@ const subject = z
     /** The notebook's own prompt, e.g. the former ChatGPT Project instructions (L5.5). */
     instructions: text(4000),
     limits: z.object({ maxDifficulty: z.number(), allowNewTopics: z.boolean(), maxNewSkillsPerWeek: z.number(),
-      package: z.union([z.literal(2), z.literal(3)]).optional() }).strict(),
+      itemKinds: itemKindsInput }).strict(),
     weight: z.number(),
     revision: z.number().int(),
     progressSummary: text(3000),
@@ -313,6 +316,7 @@ export const planContext = z
     planningGuidance: text(2000).optional(),
     adaptive: adaptiveDecision.optional(),
     roadmapProtocol: z.literal(2).optional(),
+    tts: z.object({ languages: z.array(audioLanguage).min(1).max(4), voices: ttsVoices }).strict().optional(),
     frameworks: z.array(z.object({key:z.string(),label:z.string(),levels:z.array(z.string())}).strict()).optional(),
     subjects: z.array(subject).max(30),
     explorations: z
@@ -340,8 +344,13 @@ const assessmentAttempt = z
     input: z.enum(['choice', 'short', 'long', 'cloze', 'match', 'order', 'label', 'table', 'code']),
     language: z.enum(['rust', 'python', 'text']).optional(),
     starter: text(5000).optional(),
+    transcript: audioSpec.shape.lines.optional(),
     skills: z.array(ref).max(3),
     prompt: text(2000),
+    choices: z.array(z.object({ id: text(30), text: text(300) }).strict()).max(6).optional(),
+    left: z.array(z.object({ id: text(30), text: text(150) }).strict()).max(8).optional(),
+    right: z.array(z.object({ id: text(30), text: text(150) }).strict()).max(8).optional(),
+    steps: z.array(z.object({ id: text(30), text: text(150) }).strict()).max(8).optional(),
     rubric: z
       .array(z.object({ criterion: text(200), points: z.number(), description: text(300).optional(), skill: ref.optional() }).strict())
       .nullable(),
@@ -365,7 +374,7 @@ export const assessContext = z
     purpose: z.enum(['submission', 'recheck']),
     contextHash: hash,
     knowledge,
-    learner,
+    learner: z.union([learner, learner.pick({ role: true, explainLanguage: true })]),
     subject: z
       .object({
         subjectId: z.string(),

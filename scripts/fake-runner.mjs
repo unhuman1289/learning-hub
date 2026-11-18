@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { uploadPlanAudio } from '../lib/ai/upload-plan-audio.mjs';
 import { pathToFileURL } from 'node:url';
 // Deterministic test runner only. Its server client MUST be restricted with learnerIds to QA accounts.
 export function fakeResult(context, fixture) {
@@ -32,13 +33,15 @@ export function fakeResult(context, fixture) {
       usage,
     };
   if (context.contract !== 'plan-context/1') throw Error('Unknown context contract.');
+  const lessonFixture = { knowledge: [], ...fixture, contract: 'lesson-package/3' };
+  const requests = context.purpose === 'request' ? context.explorations : [];
   return {
     contract: 'plan-result/1',
     contextHash: context.contextHash,
     summary: 'Kiểm thử giao bài qua API v2.',
     subjects: context.subjects.map((s) => {
-      const lesson = structuredClone(fixture),
-        assign = s.slot.eligibleForPrimary;
+      const lesson = structuredClone(lessonFixture),
+        assign = context.purpose !== 'request' && s.slot.eligibleForPrimary;
       lesson.title = 'QA · ' + fixture.title;
       lesson.items = lesson.items.map((i) => ({ ...i, prompt: i.prompt + ' [bài thử ' + context.jobId + ']' }));
       const existing = new Set(s.skills.map((sk) => sk.key)),
@@ -71,10 +74,34 @@ export function fakeResult(context, fixture) {
         requestsHandled: [],
       };
     }),
-    explorations: [],
+    explorations: requests.map(request => ({
+      requestId: request.requestId,
+      action: 'assign',
+      subjectId: request.subjectId,
+      lesson: {
+        ...structuredClone(lessonFixture),
+        kind: context.adaptive?.mode === 'practice' ? 'remediation' : lessonFixture.kind,
+        estMinutes: context.adaptive?.minutes ?? lessonFixture.estMinutes,
+        items: lessonFixture.items.map(item => ({ ...item, prompt: item.prompt + ' [bài thử ' + context.jobId + ']' })),
+      },
+      reason: 'Bài mẫu để thử luồng xin bài.',
+    })),
     usage,
   };
 }
+const sampleAudio = {
+  'de-DE': { text: 'Guten Morgen.', f: 'Anna (German (Germany))', m: 'Reed (German (Germany))' },
+  'zh-CN': { text: '您好。', f: 'Tingting', m: 'Eddy (Chinese (China mainland))' },
+};
+
+function renderSample(audio, voices) {
+  const sample = sampleAudio[audio.lang];
+  if (audio.rate !== 0.8 || audio.lines.length !== 1 || audio.lines[0].text !== sample?.text)
+    throw Error('No matching test audio fixture.');
+  const variant = voices[0] === sample.f ? 'f' : 'm';
+  return readFileSync(new URL(`../tests/fixtures/audio/${audio.lang}-${variant}.m4a`, import.meta.url));
+}
+
 export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher = fetch }) {
   const url = new URL(baseUrl);
   if (!((url.protocol === 'http:' && url.hostname === 'localhost') || url.origin === 'https://learning-hub-staging.tranvu-812.workers.dev'))
@@ -87,21 +114,27 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
       ? { 'CF-Access-Client-Id': credentials.accessClientId, 'CF-Access-Client-Secret': credentials.accessClientSecret }
       : {}),
   };
-  const call = async (path, method = 'GET', body, leaseToken) => {
+  const call = async (path, method = 'GET', body, leaseToken, audioSpec) => {
     const response = await fetcher(url.origin + '/api/automation/v2' + path, {
         method,
-        headers: { ...headers, ...(leaseToken ? { 'X-Lease-Token': leaseToken } : {}) },
-        body: body === undefined ? undefined : JSON.stringify(body),
+        headers: { ...headers, ...(leaseToken ? { 'X-Lease-Token': leaseToken } : {}),
+          ...(audioSpec ? { 'Content-Type': 'audio/mp4', 'X-Audio-Spec': audioSpec } : {}) },
+        body: audioSpec || body === undefined ? body : JSON.stringify(body),
       }),
       value = await response.json().catch(() => null);
     if (!response.ok) throw Error('Runner API ' + response.status + ' (' + (value?.errors?.map((e) => e.code).join(',') ?? 'request rejected') + ')');
     return value;
   };
+  const tts = fixture?.items.some(item => item.audio);
+  const ttsVoices = Object.fromEntries(Object.entries(sampleAudio).map(([lang, { f, m }]) => [lang, { f, m }]));
   const reports = [];
   for (let n = 0; n < max; n++) {
     const leased = await call('/jobs/lease', 'POST', {
         kinds: ['assess', 'plan'],
         max: 1,
+        ...(url.hostname === 'localhost' || tts
+          ? { capabilities: ['lesson-v3', 'adaptive-plan', 'local-grading', ...(tts ? ['tts'] : [])] } : {}),
+        ...(tts ? { ttsVoices } : {}),
         runner: { name: 'h5-fake-runner', version: '1', model: 'none' },
       }),
       job = leased.jobs[0];
@@ -112,6 +145,12 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
       throw Error('Fake runner refuses non-QA learner.');
     }
     const result = fakeResult(context, fixture);
+    if (tts && job.kind === 'plan') {
+      if (!context.tts) throw Error('Hub did not accept test TTS capabilities.');
+      const hub = { putBinary: (lease, hash, bytes, spec) =>
+        call('/jobs/' + lease.jobId + '/audio/' + hash, 'PUT', bytes, lease.leaseToken, spec) };
+      await uploadPlanAudio(hub, job, context, result, renderSample);
+    }
     await call('/jobs/' + job.jobId + '/result?dryRun=1', 'POST', result, job.leaseToken);
     try {
       await call('/jobs/' + job.jobId + '/result', 'POST', result, job.leaseToken);
@@ -128,9 +167,10 @@ export async function runFake({ baseUrl, credentials, fixture, max = 5, fetcher 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2),
     arg = (k) => args[args.indexOf(k) + 1];
-  if (!args.includes('--credentials') || !args.includes('--origin'))
+  if (!args.includes('--credentials'))
     throw Error('Usage: --origin <localhost|staging> --credentials <private JSON> [--fixture <authored lesson>]');
   const credentials = JSON.parse(readFileSync(arg('--credentials'), 'utf8')),
     fixture = JSON.parse(readFileSync(args.includes('--fixture') ? arg('--fixture') : 'fixtures/lessons/deutsch-modalverb.json', 'utf8'));
-  console.log(JSON.stringify(await runFake({ baseUrl: arg('--origin'), credentials, fixture }), null, 2));
+  const baseUrl = args.includes('--origin') ? arg('--origin') : `http://localhost:${process.env.LEARNING_HUB_DEMO_PORT ?? '5174'}`;
+  console.log(JSON.stringify(await runFake({ baseUrl, credentials, fixture }), null, 2));
 }

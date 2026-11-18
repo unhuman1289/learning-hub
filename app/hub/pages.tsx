@@ -1,21 +1,60 @@
 "use client";
 
-import {KnowledgePanel} from "../admin/knowledge-panel";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { KnowledgePanel } from "../admin/knowledge-panel";
 import { WindowPreview } from "./lubeck/preview";
 import { Download } from "lucide-react";
 import { WoodFrame } from "../../components/notebook/house";
+import { RuledPage } from "../../components/notebook/paper";
 import PendingApprovals from "../../components/pending-approvals";
 import RunStatus from "../run-status";
-import {ImportPanel} from "./lesson-v2/import-panel";
-import {AdminAlertBanner, AiJobsPanel} from "./ai-jobs-panel";
-import { AdminDisputes } from "./admin-disputes";
+import { ImportPanel } from "./lesson-v2/import-panel";
+import { AiJobsPanel } from "./ai-jobs-panel";
+import { AdminAttention, AdminGradingQuality, type ReadLearnerNames } from "./admin-disputes";
+import { AiControls } from "./ai-controls";
 import { FamilyAdmin } from "./family-admin";
+import { PerfTable } from "./perf-table";
 import { buttonClass } from "./ui";
+import { apiJson } from "./api";
+import type { LearnerSummary } from "../../lib/learners/list";
 import type { DailyApi } from "./use-daily";
 import type { WorkspaceApi } from "./use-workspace";
 
-/** Admin-only: approvals, scheduled update log, backups and a copy of shared notes. */
-export function AdminView({ daily, workspace, hub2 = false, profileMode = false }: { daily: DailyApi; workspace: WorkspaceApi; hub2?: boolean; profileMode?: boolean }) {
+const sections = { attention: "Cần xem", family: "Gia đình", books: "Sổ", knowledge: "Knowledge", system: "Hệ thống" } as const;
+type Section = keyof typeof sections;
+
+export function AdminView({ daily, workspace, hub2 = false, profileMode = false }: {
+  daily: DailyApi; workspace: WorkspaceApi; hub2?: boolean; profileMode?: boolean;
+}) {
+  const [selection, setSelection] = useState<Section>(hub2 ? "attention" : "family");
+  const [opened, setOpened] = useState(() => new Set<Section>([selection]));
+  const heading = useRef<HTMLHeadingElement>(null);
+  const focusPanel = useRef(false);
+  const names = useRef<ReturnType<ReadLearnerNames> | null>(null);
+  const readNames = useCallback<ReadLearnerNames>(() => {
+    names.current ??= apiJson<{ learners: LearnerSummary[] }>("/api/learners")
+      .then(({ learners }) => new Map(learners.map(learner => [learner.id, learner.name])))
+      .catch(error => {
+        names.current = null;
+        throw error;
+      });
+    return names.current;
+  }, []);
+
+
+  function select(next: Section) {
+    if (next === selection) return;
+    focusPanel.current = true;
+    setOpened(current => new Set([...current, next]));
+    setSelection(next);
+  }
+
+  useEffect(() => {
+    if (!focusPanel.current) return;
+    focusPanel.current = false;
+    heading.current?.focus({ preventScroll: true });
+  }, [selection]);
+
   function exportWorkspace() {
     const blob = new Blob([JSON.stringify({ exported: new Date().toISOString(), ...workspace.latest.current }, null, 2)], { type: "application/json" });
     const anchor = document.createElement("a");
@@ -25,30 +64,64 @@ export function AdminView({ daily, workspace, hub2 = false, profileMode = false 
     setTimeout(() => URL.revokeObjectURL(anchor.href), 1000);
   }
 
+  const visibleSections: Section[] = hub2 ? ["attention", "family", "books", "knowledge", "system"] : ["family", "system"];
   return (
-    <div className="mx-auto grid w-full max-w-4xl gap-6">
-      <h1 className="font-print text-[2rem] font-medium">Quản trị</h1>
-      {hub2 && <AdminAlertBanner />}
-      {!profileMode && <WoodFrame label="Duyệt tài khoản"><PendingApprovals isAdmin /></WoodFrame>}
-      <WoodFrame label="Gia đình">
-        <h2 className="font-print text-2xl font-medium">Gia đình</h2>
-        <p className="mb-4 mt-2 text-sm text-muted">Đặt trẻ em, biệt danh dùng trong bài và lời phê, và phụ huynh của từng người.</p>
-        {hub2 && <ImportPanel />}
-        <FamilyAdmin />
-      </WoodFrame>
-      {hub2 && <WoodFrame label="Chấm sai cần xem"><AdminDisputes /></WoodFrame>}
-      {hub2 && <WoodFrame label="Lượt soạn và chấm"><AiJobsPanel /></WoodFrame>}
-      {hub2 && <WoodFrame label="Tri thức"><KnowledgePanel /></WoodFrame>}
-      <WoodFrame label="Cập nhật bài và sao lưu">
-        <h2 className="mb-3 font-print text-2xl font-medium">Cập nhật bài và sao lưu</h2>
-        {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} /> : <p className="text-muted">{daily.error || "Đang tải…"}</p>}
-      </WoodFrame>
-      <WoodFrame label="Xem thử cửa sổ"><WindowPreview /></WoodFrame>
-      <WoodFrame label="Dữ liệu lưu trữ">
-        <h2 className="font-print text-2xl font-medium">Dữ liệu lưu trữ</h2>
-        <p className="mt-2 text-sm text-muted">Tải bản sao dữ liệu workspace cũ dưới dạng JSON.</p>
-        <button type="button" onClick={exportWorkspace} className={buttonClass("secondary", "mt-4")}><Download size={16} aria-hidden="true" /> Tải bản sao</button>
-      </WoodFrame>
+    <div className="admin-notebook mx-auto w-full max-w-4xl">
+      <h1 className="mb-4 font-print text-4xl font-medium">Quản trị</h1>
+      <nav aria-label="Khu quản trị" className="flex flex-wrap gap-1 pb-1">
+        {visibleSections.map(section => <button key={section} type="button" aria-pressed={selection === section} aria-controls="admin-current"
+          onClick={() => select(section)} className="admin-section-button min-h-11 rounded-t-sm px-3 font-hand text-lg focus-visible:outline-2 focus-visible:outline-offset-2">
+          {sections[section]}
+        </button>)}
+      </nav>
+      <RuledPage as="section" className="admin-notebook-page rounded-b-lg shadow-page">
+        <div id="admin-current" aria-labelledby="admin-panel-heading">
+          <h2 id="admin-panel-heading" ref={heading} tabIndex={-1} className="mb-4 font-print text-3xl">{sections[selection]}</h2>
+
+          {hub2 && opened.has("attention") && <div hidden={selection !== "attention"}>
+            <AdminAttention readNames={readNames} onSystem={() => select("system")} />
+          </div>}
+
+          {(opened.has("family") || selection === "family") && <div hidden={selection !== "family"} className="grid gap-6">
+            {!profileMode && <PendingApprovals isAdmin />}
+            <FamilyAdmin />
+            {hub2 && <AdminDetails title="Nhập bài đã duyệt"><ImportPanel /></AdminDetails>}
+          </div>}
+
+          {hub2 && opened.has("books") && <div hidden={selection !== "books"}><AiControls /></div>}
+
+          {hub2 && opened.has("knowledge") && <div hidden={selection !== "knowledge"}>
+            <KnowledgePanel />
+          </div>}
+
+          {opened.has("system") && <div hidden={selection !== "system"} className="grid min-w-0 gap-5">
+            <PerfTable active={selection === "system"} />
+            {hub2 && <>
+              <AdminDetails title="Lượt soạn và chấm"><AiJobsPanel active={selection === "system"} /></AdminDetails>
+              <AdminDetails title="Chất lượng chấm"><AdminGradingQuality readNames={readNames} /></AdminDetails>
+            </>}
+            <AdminDetails title="Cập nhật bài và sao lưu">
+              {daily.data ? <RunStatus data={daily.data} isAdmin onBackup={daily.setBackup} />
+                : <p role={daily.error ? "alert" : "status"} className="text-muted-paper">{daily.error || "Đang tải…"}</p>}
+            </AdminDetails>
+            <AdminDetails title="Xem thử cửa sổ"><WoodFrame label="Xem thử cửa sổ"><WindowPreview /></WoodFrame></AdminDetails>
+            {!hub2 && <AdminDetails title="Dữ liệu lưu trữ">
+              <p className="mb-2 text-sm text-muted-paper">Tải bản sao dữ liệu workspace cũ dưới dạng JSON.</p>
+              <button type="button" onClick={exportWorkspace} className={buttonClass("secondary")}><Download size={16} aria-hidden="true" /> Tải bản sao</button>
+            </AdminDetails>}
+          </div>}
+        </div>
+      </RuledPage>
     </div>
   );
+}
+
+function AdminDetails({ title, children }: { title: string; children: ReactNode }) {
+  const [visited, setVisited] = useState(false);
+  return <details className="border-t border-rule" onToggle={event => {
+    if (event.currentTarget.open) setVisited(true);
+  }}>
+    <summary className="min-h-11 cursor-pointer content-center font-hand text-xl text-accent-paper">{title}</summary>
+    {visited && <div className="min-w-0 pt-2">{children}</div>}
+  </details>;
 }

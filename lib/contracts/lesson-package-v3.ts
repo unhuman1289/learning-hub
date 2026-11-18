@@ -1,12 +1,17 @@
 import { z } from "zod/v4";
-import { lessonItem, lessonPackageV2, rubricCriterion, textKey, numericKey } from "./lesson-package-v2.ts";
+import { lessonItem, lessonPackageV2, rubricCriterion, textKey, numericKey } from "./lesson-items.ts";
 
 const text = (limit: number) => z.string().trim().min(1).max(limit);
 const id = z.string().regex(/^[a-z0-9_-]{1,30}$/);
 const cell = z.union([textKey, numericKey]);
 const clozeKey = z.object({ type: z.literal("cloze"), blanks: z.array(textKey).min(1).max(6) }).strict();
 const matchKey = z.object({ type: z.literal("match"), pairs: z.array(z.tuple([id, id])).min(2).max(8) }).strict();
-const orderKey = z.object({ type: z.literal("order"), sequence: z.array(id).min(2).max(8) }).strict();
+const orderSequence = z.array(id).min(2).max(8);
+const orderKey = z.object({
+  type: z.literal("order"),
+  sequence: orderSequence,
+  sequences: z.array(orderSequence).min(1).max(4).optional(),
+}).strict();
 const labelKey = z.object({ type: z.literal("label"), labels: z.array(textKey).min(1).max(8) }).strict();
 const tableKey = z.object({ type: z.literal("table"), cells: z.array(cell).min(1).max(36) }).strict();
 export const structuredAnswerKey = z.discriminatedUnion("type", [clozeKey, matchKey, orderKey, labelKey, tableKey]);
@@ -35,9 +40,29 @@ const knowledgeBlock = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("steps"), steps: z.array(text(500)).min(1).max(12) }).strict(),
 ]);
 
-const base = lessonItem.omit({ input: true, choices: true, key: true, rubric: true });
+export const audioLanguage = z.enum(["de-DE", "zh-CN", "en-US", "vi-VN"]);
+export const ttsVoices = z.partialRecord(audioLanguage, z.object({
+  f: text(100), m: text(100),
+}).strict().refine(pair => pair.f !== pair.m));
+export type TtsVoices = z.infer<typeof ttsVoices>;
+
+export const audioSpec = z.object({
+  lang: audioLanguage,
+  lines: z.array(z.object({ speaker: z.enum(["a", "b"]), text: text(600) }).strict()).min(1).max(12),
+  rate: z.literal([0.8, 0.9, 1]),
+  maxPlays: z.literal([1, 2, 3]),
+  transcript: z.enum(["after_answer", "never"]),
+}).strict().refine(audio => audio.lines.reduce((total, line) => total + line.text.length, 0) <= 600, {
+  path: ["lines"],
+  message: "Lời thoại có tối đa 600 ký tự.",
+});
+
+export type AudioSpec = z.infer<typeof audioSpec>;
+
+const basicItemV3 = lessonItem.extend({ audio: audioSpec.optional() });
+const base = basicItemV3.omit({ input: true, choices: true, key: true, rubric: true });
 const itemV3 = z.union([
-  lessonItem,
+  basicItemV3,
   base.extend({ input: z.literal("cloze"), fragments: z.array(z.string().max(500)).min(2).max(7), key: clozeKey }),
   base.extend({ input: z.literal("match"), left: z.array(step).min(2).max(8), right: z.array(step).min(2).max(8), key: matchKey }),
   base.extend({ input: z.literal("order"), steps: z.array(step).min(2).max(8), key: orderKey }),
@@ -56,17 +81,33 @@ export const lessonPackageV3 = lessonPackageV2.extend({
   contract: z.literal("lesson-package/3"),
   items: z.array(itemV3).min(1).max(25),
   knowledge: z.array(knowledgeBlock).max(12),
+  gradingMode: z.literal("whole-lesson").optional(),
 }).superRefine((lesson, ctx) => {
   const issue = (path: (string | number)[], message: string) => ctx.addIssue({ code: "custom", path, message });
+  if (lesson.gradingMode === "whole-lesson" && (lesson.items.length > 8 ||
+    lesson.items.some(item => !["short", "long", "code"].includes(item.input) || !("rubric" in item) || !item.rubric ||
+      ("key" in item && item.key) || item.attachment === "required") ||
+    lesson.items.filter(item => item.attachment === "optional").length > 2)) {
+    issue(["items"], "Bài chấm cuối lượt có tối đa 8 câu mở dạng văn bản, mỗi câu có rubric.");
+  }
   const ids = lesson.items.map(item => item.id);
   if (new Set(ids).size !== ids.length) issue(["items"], "Mã câu phải khác nhau.");
   for (const [i, item] of lesson.items.entries()) {
+    if ("key" in item && item.key?.type === "dictation") {
+      if (item.input !== "short") issue(["items", i, "input"], "Câu chính tả dùng dạng trả lời ngắn.");
+      if (item.audio?.lang === "zh-CN" && !item.key.pinyin)
+        issue(["items", i, "key", "pinyin"], "Câu chính tả tiếng Trung cần có pinyin số.");
+    }
     let valid = true;
     switch (item.input) {
       case "cloze": valid = item.key.blanks.length === item.fragments.length - 1; break;
       case "match": valid = permutation(item.key.pairs.map(pair => pair[0]), item.left.map(option => option.id))
         && permutation(item.key.pairs.map(pair => pair[1]), item.right.map(option => option.id)); break;
-      case "order": valid = permutation(item.key.sequence, item.steps.map(option => option.id)); break;
+      case "order": {
+        const stepIds = item.steps.map(option => option.id);
+        valid = [item.key.sequence, ...(item.key.sequences ?? [])].every(sequence => permutation(sequence, stepIds));
+        break;
+      }
       case "label": valid = item.marks.length === item.key.labels.length; break;
       case "table": valid = item.headers.length * item.rowLabels.length === item.key.cells.length; break;
     }

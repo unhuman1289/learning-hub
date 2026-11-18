@@ -1,0 +1,23 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {memoryDb} from './d1-adapter.mjs';
+import {initializeAiControls,aiSubjects,setAiControls} from '../lib/ai-controls.ts';
+const a='sub_aaaaaaaaaaaaaaaaaaaa',b='sub_bbbbbbbbbbbbbbbbbbbb';
+test('notebooks default on, per-notebook changes are logged, and legacy secrets are ignored',async t=>{
+ const db=memoryDb();t.after(()=>db.sqlite.close());
+ db.sqlite.exec(`INSERT INTO user(id,name,email,email_verified,created_at,updated_at,role,status) VALUES('u','U','u@test.test',1,1,1,'learner','active');
+ INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('${a}','u','A','skill','active','u','t','t'),('${b}','u','B','skill','active','u','t','t');`);
+ const env={OPENAI_ENABLED:'true',OPENAI_SUBJECT_IDS:a,OPENAI_TTS_SUBJECT_IDS:a};
+ await Promise.all([initializeAiControls(db,env),initializeAiControls(db,env)]);
+ assert.deepEqual(await aiSubjects(db,env),[a,b]);assert.deepEqual(await aiSubjects(db,env,true),[a,b]);
+ assert.equal(db.sqlite.prepare('SELECT count(*) n FROM ai_control_log').get().n,0);
+ assert.equal(db.sqlite.prepare('SELECT count(*) n FROM ai_subject_controls').get().n,0);
+ await setAiControls(db,env,a,{openaiEnabled:false,ttsEnabled:false},'admin');
+ await initializeAiControls(db,{...env,OPENAI_SUBJECT_IDS:b});
+ assert.deepEqual(await aiSubjects(db,env),[b]);
+ assert.deepEqual(await aiSubjects(db,env,true),[b]);
+ assert.deepEqual(db.sqlite.prepare('SELECT field,old_value,new_value,changed_by FROM ai_control_log ORDER BY field').all().map(x=>({...x})),[
+  {field:'openai_enabled',old_value:1,new_value:0,changed_by:'admin'}, {field:'tts_enabled',old_value:1,new_value:0,changed_by:'admin'}]);
+ assert.equal(db.sqlite.prepare('SELECT count(*) n FROM subjects WHERE ai_enabled=1').get().n,0);
+ assert.deepEqual(await aiSubjects(db,{...env,OPENAI_ENABLED:'false'}),[]);
+});

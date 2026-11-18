@@ -188,7 +188,7 @@ Bìa (câu hỏi trung tâm) → `read` (2–8 phần, nguồn đã mở thật)
 | `recognize` | Chọn câu đúng: *Ich kann heute kochen / kocht* | `choice`; key, phương án sai mang `errorLabel` |
 | `correct` | Sửa: *Wir kann morgen kommen.* | `short`; key nếu chỉ một cách đúng |
 | `transform` | Câu thường → Modalverb → phủ định → câu hỏi | `short`; thường dùng rubric |
-| `apply` | Bài toán có lời văn; email | Đáp số dùng key; lời giải dùng ảnh và rubric |
+| `apply` | Bài toán có lời văn; email | Lời giải dùng rubric; có thể gửi ảnh hoặc gõ chữ |
 | `explain` | Vì sao VAF 30% không có nghĩa 30% tế bào mang biến thể? | `long`; rubric |
 | `create` | Viết 5 câu về cuối tuần theo yêu cầu | `long`; rubric |
 | `investigate` | Chỉ ra giới hạn của một nghiên cứu | `long`; rubric |
@@ -203,16 +203,21 @@ Câu trong bài `connect` hoặc `synthesis` ghi thêm `concepts`, và có thể
 
 Mỗi bước là một câu `transform` riêng. Với Toán: tính trực tiếp → tìm lỗi trong lời giải → bài thực tế → giải thích vì sao phương pháp đúng → tự đặt một bài tương tự.
 
+Ảnh bài làm chỉ là lựa chọn bổ sung: với sổ `normal`, tối đa hai câu mở có rubric trong mỗi bài có thể đặt `attachment: optional` khi lời giải toán viết tay, sơ đồ hoặc bài viết tay giúp thể hiện quá trình. Các câu khác đặt `none`; không bao giờ yêu cầu ảnh. Sổ có sensitivity khác `normal` luôn đặt `none`. Đề, rubric và lời giải phải cho phép người học trả lời bằng chữ và được chấm đầy đủ ngay cả khi không gửi ảnh.
+
 ### 5.3 `key` hay `rubric`
 
 - **`key`** chỉ khi đáp án duy nhất: trắc nghiệm, đáp số, ≤3 từ, hoặc một câu sửa chỉ có một cách đúng.
 - **`rubric`** khi tiếng Đức có thể đảo trật tự hợp lệ.
+- Với bài Toán do Qwen soạn, câu tính dùng `numeric`. Mỗi đáp án `text` của câu trả lời tự do có tối đa ba từ. Nếu bản nháp vẫn chứa đáp án dài, Hub giữ đề và lời giải mẫu, chuyển câu sang chấm bằng rubric.
 - Đáp số theo quy ước Việt Nam (dấu phẩy thập phân); server nhận cả dấu chấm.
 - Rubric có 2–5 tiêu chí, mỗi tiêu chí gắn một kỹ năng (hoặc một khái niệm, với tiêu chí "kết nối"). Không chấm "tự nhiên như người bản xứ" vượt trình độ.
 
-### 5.4 Dạng câu phiên bản 3
+### 5.4 Dạng câu theo sổ
 
-Sổ bật `limits.package = 3` trộn ít nhất hai dạng câu trong mỗi bài. Sinh học ưu tiên nối cặp, sắp quy trình, điền bảng và gắn nhãn trên hình có sẵn. Rust ưu tiên sửa lỗi hoặc viết hàm ngắn, điền cú pháp và sắp các bước mượn dữ liệu. Bảng, sơ đồ, khối code và các bước được dựng từ dữ liệu của bài.
+Bài mới dùng `lesson-package/3`. Chỉ dùng các dạng trong `limits.itemKinds` của sổ. Sổ ngôn ngữ mặc định có trắc nghiệm, trả lời ngắn, tự luận và điền chỗ trống. Một bài có thể dùng một dạng và không dùng khối mã trong `knowledge`.
+
+Sổ lập trình mặc định có trắc nghiệm, trả lời ngắn, điền chỗ trống, sắp xếp và viết mã. Sổ Toán và khoa học mặc định có trắc nghiệm, trả lời ngắn, tự luận, điền chỗ trống, điền bảng và gắn nhãn. Cả hai nhóm cần ít nhất hai dạng trong mỗi bài. Sổ khác mặc định có trắc nghiệm, trả lời ngắn và tự luận. Dùng hình có sẵn, bảng và sơ đồ dựa trên dữ liệu của bài.
 
 Hub chấm theo từng ô hoặc vị trí của câu đóng. Qwen chấm câu code theo rubric, giữ điểm tiêu chí đã đạt và nêu số dòng khi chỉ lỗi. Lời phê nói rõ “Chưa chạy thử.”
 
@@ -233,7 +238,7 @@ Không được:
 
 1. Kiểm tra từng câu, đối chiếu với đề.
 2. Không đoán phần không đọc được. Ảnh mờ thì chấm `ungradable` và nói cần gì.
-3. Phân biệt lỗi thật với cách diễn đạt khác nhưng đúng.
+3. Phân biệt lỗi thật với cách diễn đạt khác nhưng đúng. Tiêu chí nội dung đạt đủ điểm khi thông tin yêu cầu hiện diện rõ, dù cách diễn đạt khác lời giải mẫu. Tiêu chí phong cách/lịch sự/tự nhiên đạt đủ điểm nếu cách viết phù hợp yêu cầu và không có chỗ thô hoặc sai sắc thái; chỉ trừ khi chỉ ra được đoạn trích cụ thể. Khi chấm rubric, chép nguyên văn tên tiêu chí và điểm tối đa từ rubric; không bỏ hoặc thêm tiêu chí.
 4. Chỉ giải thích phần sai hoặc thiếu.
 5. Gom lỗi lặp thành mẫu lỗi, dùng lại `patternId`.
 6. Đề xuất phần cần luyện (`reviewProposals`, `checkItem`).
@@ -256,7 +261,9 @@ Không được:
 | `reading` | Hiểu sai đề |
 | `unknown` | Khi chưa đủ bằng chứng; luôn tốt hơn đoán |
 
-`evidence` phải trích nguyên văn từ bài làm.
+Sau khi chấm theo rubric, nếu câu trả lời liên quan có lỗi ngôn ngữ rõ ràng ngoài rubric (ngữ pháp, trật tự từ hoặc chính tả quan trọng), ghi tối đa hai lỗi `extra`, nhắc trong feedback và nêu cách sửa ngắn. Không thay đổi score hoặc result vì các lỗi này. Không áp dụng cho câu rác hoặc lạc đề; không suy đoán hay bịa lỗi. Ảnh áp dụng quy tắc bằng chứng chưa đối chiếu của G5.
+
+`evidence` phải trích nguyên văn từ bài làm. Bài ngắn, lạc đề hoặc sai ngôn ngữ được chấm theo rubric; nếu không đạt tiêu chí nào thì `incorrect`, điểm 0 và lời phê nêu yêu cầu còn thiếu. Nếu không có trích đoạn phù hợp thì để `errors` rỗng, không bịa evidence. Chỉ dùng `ungradable` cho bài trống hoặc ảnh không đọc được, với lời phê giải thích.
 
 **Bài kết nối và tổng hợp:**
 
@@ -295,7 +302,7 @@ Không được:
   - biến cố và xác suất;
   - hình khối trong thực tiễn.
 - **Cách ra bài:**
-  - Đáp số trên web; lời giải trên giấy kèm ảnh, chấm theo bước: lập đúng, tính đúng, kết luận có đơn vị.
+  - Lời giải có thể gõ chữ hoặc viết trên giấy và gửi ảnh tùy chọn, chấm theo bước: lập đúng, tính đúng, kết luận có đơn vị.
   - Xen kẽ các dạng đã học.
   - Theo sát "Tuần này ở trường".
 
@@ -309,7 +316,7 @@ Không được:
   - liên kết ion và cộng hoá trị;
   - hoá trị và công thức hoá học.
 - Công thức gõ dạng thường (`H2O`).
-- Câu tính dùng đáp số kèm ảnh.
+- Câu tính có thể cho gửi ảnh tùy chọn khi có rubric; luôn chấp nhận lời giải gõ chữ.
 - Không giao thí nghiệm có hoá chất ở nhà.
 - Là cặp kết nối gần với Toán (tỉ lệ, phần trăm khối lượng).
 
@@ -390,3 +397,5 @@ Tự đánh giá A2, chưa có kiểm tra xác nhận; B2 cho công việc/chứ
 Bài 01 có email đổi lịch và đối thoại, củng cố V2/modal, hướng dẫn weil và đề nghị lịch sự. Chỉ chọn bài kế tiếp dựa trên câu trả lời đã có; chưa có dữ liệu thì ghi rõ. Nói phải có tương tác; bản chép chỉ chứng minh nội dung, không chứng minh phát âm/độ trôi chảy. Thời lượng và số từ là mục tiêu riêng của bài luyện, không phải mô phỏng đề thi chính thức.
 
 Prompt sử dụng ngay: [deutsch-unhuman.md](../../integrations/runner-prompts/deutsch-unhuman.md). Cách chuẩn bị, giao và học: [DEUTSCH-PILOT.md](../automation/DEUTSCH-PILOT.md). Đây là soạn tay và prompt chuẩn bị nội dung, **chưa triển khai H5/H7** hoặc vượt Cổng A.
+
+Lời phê gửi người học không dùng markdown; chỉ dùng « » hoặc ngoặc kép để trích.

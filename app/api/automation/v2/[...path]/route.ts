@@ -1,3 +1,5 @@
+import { aiSubjects } from '../../../../../lib/ai-controls';
+import { uploadAudio } from '../../../../../lib/audio/upload';
 import { callKnowledgeTool,routeKnowledge } from '../../../../../lib/knowledge/tools';
 import {readBoundedText} from '../../../../../lib/mcp/body';
 import { sendAlertDigest } from '../../../../../lib/alerts';
@@ -6,15 +8,13 @@ import { z } from 'zod/v4';
 import { storage } from '../../../../../db/storage';
 import { authorizeAutomation } from '../../../../../lib/auth/automation';
 import { apiFailure, ApiError } from '../../../../../lib/api-error';
-import { leaseJobs, leasedJob, readJob, heartbeat, permits } from '../../../../../lib/ai-jobs/lease';
+import { leaseJobs, leasedJob, readJob, heartbeat, permits, failLeasedJob } from '../../../../../lib/ai-jobs/lease';
 import { applyResult } from '../../../../../lib/ai-jobs/result';
 import { planContext, planResult, assessContext, assessResult } from '../../../../../lib/contracts/ai-common';
-import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-package-v2';
-import { lessonPackageV3 } from '../../../../../lib/contracts/lesson-package-v3';
+import { lessonPackageV2 } from '../../../../../lib/contracts/lesson-items';
+import { lessonPackageV3, ttsVoices } from '../../../../../lib/contracts/lesson-package-v3';
 import { historyMarkdown, readHistory } from '../../../../../lib/history';
 import { learnerStatus } from '../../../../../lib/status';
-import { householdMode } from '../../../../../lib/household';
-import { listProfiles } from '../../../../../lib/profiles';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'no-store' };
 const leaseBody = z
@@ -35,9 +35,10 @@ const leaseBody = z
     max: z.number().int().min(1).max(5),
     runner: z.object({ name: z.string().min(1).max(80), version: z.string().max(80), model: z.string().max(120) }).strict(),
     capabilities: z
-      .array(z.enum(['vision', 'adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2']))
-      .max(5)
+      .array(z.enum(['vision', 'adaptive-plan', 'local-grading', 'lesson-v3', 'roadmap-v2', 'tts']))
+      .max(8)
       .optional(),
+    ttsVoices: ttsVoices.optional(),
   })
   .strict();
 // Building JSON Schema costs real CPU; do it once per isolate.
@@ -75,12 +76,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     if ('response' in auth) return auth.response;
     const db = storage();
     const token = req.headers.get('X-Lease-Token');
-    let client = auth.client;
-    if (path[0] === 'jobs' && env.AI_LOCAL_ONLY === 'true' && householdMode(env) &&
-        client.id === (env.GRADER_CLIENT_ID ?? 'home-runner')) {
-      const profiles = await listProfiles(db, env.HOUSEHOLD_LEGACY_PROFILE_IDS);
-      client = { ...client, learnerIds: [...new Set([...(client.learnerIds ?? []), ...profiles.map(profile => profile.id)])] };
-    }
+    const client = auth.client;
     let body: unknown;
     if (req.method === 'POST') {
       const raw = await req.text();
@@ -93,13 +89,11 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     }
     if (path.join('/') === 'schema' && req.method === 'GET') return Response.json({ contracts: contractSchemas() }, { headers });
     if (path.join('/') === 'jobs/lease' && req.method === 'POST') {
-      if (env.AI_LOCAL_ONLY === 'true' && client.id !== (env.GRADER_CLIENT_ID ?? 'home-runner'))
-        throw new ApiError(403, 'Lượt xử lý chỉ dành cho máy ở nhà.');
       const input = leaseBody.safeParse(body);
       if (!input.success) throw new ApiError(400, 'Lease request không hợp lệ.');
-      return Response.json({ jobs: await leaseJobs(db, client, input.data, env.ENVIRONMENT ?? 'unknown') }, { headers });
+      return Response.json({ jobs: await leaseJobs(db, client, { ...input.data, excludeSubjectIds: await aiSubjects(db, env) }, env.ENVIRONMENT ?? 'unknown') }, { headers });
     }
-    // Read-only history for the Drive copy on the family Mac (L5.6): only profiles listed for this client.
+    // Read-only history for profiles explicitly granted to this client.
     if (path[0] === 'history' && path.length === 2 && req.method === 'GET') {
       if (!client.scopes.includes('history:read') || !client.learnerIds?.includes(path[1])) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
       const name = await db
@@ -111,7 +105,7 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8' },
       });
     }
-    // Read-only status for ChatGPT Project v7 (L6.2), same scope and profile list as the history copy.
+    // Read-only status for ChatGPT Project v7 (L6.2), same scope and profile list as history.
     if (path[0] === 'status' && path.length === 2 && req.method === 'GET') {
       if (!client.scopes.includes('history:read') || !client.learnerIds?.includes(path[1])) throw new ApiError(404, 'Không tìm thấy hồ sơ.');
       return Response.json(await learnerStatus(db, path[1]), { headers });
@@ -142,6 +136,8 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         new URL(req.url).searchParams.get('dryRun') === '1',
         new Date(),
         env.AI_PRICE_TABLE,
+        env.UPLOADS,
+        env.OPENAI_API_KEY && env.UPLOADS ? await aiSubjects(db, env, true) : [],
       );
       // Email only when the third failed check ends the job; the 06:00 digest covers the rest.
       if (result.status === 422 && (await readJob(db, id))?.status === 'failed') await sendAlertDigest(db, env).catch(() => {});
@@ -149,6 +145,11 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
     }
     if (action === 'heartbeat' && req.method === 'POST') return Response.json(await heartbeat(db, client, id, token), { headers });
     const job = await leasedJob(db, client, id, token);
+    if (action === 'audio' && path.length === 4 && req.method === 'PUT') {
+      if (!env.UPLOADS) throw new ApiError(503, 'Kho âm thanh chưa được cấu hình.');
+      return Response.json(await uploadAudio(db, env.UPLOADS, req, job, path[3],
+        () => leasedJob(db, client, id, token)), { headers });
+    }
     if (action === 'context' && req.method === 'GET') return Response.json(JSON.parse(job.context_snapshot!), { headers });
     if (action === 'fail' && req.method === 'POST') {
       const input = z
@@ -156,17 +157,9 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
         .strict()
         .safeParse(body);
       if (!input.success) throw new ApiError(400, 'Fail request không hợp lệ.');
-      const status = input.data.retryable && job.lease_count < 3 ? 'queued' : 'failed';
-      // Keep runner text out of the learner UI and logs: it may contain answers or credentials.
-      const changed = await db
-        .prepare(
-          "UPDATE ai_jobs SET status=?,error='Runner báo thất bại',updated_at=?,finished_at=CASE WHEN ?='failed' THEN ? ELSE NULL END,lease_token_sha256=NULL,lease_expires_at=NULL,apply_token=NULL WHERE id=? AND status='leased' AND lease_token_sha256=?",
-        )
-        .bind(status, new Date().toISOString(), status, new Date().toISOString(), id, job.lease_token_sha256)
-        .run();
-      if (!changed.meta.changes) throw new ApiError(409, 'Lease vừa thay đổi.');
-      if (status === 'failed') await sendAlertDigest(db, env).catch(() => {});
-      return Response.json({ status }, { headers });
+      const result = await failLeasedJob(db, job, input.data.retryable);
+      if (result.status === 'failed') await sendAlertDigest(db, env).catch(() => {});
+      return Response.json(result, { headers });
     }
     if (action === 'attachments' && path[3] && req.method === 'GET') {
       if (!client.scopes.includes('attachments:read')) throw new ApiError(403, 'Client không có quyền đọc ảnh.');
@@ -188,4 +181,5 @@ async function route(req: Request, context: { params: Promise<{ path: string[] }
   }
 }
 export const GET = route,
-  POST = route;
+  POST = route,
+  PUT = route;

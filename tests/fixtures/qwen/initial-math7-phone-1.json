@@ -1,0 +1,475 @@
+{
+  "openingCapture": {
+    "contract": "plan-result/1",
+    "contextHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "knowledgeGaps": [],
+    "summary": "Mở sổ mới cho môn Toán lớp 7 về cộng phân số khác mẫu số. Người học yêu cầu ôn tập với ba câu ngắn, ưu tiên tính nhẩm. Đã tạo bài diagnostic để đánh giá kỹ năng ban đầu và thiết lập lộ trình học tập.",
+    "subjects": [
+      {
+        "subjectId": "sub_aaaaaaaaaaaaaaaaaaaa",
+        "expectedRevision": 0,
+        "expectedOpenPrimaryLessonId": null,
+        "action": "assign",
+        "reason": "Mở sổ mới, cần đánh giá kỹ năng ban đầu.",
+        "skillChanges": [
+          {
+            "op": "add",
+            "key": "step-1",
+            "name": "Cộng phân số khác mẫu số",
+            "description": "Thực hiện phép cộng hai phân số có mẫu số khác nhau bằng cách quy đồng mẫu số.",
+            "pathOrder": 1,
+            "prerequisites": []
+          },
+          {
+            "op": "add",
+            "key": "step-2",
+            "name": "Rút gọn phân số",
+            "description": "Rút gọn phân số về dạng tối giản bằng cách chia cả tử và mẫu cho ƯCLN.",
+            "pathOrder": 2,
+            "prerequisites": [
+              "key:step-1"
+            ]
+          },
+          {
+            "op": "add",
+            "key": "step-3",
+            "name": "Tính nhẩm phân số đơn giản",
+            "description": "Tính nhẩm kết quả các phép cộng phân số có mẫu số nhỏ hoặc quan hệ đặc biệt.",
+            "pathOrder": 3,
+            "prerequisites": [
+              "key:step-2"
+            ]
+          },
+          {
+            "op": "add",
+            "key": "step-4",
+            "name": "Giải bài toán thực tế với phân số",
+            "description": "Áp dụng phép cộng phân số để giải quyết các tình huống thực tế đơn giản.",
+            "pathOrder": 4,
+            "prerequisites": [
+              "key:step-3"
+            ]
+          },
+          {
+            "op": "add",
+            "key": "step-5",
+            "name": "Phân tích lỗi thường gặp",
+            "description": "Nhận diện và sửa các lỗi sai phổ biến khi cộng phân số khác mẫu số.",
+            "pathOrder": 5,
+            "prerequisites": [
+              "key:step-4"
+            ]
+          },
+          {
+            "op": "add",
+            "key": "step-6",
+            "name": "So sánh và sắp xếp phân số",
+            "description": "So sánh các phân số sau khi cộng và sắp xếp theo thứ tự tăng dần hoặc giảm dần.",
+            "pathOrder": 6,
+            "prerequisites": [
+              "key:step-5"
+            ]
+          },
+          {
+            "op": "add",
+            "key": "step-7",
+            "name": "Tổng hợp kiến thức phân số",
+            "description": "Ôn tập và tổng hợp các kỹ năng liên quan đến phân số đã học.",
+            "pathOrder": 7,
+            "prerequisites": [
+              "key:step-6"
+            ]
+          },
+          {
+            "op": "add",
+            "key": "step-8",
+            "name": "Kiểm tra tổng hợp",
+            "description": "Hoàn thành bài kiểm tra tổng hợp để đánh giá mức độ thành thạo.",
+            "pathOrder": 8,
+            "prerequisites": [
+              "key:step-7"
+            ]
+          }
+        ],
+        "primaryLesson": {
+          "contract": "lesson-package/3",
+          "kind": "diagnostic",
+          "template": "skill",
+          "title": "Chẩn đoán cộng phân số khác mẫu số",
+          "objective": "Đánh giá khả năng quy đồng mẫu số và thực hiện phép cộng phân số.",
+          "why": "Mở sổ mới, cần xác định trình độ để xây dựng lộ trình phù hợp.",
+          "reasonRefs": [],
+          "estMinutes": 15,
+          "level": "Lớp 7",
+          "targetSkills": [
+            "key:step-1",
+            "key:step-2"
+          ],
+          "sheet": {
+            "rules": [
+              "Quy đồng mẫu số hai phân số về cùng một mẫu số chung.",
+              "Cộng các tử số với nhau, giữ nguyên mẫu số chung.",
+              "Rút gọn kết quả nếu có thể."
+            ],
+            "explanation": "Để cộng hai phân số khác mẫu số, bước đầu tiên là tìm mẫu số chung (thường là BCNN của hai mẫu số). Sau đó đổi mỗi phân số về phân số bằng nó với mẫu số chung. Cuối cùng cộng các tử số lại.",
+            "examples": [
+              {
+                "text": "1/2 + 1/3 = 3/6 + 2/6 = 5/6",
+                "correct": true
+              },
+              {
+                "text": "1/4 + 1/6 = 3/12 + 2/12 = 5/12",
+                "correct": true
+              }
+            ],
+            "mistakes": [
+              "Quên quy đồng mẫu số.",
+              "Chỉ cộng tử số, quên giữ nguyên mẫu số.",
+              "Không rút gọn kết quả cuối cùng."
+            ],
+            "tips": [
+              "Tìm BCNN nhanh bằng cách liệt kê bội số hoặc phân tích thừa số nguyên tố.",
+              "Kiểm tra lại kết quả bằng cách ước lượng."
+            ],
+            "checklist": [
+              "Đã quy đồng mẫu số chưa?",
+              "Đã cộng đúng tử số chưa?",
+              "Đã rút gọn kết quả chưa?"
+            ]
+          },
+          "sections": [
+            {
+              "heading": "Phần 1: Quy đồng và Cộng phân số",
+              "text": "Thực hiện các phép cộng phân số sau bằng cách quy đồng mẫu số chung."
+            },
+            {
+              "heading": "Phần 2: Rút gọn và Kiểm tra",
+              "text": "Rút gọn kết quả các phép tính trên và kiểm tra lại tính đúng đắn."
+            }
+          ],
+          "diagram": null,
+          "stages": [
+            {
+              "stage": "retrieval",
+              "itemIds": [
+                "i1",
+                "i2",
+                "i3"
+              ]
+            },
+            {
+              "stage": "sheet",
+              "itemIds": [
+                "i4",
+                "i5"
+              ]
+            },
+            {
+              "stage": "guided",
+              "itemIds": [
+                "i6",
+                "i7"
+              ]
+            },
+            {
+              "stage": "independent",
+              "itemIds": [
+                "i8",
+                "i9",
+                "i10"
+              ]
+            }
+          ],
+          "items": [
+            {
+              "id": "i1",
+              "activity": "recall",
+              "input": "choice",
+              "skills": [
+                "key:step-1"
+              ],
+              "difficulty": 1,
+              "prompt": "Phép cộng 1/2 + 1/3 có kết quả là bao nhiêu sau khi quy đồng?",
+              "choices": [
+                {
+                  "id": "c",
+                  "text": "2/5"
+                },
+                {
+                  "id": "d",
+                  "text": "5/6"
+                },
+                {
+                  "id": "e",
+                  "text": "1/6"
+                },
+                {
+                  "id": "f",
+                  "text": "3/6"
+                }
+              ],
+              "key": {
+                "type": "choice",
+                "correct": [
+                  "d"
+                ]
+              },
+              "hints": [
+                "Hãy tìm mẫu số chung nhỏ nhất của 2 và 3.",
+                "Quy đổi 1/2 và 1/3 về cùng mẫu số rồi cộng tử số."
+              ],
+              "solution": "BCNN(2,3)=6. 1/2=3/6, 1/3=2/6. 3/6+2/6=5/6.",
+              "explanation": "Để cộng hai phân số khác mẫu số, ta quy đồng mẫu số về 6, sau đó cộng tử số: 3+2=5, giữ nguyên mẫu số 6.",
+              "attachment": "none"
+            },
+            {
+              "id": "i2",
+              "activity": "recall",
+              "input": "choice",
+              "skills": [
+                "key:step-2"
+              ],
+              "difficulty": 1,
+              "prompt": "Kết quả rút gọn của 4/8 là gì?",
+              "choices": [
+                {
+                  "id": "c",
+                  "text": "1/2"
+                },
+                {
+                  "id": "d",
+                  "text": "2/4"
+                },
+                {
+                  "id": "e",
+                  "text": "1/4"
+                },
+                {
+                  "id": "f",
+                  "text": "4/8"
+                }
+              ],
+              "key": {
+                "type": "choice",
+                "correct": [
+                  "c"
+                ]
+              },
+              "hints": [
+                "Chia cả tử và mẫu cho 4.",
+                "Tìm ước chung lớn nhất của 4 và 8."
+              ],
+              "solution": "1/2",
+              "explanation": "Chia cả tử và mẫu cho 4, ta được 1/2.",
+              "attachment": "none"
+            },
+            {
+              "id": "i3",
+              "activity": "recall",
+              "input": "choice",
+              "skills": [
+                "key:step-3"
+              ],
+              "difficulty": 1,
+              "prompt": "Tính nhẩm 1/4 + 1/4.",
+              "choices": [
+                {
+                  "id": "c",
+                  "text": "1/8"
+                },
+                {
+                  "id": "d",
+                  "text": "2/4"
+                },
+                {
+                  "id": "e",
+                  "text": "1/2"
+                },
+                {
+                  "id": "f",
+                  "text": "1/4"
+                }
+              ],
+              "key": {
+                "type": "choice",
+                "correct": [
+                  "c",
+                  "d",
+                  "e"
+                ]
+              },
+              "hints": [
+                "Cộng tử số, giữ nguyên mẫu số.",
+                "2/4 có thể rút gọn thành 1/2."
+              ],
+              "solution": "1/2",
+              "explanation": "1/4 + 1/4 = 2/4 = 1/2.",
+              "attachment": "none"
+            },
+            {
+              "id": "i4",
+              "activity": "recall",
+              "input": "short",
+              "skills": [
+                "key:step-4"
+              ],
+              "difficulty": 2,
+              "prompt": "Quy đồng mẫu số của 1/3 và 1/4.",
+              "key": {
+                "type": "numeric",
+                "value": "12",
+                "tolerance": 0,
+                "unit": ""
+              },
+              "hints": [
+                "Tìm BCNN của 3 và 4.",
+                "3 x 4 = 12."
+              ],
+              "solution": "12",
+              "explanation": "BCNN(3,4) = 12.",
+              "attachment": "none"
+            },
+            {
+              "id": "i5",
+              "activity": "recall",
+              "input": "short",
+              "skills": [
+                "key:step-5"
+              ],
+              "difficulty": 2,
+              "prompt": "Kết quả của 1/3 + 1/4 là bao nhiêu?",
+              "key": {
+                "type": "numeric",
+                "value": "7/12",
+                "tolerance": 0,
+                "unit": ""
+              },
+              "hints": [
+                "Quy đồng về mẫu số 12.",
+                "1/3 = 4/12, 1/4 = 3/12."
+              ],
+              "solution": "7/12",
+              "explanation": "4/12 + 3/12 = 7/12.",
+              "attachment": "none"
+            }
+          ],
+          "output": null,
+          "sources": [],
+          "nextTopic": "key:step-3",
+          "knowledge": [
+            {
+              "kind": "code",
+              "language": "python",
+              "code": "def add_fractions(n1, d1, n2, d2):\n    # Tìm BCNN\n    import math\n    lcm = (d1 * d2) // math.gcd(d1, d2)\n    # Quy đồng\n    n1_new = n1 * (lcm // d1)\n    n2_new = n2 * (lcm // d2)\n    # Cộng\n    result_n = n1_new + n2_new\n    # Rút gọn\n    common = math.gcd(result_n, lcm)\n    return f\"{result_n // common}/{lcm // common}\"",
+              "notes": []
+            },
+            {
+              "kind": "table",
+              "headers": [
+                "Phân số",
+                "Mẫu số chung",
+                "Tử số mới"
+              ],
+              "rows": [
+                [
+                  "1/2",
+                  "6",
+                  "3"
+                ],
+                [
+                  "1/3",
+                  "6",
+                  "2"
+                ]
+              ]
+            }
+          ]
+        },
+        "reviewSet": null,
+        "masteryProposals": [],
+        "progressSummary": "Mở sổ mới cho môn Toán lớp 7 về cộng phân số khác mẫu số. Người học yêu cầu ôn tập với ba câu ngắn, ưu tiên tính nhẩm. Đã tạo bài diagnostic để đánh giá kỹ năng ban đầu và thiết lập lộ trình học tập.",
+        "openingSteps": [
+          {
+            "ref": "step-1",
+            "title": "Cộng phân số khác mẫu số",
+            "objective": "Hiểu và thực hiện quy đồng mẫu số.",
+            "situation": "Tính tổng các phần bánh được chia.",
+            "skills": [
+              "key:step-1"
+            ],
+            "requires": [],
+            "band": 1,
+            "levelLabel": "Cơ bản",
+            "kind": "new"
+          },
+          {
+            "ref": "step-2",
+            "title": "Rút gọn phân số",
+            "objective": "Rút gọn kết quả về dạng tối giản.",
+            "situation": "Viết kết quả dưới dạng đơn giản nhất.",
+            "skills": [
+              "key:step-2"
+            ],
+            "requires": [],
+            "band": 1,
+            "levelLabel": "Cơ bản",
+            "kind": "new"
+          },
+          {
+            "ref": "step-3",
+            "title": "Tính nhẩm phân số đơn giản",
+            "objective": "Tính nhẩm nhanh các phép cộng phân số.",
+            "situation": "Tính nhẩm tổng các phần nhỏ.",
+            "skills": [
+              "key:step-3"
+            ],
+            "requires": [],
+            "band": 2,
+            "levelLabel": "Trung bình",
+            "kind": "new"
+          },
+          {
+            "ref": "step-4",
+            "title": "Giải bài toán thực tế",
+            "objective": "Áp dụng cộng phân số vào tình huống thực tế.",
+            "situation": "Tính tổng nguyên liệu trong công thức nấu ăn.",
+            "skills": [
+              "key:step-4"
+            ],
+            "requires": [],
+            "band": 2,
+            "levelLabel": "Trung bình",
+            "kind": "new"
+          },
+          {
+            "ref": "step-5",
+            "title": "Phân tích lỗi thường gặp",
+            "objective": "Nhận diện và sửa lỗi sai phổ biến.",
+            "situation": "Kiểm tra lại các phép tính đã làm.",
+            "skills": [
+              "key:step-5"
+            ],
+            "requires": [],
+            "band": 3,
+            "levelLabel": "Nâng cao",
+            "kind": "new"
+          }
+        ],
+        "notebookSetup": {
+          "template": "skill",
+          "framework": {
+            "key": "milestones",
+            "levelFrom": "Lớp 7",
+            "levelTo": "Lớp 7"
+          },
+          "goal": "Ôn cộng hai phân số khác mẫu lớp 7. Ba câu ngắn, ưu tiên tính nhẩm.",
+          "level": "",
+          "curriculum": "",
+          "instructions": ""
+        },
+        "requestsHandled": []
+      }
+    ],
+    "explorations": []
+  }
+}

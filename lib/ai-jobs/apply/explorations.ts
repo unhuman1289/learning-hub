@@ -1,8 +1,10 @@
+import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import type { PlanContext, PlanResult } from '../../contracts/ai-common.ts';
-import { validateLessonPackage } from '../../lesson-v2/validate.ts';
-import { newLessonId, promptHash, lessonVersion } from '../../lesson-v2/store.ts';
+import { itemPolicy } from "../../subjects/item-kinds.ts";
+import { listeningIssues, validateLessonPackage } from '../../lesson-v2/validate.ts';
+import { newLessonId, promptHash } from '../../lesson-v2/store.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { containsContactDetails } from '../../automation/privacy.ts';
 import { sha256Hex } from '../../auth/automation.ts';
@@ -29,6 +31,7 @@ export async function prepareExplorations(
   token: string,
   now: Date,
   issue: Issue,
+  audioBucket?: Pick<R2Bucket, 'head'>,
 ) {
   const statements: Statement[] = [],
     guards: Statement[] = [],
@@ -77,11 +80,18 @@ export async function prepareExplorations(
     }
     const explore = !subjectId,
       targetId = subjectId ?? (await exploreSubjectId(job.learner_id));
-    const checked = validateLessonPackage(e.lesson, {
+    const listening = context.adaptive?.listening;
+    const draftIssues = listeningIssues(e.lesson.items, listening, known?.framework?.key);
+    for (const problem of draftIssues) issue(path + '/lesson' + problem.path, problem.code, problem.message);
+    if (draftIssues.length) continue;
+    const audio = await resolveLessonAudio(db, e.lesson, context.tts, audioBucket);
+    const checked = validateLessonPackage(audio.lesson, { listening,
       maxDifficulty: context.adaptive?.difficulty?.max ?? known?.limits.maxDifficulty ?? DEFAULT_LIMITS.maxDifficulty,
       minDifficulty:context.adaptive?.difficulty?.min,
       sensitivity: known?.sensitivity ?? 'normal',
       subjectTitle:known?.title,
+      frameworkKey: known?.framework?.key,
+      itemKinds: known?.limits.itemKinds ?? itemPolicy().kinds,
       aiSizes: true,
       adaptive: !!context.adaptive,
     });
@@ -90,13 +100,6 @@ export async function prepareExplorations(
     const lesson = checked.lesson;
     if(context.roadmapProtocol===2&&lesson.template==='reading'&&context.knowledge?.missingForStepIds?.includes(context.adaptive?.step?.id??''))
       issue(path+'/lesson/template','roadmap','Bước chưa có nguồn. Hãy soạn bài kỹ năng.');
-    const version = lessonVersion(lesson);
-    const configured = known && await db.prepare("SELECT coalesce(json_extract(limits,'$.package'),2) AS version FROM subjects WHERE id=? AND learner_id=?")
-      .bind(targetId, job.learner_id).first<{ version: number }>();
-    if (Number(version) !== (known?.limits.package ?? 2) || (known && configured?.version !== Number(version))) {
-      issue(path + '/lesson/contract', 'schema', 'Phiên bản bài phải khớp cấu hình hiện tại của sổ.');
-      continue;
-    }
     const kinds = context.adaptive
       ? { learn: ['new'], practice: ['review', 'remediation'], review:['review'], challenge:['diagnostic'], personal: ['exploration'], none: [] }[context.adaptive.mode]
       : request.kind === 'explore' ? ['exploration'] : ['new', 'remediation', 'review'];
@@ -185,9 +188,10 @@ export async function prepareExplorations(
     const stepId=stepRole||lesson.kind==='new'?context.adaptive?.step?.id??null:null;
     const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
     if(context.roadmapProtocol===2)checkRoadmapLesson(resolved,context.adaptive,undefined,false,known?.limits.maxDifficulty??3,msg=>issue(path+'/lesson','roadmap',msg));
-    if(context.roadmapProtocol===2&&known)guards.push(
+    // The older request flow accepts setup notebooks; the adaptive request API requires active.
+    if(known)guards.push(
       db.prepare(`INSERT INTO ai_apply_guards(token,valid) SELECT ?,
-        EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND revision=? AND status='active')
+        EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND revision=? AND status IN ('active','setup'))
         AND EXISTS(SELECT 1 FROM learner_requests WHERE id=? AND learner_id=? AND job_id=? AND status IN ('queued','in_job'))
         WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`)
         .bind(token+':request:'+e.requestId,targetId,job.learner_id,known.revision,e.requestId,job.learner_id,job.id,...args));
@@ -197,7 +201,7 @@ export async function prepareExplorations(
       db
         .prepare(
           `INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,template,kind,slot,reason,reason_refs,est_minutes,origin_job_id,roadmap_step_id,step_role)
-           SELECT ?,?,?,?,?,?,?,?,?,'extra',?,?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND coalesce(json_extract(limits,'$.package'),2)=? ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
+           SELECT ?,?,?,?,?,?,?,?,?,'extra',?,?,?,?,?,? WHERE ${gate} AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? ${known ? "AND revision=?" : ""} ${context.adaptive ? "AND status IN ('active','setup')" : ""})`,
         )
         .bind(
           id,
@@ -206,7 +210,7 @@ export async function prepareExplorations(
           JSON.stringify(resolved),
           job.learning_day,
           stamp,
-          version,
+          '3',
           lesson.template,
           lesson.kind,
           lesson.why,
@@ -217,7 +221,7 @@ export async function prepareExplorations(
           ...args,
           targetId,
           job.learner_id,
-          Number(version),
+          ...(known ? [known.revision] : []),
         ),
     );
     if(context.roadmapProtocol===2&&stepRole==='intro'&&stepId)guards.push(guardRoadmapIntroduction(db,job.learner_id,targetId,stepId,job.id,token));
@@ -226,8 +230,8 @@ export async function prepareExplorations(
       statements.push(
         db
           .prepare(
-            `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at)
-             SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND ${gate}`,
+            `INSERT INTO lesson_items(lesson_id,item_id,learner_id,subject_id,stage,activity,input_kind,skill_ids,difficulty,auto_gradable,prompt_hash,origin,payload,created_at,stimulus,audio_hash_f,audio_hash_m)
+             SELECT ?,?,?,?,?,?,?,?,?,?,?,'plan',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM learning_lessons WHERE id=?) AND ${gate}`,
           )
           .bind(
             id,
@@ -241,8 +245,9 @@ export async function prepareExplorations(
             item.difficulty,
             item.key ? 1 : 0,
             hashes[i],
-            JSON.stringify(item),
+            JSON.stringify('audio' in item && item.audio ? { ...item, audio: { ...item.audio, ...audio.assets.get(item.id) } } : item),
             stamp,
+            ...audioColumns(audio.assets.get(item.id)),
             id,
             ...args,
           ),

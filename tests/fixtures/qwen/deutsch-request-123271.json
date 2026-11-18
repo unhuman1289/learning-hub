@@ -1,0 +1,251 @@
+{
+  "expectedSteps": 5,
+  "requestCapture": {
+    "contract": "plan-result/1",
+    "contextHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "knowledgeGaps": [],
+    "summary": "Người học yêu cầu học mới cho Deutsch. Đã hoàn thành bài W-Fragen hôm nay với kết quả chưa ổn định (sai 2/3 câu). Cần bài diagnostic để đánh giá kỹ năng nền tảng và thiết lập lộ trình mới.",
+    "subjects": [
+      {
+        "subjectId": "sub_replay",
+        "expectedRevision": 6,
+        "expectedOpenPrimaryLessonId": null,
+        "action": "no_action",
+        "reason": "Đang chuẩn bị các bước tiếp theo.",
+        "skillChanges": [],
+        "primaryLesson": null,
+        "reviewSet": null,
+        "masteryProposals": [],
+        "progressSummary": "Đã hoàn thành bài W-Fragen hôm nay với kết quả chưa ổn định (sai 2/3 câu). Cần bài diagnostic để đánh giá kỹ năng nền tảng và thiết lập lộ trình mới.",
+        "roadmapChanges": [],
+        "openingSteps": [
+          {
+            "title": "Đánh giá nền tảng W-Fragen",
+            "objective": "Kiểm tra khả năng nhận biết và sử dụng từ hỏi cơ bản",
+            "situation": "Hỏi thông tin cá nhân",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 1,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          },
+          {
+            "title": "Luyện tập từ hỏi Who và Where",
+            "objective": "Sử dụng đúng từ hỏi cho người và nơi chốn",
+            "situation": "Hỏi về bạn bè và địa điểm",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 2,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          },
+          {
+            "title": "Luyện tập từ hỏi When và Where",
+            "objective": "Sử dụng đúng từ hỏi cho thời gian và nơi chốn",
+            "situation": "Hẹn lịch gặp mặt",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 3,
+            "levelLabel": "A1.2",
+            "kind": "new"
+          },
+          {
+            "title": "Luyện tập từ hỏi Why và How",
+            "objective": "Sử dụng đúng từ hỏi cho lý do và cách thức",
+            "situation": "Hỏi về lý do và phương pháp",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 4,
+            "levelLabel": "A1.2",
+            "kind": "new"
+          },
+          {
+            "title": "Tổng hợp và thực hành",
+            "objective": "Kết hợp các từ hỏi trong tình huống thực tế",
+            "situation": "Phỏng vấn ngắn",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 5,
+            "levelLabel": "A2.1",
+            "kind": "new"
+          }
+        ],
+        "requestsHandled": []
+      }
+    ],
+    "explorations": [
+      {
+        "requestId": "req_replay",
+        "action": "assign",
+        "subjectId": "sub_replay",
+        "lesson": {
+          "contract": "lesson-package/3",
+          "kind": "remediation",
+          "template": "skill",
+          "title": "W-Fragen: Hỏi về người, nơi và thời gian",
+          "objective": "Sử dụng đúng từ hỏi để lấy thông tin cơ bản",
+          "why": "Người học cần củng cố kỹ năng đặt câu hỏi cơ bản sau khi hoàn thành bài học trước đó.",
+          "reasonRefs": [
+            "sk_replay"
+          ],
+          "estMinutes": 15,
+          "level": "A1.1",
+          "targetSkills": [
+            "sk_replay"
+          ],
+          "sheet": {
+            "rules": [
+              "Dùng 'Wer' để hỏi về người.",
+              "Dùng 'Wo' để hỏi về nơi chốn.",
+              "Dùng 'Wann' để hỏi về thời gian."
+            ],
+            "explanation": "Các từ hỏi W-Fragen giúp bạn lấy thông tin cụ thể trong giao tiếp hàng ngày.",
+            "examples": [
+              {
+                "text": "Wer ist das?",
+                "correct": true
+              },
+              {
+                "text": "Wo wohnst du?",
+                "correct": true
+              },
+              {
+                "text": "Wann kommst du?",
+                "correct": true
+              }
+            ],
+            "mistakes": [
+              "Nhầm lẫn giữa 'Wer' và 'Was'.",
+              "Quên chia động từ sau từ hỏi."
+            ],
+            "tips": [
+              "Luôn đặt từ hỏi ở đầu câu.",
+              "Động từ chia theo chủ ngữ đứng sau từ hỏi."
+            ],
+            "checklist": [
+              "Nhận diện đúng từ hỏi.",
+              "Đặt câu hỏi đúng cấu trúc.",
+              "Trả lời đúng thông tin."
+            ]
+          },
+          "sections": [
+            {
+              "heading": "Nhận diện từ hỏi",
+              "text": "Chọn từ hỏi phù hợp cho mỗi tình huống."
+            },
+            {
+              "heading": "Đặt câu hỏi",
+              "text": "Hoàn thành câu hỏi với từ hỏi đúng."
+            },
+            {
+              "heading": "Thực hành",
+              "text": "Trả lời các câu hỏi về bản thân."
+            }
+          ],
+          "diagram": null,
+          "stages": [
+            {
+              "stage": "retrieval",
+              "itemIds": [
+                "i1",
+                "i2",
+                "i3"
+              ]
+            },
+            {
+              "stage": "sheet",
+              "itemIds": []
+            },
+            {
+              "stage": "guided",
+              "itemIds": [
+                "i4",
+                "i5"
+              ]
+            },
+            {
+              "stage": "independent",
+              "itemIds": [
+                "i6",
+                "i7",
+                "i8"
+              ]
+            }
+          ],
+          "items": [
+            {
+              "id": "i1",
+              "activity": "apply",
+              "skills": [
+                "sk_replay"
+              ],
+              "difficulty": 1,
+              "prompt": "Bạn muốn hỏi về người. Từ hỏi nào dùng?",
+              "hints": [
+                "Nghĩ đến từ hỏi bắt đầu bằng 'W'.",
+                "Từ hỏi này dùng để hỏi về con người."
+              ],
+              "solution": "Wer",
+              "explanation": "'Wer' là từ hỏi dùng để hỏi về người.",
+              "attachment": "none",
+              "input": "cloze",
+              "fragments": [
+                "Wer ist das?",
+                "Was ist das?"
+              ],
+              "key": {
+                "type": "cloze",
+                "blanks": [
+                  {
+                    "type": "text",
+                    "accepted": [
+                      "Wer"
+                    ],
+                    "caseSensitive": false
+                  }
+                ]
+              }
+            }
+          ],
+          "output": null,
+          "sources": [],
+          "nextTopic": "Luyện tập từ hỏi Where và When",
+          "knowledge": [
+            {
+              "kind": "table",
+              "headers": [
+                "Từ hỏi",
+                "Dùng để hỏi"
+              ],
+              "rows": [
+                [
+                  "Wer",
+                  "Người"
+                ],
+                [
+                  "Wo",
+                  "Nơi chốn"
+                ],
+                [
+                  "Wann",
+                  "Thời gian"
+                ]
+              ]
+            }
+          ]
+        },
+        "reason": "Học mới theo yêu cầu của người học."
+      }
+    ]
+  }
+}

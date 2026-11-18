@@ -57,7 +57,7 @@ test('0009 keeps every lesson, answer, slot and automation reference', () => {
 });
 
 test('v2 lessons: stored with items, one primary and one review per notebook per day, secrets stripped', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   const now = 't';
   db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('sub_aaaaaaaaaaaaaaaaaaaa','ech','Deutsch','skill','active','ly',?,?)").run(now, now);
   const lesson = fixture('deutsch-modalverb');
@@ -89,7 +89,8 @@ test('v2 lessons: stored with items, one primary and one review per notebook per
 });
 
 test('format-3 backups restore into the rebuilt table; format-4 backups round-trip lessons and items', async () => {
-  const restored = memoryDb().sqlite;
+  const restored = memoryDb({ through: "0025" }).sqlite;
+  restored.exec(read('0031_listening.sql'));
   restored.exec(buildRestoreSql({ format: 3, tables: {
     learning_workspace: [], learning_slots: [], learning_runs: [], runs: [], legacy_run_items: [], automation_runs: [], run_targets: [], run_items: [], run_events: [], backup_events: [], study_time: [], learner_settings: [],
     subjects: [{ id: 'sub_bbbbbbbbbbbbbbbbbbbb', learner_id: 'vu', title: 'Deutsch', template: 'skill', sensitivity: 'normal', goal: '', level: '', curriculum: '', limits: '{}', weight: 3, status: 'active', ai_enabled: 0, legacy_track: 'Deutsch', progress_summary: '', progress_updated_at: null, revision: 0, created_by: 'migration', created_at: 't', updated_at: 't' }],
@@ -98,4 +99,28 @@ test('format-3 backups restore into the rebuilt table; format-4 backups round-tr
   const old = { ...restored.prepare("SELECT package_version, kind, subject_id FROM learning_lessons WHERE id='old'").get() };
   assert.deepEqual(old, { package_version: '1', kind: 'legacy', subject_id: 'sub_bbbbbbbbbbbbbbbbbbbb' });
   restored.close();
+});
+
+test('0028 and 0029 promote saved packages and preserve drafts and completion', async () => {
+  const db = memoryDb({ through: '0027' });
+  const subjectId = 'sub_aaaaaaaaaaaaaaaaaaaa';
+  db.sqlite.prepare(`INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at)
+    VALUES(?,'ech','Deutsch','skill','active','ly','t','t')`).run(subjectId);
+  const lesson = fixture('deutsch-modalverb');
+  const id = await insertLessonV2(db, { learnerId: 'ech', subjectId, day: '2026-10-12', lesson });
+  db.sqlite.prepare("UPDATE learning_lessons SET draft=?,draft_revision=2,completed_at=? WHERE id=?")
+    .run(JSON.stringify({ i3: { answer: 'Ich kann lesen.' } }), '2026-10-12T13:00:00Z', id);
+  const items = db.sqlite.prepare('SELECT * FROM lesson_items WHERE lesson_id=? ORDER BY rowid').all(id);
+  db.sqlite.exec(read('0028_one_package.sql'));
+  db.sqlite.exec(read('0029_item_kinds.sql'));
+  const row = db.sqlite.prepare('SELECT payload, package_version FROM learning_lessons WHERE id=?').get(id);
+  assert.equal(row.package_version, '3');
+  assert.deepEqual(validateLessonPackage(JSON.parse(row.payload)).lesson, { ...lesson, contract: 'lesson-package/3', knowledge: [] });
+  assert.deepEqual(db.sqlite.prepare('SELECT * FROM lesson_items WHERE lesson_id=? ORDER BY rowid').all(id), items);
+  const view = await readLessonV2(db, 'ech', id);
+  assert.deepEqual(view.draft, { i3: { answer: 'Ich kann lesen.' } });
+  assert.equal(view.draftRevision, 2);
+  assert.equal(view.completedAt, '2026-10-12T13:00:00Z');
+  assert.equal(db.sqlite.prepare("SELECT json_extract(limits,'$.package') AS version FROM subjects WHERE id=?").get(subjectId).version, null);
+  db.sqlite.close();
 });

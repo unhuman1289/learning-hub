@@ -41,5 +41,6 @@ test('Hub 2 APIs do not exist while Hub 2 is switched off', async () => {
 test('the worker runs the household gate before the app', () => {
   const source = readFileSync(new URL('../build/worker.ts', import.meta.url), 'utf8');
   // Direct MCP keeps its own OAuth checks; everything else passes the household gate before the app.
-  assert.match(source, /return \(await householdGuard\(request, env\)\) \?\? handler\.fetch\(request, env, ctx\)/);
+  assert.match(source, /const household = await householdGuard\(request, env\);\s*if \(household\) return household;/);
+  assert.ok(source.indexOf('if (household) return household;') < source.indexOf('return handler.fetch(request, env, ctx)'));
 });

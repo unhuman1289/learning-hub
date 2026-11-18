@@ -642,22 +642,6 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
 .spread-corner:hover, .spread-corner:focus-visible { --curl-scale: 1.35; }
 .spread-corner:focus-visible { outline-offset: -6px; }
 .spread-save { position: absolute; bottom: 4px; right: 48px; }
-.spread-question > div:first-child { position: relative; padding-inline-end: 48px; }
-.spread-question > div:first-child > div { position: absolute; inset-inline-end: 0; top: 0; }
-.spread-question[data-compact="short"] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: .25rem;
-}
-.spread-question[data-compact="short"] > :not(.spread-answer, .spread-check) { grid-column: 1 / -1; }
-.spread-question[data-compact="short"] > .spread-answer { grid-column: 1; }
-.spread-question[data-compact="short"] > .spread-check { grid-column: 2; }
-.spread-question[data-compact="short"] > .spread-answer:has(+ p) { grid-column: 1 / -1; }
-@media (min-width: 1024px) {
-  .spread-question[data-compact="choice"] > fieldset:has(label) + .spread-check { margin-top: -2.75rem; pointer-events: none; }
-  .spread-question[data-compact="choice"] > fieldset:has(label) + .spread-check button { pointer-events: auto; }
-  .spread-question[data-compact="choice"] > fieldset:has(+ .spread-check) label:last-child { padding-inline-end: 7.5rem; }
-}
 @media (min-width: 1024px) {
   .spread-memory { position: absolute; z-index: 5; inset: 0 auto auto 0; width: 56px; padding: 0; }
   .spread-memory button { width: 100%; padding-inline: .15rem; }
@@ -748,3 +732,299 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
 }
 
 .spread-block[data-block="today-work"] { height: 100%; }
+
+/* Short exercises share a ruled page; longer work has room to scroll. */
+.lesson-flow {
+  width: min(100%, 53rem);
+  margin-inline: auto;
+  touch-action: pan-y pinch-zoom;
+  color: var(--color-ink-paper);
+  line-height: var(--paper-line-height);
+}
+.lesson-flow-page {
+  /* At least the screen below the notebook bar, so neighbouring pages look like one sheet size. */
+  min-height: max(25rem, calc(100svh - 11rem));
+  border-radius: 0 0 17px 17px;
+  box-shadow: var(--shadow-page);
+  overflow-wrap: anywhere;
+}
+/* Page edges turn the page. At rest the bottom and top corners curl up a little; hover,
+   focus or a swipe lifts them further, and a turn starts from that curl (U6). The bottom
+   edge is the button; the top corner is an extra pointer target for the same turn. */
+.lesson-flow-page { padding-right: 2.75rem; }
+@media (min-width: 40rem) { .lesson-flow-page { padding-right: 3.25rem; } }
+.lesson-flow-edge {
+  --pull: 0;
+  position: absolute;
+  width: 2.75rem;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.lesson-flow-edge[data-corner="bottom"] { top: 50%; bottom: 0; }
+.lesson-flow-edge[data-corner="top"] { top: 0; height: min(25%, 7rem); }
+.lesson-flow-edge[data-side="left"] { left: 0; }
+.lesson-flow-edge[data-side="right"] { right: 0; }
+.lesson-flow-edge[data-side="left"][data-corner="bottom"] { border-radius: 0 0 0 17px; }
+.lesson-flow-edge[data-side="right"][data-corner="bottom"] { border-radius: 0 0 17px 0; }
+.lesson-flow-edge:is(:disabled, [data-disabled]) { cursor: default; }
+.lesson-flow-edge:focus-visible { outline: 2px solid var(--color-accent-paper); outline-offset: -3px; }
+/* The edge lifts more toward its corner. */
+.lesson-flow-edge::before {
+  position: absolute;
+  inset-block: 0;
+  width: 8px;
+  background: linear-gradient(var(--edge-side), rgb(84 56 31 / .16), transparent);
+  mask-image: linear-gradient(var(--edge-fade), transparent, #000 85%);
+  transform-origin: var(--edge-origin) center;
+  transition: transform 220ms cubic-bezier(.2, .75, .28, 1);
+  content: "";
+}
+.lesson-flow-edge[data-corner="bottom"]::before { --edge-fade: to bottom; }
+.lesson-flow-edge[data-corner="top"]::before { --edge-fade: to top; }
+.lesson-flow-edge[data-side="left"]::before { left: 0; --edge-side: to right; --edge-origin: left; }
+.lesson-flow-edge[data-side="right"]::before { right: 0; --edge-side: to left; --edge-origin: right; }
+/* The corner: the page beneath, the curled back of the sheet, and its thin shadow. */
+.lesson-flow-edge [data-curl] {
+  --curl-under: color-mix(in srgb, var(--color-paper) 82%, #a8906a);
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  background: linear-gradient(var(--curl-side), var(--curl-under) 28%, color-mix(in srgb, var(--curl-under) 82%, #5c4326) 50%,
+    #d3c3a4 50%, #fffaf1 61%, #ecdfc7 70%, rgb(84 56 31 / var(--curl-shade, .28)) 70.5%, transparent 78%);
+  transform: scale(calc(1 + var(--pull) * 1.8));
+  transform-origin: var(--curl-origin);
+  transition: transform 420ms cubic-bezier(.34, 1.56, .64, 1);
+}
+.lesson-flow-edge[data-side="left"][data-corner="bottom"] [data-curl] { left: 0; bottom: 0; border-bottom-left-radius: 17px; --curl-side: to top right; --curl-origin: 0 100%; }
+.lesson-flow-edge[data-side="right"][data-corner="bottom"] [data-curl] { right: 0; bottom: 0; border-bottom-right-radius: 17px; --curl-side: to top left; --curl-origin: 100% 100%; }
+.lesson-flow-edge[data-side="left"][data-corner="top"] [data-curl] { left: 0; top: 0; --curl-side: to bottom right; --curl-origin: 0 0; }
+.lesson-flow-edge[data-side="right"][data-corner="top"] [data-curl] { right: 0; top: 0; --curl-side: to bottom left; --curl-origin: 100% 0; }
+.lesson-flow-edge[data-pulled] [data-curl], .lesson-flow-edge[data-pulled]::before { transition: none; }
+.lesson-flow-edge:not(:disabled, [data-disabled]):is(:focus-visible, :active, [data-pulled]) [data-curl] { --curl-shade: .42; }
+.lesson-flow-edge:not(:disabled, [data-disabled]):is(:focus-visible, :active) [data-curl] { transform: scale(calc(1.4 + var(--pull) * 1.4)); transition-duration: 200ms; transition-timing-function: ease-out; }
+.lesson-flow-edge:not(:disabled, [data-disabled]):is(:focus-visible, :active)::before { transform: scaleX(1.7); }
+@media (hover: hover) {
+  .lesson-flow-edge:not(:disabled, [data-disabled]):hover [data-curl] { --curl-shade: .42; transform: scale(1.4); transition-duration: 200ms; transition-timing-function: ease-out; }
+  .lesson-flow-edge:not(:disabled, [data-disabled]):hover::before { transform: scaleX(1.7); }
+}
+.lesson-flow-edge:is(:disabled, [data-disabled]) [data-curl] { opacity: .55; }
+.lesson-flow-hint {
+  margin-top: var(--paper-line-height);
+  text-align: right;
+  font-size: 1.15rem;
+  color: var(--color-accent-paper);
+  transform: rotate(-3deg);
+}
+.lesson-flow-hint::after { content: " ↘"; }
+.lesson-flow-questions > div + div {
+  margin-top: var(--paper-line-height);
+  padding-top: var(--paper-line-height);
+  border-top: 1px solid var(--color-rule);
+}
+.lesson-item[data-keyboard-open]:focus-within .lesson-check {
+  position: sticky;
+  z-index: 10;
+  background-color: var(--color-paper);
+  bottom: max(env(safe-area-inset-bottom), var(--keyboard-inset, 0px));
+}
+/* The turn: the old sheet folds away along a line from the bottom corner. A wrapper rotates
+   around the fold line and the sheet inside counter-rotates, so only transforms animate; the
+   rolled back of the paper shades the curl and its shadow falls on the new page (U6). */
+.lesson-flow-leaf { position: relative; view-transition-name: lesson-leaf; }
+.lesson-flow-window-page:not([data-active]) { position: absolute; inset: 0 0 auto; visibility: hidden; pointer-events: none; }
+.lesson-flow-curl { position: absolute; inset: 0; pointer-events: none; }
+html[data-lesson-turn] .lesson-flow-curl { view-transition-name: lesson-curl; }
+html[data-lesson-turn] .lesson-flow-edge [data-curl] { opacity: 0; transition: none; }
+html[data-lesson-turn-in] .lesson-flow-leaf { view-transition-name: lesson-leaf-in; }
+html[data-lesson-turn-in] .lesson-flow-curl { view-transition-name: none; }
+@media (prefers-reduced-motion: no-preference) {
+  html[data-lesson-turn] { --lesson-turn: 650ms linear both; --curl-w: 48px; --fold-sign: 1; }
+  /* From a top corner the fold line leans the other way. */
+  html[data-lesson-fold="top"] { --fold-sign: -1; }
+  html[data-lesson-turn]::view-transition-old(root),
+  html[data-lesson-turn]::view-transition-old(book) { display: none; }
+  html[data-lesson-turn]::view-transition-new(root),
+  html[data-lesson-turn]::view-transition-new(book),
+  html[data-lesson-turn]::view-transition-new(lesson-leaf-in) { animation: none; mix-blend-mode: normal; }
+  html[data-lesson-turn]::view-transition-group(lesson-leaf-in) { z-index: 1; animation: none; clip-path: var(--in-clip, none); }
+  html[data-lesson-turn]::view-transition-group(site-header) { z-index: 4; }
+  html[data-lesson-turn]::view-transition-group(lesson-leaf) { z-index: 2; overflow: clip; animation: none; clip-path: var(--out-clip, none); }
+  html[data-lesson-turn]::view-transition-group(lesson-curl) { z-index: 3; overflow: clip; clip-path: var(--out-clip, none); animation: lesson-curl-fade var(--lesson-turn); }
+  html[data-lesson-turn]::view-transition-image-pair(lesson-leaf),
+  html[data-lesson-turn]::view-transition-image-pair(lesson-curl),
+  html[data-lesson-turn]::view-transition-old(lesson-leaf) {
+    inset: 0 auto auto 0;
+    transform-origin: 0 0;
+    will-change: transform;
+  }
+  html[data-lesson-turn]::view-transition-image-pair(lesson-leaf) { width: var(--turn-l); height: var(--turn-l); overflow: clip; }
+  html[data-lesson-turn]::view-transition-old(lesson-leaf) { width: var(--leaf-w); height: var(--leaf-h); opacity: 1; mix-blend-mode: normal; }
+  html[data-lesson-turn]::view-transition-image-pair(lesson-curl) { width: var(--curl-w); height: var(--turn-l); background: linear-gradient(var(--roll-side), #d6c6a6, #fbf5e8 30%, #f3ead8 62%, #d2c09d); }
+  html[data-lesson-turn]::view-transition-old(lesson-curl) { display: none; }
+  html[data-lesson-turn="next"] { --roll-side: to right; }
+  html[data-lesson-turn="previous"] { --roll-side: to left; }
+  html[data-lesson-turn="next"]::view-transition-image-pair(lesson-leaf) { animation: lesson-curl-mask-next var(--lesson-turn); }
+  html[data-lesson-turn="next"]::view-transition-old(lesson-leaf) { animation: lesson-curl-sheet-next var(--lesson-turn); }
+  html[data-lesson-turn="next"]::view-transition-image-pair(lesson-curl) {
+    box-shadow: -2px 0 5px -2px rgb(56 34 18 / .35), 14px 0 22px -6px rgb(56 34 18 / .4);
+    animation: lesson-curl-roll-next var(--lesson-turn);
+  }
+  html[data-lesson-turn="previous"]::view-transition-image-pair(lesson-leaf) { animation: lesson-curl-mask-previous var(--lesson-turn); }
+  html[data-lesson-turn="previous"]::view-transition-old(lesson-leaf) { animation: lesson-curl-sheet-previous var(--lesson-turn); }
+  html[data-lesson-turn="previous"]::view-transition-image-pair(lesson-curl) {
+    box-shadow: 2px 0 5px -2px rgb(56 34 18 / .35), -14px 0 22px -6px rgb(56 34 18 / .4);
+    animation: lesson-curl-roll-previous var(--lesson-turn);
+  }
+  /* Keyframes sample an ease-out curve; linear steps keep each wrapper the exact inverse of its sheet. */
+  @keyframes lesson-curl-mask-next {
+    0% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * 45deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * 34deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * 24deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * 13deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * 6deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * 1.5deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) translate(calc(var(--turn-l) * -1), calc(var(--turn-l) * -.5)); }
+  }
+  @keyframes lesson-curl-sheet-next {
+    0% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -45deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -1), calc(var(--curl-y) * -1)); }
+    10% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -34deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.729), calc(var(--curl-y) * -1)); }
+    20% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -24deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.512), calc(var(--curl-y) * -1)); }
+    35% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -13deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.275), calc(var(--curl-y) * -1)); }
+    50% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -6deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.125), calc(var(--curl-y) * -1)); }
+    70% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * -1.5deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * -0.027), calc(var(--curl-y) * -1)); }
+    100% { transform: translate(var(--turn-l), calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 0deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0), calc(var(--curl-y) * -1)); }
+  }
+  @keyframes lesson-curl-roll-next {
+    0% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * 45deg)) scaleX(0.35) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * 34deg)) scaleX(0.8) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * 24deg)) scaleX(1) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * 13deg)) scaleX(1) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * 6deg)) scaleX(0.9) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * 1.5deg)) scaleX(0.7) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc((var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) scaleX(0.5) translate(calc(var(--curl-w) * -1), calc(var(--turn-l) * -.5)); }
+  }
+  @keyframes lesson-curl-mask-previous {
+    0% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * -45deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * -34deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * -24deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * -13deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * -6deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * -1.5deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) translate(0px, calc(var(--turn-l) * -.5)); }
+  }
+  @keyframes lesson-curl-sheet-previous {
+    0% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 45deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 1 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    10% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 34deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.729 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    20% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 24deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.512 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    35% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 13deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.275 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    50% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 6deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.125 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    70% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 1.5deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0.027 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+    100% { transform: translate(0px, calc(var(--turn-l) * .5)) rotate(calc(var(--fold-sign) * 0deg)) translate(calc((var(--leaf-w) - var(--turn-from)) * 0 - var(--leaf-w)), calc(var(--curl-y) * -1)); }
+  }
+  @keyframes lesson-curl-roll-previous {
+    0% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 1), var(--curl-y)) rotate(calc(var(--fold-sign) * -45deg)) scaleX(0.35) translate(0px, calc(var(--turn-l) * -.5)); }
+    10% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.729), var(--curl-y)) rotate(calc(var(--fold-sign) * -34deg)) scaleX(0.8) translate(0px, calc(var(--turn-l) * -.5)); }
+    20% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.512), var(--curl-y)) rotate(calc(var(--fold-sign) * -24deg)) scaleX(1) translate(0px, calc(var(--turn-l) * -.5)); }
+    35% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.275), var(--curl-y)) rotate(calc(var(--fold-sign) * -13deg)) scaleX(1) translate(0px, calc(var(--turn-l) * -.5)); }
+    50% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.125), var(--curl-y)) rotate(calc(var(--fold-sign) * -6deg)) scaleX(0.9) translate(0px, calc(var(--turn-l) * -.5)); }
+    70% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0.027), var(--curl-y)) rotate(calc(var(--fold-sign) * -1.5deg)) scaleX(0.7) translate(0px, calc(var(--turn-l) * -.5)); }
+    100% { transform: translate(calc(var(--leaf-w) - (var(--leaf-w) - var(--turn-from)) * 0), var(--curl-y)) rotate(calc(var(--fold-sign) * 0deg)) scaleX(0.5) translate(0px, calc(var(--turn-l) * -.5)); }
+  }
+  @keyframes lesson-curl-fade { 70% { opacity: 1; } to { opacity: 0; } }
+  .lesson-flow-leaf[data-fallback-turn] .lesson-flow-page { animation: lesson-leaf-arrive 380ms cubic-bezier(.16, 1, .3, 1); }
+  .lesson-flow-leaf[data-fallback-turn="next"] .lesson-flow-page { transform-origin: right center; --leaf-arrival: 26deg; }
+  .lesson-flow-leaf[data-fallback-turn="previous"] .lesson-flow-page { transform-origin: left center; --leaf-arrival: -26deg; }
+  @keyframes lesson-leaf-arrive {
+    from { filter: brightness(.83); transform: perspective(1250px) rotateY(var(--leaf-arrival)); }
+    to { filter: brightness(1); transform: none; }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lesson-flow-edge [data-curl], .lesson-flow-edge::before { transition: none; }
+}
+
+.notebook-u3 {
+  display: grid;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.notebook-u3-today {
+  grid-row: 1;
+  box-shadow: var(--shadow-page);
+}
+.notebook-u3-path {
+  box-shadow: var(--shadow-page);
+  border-bottom-right-radius: 17px;
+}
+#notebook-today { scroll-margin-top: 6rem; }
+.notebook-step {
+  position: relative;
+  padding: 0 0 1rem 1rem;
+}
+.notebook-step::before {
+  position: absolute;
+  inset: .6rem auto auto -.3rem;
+  width: .55rem;
+  height: .55rem;
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  background: var(--color-paper);
+  content: "";
+}
+.notebook-step[aria-current="step"]::before { background: currentColor; }
+
+.notebook-settings {
+  position: fixed;
+  inset: auto 0 0;
+  margin: 0 auto;
+  width: 100%;
+  max-width: 38rem;
+  max-height: 92dvh;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: .75rem .75rem 0 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  background: var(--color-paper);
+  box-shadow: var(--shadow-page);
+}
+.notebook-settings::backdrop { background: rgb(27 22 18 / .58); }
+@media (min-width: 640px) {
+  .notebook-settings {
+    inset: 0;
+    margin: auto;
+    width: calc(100% - 3rem);
+    border-radius: .5rem;
+  }
+}
+@media (min-width: 1024px) {
+  .notebook-u3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .notebook-u3-today {
+    grid-area: 1 / 2;
+    border-bottom-right-radius: 17px;
+    box-shadow: var(--shadow-page), inset 7px 0 12px -9px #49301c80;
+  }
+  .notebook-u3-path {
+    grid-area: 1 / 1;
+    border-radius: 0 0 0 17px;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .notebook-settings[open] { animation: notebook-settings-in 220ms ease-out; }
+  @keyframes notebook-settings-in { from { translate: 0 3rem; opacity: .6; } }
+}
+
+.admin-notebook-page {
+  min-height: 15rem;
+  overflow-wrap: anywhere;
+}
+.admin-section-button {
+  color: var(--color-ink-paper);
+  background-color: var(--color-paper);
+}
+.admin-section-button[aria-pressed="true"] {
+  color: var(--color-accent-paper);
+  background-color: var(--color-postit-yellow);
+  box-shadow: inset 0 -2px currentColor;
+}
+
+@keyframes tutor-enter { from { transform: translateY(1rem); opacity: 0; } to { transform: translateY(0); opacity: 1; } }

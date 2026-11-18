@@ -20,7 +20,9 @@ const MAX_REPORT = 120;
  * has interacted within the last ten minutes, and stores it on the server per account and Berlin
  * day. Seconds not yet confirmed by the server are shown too and retried on the next report.
  */
-export function useStudyClock(track: TrackId | null) {
+export function useStudyClock(
+  track: TrackId | null, loadStudy = true, deskStudy?: StudyDay, refreshDesk?: () => Promise<void>, lessonStudy?: StudyDay,
+) {
   const [server, setServer] = useState<StudyDay | null>(null);
   const [pending, setPending] = useState<Partial<Record<TrackId, number>>>({});
   const [counting, setCounting] = useState(false);
@@ -42,8 +44,10 @@ export function useStudyClock(track: TrackId | null) {
   }, []);
 
   useEffect(() => {
-    void Promise.resolve().then(load);
-  }, [load]);
+    if (loadStudy) void Promise.resolve().then(load);
+  }, [load, loadStudy]);
+
+  useEffect(() => { if (lessonStudy) void Promise.resolve(lessonStudy).then(setServer); }, [lessonStudy]);
 
   const addPending = useCallback((id: TrackId, seconds: number) => {
     const next = { ...pendingRef.current, [id]: (pendingRef.current[id] ?? 0) + seconds };
@@ -136,20 +140,22 @@ export function useStudyClock(track: TrackId | null) {
     const body = await response.json().catch(() => null) as (StudyDay & { error?: string }) | null;
     if (!response.ok || !body) throw Error(body?.error || "Chưa lưu được mục tiêu.");
     setServer(body);
-  }, []);
+    await refreshDesk?.();
+  }, [refreshDesk]);
 
-  const ids = new Set([...Object.keys(server?.seconds ?? {}), ...Object.keys(pending)]) as Set<TrackId>;
+  const confirmed = deskStudy ?? server;
+  const ids = new Set([...Object.keys(confirmed?.seconds ?? {}), ...Object.keys(pending)]) as Set<TrackId>;
   const secondsByTrack = [...ids]
-    .map((id) => ({ track: id, seconds: (server?.seconds[id] ?? 0) + Math.max(0, pending[id] ?? 0) }))
+    .map((id) => ({ track: id, seconds: (confirmed?.seconds[id] ?? 0) + Math.max(0, pending[id] ?? 0) }))
     .filter((item) => item.seconds >= 1)
     .sort((a, b) => b.seconds - a.seconds);
   const seconds = secondsByTrack.reduce((total, item) => total + item.seconds, 0);
   return {
-    loaded: !!server,
+    loaded: !!confirmed,
     seconds,
     minutes: Math.floor(seconds / 60),
     byTrack: secondsByTrack.map((item) => ({ track: item.track, minutes: Math.floor(item.seconds / 60) })),
-    targetMinutes: server?.targetMinutes ?? 60,
+    targetMinutes: confirmed?.targetMinutes ?? 60,
     counting: counting && !!track,
     error,
     setTarget,

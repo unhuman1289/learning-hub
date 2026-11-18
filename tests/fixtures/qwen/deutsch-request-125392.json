@@ -1,0 +1,248 @@
+{
+  "expectedSteps": 0,
+  "requestCapture": {
+    "contract": "plan-result/1",
+    "contextHash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "knowledgeGaps": [],
+    "summary": "Người học yêu cầu học mới (extra_practice) cho Deutsch. Đã hoàn thành bài W-Fragen với 2/3 câu đúng, còn 1 câu sai. Cần bài mới để tiếp tục kỹ năng W-Fragen.",
+    "subjects": [
+      {
+        "subjectId": "sub_replay",
+        "expectedRevision": 6,
+        "expectedOpenPrimaryLessonId": null,
+        "action": "no_action",
+        "reason": "Đang chuẩn bị các bước tiếp theo.",
+        "skillChanges": [],
+        "primaryLesson": null,
+        "reviewSet": null,
+        "masteryProposals": [],
+        "progressSummary": "Người học đã hoàn thành bài W-Fragen với 2/3 câu đúng. Cần bài mới để tiếp tục kỹ năng W-Fragen.",
+        "roadmapChanges": [],
+        "openingSteps": [
+          {
+            "title": "W-Fragen",
+            "objective": "Dùng từ hỏi để hẹn lịch",
+            "situation": "Hẹn gặp bạn",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 1,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          },
+          {
+            "title": "W-Fragen: hỏi về người, nơi và thời gian",
+            "objective": "Dùng từ hỏi để hẹn lịch",
+            "situation": "Hẹn gặp bạn",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 2,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          },
+          {
+            "title": "W-Fragen: hỏi về người, nơi và thời gian",
+            "objective": "Dùng từ hỏi để hẹn lịch",
+            "situation": "Hẹn gặp bạn",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 3,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          },
+          {
+            "title": "W-Fragen: hỏi về người, nơi và thời gian",
+            "objective": "Dùng từ hỏi để hẹn lịch",
+            "situation": "Hẹn gặp bạn",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 4,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          },
+          {
+            "title": "W-Fragen: hỏi về người, nơi và thời gian",
+            "objective": "Dùng từ hỏi để hẹn lịch",
+            "situation": "Hẹn gặp bạn",
+            "skills": [
+              "sk_replay"
+            ],
+            "requires": [],
+            "band": 5,
+            "levelLabel": "A1.1",
+            "kind": "new"
+          }
+        ],
+        "requestsHandled": []
+      }
+    ],
+    "explorations": [
+      {
+        "requestId": "req_replay",
+        "action": "assign",
+        "subjectId": "sub_replay",
+        "lesson": {
+          "contract": "lesson-package/3",
+          "kind": "review",
+          "template": "skill",
+          "title": "W-Fragen: hỏi về người, nơi và thời gian",
+          "objective": "Dùng từ hỏi để hẹn lịch",
+          "why": "Ôn tập kỹ năng W-Fragen sau khi hoàn thành bài học mới.",
+          "reasonRefs": [],
+          "estMinutes": 15,
+          "level": "A1.1",
+          "targetSkills": [
+            "sk_replay"
+          ],
+          "sheet": {
+            "rules": [
+              "Dùng W-Fragen để hỏi về người, nơi và thời gian.",
+              "W-Fragen bao gồm: Wer (ai), Wo (ở đâu), Wann (khi nào), Wie (như thế nào), Was (gì)."
+            ],
+            "explanation": "W-Fragen là các từ hỏi bắt đầu bằng W trong tiếng Đức, dùng để hỏi thông tin cụ thể.",
+            "examples": [
+              {
+                "text": "Wer ist das? (Ai là người đó?)",
+                "correct": true
+              },
+              {
+                "text": "Wo wohnst du? (Bạn sống ở đâu?)",
+                "correct": true
+              },
+              {
+                "text": "Wann kommst du? (Bạn đến khi nào?)",
+                "correct": true
+              }
+            ],
+            "mistakes": [
+              "Nhầm lẫn giữa W-Fragen và Frage-Wörter.",
+              "Quên dùng W-Fragen trong câu hỏi."
+            ],
+            "tips": [
+              "Nhớ các từ hỏi W-Fragen.",
+              "Thực hành đặt câu hỏi với W-Fragen."
+            ],
+            "checklist": [
+              "Hiểu ý nghĩa của W-Fragen.",
+              "Đặt câu hỏi với W-Fragen.",
+              "Trả lời câu hỏi với W-Fragen."
+            ]
+          },
+          "sections": [
+            {
+              "heading": "W-Fragen: hỏi về người, nơi và thời gian",
+              "text": "Thực hành đặt câu hỏi với W-Fragen."
+            }
+          ],
+          "diagram": null,
+          "stages": [
+            {
+              "stage": "retrieval",
+              "itemIds": [
+                "i1",
+                "i2",
+                "i3",
+                "i4",
+                "i5",
+                "i6"
+              ]
+            },
+            {
+              "stage": "independent",
+              "itemIds": [
+                "i7",
+                "i8",
+                "i9",
+                "i10"
+              ]
+            }
+          ],
+          "items": [
+            {
+              "id": "i1",
+              "activity": "apply",
+              "skills": [
+                "sk_replay"
+              ],
+              "difficulty": 1,
+              "prompt": "Wer ist das?",
+              "hints": [
+                "Đây là câu hỏi về người.",
+                "Dùng từ hỏi 'Wer'."
+              ],
+              "solution": "Das ist ein Lehrer.",
+              "explanation": "Câu hỏi 'Wer ist das?' dùng để hỏi về người.",
+              "attachment": "none",
+              "input": "cloze",
+              "fragments": [
+                "Wer ist das?",
+                "Das ist ein Lehrer."
+              ],
+              "key": {
+                "type": "cloze",
+                "blanks": [
+                  {
+                    "type": "text",
+                    "accepted": [
+                      "ein Lehrer",
+                      "a teacher"
+                    ],
+                    "caseSensitive": false
+                  }
+                ]
+              }
+            }
+          ],
+          "output": "none",
+          "sources": [],
+          "nextTopic": "W-Fragen: hỏi về người, nơi và thời gian",
+          "knowledge": [
+            {
+              "kind": "table",
+              "headers": [
+                "Từ hỏi",
+                "Ý nghĩa",
+                "Ví dụ"
+              ],
+              "rows": [
+                [
+                  "Wer",
+                  "Ai",
+                  "Wer ist das?"
+                ],
+                [
+                  "Wo",
+                  "Ở đâu",
+                  "Wo wohnst du?"
+                ],
+                [
+                  "Wann",
+                  "Khi nào",
+                  "Wann kommst du?"
+                ],
+                [
+                  "Wie",
+                  "Như thế nào",
+                  "Wie geht es dir?"
+                ],
+                [
+                  "Was",
+                  "Gì",
+                  "Was machst du?"
+                ]
+              ]
+            }
+          ]
+        },
+        "reason": "Ôn tập kỹ năng W-Fragen sau khi hoàn thành bài học mới."
+      }
+    ]
+  }
+}

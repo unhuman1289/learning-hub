@@ -1,10 +1,11 @@
 "use client";
 
+import { staticSources, type Page } from "./legacy-pages";
 import { useState, type ReactNode } from "react";
 import { SketchIcon } from "./sketch-icons";
 import { MarginDate, RuledPage, Stamp, StickyNote, cx } from "../../components/notebook/paper";
 import type { LessonSource } from "../lesson-content";
-import { berlinKey, dateTimeOf, shortDate, staticSources, type Page } from "./model";
+import { berlinKey, dateTimeOf, shortDate } from "./model";
 import { buttonClass, PageLabel } from "./ui";
 import type { DailyApi } from "./use-daily";
 import type { WorkspaceApi } from "./use-workspace";

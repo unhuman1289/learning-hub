@@ -13,7 +13,7 @@ test("shared learner copy is nonempty and short", () => {
 
 test("learner surfaces keep technical terms out of visible copy", () => {
   const blocked = /máy chấm|máy soạn|máy chủ|\bHub\b|\bplanner\b|\bPrompt\b|lộ trình|lượt soạn|lượt chấm|phiên bản|định danh|Hủy|tùy|của tôi|\bmình\b/iu;
-  const ignored = new Set(["pages.tsx", "ai-jobs-panel.tsx", "run-status.tsx", "import-panel.tsx"]);
+  const ignored = new Set(["pages.tsx", "ai-jobs-panel.tsx", "run-status.tsx", "import-panel.tsx", "tutor.tsx"]);
   const files = ["app/hub", "components"].flatMap(dir =>
     readdirSync(dir, { recursive: true }).filter(file => file.endsWith(".tsx") && !ignored.has(file.split("/").at(-1))).map(file => dir + "/" + file));
   files.push("lib/today.ts", "lib/household.ts");

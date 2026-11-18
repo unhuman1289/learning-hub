@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, type KeyboardEvent } from "react";
+import { lazy, Suspense, useState, type KeyboardEvent } from "react";
 import type { ItemView } from "../../../../lib/lesson-v2/store";
 import { parseStructuredAnswer } from "../../../../lib/lesson-v2/answer";
 import { SketchIcon } from "../../sketch-icons";
-import { FigureImage } from "../figures";
-import { CodeInput } from "./code";
+import { FigureImage } from "../figure-image";
+const CodeInput = lazy(() => import("./code").then(module => ({ default: module.CodeInput })));
 
 type StructuredItem = Extract<ItemView, { input: "cloze" | "match" | "order" | "label" | "table" | "code" }>;
 type Props = { value: string; onChange: (value: string) => void; disabled: boolean };
@@ -28,7 +28,7 @@ function ClozeInput(props: InputProps<"cloze">) {
   return <fieldset className="leading-10">
     <legend className="sr-only">Điền vào chỗ trống</legend>
     {item.fragments.map((fragment, index) => <span key={index}>{fragment}{index < values.length &&
-      <input aria-label={"Ô trống " + (index + 1)} className={field + " mx-1 w-28"} value={values[index]} disabled={disabled}
+      <input autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={"Ô trống " + (index + 1)} className={field + " mx-1 w-28"} value={values[index]} disabled={disabled}
         maxLength={180} onChange={event => fill(props, values, index, event.target.value)} />}</span>)}
   </fieldset>;
 }
@@ -113,7 +113,7 @@ function LabelInput(props: InputProps<"label">) {
     <div className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-3">
       {values.map((value, index) => <label key={index} className="flex min-w-0 items-center gap-1 text-sm">
         <span className="shrink-0 font-hand text-lg text-accent">{index + 1}.</span>
-        <input aria-label={"Điểm " + (index + 1)} className={field + " w-full"} value={value} disabled={disabled} maxLength={180}
+        <input autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={"Điểm " + (index + 1)} className={field + " w-full"} value={value} disabled={disabled} maxLength={180}
           onChange={event => fill(props, values, index, event.target.value)} />
       </label>)}
     </div>
@@ -132,7 +132,7 @@ function TableInput(props: InputProps<"table">) {
         {item.headers.map((header, col) => {
           const index = row * item.headers.length + col;
           return <td key={col} className="border-b border-l border-rule">
-            <input aria-label={label + " · " + header} className={field + " w-full min-w-20 border-b-0"} value={values[index]} disabled={disabled}
+            <input autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false} aria-label={label + " · " + header} className={field + " w-full min-w-20 border-b-0"} value={values[index]} disabled={disabled}
               maxLength={180} onChange={event => fill(props, values, index, event.target.value)} />
           </td>;
         })}
@@ -141,14 +141,14 @@ function TableInput(props: InputProps<"table">) {
   </div>;
 }
 
-export function StructuredInput({ item, focusLine, ...props }: Props & { item: ItemView; focusLine?: { line: number; key: number } }) {
+export function StructuredInput({ item, focusLine, active = true, ...props }: Props & { item: ItemView; focusLine?: { line: number; key: number }; active?: boolean }) {
   switch (item.input) {
     case "cloze": return <ClozeInput item={item} {...props} />;
     case "match": return <MatchInput item={item} {...props} />;
     case "order": return <OrderInput item={item} {...props} />;
     case "label": return <LabelInput item={item} {...props} />;
     case "table": return <TableInput item={item} {...props} />;
-    case "code": return <CodeInput item={item} focusLine={focusLine} {...props} />;
+    case "code": return <Suspense fallback={<p role="status">Đang mở ô viết mã…</p>}><CodeInput item={item} focusLine={focusLine} active={active} {...props} /></Suspense>;
     default: return null;
   }
 }

@@ -5,7 +5,7 @@ import {sha256Hex} from '../auth/automation.ts';
 import {leaseJobs,leasedJob,readJob,permits} from '../ai-jobs/lease.ts';
 import {applyResult} from '../ai-jobs/result.ts';
 import {planContext,planResult,assessContext,assessResult} from '../contracts/ai-common.ts';
-import {lessonPackageV2} from '../contracts/lesson-package-v2.ts';
+import {lessonPackageV3} from '../contracts/lesson-package-v3.ts';
 import {ApiError} from '../api-error.ts';
 
 const id=z.string().regex(/^job_[a-f0-9]{20}$/),token=z.string().min(40).max(100);
@@ -42,11 +42,11 @@ export async function plannerPrincipal(db:EvidenceDb,userId:string,clientId:stri
 }
 export async function callPlannerTool(db:EvidenceDb,client:AutomationClient,name:keyof typeof toolSchemas,args:unknown,environment:string,now=new Date()){
  const parsed=toolSchemas[name].parse(args) as {jobId?:string;leaseToken?:string;result?:unknown;reason?:string;retryable?:boolean};
- if(name==='hub2_schema')return {contracts:{'plan-context/1':z.toJSONSchema(planContext),'plan-result/1':z.toJSONSchema(planResult),'lesson-package/2':z.toJSONSchema(lessonPackageV2),'assess-context/1':z.toJSONSchema(assessContext),'assess-result/1':z.toJSONSchema(assessResult)}};
+ if(name==='hub2_schema')return {contracts:{'plan-context/1':z.toJSONSchema(planContext),'plan-result/1':z.toJSONSchema(planResult),'lesson-package/3':z.toJSONSchema(lessonPackageV3),'assess-context/1':z.toJSONSchema(assessContext),'assess-result/1':z.toJSONSchema(assessResult)}};
  if(name==='hub2_lease_assess'){
   if(!client.scopes.includes('jobs:assess'))throw new ApiError(403,'Cần cấp quyền hub:assess để chấm.');
   const {results=[]}=await db.prepare("SELECT s.id FROM subjects s JOIN user u ON u.id=s.learner_id WHERE u.id=? AND lower(u.name)='unhuman' AND s.title='Deutsch' AND s.sensitivity='normal' AND s.status='active' AND s.ai_enabled=1").bind(client.learnerIds![0]).all<{id:string}>();
-  return {jobs:await leaseJobs(db,client,{kinds:['assess'],textOnly:true,subjectIds:results.map(s=>s.id),max:1,runner:{name:'chatgpt-direct-mcp',version:'2',model:'subscription-unmetered'}},environment,now)};
+  return {jobs:await leaseJobs(db,client,{kinds:['assess'],capabilities:['lesson-v3'],textOnly:true,subjectIds:results.map(s=>s.id),max:1,runner:{name:'chatgpt-direct-mcp',version:'2',model:'subscription-unmetered'}},environment,now)};
  }
  const existing=parsed.jobId?await readJob(db,parsed.jobId):null;
  if(existing?.kind==='assess'){
@@ -55,7 +55,7 @@ export async function callPlannerTool(db:EvidenceDb,client:AutomationClient,name
   const context=existing.context_snapshot?JSON.parse(existing.context_snapshot):null;
   if(context?.attempts?.some((a:{attachments:unknown[]})=>a.attachments?.length))throw new ApiError(403,'Pilot MCP hiện chỉ chấm câu chữ, chưa hỗ trợ ảnh.');
  }
- if(name==='hub2_lease_plan')return {jobs:await leaseJobs(db,client,{kinds:['plan'],max:1,runner:{name:'chatgpt-direct-mcp',version:'1',model:'chatgpt'}},environment,now)};
+ if(name==='hub2_lease_plan')return {jobs:await leaseJobs(db,client,{kinds:['plan'],max:1,capabilities:['lesson-v3'],runner:{name:'chatgpt-direct-mcp',version:'1',model:'chatgpt'}},environment,now)};
  if(name==='hub2_job'){const job=await readJob(db,parsed.jobId!);if(!job||job.lease_client_id!==client.id||!permits(client,job))throw new ApiError(404,'Không tìm thấy lượt soạn.');return {status:job.status,outcome:job.outcome?JSON.parse(job.outcome):null};}
  if(name==='hub2_check_result'||name==='hub2_submit_result')return applyResult(db,client,parsed.jobId!,parsed.leaseToken!,parsed.result,name==='hub2_check_result',now);
  const job=await leasedJob(db,client,parsed.jobId!,parsed.leaseToken!,now);

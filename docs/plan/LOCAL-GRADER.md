@@ -1,10 +1,12 @@
 # Learning Hub — Plan chấm bài bằng model local, hồ sơ gia đình, bỏ Google Sheets
 
-Viết 10/11/2026, cập nhật cùng ngày theo các câu trả lời của chủ dự án. **Trạng thái: chờ duyệt.**
+> **Tài liệu lịch sử:** Kiến trúc runner trên Mac đã được thay thế theo [quyết định 11.3](LGTK.md#11-chủ-dự-án-cần-quyết). Production tiếp tục chạy bản phát hành cũ đến bước R. Các bước bên dưới ghi lại cách vận hành cũ.
+
+Viết 10/11/2026, cập nhật cùng ngày theo các câu trả lời của chủ dự án.
 
 Khi được duyệt, plan này thay các phần sau, còn lại của [PLAN.md](PLAN.md) giữ nguyên:
 
-- PLAN H7.2–H7.5 và [AI-API §9.2](../hub2/AI-API.md#92-r2-worker-chấm-bài): Worker chấm bài dùng key Anthropic.
+- PLAN H7.2–H7.5 và mục Worker chấm bài trong bản AI-API thời điểm đó: Worker chấm bài dùng key Anthropic.
 - PLAN H1.6, H1.8 và các quyết định D14, D15: tài khoản riêng từng người, quyền phụ huynh.
 
 ## Điều chỉnh cho pilot Deutsch
@@ -316,7 +318,7 @@ Quy ước như [PLAN §4](PLAN.md#4-cách-làm-việc): mỗi task là một PR
 
 #### L1.4 Prompt chấm và prompt soạn
 - **Việc:**
-  - `integrations/runner-prompts/assess-local.md` viết từ [LESSON-DESIGN §6](../hub2/LESSON-DESIGN.md#6-chấm-bài-và-lời-phê). Viết ngắn và rõ vì model nhỏ:
+  - Prompt chấm (nay là [assess-openai.md](../../integrations/runner-prompts/assess-openai.md)) viết từ [LESSON-DESIGN §6](../hub2/LESSON-DESIGN.md#6-chấm-bài-và-lời-phê). Viết ngắn và rõ vì model nhỏ:
     - chấm từng câu theo rubric;
     - chấp nhận cách diễn đạt khác nhưng đúng;
     - `evidence` trích nguyên văn;

@@ -1,21 +1,13 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import type { ItemView } from "../../../../lib/lesson-v2/store";
 
-const rustTokens = /(\/\/.*$|"(?:\\.|[^"\\])*"|\b(?:as|async|await|break|const|continue|crate|dyn|else|enum|extern|false|fn|for|if|impl|in|let|loop|match|mod|move|mut|pub|ref|return|Self|self|static|struct|super|trait|true|type|unsafe|use|where|while|Some|None|Ok|Err)\b|\b\d[\d_]*\b)/g;
+import { CodeLines } from "./code-lines";
 
-export function CodeLines({ code, language, highlighted }: { code: string; language: string; highlighted?: number }) {
-  return code.split("\n").map((line, index) => <span key={index} className={`block min-h-6 ${highlighted === index + 1 ? "bg-postit-yellow/60" : ""}`}>
-    <span className="inline-block w-10 select-none pr-3 text-right text-accent" aria-hidden="true">{index + 1}</span>
-    {language === "rust" ? line.split(rustTokens).map((token, i): ReactNode => i % 2 === 0 ? token
-      : <span key={i} className={token.startsWith("//") ? "text-muted-paper" : token.startsWith('"') ? "text-ok" : "font-semibold text-accent-paper"}>{token}</span>) : line}
-  </span>);
-}
-
-export function CodeInput({ item, value, onChange, disabled, focusLine }: {
+export function CodeInput({ item, value, onChange, disabled, focusLine, active = true }: {
   item: Extract<ItemView, { input: "code" }>; value: string; onChange: (value: string) => void;
-  disabled: boolean; focusLine?: { line: number; key: number };
+  disabled: boolean; focusLine?: { line: number; key: number }; active?: boolean;
 }) {
   const editor = useRef<HTMLTextAreaElement>(null);
   const ink = useRef<HTMLPreElement>(null);
@@ -23,7 +15,7 @@ export function CodeInput({ item, value, onChange, disabled, focusLine }: {
   const handledLine = useRef<number>(-1);
 
   useEffect(() => {
-    if (!focusLine || handledLine.current === focusLine.key) return;
+    if (!active || !focusLine || handledLine.current === focusLine.key) return;
     const frame = requestAnimationFrame(() => {
       const area = editor.current;
       if (!area) return;
@@ -37,16 +29,16 @@ export function CodeInput({ item, value, onChange, disabled, focusLine }: {
       handledLine.current = focusLine.key;
     });
     return () => cancelAnimationFrame(frame);
-  }, [focusLine]);
+  }, [active, focusLine]);
 
   return <div>
     <p id={item.id + "-code-help"} className="font-hand text-base text-muted-paper">Tab thụt dòng. Bấm Esc rồi Tab để ra khỏi ô.</p>
-    <div className="relative min-w-0 overflow-hidden border border-rule bg-paper-2 font-mono text-sm leading-6 focus-within:ring-2 focus-within:ring-accent-paper/50">
+    <div className="relative min-w-0 overflow-hidden border border-rule bg-paper-2 font-mono text-base leading-6 focus-within:ring-2 focus-within:ring-accent-paper/50">
       <pre ref={ink} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden whitespace-pre py-1 text-ink-paper">
         <CodeLines code={value} language={item.language} highlighted={focusLine?.line} />
       </pre>
-      <textarea ref={editor} aria-label="Code của bạn" aria-describedby={item.id + "-code-help"} value={value} rows={item.lines} wrap="off" spellCheck={false}
-        readOnly={disabled} maxLength={8000} className="relative block w-full resize-none bg-transparent py-1 pr-1 pl-10 font-mono text-sm leading-6 text-transparent caret-ink-paper outline-none selection:bg-accent-paper/25"
+      <textarea ref={editor} aria-label="Code của bạn" aria-describedby={item.id + "-code-help"} value={value} rows={item.lines} wrap="off" autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+        readOnly={disabled} maxLength={8000} className="relative block w-full resize-none bg-transparent py-1 pr-1 pl-10 font-mono text-base leading-6 text-transparent caret-ink-paper outline-none selection:bg-accent-paper/25"
         onChange={event => onChange(event.target.value)}
         onScroll={event => {
           if (!ink.current) return;

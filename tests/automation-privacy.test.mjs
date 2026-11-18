@@ -71,7 +71,7 @@ const mtbLesson = {
 };
 
 test('a realistic MTB lesson with dates and a simulated case is accepted', async () => {
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   db.sqlite.prepare('INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,?,?,?,?,?)').run('admin', 'Private Name', 'owner@example.test', 1, 1, 1, 'admin', 'active');
   const run = await createAutomationRun(db, 'test-runner', startRunSchema.parse(runner), null, now);
   const context = await serveAutomationContext(db, run.runId, 'test-runner', now);
@@ -86,7 +86,7 @@ test('H1.7: the notebook sensitivity, not the track name, picks the filter', asy
   for (const sensitivity of ['clinical', 'child_dev']) assert.equal(containsPossibleClinicalIdentifier('Frau Schneider kam heute.', sensitivity), true, sensitivity);
   assert.equal(containsPossibleClinicalIdentifier('Frau Schneider kam heute.', 'normal'), false);
 
-  const db = memoryDb();
+  const db = memoryDb({ through: "0025" });
   db.sqlite.prepare('INSERT INTO "user" (id,name,email,email_verified,created_at,updated_at,role,status) VALUES(?,?,?,?,?,?,?,?)').run('admin', 'Private Name', 'owner@example.test', 1, 1, 1, 'admin', 'active');
   const notebook = db.sqlite.prepare("INSERT INTO subjects(id,learner_id,title,template,sensitivity,legacy_track,status,created_by,created_at,updated_at) VALUES(?, 'admin', ?, 'reading', ?, ?, 'active', 'test', 't', 't')");
   notebook.run('sub_00000000000000000001', 'Deutsch', 'clinical', 'Deutsch');

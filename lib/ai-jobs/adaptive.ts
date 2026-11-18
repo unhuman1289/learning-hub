@@ -12,6 +12,8 @@ export const adaptiveDecision = z.object({
   reasonCode:z.enum(Object.keys(reasons) as [keyof typeof reasons,...(keyof typeof reasons)[]]).optional(),
   stepRole:z.enum(['intro','practice','challenge','placement']).nullable().optional(),
   difficulty:z.object({min:z.number().int(),max:z.number().int()}).strict().optional(),
+  listening: z.object({ min: z.number().int().min(0).max(6), max: z.number().int().min(0).max(6) }).strict()
+    .refine(({min,max}) => min <= max).optional(),
   roadmapTask:z.enum(['replan','extend','none']).optional(),
 }).strict();
 

@@ -3,6 +3,7 @@ import type { AssessContext, AssessResult } from '../../contracts/ai-common.ts';
 import { containsContactDetails, containsPossibleClinicalIdentifier } from '../../automation/privacy.ts';
 import type { Job } from '../context/common.ts';
 import type { ValidationIssue } from './plan.ts';
+import { checkGradeEvidence } from './evidence.ts';
 
 /**
  * Applies an AI recheck (AI-API §8): upheld keeps the grade, overturned adds a new AI grade and
@@ -70,6 +71,17 @@ export async function prepareRecheck(db: EvidenceDb, job: Job, context: AssessCo
   if (status === 'overturned') {
     const grade = result.grades[0],
       id = 'gr_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20);
+    if (grade.errors.filter(e => e.category === 'extra').length > 2)
+      issue('/grades/0/errors', 'schema', 'Tối đa hai lỗi ngoài rubric.');
+    const evidence = checkGradeEvidence(grade, dispute.answer, attempt?.attachments.some((img) => !img.expired) ?? false);
+    if (evidence.invalid)
+      issue('/grades/0/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản.');
+    for (const error of grade.errors) {
+      const text = error.label + error.evidence;
+      if (containsContactDetails(text) || containsPossibleClinicalIdentifier(text, context.subject.sensitivity))
+        issue('/grades/0/errors', 'privacy', 'Chẩn đoán lỗi có định danh.');
+    }
+    if (errors.length) return { errors, statements: [], gradeIds, skillIds: attempt?.skills ?? [], clipped: [], attemptGuards: [] };
     resolutionGrade = id;
     gradeIds.push(id);
     statements.push(
@@ -84,9 +96,9 @@ export async function prepareRecheck(db: EvidenceDb, job: Job, context: AssessCo
           grade.result,
           grade.score,
           JSON.stringify(grade.rubricScores),
-          grade.feedback,
+          evidence.feedback,
           grade.correction,
-          JSON.stringify(grade.errors.map((e) => (dispute.answer.includes(e.evidence) ? e : { ...e, unverified: true }))),
+          JSON.stringify(evidence.errors),
           stamp,
           ...args,
         ),

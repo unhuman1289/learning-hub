@@ -1,5 +1,6 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
+import { finishRum } from "./rum";
 import { apiJson } from "./api";
 import { paperAction } from "./paper-bits";
 import { fieldClass, labelClass } from "./paper-dialog";
@@ -9,34 +10,33 @@ import type { RequestView } from "./requests-panel";
 type Work = RequestView & { deferred?: boolean; jobStatus?: string | null };
 const waiting = (r?: Work | null) => !!r && ["queued", "in_job"].includes(r.status) && !["failed","expired","cancelled"].includes(r.jobStatus ?? "");
 
-export function NewLessonRequest({ subjectId, onOpen }: { subjectId: string; onOpen: (id: string) => void }) {
-  const [request, setRequest] = useState<Work | null>(null);
+export function NewLessonRequest({ initial, subjectId, onOpen }: { initial: Work[]; subjectId: string; onOpen: (id: string) => void }) {
+  const started = useRef<number | null>(null);
+  const [request, setRequest] = useState<Work | null>(() => initial.find(r => r.subjectId === subjectId && r.kind === "extra_practice" && waiting(r)) ?? null);
   const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(true);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useEffect(() => {
-    let alive = true;
-    apiJson<{requests: Work[]}>("/api/requests").then(({ requests }) => {
-      if (alive) setRequest(requests.find(r => r.subjectId === subjectId && r.kind === "extra_practice" && waiting(r)) ?? null);
-    }).catch((e: Error) => { if (alive) setError(e.message); })
-      .finally(() => { if (alive) setBusy(false); });
-    return () => { alive = false; };
-  }, [subjectId]);
   useLiveRefresh(async () => {
     if (!request) return;
     const { requests } = await apiJson<{requests: Work[]}>("/api/requests");
     const saved = requests.find(r => r.id === request.id);
     if (!saved) return;
     setRequest(saved);
-    if (saved.status === "done" && saved.resultLessonId) onOpen(saved.resultLessonId);
+    if (saved.status === "done" && saved.resultLessonId) {
+      if (started.current !== null) finishRum("lesson_ready", started.current);
+      started.current = null;
+      onOpen(saved.resultLessonId);
+    }
   }, waiting(request), 5000);
   async function send() {
+    started.current = performance.now();
     setBusy(true); setError("");
     try {
       const { request: saved } = await apiJson<{request: Work}>("/api/requests", {
         method: "POST", json: { subjectId, kind: "extra_practice", urgency: "now", text: note.trim() || "Bài tiếp theo" },
       });
       setRequest(saved);
+      if (saved.resultLessonId && started.current !== null) { finishRum("lesson_ready", started.current); started.current = null; }
     } catch (e) { setError((e as Error).message); }
     finally { setBusy(false); }
   }

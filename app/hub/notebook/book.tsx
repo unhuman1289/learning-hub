@@ -24,8 +24,8 @@ const legacyTabs = [
   { page: "tai-lieu", label: "Tài liệu", color: "bg-postit-rose" },
 ] as const;
 
-export function Book({ title, go, children, paged = false, ...current }: {
-  title: string; go: (route: Route) => void; children: ReactNode; paged?: boolean;
+export function Book({ title, go, children, paged = false, focusedLesson = false, compactNotebook = false, ...current }: {
+  title: string; go: (route: Route) => void; children: ReactNode; paged?: boolean; focusedLesson?: boolean; compactNotebook?: boolean;
 } & BookNavigation) {
   const legacy = "track" in current;
   const settings: Route = legacy
@@ -38,7 +38,7 @@ export function Book({ title, go, children, paged = false, ...current }: {
   const reading = active === "lesson";
   const close: Route = !legacy && reading ? { view: "book", id: current.id, page: "hom-nay" } : { view: "desk" };
   return <div className={`mx-auto w-full ${reading || paged ? "max-w-[76rem]" : "max-w-5xl"}`}>
-    {!legacy && active === "hom-nay" && <div className="mx-auto hidden max-w-3xl overflow-hidden rounded-t-sm xl:block">
+    {!legacy && !compactNotebook && active === "hom-nay" && <div className="mx-auto hidden max-w-3xl overflow-hidden rounded-t-sm xl:block">
       <WindowStrip />
     </div>}
     <OakDesk className={reading ? "sm:[&>.bg-oak-planks]:pt-2" : undefined}>
@@ -48,15 +48,15 @@ export function Book({ title, go, children, paged = false, ...current }: {
       </RouteLink>
       {!legacy && <span aria-hidden="true" style={{ viewTransitionName: `cover-${current.id}` }}><MiniCover className="w-8" /></span>}
       {legacy && <h1 className="truncate rounded-sm bg-oak-dark px-2 font-print text-2xl" style={{ viewTransitionName: coverTransition[current.track] }}>{title}</h1>}
-      <RouteLink route={settings} go={go} aria-label={words.place.settings}
+      <RouteLink route={settings} go={go} aria-label={words.place.settings} aria-haspopup={compactNotebook ? "dialog" : undefined}
         aria-current={active === "cai-dat" || active === "muc-tieu" ? "page" : undefined} className="grid size-11 place-items-center rounded-sm bg-oak-dark hover:underline"><SketchIcon name="settings" /></RouteLink>
     </div>
-    <div style={{ viewTransitionName: "book" }} className="grid min-w-0 items-start gap-y-1 sm:grid-cols-[minmax(0,1fr)_6rem]">
-      <nav aria-label="Trang trong sổ" className="flex flex-wrap items-center gap-1 sm:col-start-2 sm:row-start-1 sm:mt-9 sm:flex-col sm:items-stretch">
+    <div style={{ viewTransitionName: "book" }} className={`grid min-w-0 items-start gap-y-1 ${focusedLesson || compactNotebook ? "" : "sm:grid-cols-[minmax(0,1fr)_6rem]"}`}>
+      {!focusedLesson && !compactNotebook && <nav aria-label="Trang trong sổ" className="flex flex-wrap items-center gap-1 sm:col-start-2 sm:row-start-1 sm:mt-9 sm:flex-col sm:items-stretch">
         {links.map(tab => <RouteLink key={tab.page} route={tab.route} go={go}
           aria-current={active === tab.page ? "page" : undefined}
           className={`inline-flex min-h-11 items-center justify-center rounded-sm px-3 font-hand text-lg text-postit-ink hover:underline aria-[current=page]:underline ${tab.color}`}>{tab.label}</RouteLink>)}
-      </nav>
+      </nav>}
       {legacy || reading || paged
         ? <div className="min-w-0 sm:col-start-1 sm:row-start-1">{children}</div>
         : <RuledPage className="min-h-[26rem] shadow-page sm:col-start-1 sm:row-start-1">
