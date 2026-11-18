@@ -7,7 +7,8 @@
 .tutor-chips button { flex:none; min-height:44px; padding:0 12px; border:1.5px solid #e6a9c3; border-radius:22px; background:#fffdf7; color:#9b4268; }
 .tutor-chips button[aria-pressed=true] { background:#9b4268; border-color:#9b4268; color:#fffdf7; }
 .tutor-chips > button { border:0; background:transparent; color:#62616b; font-size:26px; }
-.tutor-messages { flex:1; min-height:0; overflow-y:auto; padding:12px 14px 8px 6px; }
+.tutor-messages { flex:1; min-height:0; overflow-y:auto; padding:12px 14px 8px 6px; display:flex; flex-direction:column; }
+.tutor-messages > :first-child { margin-top:auto; }
 .tutor-message { display:grid; gap:10px; margin-bottom:10px; }
 .tutor-question { justify-self:end; max-width:80%; padding:6px 12px; background:#f6e59a; }
 .tutor-bot { display:flex; align-items:flex-end; gap:2px; }
@@ -23,7 +24,9 @@
 .tutor-trigger:focus-visible, .tutor-chips button:focus-visible, .tutor-compose :focus-visible { outline:2px solid #773729; outline-offset:2px; }
 @media (min-width:1024px) {
   .lesson-flow:has(.tutor-whole) { width:min(53rem,calc(100vw - 220px)); margin-left:0; }
-  .lesson-flow:has(.tutor-sheet) { width:min(53rem,calc(100vw - 460px)); }
+  .lesson-flow:has(.tutor-sheet) { width:min(53rem,calc(100vw - 500px)); }
+  .tutor-trigger { flex-direction:column; align-items:center; }
+  .tutor-trigger > span:first-child { margin:0 0 4px; }
 }
 .tutor-trigger .tutor-pet { --pet-width:99.84px; --pet-height:108.16px; }
 @media (min-width:1024px) { .tutor-trigger .tutor-pet { --pet-width:144px; --pet-height:156px; } }
