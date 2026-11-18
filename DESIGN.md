@@ -141,3 +141,9 @@ Lời chào lấy giờ Berlin. Câu khích lệ dựa trên việc học đã l
 Giấy nhắc “Có câu cần sửa lại” mở đúng câu cần sửa. Bài mới mở ở Ghi nhớ, bài dở mở ở câu chưa nộp đầu tiên, bài đã xong mở Tổng kết. Thẻ “?” mở giấy nổi với nút xem gợi ý và lời giải. Khung đo khoảng trống dưới thanh sổ để xếp câu lên từng trang. Câu viết ngắn có ô trả lời cạnh dấu Kiểm tra. Chấm lật trang nằm ở chân giấy. Gợi ý và lời phê cập nhật ngay trên trang đang mở.
 
 Ở bản làm việc v2, con dấu Kiểm tra báo khi chưa có câu trả lời. Ô lời phê chừa sẵn hai dòng và mở bản đầy đủ khi bấm. Trang bài dùng cùng khung và các thẻ với trang Hôm nay. Mục lục nhóm theo tháng giao bài.
+
+## Chuyển động khi nộp và đọc lời phê
+
+- Bột dùng sprite theo hàng `/api/tutor/sprite/v2/<hàng>.webp`, mỗi khung 120 ms, chuyển khung bằng `steps` không nội suy. Khi chờ dùng `think` (6 khung, 720 ms/vòng); chấm chậm dùng `rest` (8 khung, 960 ms/vòng). Khi có lời phê dùng `nod` (6 khung, 720 ms một lần); trẻ em dùng `jump` (5 khung, 600 ms một lần).
+- Lật trang trong sổ dùng 300 ms `ease-out` khi trình duyệt hỗ trợ; trạng thái lưu, kết quả và thông báo không chờ hiệu ứng hoàn tất. Chấm báo lời phê là dấu tĩnh, không nhấp nháy.
+- Với `prefers-reduced-motion: reduce`, sprite đứng yên ở khung đầu, lật trang và các chuyển cảnh đổi ngay; nội dung, trạng thái lưu và thao tác bàn phím không phụ thuộc chuyển động.
