@@ -17,6 +17,16 @@ export function itemPolicy(framework?: string): { kinds: ItemKind[]; minimum: nu
   return { kinds: ['choice', 'short', 'long'], minimum: 1, codeKnowledge: true };
 }
 
+/** Closed formats become typed responses when the whole lesson uses rubrics. */
+export function wholeLessonItemKinds(kinds: readonly ItemKind[], minimum: number): ItemKind[] {
+  const open = kinds.filter(kind => kind === 'short' || kind === 'long' || kind === 'code');
+  for (const kind of ['short', 'long'] as const) {
+    if (open.length >= minimum) break;
+    if (!open.includes(kind)) open.push(kind);
+  }
+  return open;
+}
+
 export function listeningLanguage(framework?: string) {
  switch(framework){
   case 'de-cefr': return 'de-DE';
