@@ -83,7 +83,10 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
       try {
         json = JSON.parse(output);
       } catch {
-        throw new Error('OpenAI response was not valid JSON.');
+        const error = new Error('OpenAI response was not valid JSON.');
+        error.invalidOutput = true;
+        error.usage = { model: body.model || model, inputTokens: body.usage?.input_tokens ?? 0, outputTokens: body.usage?.output_tokens ?? 0, ms: Date.now() - started };
+        throw error;
       }
 
       return {

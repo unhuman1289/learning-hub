@@ -504,7 +504,7 @@ function wholeLessonSchema(schema) {
   return schema;
 }
 
-export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt, renderAudio, prepareAudio } = {}) {
+export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs = 3 * 60000, getPrompt = systemPrompt, renderAudio, prepareAudio, maxRounds = 2 } = {}) {
   const context = await hub.context(lease);
   if (qwen.name === 'openai' && (
     (context.subjects ?? [context.subject]).some(subject => subject?.sensitivity !== 'normal') ||
@@ -569,7 +569,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       ).join('\n');
     }
     const uploadedAudio = new Set();
-    for (let round = 0; round < 2; round++) {
+    for (let round = 0; round < maxRounds; round++) {
       let result;
       // Only some items were rejected: resend just those, not the whole lesson.
       const partial = qwen.name !== 'openai' && lease.kind === 'plan' && draft && repair && context.adaptive?.mode!=='challenge' ? itemFailures(repair) : null;

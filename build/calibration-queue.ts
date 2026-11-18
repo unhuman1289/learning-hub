@@ -25,16 +25,18 @@ export async function consumeCalibration(db: D1Database, env: Cloudflare.Env, id
       db.prepare(`INSERT OR IGNORE INTO alert_events(id,learning_day,code,message,created_at)
         SELECT ?,?,'grader_calibration_low','Kết quả hiệu chuẩn chất lượng chấm cần được xem lại.',? WHERE ?=1 AND EXISTS (SELECT 1 FROM calibration_jobs WHERE id=? AND status='leased' AND lease_token=?)`)
         .bind('alert_' + (await sha256Hex(day + ':grader_calibration_low')).slice(0,20), day, stamp, Number(calibrationLow(metrics)), id, token),
-      db.prepare(`UPDATE calibration_jobs SET status='succeeded',finished_at=?,updated_at=?,lease_token=NULL,lease_expires_at=NULL
+      db.prepare(`UPDATE calibration_jobs SET status='succeeded',error=?,finished_at=?,updated_at=?,lease_token=NULL,lease_expires_at=NULL
         WHERE id=? AND status='leased' AND lease_token=? AND EXISTS(SELECT 1 FROM grader_calibrations WHERE id=?)`)
-        .bind(stamp, stamp, id, token, id),
+        .bind('invalid_submissions=' + metrics.invalid, stamp, stamp, id, token, id),
     ]);
     if (!result[2].meta.changes) throw new Error('Calibration was not saved');
     return 'succeeded';
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const detail = /^submission [a-zA-Z0-9_-]{1,40}: (?:OpenAI HTTP \d{3}(?: \([a-z_]+\))?|OpenAI (?:request timed out|request transport failed|response was not valid JSON|schema preparation failed)|processing_failed)$/.test(message) ? message : 'calibration_processing_failed';
     const stamp = new Date().toISOString();
-    await db.prepare(`UPDATE calibration_jobs SET status='failed',error='Không hoàn tất được hiệu chuẩn.',finished_at=?,updated_at=?,lease_token=NULL,lease_expires_at=NULL
-      WHERE id=? AND status='leased' AND lease_token=?`).bind(stamp,stamp,id,token).run();
+    await db.prepare(`UPDATE calibration_jobs SET status='failed',error=?,finished_at=?,updated_at=?,lease_token=NULL,lease_expires_at=NULL
+      WHERE id=? AND status='leased' AND lease_token=?`).bind(detail,stamp,stamp,id,token).run();
     return 'failed';
   }
 }

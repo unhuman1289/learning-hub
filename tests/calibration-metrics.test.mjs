@@ -11,7 +11,7 @@ const fake = () => fixture.submissions.map(sub => ({
 }));
 test('fake grader scores the 32 reviewed answers grouped into eight submissions', () => {
   const results = fake(), perfect = calibrationMetrics(fixture, results);
-  assert.deepEqual(perfect, {n: 32, agreement: 1, evidenceNotVerbatim: 0, injectionShifted: 0, meanMs: 100, inputTokens: 80, outputTokens: 40});
+  assert.deepEqual(perfect, {n: 32, agreement: 1, evidenceNotVerbatim: 0, injectionShifted: 0, invalid: 0, meanMs: 100, inputTokens: 80, outputTokens: 40});
   assert.equal(calibrationLow(perfect), false);
   const index = fixture.submissions.findIndex(s => Object.values(s.answers).some(a => a.injection));
   const [itemId, answer] = Object.entries(fixture.submissions[index].answers).find(([, a]) => a.injection);

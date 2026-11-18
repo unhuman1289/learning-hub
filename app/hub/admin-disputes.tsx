@@ -101,7 +101,7 @@ export function AdminGradingQuality({ readNames }: { readNames: ReadLearnerNames
 
 
 type CalibrationJob = {id:string; status:string; calls:number; error:string | null};
-type CalibrationRow = {id:string; created_at:string; model:string; n:number; agreement:number; evidence_not_verbatim:number; injection_shifted:number; input_tokens:number; output_tokens:number};
+type CalibrationRow = {id:string; created_at:string; model:string; n:number; invalid:number | null; agreement:number; evidence_not_verbatim:number; injection_shifted:number; input_tokens:number; output_tokens:number};
 function CalibrationPanel() {
   const [data,setData] = useState<{job:CalibrationJob | null; calibrations:CalibrationRow[]} | null>(null);
   const [error,setError] = useState('');
@@ -127,8 +127,8 @@ function CalibrationPanel() {
     {data?.job?.status === 'succeeded' && <p role="status">Đã hoàn tất hiệu chuẩn.</p>}
     {data?.job?.status === 'failed' && <p role="alert">Hiệu chuẩn chưa hoàn tất. {data.job.error}</p>}
     {error && <p role="alert">{error}</p>}
-    {data && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Thời gian</th><th>Model</th><th>Đồng thuận</th><th>Bằng chứng sai</th><th>Injection lệch</th><th>Token vào / ra</th></tr></thead>
-      <tbody>{data.calibrations.map(row => <tr key={row.id}><td>{new Intl.DateTimeFormat('vi-VN',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(row.created_at))}</td><td>{row.model}</td><td>{(row.agreement*100).toFixed(1)}% ({row.n} câu)</td><td>{row.evidence_not_verbatim}</td><td>{row.injection_shifted}</td><td>{row.input_tokens} / {row.output_tokens}</td></tr>)}</tbody></table>
+    {data && <div className="overflow-x-auto"><table className="w-full text-left text-sm"><thead><tr><th>Thời gian</th><th>Model</th><th>Đồng thuận</th><th>Lượt không hợp lệ</th><th>Bằng chứng sai</th><th>Injection lệch</th><th>Token vào / ra</th></tr></thead>
+      <tbody>{data.calibrations.map(row => <tr key={row.id}><td>{new Intl.DateTimeFormat('vi-VN',{timeZone:'Europe/Berlin',dateStyle:'short',timeStyle:'short'}).format(new Date(row.created_at))}</td><td>{row.model}</td><td>{(row.agreement*100).toFixed(1)}% ({row.n} câu)</td><td>{row.invalid ?? "—"}</td><td>{row.evidence_not_verbatim}</td><td>{row.injection_shifted}</td><td>{row.input_tokens} / {row.output_tokens}</td></tr>)}</tbody></table>
       {!data.calibrations.length && <p>Chưa có lượt hiệu chuẩn hoàn tất.</p>}</div>}
   </section>;
 }
