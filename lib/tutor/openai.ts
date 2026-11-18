@@ -82,6 +82,11 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
   const abort=new AbortController();
   let firstMs:number|undefined, answer='', rawLength=0, leakBlocked=false, inputTokens:number|undefined, outputTokens:number|undefined, completed=false;
   let classification = '', offTopic: boolean | undefined;
+  const question=data.context.question.toLocaleLowerCase('vi');
+  const nameQuestion=/(?:tôi|mình|tên)\s+(?:là\s+ai|tên\s+gì|gì)|tên\s+(?:tôi|mình)\s+(?:là\s+)?gì/u.test(question);
+  const itemQuestion=/\bcâu\s*(?:\d+|này|đó|kia)\b/iu.test(question);
+  const answerQuestion=/(?:đáp án|lời giải|điền gì|cách làm)/iu.test(question);
+  let substitute: string | undefined;
   let namePending = '';
   const personalize = (text:string, final=false) => {
     namePending = (namePending + text).replaceAll('{ten}', data.displayName);
@@ -133,10 +138,12 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
           if (newline < 0) { if (classification.length > 32) throw new Error('Missing scope classification'); continue; }
           const marker=classification.slice(0,newline).trim();
           if (marker !== 'ON_TOPIC' && marker !== 'OFF_TOPIC') throw new Error('Invalid scope classification');
-          offTopic=marker === 'OFF_TOPIC';
+          offTopic=marker === 'OFF_TOPIC' && !nameQuestion && !itemQuestion && !answerQuestion;
+          if (nameQuestion) substitute=data.displayName ? 'Con gọi là {ten} nha! Quay lại bài này cùng con nhé.' : 'Con chưa biết tên ạ. Quay lại bài này cùng con nha!';
+          else if (marker === 'OFF_TOPIC' && (itemQuestion || answerQuestion)) substitute='Con chưa nói đáp án đâu nha. Thử đọc lại đề và tìm điều câu hỏi yêu cầu trước nhé!';
           const rest=classification.slice(newline+1); classification='';
-          if (!offTopic) filter.push(rest);
-        } else if (!offTopic) filter.push(entry.delta);
+          if (!offTopic && !substitute) filter.push(rest);
+        } else if (!offTopic && !substitute) filter.push(entry.delta);
       }
       if (entry.type==='response.completed') {
         const response=entry.response as {status?:string;usage?:{input_tokens?:number;output_tokens?:number}}|undefined;
@@ -146,6 +153,7 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
       if (entry.type==='response.failed' || entry.type==='error' || entry.type==='response.incomplete' || entry.type==='response.refusal.delta') throw new Error('Incomplete response');
     }
     if (offTopic === undefined) throw new Error('Missing scope classification');
+    if (substitute) filter.push(substitute);
     if (offTopic) filter.push(`Hihi, chuyện đó để lúc khác nha, giờ con chỉ giúp bài này thôi ạ. Quay lại câu đang mở nhé?`);
     filter.finish();
     const tail=personalize('',true); answer+=tail; if (tail) emit('delta',{text:tail,blocked:false});

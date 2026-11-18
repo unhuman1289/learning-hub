@@ -1,4 +1,6 @@
 import { answerFragments } from './leak.ts';
+import { normalizeText } from '../evidence/normalize-text.ts';
+const normalizeForVisible = (value:string) => normalizeText(value,{ignoreCase:true,punctuation:'ignore'}).replace(/\s+/g,' ').trim();
 import { safeText } from '../automation/privacy.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
@@ -28,20 +30,21 @@ export async function tutorContext(db: EvidenceDb, id: string) {
      ORDER BY a.attempt_no DESC,a.rowid DESC LIMIT 1) AS grade
     FROM lesson_items i WHERE i.lesson_id=? AND i.learner_id=? ORDER BY i.rowid`).bind(row.lesson_id,row.learner_id)
     .all<{item_id:string;payload:string;input_kind:string;flag:string|null;grade:string|null}>();
-  const protectedAnswers = {texts:[] as string[],labels:[] as string[]};
+  const protectedAnswers = {texts:[] as string[],labels:[] as string[],choices:[] as string[],visible:[] as string[]};
   const visibleFields = ['instructions','fragments','left','right','steps','image','description','marks','headers','rowLabels','language','starter','lines'];
   const entries = items.filter(item => item.flag !== 'item_void').map((entry, index) => {
     const item=JSON.parse(entry.payload) as Record<string,unknown>;
     const grade=entry.grade ? JSON.parse(entry.grade) as Record<string,unknown> : null;
     // The lesson route does not mark graded items as solution-revealed.
     const revealed = support[entry.item_id] === 'solution';
-    if (!revealed) { const f=answerFragments(item); protectedAnswers.texts.push(...f.texts); protectedAnswers.labels.push(...f.labels); }
+    if (!revealed) { const f=answerFragments(item); protectedAnswers.texts.push(...f.texts); protectedAnswers.labels.push(...f.labels); protectedAnswers.choices.push(...(f.choices ?? [])); protectedAnswers.visible.push(...(f.visible ?? [])); }
     const details=Object.fromEntries(visibleFields.filter(key=>item[key] !== undefined).map(key=>[key,item[key]]));
     const choices=Array.isArray(item.choices) ? item.choices.map(choice=>({id:choice.id,text:choice.text})) : [];
     return { number:index+1, id:entry.item_id, type:entry.input_kind, prompt:clean(item.prompt), choices:clean(JSON.stringify(choices)),
       details:clean(JSON.stringify(details)), answer:clean(draft[entry.item_id]?.answer ?? grade?.answer),
       result:clean(grade?.result), feedback:clean(grade?.feedback), ...(revealed ? {solution:clean(item.solution)} : {}) };
   });
+  protectedAnswers.texts = protectedAnswers.texts.filter(text => !protectedAnswers.visible.some(visible => visible && visible.includes(normalizeForVisible(text))));
   // Prefer nearby items when the lesson is unusually large, while retaining every question.
   const selected=entries.findIndex(item=>item.id===row.item_id);
   const context={lesson:{title:clean(lesson.title),objective:clean(lesson.objective),items:entries}, selectedItem:row.item_id,question:clean(row.question)};
