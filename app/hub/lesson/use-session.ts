@@ -320,11 +320,13 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const response = await request().catch(error => {
-        if (error instanceof RequestError && error.status >= 400 && error.status < 500) throw error;
-        // Uncertain response: the same immutable submission key lets the server return the saved attempt.
-        return request();
-      });
+      // Always reconcile the key first. If the read fails, retain the pending request;
+      // a later explicit retry or reconnect will read again before any POST.
+      const check = await json<{ submission: (SubmissionView & { replayed: boolean }) | null; draftRevision?: number }>(
+        url + "/submissions?clientSubmissionId=" + encodeURIComponent(input.clientSubmissionId));
+      const response = check.submission && check.draftRevision !== undefined
+        ? { submission: check.submission, draftRevision: check.draftRevision }
+        : await request();
       if (!response.submission.replayed && response.submission.attempts.length
         && response.submission.attempts.every(attempt => attempt.result)) {
         gradeStarted.current = { submissionId: response.submission.id, at: started };
@@ -344,13 +346,8 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
     } catch (e) {
-      if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
-        pendingSubmission.current = null;
-        writeOfflineDraft(submissionKey, undefined);
-        setPending(null);
-        void refreshFeedback();
-      }
-      setError((e as Error).message + (pendingSubmission.current ? " Bấm nộp lại khi có mạng để kiểm tra kết quả." : ""));
+
+      setError((e as Error).message + (pendingSubmission.current ? " Sẽ kiểm tra lại khi có mạng; bạn cũng có thể bấm Thử nộp lại." : ""));
     } finally {
       submissionInFlight.current = false;
       setBusy(false);
