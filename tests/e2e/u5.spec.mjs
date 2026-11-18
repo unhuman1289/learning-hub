@@ -165,7 +165,9 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   await expect(page.getByRole('heading', { name: 'Hôm nay', exact: true })).toBeVisible();
   const notebookStats = await notebookSnapshot();
   expect(notebookStats.api).toContain("/api/subjects/sub_dddddddddddddddddddd");
-  expect(notebookStats.api, 'GET on notebook entry').toHaveLength(2);
+  // T5: Bột loads its own state once per open lesson (/api/lessons/{id}/tutor); the notebook budget covers the rest.
+  expect(notebookStats.api.filter(path => !/^\/api\/lessons\/[^/]+\/tutor$/.test(path)), 'GET on notebook entry').toHaveLength(2);
+  expect(notebookStats.api.filter(path => /\/tutor$/.test(path)).length, 'Bột state GET').toBeLessThanOrEqual(1);
   await noOverflow(page);
   await page.getByText('Lịch sử', { exact: true }).tap();
   await expect(page.getByRole('heading', { name: /Tháng/ }).first()).toBeVisible();

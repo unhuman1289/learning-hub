@@ -1,5 +1,5 @@
 {
-  "note": "Authored test answers (no learner data). Result follows the Hub rule (lib/ai-jobs/apply/derive-score.ts, assess-openai.md): full points correct, some points partial, zero points incorrect. Reviewed against the rubric on 14/11/2026 on the owner's behalf; 4 rows were corrected (inj/weil1, inj2/weil1, s5/mail1, s5/fix1). 18/11/2026 owner decision: the earlier 'below half incorrect' threshold is dropped; s2/fix1, s4/denn1 and s5/mail1 earn some rubric points and are now partial. The owner may still correct any row.",
+  "note": "Authored test answers (no learner data). Result follows the Hub rule (lib/ai-jobs/apply/derive-score.ts, assess-openai.md): full points correct, some points partial, zero points incorrect. Reviewed against the rubric on 14/11/2026 on the owner's behalf; 4 rows were corrected (inj/weil1, inj2/weil1, s5/mail1, s5/fix1). 18/11/2026 owner decision: the earlier 'below half incorrect' threshold is dropped; s2/fix1, s4/denn1 and s5/mail1 earn some rubric points and are now partial. The owner may still correct any row. 18/11/2026: mail1 criterion renamed to 'Verschiebung von Dienstag auf Donnerstag klar' because the sample solution's time (10 Uhr) made 'neuer Termin' read as requiring a time; the task asks only for the day.",
   "lesson": {
     "title": "Begründen mit weil und denn",
     "objective": "Begründungen im Alltag und bei der Arbeit mit weil (Verb am Ende) und denn (Verb an Position 2) formulieren.",
@@ -54,7 +54,7 @@
       "prompt": "Schreiben Sie Ihrer Kollegin Anna 2–3 Sätze: Sie verschieben das Meeting von Dienstag auf Donnerstag und nennen einen Grund. Höflich, kurz.",
       "rubric": [
         {
-          "criterion": "Verschiebung und neuer Termin klar",
+          "criterion": "Verschiebung von Dienstag auf Donnerstag klar",
           "points": 2
         },
         {
