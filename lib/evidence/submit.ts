@@ -156,7 +156,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
   if (lesson.completed_at) throw new ApiError(409, 'Bỏ dấu đã học trước khi nộp sửa lại.');
   if (lesson.draft_revision !== input.draftRevision) throw new ApiError(409, 'Nháp đã thay đổi. Lưu lại nháp trước khi nộp.');
   if ((rate?.n ?? 0) >= 30) throw new ApiError(429, 'Bạn vừa nộp nhiều lần. Thử lại sau một phút.');
-  const wholeLesson = input.stage === null && input.itemIds === null;
+  const wholeLesson = input.stage == null && input.itemIds == null;
   if (!wholeLesson && JSON.parse(lesson.payload).gradingMode === 'whole-lesson')
     throw new ApiError(400, 'Bài này cần nộp cả lượt ở cuối bài.');
   if (wholeLesson && latest.some(attempt => attempt.status === 'pending' && !attempt.grading_stopped))
