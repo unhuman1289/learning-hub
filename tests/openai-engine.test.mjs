@@ -84,12 +84,11 @@ test('OpenAI refuses redirects without forwarding credentials', async () => {
 });
 
 
-test('Queue keeps the adult-only plan and normal-sensitivity assessment gates', async () => {
+test('Queue still blocks photos of sensitive notebooks before calling the model', async () => {
   const { processJob } = await import('../lib/ai/job.mjs');
   for (const [kind, context] of [
-    ['plan', { learner: { role: 'child' }, subjects: [{ sensitivity: 'normal' }] }],
-    ['assess', { learner: { role: 'adult' }, subject: { sensitivity: 'clinical' }, attempts: [] }],
     ['assess', { learner: { role: 'child' }, subject: { sensitivity: 'child_dev' }, attempts: [{ attachments: [{}] }] }],
+    ['assess', { learner: { role: 'adult' }, subject: { sensitivity: 'clinical' }, attempts: [{ attachments: [{}] }] }],
   ]) {
     let failures = 0;
     const result = await processJob({
@@ -102,6 +101,26 @@ test('Queue keeps the adult-only plan and normal-sensitivity assessment gates', 
     });
     assert.equal(result.status, 'returned');
     assert.equal(failures, 1);
+  }
+});
+
+test('Queue serves child profiles and sensitive text notebooks (decision 11.3), scrubbing the display name', async () => {
+  const { processJob } = await import('../lib/ai/job.mjs');
+  for (const [kind, context] of [
+    ['plan', { learner: { role: 'child', displayName: 'Ếch', ref: 'lrn_x' }, subjects: [{ sensitivity: 'normal', title: 'Ếch học toán' }] }],
+    ['plan', { learner: { role: 'adult', displayName: 'Vu', ref: 'lrn_y' }, subjects: [{ sensitivity: 'clinical' }] }],
+    ['assess', { learner: { role: 'adult', displayName: 'Vu', ref: 'lrn_y' }, subject: { sensitivity: 'child_dev' }, attempts: [] }],
+  ]) {
+    const reasons = [];
+    await processJob({
+      context: async () => context,
+      fail: async (_lease, reason) => { reasons.push(reason); return {}; },
+      heartbeat: async () => ({}),
+    }, { jobId: 'open', kind }, {
+      name: 'openai', queueVision: true, vision: true,
+      run: async input => { assert.ok(!JSON.stringify(input).includes('Ếch')); throw Object.assign(new Error('stop'), { retryable: false }); },
+    }).catch(() => {});
+    assert.ok(!reasons.some(reason => /Đợt thử OpenAI/.test(String(reason))), kind + ' must pass the profile and sensitivity gate');
   }
 });
 
