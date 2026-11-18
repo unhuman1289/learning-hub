@@ -1,9 +1,17 @@
+import { openLessonSummary } from './lesson-summary.mjs';
 import {test,expect} from '@playwright/test';
 test.use({serviceWorkers:'block',reducedMotion:'reduce'});
 test('một Bột cho cả bài, chọn câu khác và giữ hội thoại khi lật trang',async ({page})=>{
   let sent;
-  await page.route('**/api/lessons/*/tutor',route=>route.fulfill({json:{turns:[],enabled:true,remaining:20,limit:'lesson',displayName:'Ếch'}}));
-  await page.route('**/api/tutor',async route=>{sent=route.request().postDataJSON();await route.fulfill({contentType:'text/event-stream',body:'event: delta\ndata: {"text":"Con gợi ý nha."}\n\nevent: done\ndata: {}\n\n'});});
+  const turns = [];
+  await page.route('**/api/lessons/*/tutor', route => route.fulfill({ json: {
+    turns, enabled: true, remaining: 20 - turns.length, limit: 'lesson', displayName: 'Ếch',
+  } }));
+  await page.route('**/api/tutor', async route => {
+    sent = route.request().postDataJSON();
+    turns.push({ id: 'test-turn', item_id: sent.itemId, question: sent.question, answer: 'Con gợi ý nha.', status: 'answered' });
+    await route.fulfill({ contentType: 'text/event-stream', body: 'event: delta\ndata: {"text":"Con gợi ý nha."}\n\nevent: done\ndata: {}\n\n' });
+  });
   await page.goto('/'); await page.getByRole('button',{name:/Ếch thử/}).tap();
   await page.getByRole('region',{name:'Bài tiếp theo'}).getByRole('listitem').filter({hasText:'Deutsch'}).getByRole('link',{name:/Mở bài|Học tiếp/}).first().tap();
   const flow=page.locator('.lesson-flow'); await flow.getByRole('button',{name:'Bắt đầu bài'}).click({force:true});
@@ -14,7 +22,27 @@ test('một Bột cho cả bài, chọn câu khác và giữ hội thoại khi l
   await panel.getByRole('textbox',{name:'Câu hỏi cho Bột'}).fill('Câu này khác gì?'); await panel.getByRole('button',{name:'Gửi'}).tap();
   await expect(panel.getByText('Con gợi ý nha.')).toBeVisible(); expect(sent.itemId).toBe('i2');
   await panel.getByRole('button',{name:/Đóng/}).tap(); await expect(trigger).toBeFocused();
-  await flow.locator('[data-turn-edge=right]:visible').tap(); await expect(trigger).toHaveCount(1);
+  await expect(flow.getByRole('button', { name: /^Kiểm tra/ })).toHaveCount(0);
+  const active = flow.locator('.lesson-flow-window-page[data-active]');
+  await active.locator('#answer-i2').fill('Lena kann heute Suppe kochen.');
+  await active.locator('#answer-i3').fill('Paul möchte einen Kuchen kaufen.');
+  await flow.locator('[data-turn-edge=right]:visible').tap();
+  await expect(active.locator('#answer-i2')).toHaveCount(0);
+  await expect(trigger).toHaveCount(1);
+  await trigger.tap();
+  await expect(panel.getByText('Con gợi ý nha.')).toBeVisible();
+  await panel.getByRole('button', { name: /Đóng/ }).tap();
+  const summary = await openLessonSummary(page);
+  const submitted = page.waitForResponse(r => r.url().endsWith('/submissions') && r.request().method() === 'POST');
+  await summary.getByRole('button', { name: 'Nộp bài', exact: true }).tap();
+  const response = await submitted;
+  expect(response.ok()).toBe(true);
+  const { submission } = await response.json();
+  expect(submission.attempts).toEqual([
+    expect.objectContaining({ item_id: 'i2', result: 'correct' }),
+    expect.objectContaining({ item_id: 'i3', status: 'pending' }),
+  ]);
+  await expect(trigger).toHaveCount(1);
 });
 
 test('câu 4 hỏi câu 2, bảo vệ đáp án và ghi ngoài phạm vi',async ({page})=>{

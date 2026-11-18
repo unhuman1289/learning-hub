@@ -20,7 +20,7 @@ function readTutor(lessonId:string, fresh:boolean) {
   return request;
 }
 
-export default function Tutor({lessonId,items,number,child,correctCheck,checkedItem}:{lessonId:string;items:string[];number:number;child:boolean;correctCheck?:string;checkedItem?:string}) {
+export default function Tutor({lessonId,items,number,child}:{lessonId:string;items:string[];number:number;child:boolean}) {
   const [choice,setChoice]=useState({page:number, value:number}), [displayName,setDisplayName]=useState('');
   const selected=choice.page===number ? choice.value : number;
   const itemId=items[selected-1] ?? items[0];
@@ -29,12 +29,9 @@ export default function Tutor({lessonId,items,number,child,correctCheck,checkedI
   const [messages,setMessages]=useState<Message[]>([]), [question,setQuestion]=useState(''), [state,setState]=useState<TutorPetState>('idle');
   const [sending,setSending]=useState(false), [offline,setOffline]=useState(false), [notice,setNotice]=useState('');
   const trigger=useRef<HTMLButtonElement>(null), input=useRef<HTMLTextAreaElement>(null);
-  const seenCheck=useRef(correctCheck), asked=useRef(new Set<string>());
-  const [reaction,setReaction]=useState<TutorPetState | null>(null);
   const load=useCallback(async (fresh=false) => {
     const data=await readTutor(lessonId,fresh);
     setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit); setDisplayName(data.displayName ?? '');
-    asked.current=new Set(data.turns.map(turn=>turn.item_id));
     setMessages(previous => {
       const saved=data.turns.map(t=> {
         const partial=previous.find(m=>m.id===t.id || (m.question===t.question && m.status==='streaming'));
@@ -61,13 +58,6 @@ export default function Tutor({lessonId,items,number,child,correctCheck,checkedI
     const timer=setTimeout(()=>setState(current=>current === 'greet' ? 'point' : current === 'point' ? 'listen' : current), state === 'greet' ? 480 : 720);
     return ()=>clearTimeout(timer);
   },[state]);
-  useEffect(()=>{
-    if (!correctCheck || correctCheck===seenCheck.current) return;
-    seenCheck.current=correctCheck;
-    setReaction(checkedItem && asked.current.has(checkedItem) ? 'nod' : 'cheer');
-    const timer=setTimeout(()=>setReaction(null),720);
-    return ()=>clearTimeout(timer);
-  },[correctCheck,checkedItem]);
   function close() { setOpen(false); setState('idle'); requestAnimationFrame(()=>trigger.current?.focus()); }
   async function ask() {
     const text=question.trim(); if(!text || sending || remaining<=0) return;
@@ -77,7 +67,6 @@ export default function Tutor({lessonId,items,number,child,correctCheck,checkedI
       const response=await fetch('/api/tutor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lessonId,itemId,question:text})}).catch(()=>{throw new Error('offline');});
       if(!response.ok || !response.body) { const body=await response.json().catch(()=>({})) as {error?:string}; throw new Error(body.error || 'Chưa gửi được câu hỏi.'); }
       setRemaining(n=>Math.max(0,n-1));
-      asked.current.add(itemId);
       const reader=response.body.getReader(), decoder=new TextDecoder(); let buffer='', finished=false;
       while(true) {
         const {done,value}=await reader.read(); buffer+=decoder.decode(value,{stream:!done}).replace(/\r\n/g,'\n');
@@ -104,7 +93,7 @@ export default function Tutor({lessonId,items,number,child,correctCheck,checkedI
   if(!enabled) return null;
   return <div className="tutor-whole">
     <button hidden={open} ref={trigger} type="button" aria-label="Hỏi Bột" aria-expanded={false} onClick={()=>{setChoice({page:number,value:number});setOpen(true);setState('greet');void load(true).catch(()=>{setOffline(true);setState('offline');});}} className="tutor-trigger">
-      <span>Hỏi Bột nè!</span><TutorPet size="corner" state={reaction ?? 'idle'} />
+      <span>Hỏi Bột nè!</span><TutorPet size="corner" state="idle" />
     </button>
     {open && <section role="dialog" aria-label="Trò chuyện với Bột" className={'tutor-sheet '+(child?'tutor-sheet-child':'')}>
       <div className="tutor-chips"><div role="group" aria-label="Hỏi về câu nào">{items.map((id,index)=><button key={id} type="button" aria-pressed={selected===index+1} onClick={()=>setChoice({page:number,value:index+1})}>Câu {index+1}{number===index+1?' · đang mở':''}</button>)}</div><button type="button" aria-label="Đóng, Bột về chỗ ngồi" onClick={close}>×</button></div>
