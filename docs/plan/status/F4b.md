@@ -2,7 +2,7 @@
 
 ## Thay đổi
 
-Khi hoàn thành bài chính của sổ tùy chỉnh đang bật lịch, Hub xếp job plan daily cho ngày Berlin tiếp theo. Kết quả hợp lệ được lưu trong `prepared_daily_plans` (migration 0038), chưa ghi bài hay sửa lộ trình; API đọc job báo `prepared`, không báo `succeeded`. Runner xác nhận bằng cách đọc lại job, kể cả khi phản hồi ghi bị mất.
+Khi hoàn thành bài chính của sổ tùy chỉnh đang bật lịch, Hub xếp job plan daily cho ngày Berlin tiếp theo. Kết quả hợp lệ được lưu trong `prepared_daily_plans` (migration 0039), chưa ghi bài hay sửa lộ trình; API đọc job báo `prepared`, không báo `succeeded`. Runner xác nhận bằng cách đọc lại job, kể cả khi phản hồi ghi bị mất.
 
 Cron 00:00 áp bản soạn của ngày học qua writer hiện có. Writer kiểm revision, bài chính đang mở, completion và cutoff ngay trong batch. Bản soạn không còn hợp lệ hoặc quá hạn bị bỏ với lý do; không xóa bài hay câu trả lời. Job hoặc bài đã có ngăn cron tạo job thứ hai cho cùng sổ và ngày. Sổ legacy giữ chính sách lập lịch của mình. Hoàn thành lúc 00:01 không giao bài cho ngày vừa bắt đầu, nhưng có thể soạn cho ngày kế tiếp.
 
