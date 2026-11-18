@@ -450,6 +450,8 @@ Bàn học đang ở 177/180 KB, chỉ còn 3 KB dư. Mục tiêu ≤ 150 KB.
   Chủ dự án duyệt trước khi code.
 - Ghi quy tắc chuyển động vào DESIGN.md: thời lượng, đường cong, giảm chuyển động.
 
+**Nghiệm thu 18/11:** F4+F7 (#221, sửa #227) đạt trên staging, chủ dự án xác nhận 5 điểm Tổng kết. Bàn học 179.034/180.000 B gzip. Còn đo trên iPhone (N).
+
 **Xong F khi:** các ngân sách ở mục 1 đạt trên CI và trên iPhone ở Đức, bàn học ≤ 180 KB, INP p75 < 200 ms, mở lại từ màn hình chính < 1 giây.
 
 ## 9. R · Phát hành production
