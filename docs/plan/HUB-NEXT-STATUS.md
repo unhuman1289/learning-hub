@@ -124,3 +124,5 @@ Khung staging G3 #231–#234 đã đóng lúc 20:16 Europe/Berlin ngày 18/11.
 Khung staging #235 đã đóng lúc 21:20 Europe/Berlin ngày 18/11.
 
 Khung staging W1/W2 đã đóng lúc 22:25 Europe/Berlin ngày 18/11.
+
+staging: W3 #240, đến 23:15 Europe/Berlin
