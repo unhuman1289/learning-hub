@@ -888,3 +888,33 @@ test('runner accepts off-topic, blank and other-language answers without invente
   assert.equal(result.result,answer?'incorrect':'ungradable');assert.equal(result.score,0);assert.deepEqual(JSON.parse(result.errors),[]);
  }
 });
+
+test('extra language feedback preserves full rubric score and is available for later practice', async t => {
+ for (const [answer, hasError] of [['Leider ich kann um 10 Uhr nicht kommen',true],['Leider kann ich um 10 Uhr nicht kommen',false]]) {
+  const {db}=await openSubmission();t.after(()=>db.sqlite.close());
+  db.sqlite.prepare('UPDATE attempts SET answer=?').run(answer);
+  const hub=memoryHub(db),[lease]=await hub.lease({kinds:['assess'],max:1,runner,capabilities:['lesson-v3']});
+  const engine=fakeEngine('qwen',[context=>{
+   const result=grade(context),a=context.attempts[0];
+   result.grades[0].feedback=hasError?'Trật tự từ: dùng „Leider kann ich“.':'Đúng theo yêu cầu.';
+   result.grades[0].errors=hasError?[{skillId:a.skills[0],label:'G: trật tự từ',category:'extra',evidence:'Leider ich kann'}]:[];
+   return result;
+  }]);
+  assert.equal((await processJob(hub,lease,engine)).status,'succeeded');
+  const saved=db.sqlite.prepare('SELECT result,score,feedback,errors FROM grades WHERE job_id=?').get(lease.jobId);
+  assert.equal(saved.result,'correct');assert.equal(saved.score,1);
+  assert.equal(JSON.parse(saved.errors).length,Number(hasError));
+  if(hasError){assert.match(saved.feedback,/Leider kann ich/);assert.equal(JSON.parse(saved.errors)[0].category,'extra');
+   const pattern=db.sqlite.prepare('SELECT label,category FROM error_patterns').get();assert.equal(pattern.category,'unknown');assert.match(pattern.label,/trật tự/);}
+ }
+});
+
+test('more than two extra errors are rejected by the assessment dry run', async t => {
+ const {db}=await openSubmission();t.after(()=>db.sqlite.close());
+ const hub=memoryHub(db),[lease]=await hub.lease({kinds:['assess'],max:1,runner,capabilities:['lesson-v3']});
+ const context=await hub.context(lease),result=grade(context),a=context.attempts[0];
+ result.contextHash=context.contextHash;
+ result.grades[0].errors=Array.from({length:3},(_,i)=>({skillId:a.skills[0],label:'G: '+i,category:'extra',evidence:'Paul'}));
+ const checked=await hub.result(lease,result,true);assert.equal(checked.status,422);
+ assert.ok(checked.body.errors.some(e=>e.path==='/grades/0/errors'));
+});

@@ -29,6 +29,9 @@
 | 17/11 | **Chấm bài ảnh bằng OpenAI cho mọi sổ, kể cả trẻ em** | G5 không còn giới hạn sổ người lớn. Chỉ gửi ảnh, không gửi tên hay id; giám hộ đọc mọi lời phê; ảnh xoá sau 30 ngày |
 | 18/11 | **Gia sư tên Bột, một Bột cho cả bài.** Bột nói như em bé ("Chỗ này sai ạ!"), đứng cạnh trang sổ (điện thoại: nút nổi), luôn biết toàn bài, chỉ trả lời trong nội dung bài và kiến thức liền kề | Thay gia sư theo từng câu của T3/T3b bằng T5. T4 nghiệm thu trên Bột |
 | 18/11 | **Duyệt M5b** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX), phần M5b): Bột xưng "con", gọi tên người học, đứng cạnh lời mình nói, không hàng tiêu đề | Giao T5 |
+| 18/11 | **Duyệt M6 (F7).** Bỏ e2e tự động: e2e chỉ chạy tay hoặc PR có nhãn `e2e` (F5b); Claude chạy e2e tay trước R | F4+F7 theo M6. T5 lên staging không qua e2e |
+| 18/11 | **Quyết định 11.3: production dùng OpenAI cho mọi luồng AI; xoá luồng và runner Qwen** (gồm launchd trên Mac) | Bước Q0 sau F4b và C1 vì cùng sửa `integrations/home-runner`, `lib/ai-jobs`. Cập nhật AGENTS.md mục Architecture theo |
+| 18/11 | **Quyết định 11.4: chi tiêu OpenAI khoảng 10–20 € mỗi tháng cho 2 người học.** Tài khoản nạp trước, không làm trần chi tiêu trong Hub | Giảm token ở C1; chấm còn một lời gọi (G3) |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
@@ -422,6 +425,8 @@ Bàn học đang ở 177/180 KB, chỉ còn 3 KB dư. Mục tiêu ≤ 150 KB.
 - Staging chưa có `placement`. Production có `azure:westeurope`.
 - Đặt cùng cấu hình cho staging, hoặc thử Smart Placement. So `Server-Timing` của `/api/today` trước và sau.
 
+**Xong 18/11 (Claude):** staging đặt `placement` `azure:westeurope` ([#218](https://github.com/unhuman1289/learning-hub/pull/218)); bước deploy in Server-Timing của `/api/today` ([#217](https://github.com/unhuman1289/learning-hub/pull/217)). 5 mẫu cùng phiên QA sau placement: `app` 68, 139, 85, 62, 102 ms, trung vị **85 ms**; D1 trung vị 502 ms. Mốc trước lấy từ F0 ngày 17/11 (cùng route, 5 mẫu): app 308 ms, D1 731 ms. Không đo được "trước" cùng ngày vì secret sai lúc deploy đầu; code giữa hai mốc có thay đổi khác nên mức giảm khoảng 70% là ước lượng.
+
 ### F6. Mượt khi thao tác
 
 - Giữ test tác vụ dài ≤ 50 ms khi lật trang và khi gõ.
@@ -485,8 +490,8 @@ Sau khi các đợt 1–4 đạt. Đây là phác thảo. Kế hoạch chi tiế
 
 | # | Khi | Câu hỏi | Claude khuyên |
 |---|---|---|---|
-| 3 | R0 | Production dùng OpenAI cho mọi luồng AI và tắt runner Qwen trên Mac | Có, vì staging đã chạy và nghiệm thu theo OpenAI |
-| 4 | R0 | Hạn mức chi tiêu OpenAI mỗi tháng cho production | Chủ dự án đặt con số, Claude ước từ số token của G3, T4, F0 |
+| 3 | Đã chốt 18/11 | Production dùng OpenAI cho mọi luồng AI và tắt runner Qwen trên Mac | Có, vì staging đã chạy và nghiệm thu theo OpenAI |
+| 4 | Đã chốt 18/11 (10–20 €, nạp trước) | Hạn mức chi tiêu OpenAI mỗi tháng cho production | Chủ dự án đặt con số, Claude ước từ số token của G3, T4, F0 |
 | 5 | F0 | Cấp quyền Workers Observability cho token Cloudflare dùng khi đo (API truy vấn telemetry yêu cầu quyền Write) | Cần cho số đo CPU từng route. Có thể bỏ qua: thời gian server đã đo được |
 | 6 | Đã xử lý 17/11 | GitHub Actions ngừng chạy vì thanh toán | Chủ dự án lên GitHub Pro; CI chạy lại. Chuyển repo sang public sau H1 (quyết định 17/11) để Actions miễn phí. Audit 17/11: không có key hay mật khẩu thật trong 465 commit, PR, comment và issue. Lịch sử có email cơ quan và một gmail, chủ dự án chấp nhận. Từ 17/11 commit trong repo dùng email noreply của GitHub |
 

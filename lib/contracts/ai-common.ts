@@ -140,7 +140,7 @@ export const error = z
     skillId: ref,
     patternId: z.string().nullable().optional(),
     label: text(120),
-    category: z.enum(['knowledge', 'application', 'slip', 'reading', 'unknown']),
+    category: z.enum(['knowledge', 'application', 'slip', 'reading', 'unknown', 'extra']),
     evidence: text(80),
   })
   .strict();

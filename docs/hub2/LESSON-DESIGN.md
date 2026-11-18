@@ -261,6 +261,8 @@ Không được:
 | `reading` | Hiểu sai đề |
 | `unknown` | Khi chưa đủ bằng chứng; luôn tốt hơn đoán |
 
+Sau khi chấm theo rubric, nếu câu trả lời liên quan có lỗi ngôn ngữ rõ ràng ngoài rubric (ngữ pháp, trật tự từ hoặc chính tả quan trọng), ghi tối đa hai lỗi `extra`, nhắc trong feedback và nêu cách sửa ngắn. Không thay đổi score hoặc result vì các lỗi này. Không áp dụng cho câu rác hoặc lạc đề; không suy đoán hay bịa lỗi. Ảnh áp dụng quy tắc bằng chứng chưa đối chiếu của G5.
+
 `evidence` phải trích nguyên văn từ bài làm. Bài ngắn, lạc đề hoặc sai ngôn ngữ được chấm theo rubric; nếu không đạt tiêu chí nào thì `incorrect`, điểm 0 và lời phê nêu yêu cầu còn thiếu. Nếu không có trích đoạn phù hợp thì để `errors` rỗng, không bịa evidence. Chỉ dùng `ungradable` cho bài trống hoặc ảnh không đọc được, với lời phê giải thích.
 
 **Bài kết nối và tổng hợp:**

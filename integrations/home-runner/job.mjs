@@ -1,3 +1,4 @@
+import {deriveAssessScores} from '../../lib/ai-jobs/apply/derive-score.ts';
 // One leased job: context → engine → local check → dryRun (one repair) → submit → verify.
 import { readFileSync } from 'node:fs';
 import { z } from 'zod/v4';
@@ -483,7 +484,7 @@ export function normalizeAssess(json, context) {
 }
 
 function finalize(json, context, usage, kind) {
-  const body = kind === 'assess' ? normalizeAssess(json, context) : json;
+  const body = kind === 'assess' ? (context.purpose === 'recheck' ? normalizeAssess(json, context) : deriveAssessScores(normalizeAssess(json, context), context)) : json;
   return { ...body, contextHash: context.contextHash, usage: { ...usage, model: String(usage.model).slice(0, 120) } };
 }
 

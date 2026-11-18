@@ -2,7 +2,7 @@ import { berlinDay } from '../daily-policy.ts';
 
 export type Activity = 'recall' | 'recognize' | 'correct' | 'transform' | 'apply' | 'explain' | 'create' | 'investigate';
 export type Mastery = 'not_assessed' | 'introduced' | 'developing' | 'demonstrated' | 'needs_review';
-export type ErrorCategory = 'knowledge' | 'application' | 'slip' | 'reading' | 'unknown';
+export type ErrorCategory = 'knowledge' | 'application' | 'slip' | 'reading' | 'unknown' | 'extra';
 export type Evidence = {
   id: string;
   submissionId: string;
@@ -118,7 +118,7 @@ function patterns(rows: Evidence[]): ErrorPattern[] {
       const norm = normalizeErrorLabel(error.label);
       if (!norm || seen.has(norm)) continue;
       seen.add(norm);
-      const category =
+      const category = error.category === 'extra' ? 'unknown' :
         error.category === 'slip' &&
         !rows.some((other) => other.id !== e.id && other.submissionId === e.submissionId && evidenceStrength(other) === 3)
           ? 'unknown'

@@ -36,6 +36,7 @@
   },
   "env": {
     "staging": {
+      "placement": { "region": "azure:westeurope" },
       "name": "learning-hub-staging",
       "durable_objects": { "bindings": [{ "name": "FEEDBACK_EVENTS", "class_name": "FeedbackSignal" }] },
       "workers_dev": true,
