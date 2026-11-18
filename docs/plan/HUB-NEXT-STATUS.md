@@ -108,3 +108,5 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 - Terra đã chấm lại một câu trong **QA H5 Deutsch** qua giao diện staging, giữ nguyên điểm và lưu lời giải thích. Còn xác nhận lượt giao lúc 00:00 Berlin và thao tác trên điện thoại thật. Số tiền trừ credit cần đối chiếu với OpenAI Usage. Xem [biên bản](../ops/QA-H5-OPENAI-ACCEPTANCE.md).
 
 Khung staging F4+F7 sửa #227 đã đóng lúc 15:09 Europe/Berlin ngày 18/11.
+
+staging: G3 chi tiết hiệu chuẩn #228 (0040), đến 17:00 Europe/Berlin
