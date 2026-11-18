@@ -35,7 +35,7 @@ export async function GET(req: Request, context: Context) {
       const runner = submissions.some(entry => entry.attempts.some(attempt => ("status" in attempt && attempt.status === "pending") || attempt.dispute?.status === "rechecking"))
         ? await runnerStatus(db, env.GRADER_CLIENT_ID ?? "home-runner") : null;
       return Response.json({ lesson, submissions, child: facts.learnerRole === "child", runner, study,
-        pageEdgeHint: !!settings && showsHint(settings, 'pageEdge') }, { headers: { ...privateHeaders, "Server-Timing": timing.header() } });
+        displayName: settings?.displayName ?? "", pageEdgeHint: !!settings && showsHint(settings, 'pageEdge') }, { headers: { ...privateHeaders, "Server-Timing": timing.header() } });
     }
     const lesson=await readLessonV2(db,learnerId,id);
     const latest=await db.prepare('SELECT id FROM submissions WHERE lesson_id=? AND learner_id=? ORDER BY created_at DESC,rowid DESC LIMIT 1').bind(id,learnerId).first<{id:string}>();

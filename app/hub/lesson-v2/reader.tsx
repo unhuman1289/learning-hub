@@ -113,7 +113,7 @@ export function LessonReader({
           {lesson.template === "reading" ? <LessonNotes lesson={lesson} formatText={formatText} /> : materials}
         </>;
         if (index === summaryIndex) return <>
-          <LessonSummary items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
+          <LessonSummary child={child} displayName={session.displayName} items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
             onQuestion={itemId => {
               const itemIndex = lesson.items.findIndex(item => item.id === itemId);
               if (itemIndex >= 0) jump(itemIndex + 1);

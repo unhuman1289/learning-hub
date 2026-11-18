@@ -28,7 +28,7 @@ type PendingSubmission = {
   answers?: DraftAnswers;
 };
 export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
-type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; pageEdgeHint?: boolean };
+type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; displayName?: string; pageEdgeHint?: boolean };
 class RequestError extends Error {
   constructor(
     message: string,
@@ -87,6 +87,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
   const [child, setChild] = useState(prefetched?.child ?? false);
+  const [displayName, setDisplayName] = useState(prefetched?.displayName ?? "");
   const [pageEdgeHint, setPageEdgeHint] = useState(false);
   const [initialRunner, setInitialRunner] = useState<RunnerStatus | null>(null);
   const submissionKey = cacheKey + ":submission";
@@ -100,9 +101,10 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
     json<ReaderPayload>(url + "?" + query)
-      .then(({ lesson: result, submissions, child, runner, study, pageEdgeHint }) => {
+      .then(({ lesson: result, submissions, child, runner, study, displayName, pageEdgeHint }) => {
         if (generation.current !== version) return;
         setChild(child);
+        setDisplayName(displayName ?? "");
         setPageEdgeHint(!readonly && !!pageEdgeHint);
         setInitialRunner(runner);
         const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
@@ -401,7 +403,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
+    lesson, child, displayName, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
     waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };

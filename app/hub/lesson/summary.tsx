@@ -8,6 +8,7 @@ import { useLiveRefresh } from "../use-live-refresh";
 import { pencil, RedPen, skillLabel } from "../paper-bits";
 import { buttonClass, RouteLink } from "../ui";
 import type { Route } from "../use-route";
+import { TutorPet } from "./tutor-pet";
 import type { SubmissionView } from "../lesson-v2/feedback";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
@@ -15,12 +16,18 @@ import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
 import { feedbackForItems } from "../../../lib/feedback-history";
 import type { TodayItem } from "../../../lib/today";
 
-export function LessonSummary({ lessonId, subjectId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false, go, children, items, answers, history }: {
+export function LessonSummary({ lessonId, subjectId, learner, waiting, progressKey, onQuestion, completed = true, justCompleted = false, go, children, items, answers, history, child, displayName }: {
   lessonId: string; learner: string | null; waiting: boolean; progressKey?: string; onQuestion?: (id: string) => void;
-  items: ItemView[]; answers: DraftAnswers; history: SubmissionView[];
+  items: ItemView[]; answers: DraftAnswers; history: SubmissionView[]; child: boolean; displayName: string;
   completed?: boolean; justCompleted?: boolean; subjectId: string; go: (route: Route) => void; children: ReactNode;
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = setTimeout(() => setSlow(true), 30_000);
+    return () => clearTimeout(timer);
+  }, [waiting]);
   const [opening, setOpening] = useState(false);
   const [nextError, setNextError] = useState("");
   async function openNext() {
@@ -50,12 +57,24 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
     setData(summary); setError("");
   }, waiting || !!data?.pending, 5000);
   const needsWork = data && (data.needsCorrection > 0 || data.unanswered > 0);
+  const queued = history.some(entry => entry.job_status === "queued" && entry.attempts.some(a => !a.result));
+  const pendingCount = items.filter(item => { const a = feedbackForItems(history, [item.id])[0]?.attempts[0]; return a && !a.result; }).length;
+  const results = items.map(item => feedbackForItems(history, [item.id])[0]?.attempts[0]);
+  const corrections = results.map((a, i) => a && ["partial", "incorrect"].includes(a.result ?? "") ? items[i].id : null).filter((id): id is string => !!id);
+  const correct = results.filter(a => a?.result === "correct").length;
+  const graded = history.length > 0 && !waiting && results.some(a => !!a?.result);
   return (
     <section aria-label="Tổng kết bài">
       <h1 tabIndex={-1} data-lesson-heading className="mb-3 font-print text-4xl leading-tight">Tổng kết bài</h1>
       {error && <p role="alert">{error}</p>}
       {!data && !error && <p role="status" className={pencil}>Đang đọc tổng kết…</p>}
       {data && <>
+        {!history.length && <p>Đã làm {items.filter(item => hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length).length}/{items.length} câu. {items.filter(item => !hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") && !answers[item.id]?.attachmentIds?.length).length ? "Vẫn còn câu trống; bạn vẫn có thể nộp." : ""}</p>}
+        {graded && <p className="font-hand text-3xl text-brick">{correct}/{items.length} câu đúng</p>}
+        {(waiting || graded) && <div className="my-3 flex items-center gap-3" role="status">
+          <TutorPet size="panel" state={waiting ? (queued || slow ? "busy" : "think") : child ? "cheer" : "nod"} />
+          <p>{waiting ? (queued || slow ? "Bài đã lưu rồi, bạn cứ đóng sổ nhé. Có lời phê con báo nha." : `Con đang đọc ${pendingCount} câu viết nha.`) : child ? `${displayName ? `${displayName} giỏi` : "Giỏi"} quá! ${corrections.length ? `Chỉ còn ${corrections.length} câu cần sửa thôi nè.` : "Con làm xong rồi nè."}` : `Con chấm xong rồi ạ.${corrections.length ? ` Có ${corrections.length} câu cần sửa.` : ""}`}</p>
+        </div>}
         {completed && <Stamp label={needsWork ? "Cố lên!" : data.pending || data.solutionsSeen ? "Đã học" : "Giỏi lắm!"}
           className={needsWork ? "border-warn! text-warn!" : undefined} pressed={justCompleted} />}
         <ul aria-label="Từng câu" className="divide-y divide-rule">
@@ -86,6 +105,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
         </section>}
       </>}
       <div className="mt-5 flex flex-wrap items-center gap-3">
+        {graded && corrections.length > 0 && <button type="button" className={buttonClass("primary")} onClick={() => onQuestion?.(corrections[0])}>Làm lại {corrections.length} câu cần sửa</button>}
         {completed && <button type="button" disabled={opening} className={buttonClass("primary")} onClick={() => void openNext()}>
           {opening ? "Đang tìm bài…" : "Bài tiếp theo"}
         </button>}
