@@ -1621,3 +1621,19 @@ test('Queue matches normalized rubric names on first validation and saves origin
    assert.deepEqual(JSON.parse(grade.rubric_scores).map(x=>x.criterion),item.rubric.map(x=>x.criterion));}
  }
 });
+
+test('Queue saves score and result derived from rubric even when model disagrees', async t => {
+ const {consumeOpenAi}=await import('../build/openai-queue.ts');
+ const {db,lesson}=await assigned();t.after(()=>db.sqlite.close());
+ await saveDraft(db,learner,lesson,{revision:0,answers:{i3:{answer:'ok lah'}}},now);
+ const sub=await submitLesson(db,learner,lesson,{clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:'guided',itemIds:['i3']},now);
+ const env={DB:db,OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake',AI_QUEUE:{send:async()=>{}}};
+ const job=await queueSubmission(db,env,learner,sub.id,new Date());let calls=0;
+ await consumeOpenAi({messages:[{body:{jobId:job.id},ack:()=>{},retry:()=>assert.fail()}]},env,()=> 'prompt',async(_url,request)=>{
+  calls++;const body=JSON.parse(request.body),ctx=JSON.parse((typeof body.input==='string'?body.input:body.input[0].content[0].text).split('\n')[2]),a=ctx.attempts[0];
+  const result={contract:'assess-result/1',summary:'',grades:[{attemptId:a.attemptId,result:'correct',score:1,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:r.points})),feedback:'Hãy thử lại.',correction:'',errors:[],checkItem:null}],diagnosis:[],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null};
+  return Response.json({status:'completed',output:[{type:'message',content:[{type:'output_text',text:JSON.stringify(result)}]}]});
+ });
+ const saved=await readJob(db,job.id);assert.equal(saved.status,'succeeded',saved.error);assert.equal(calls,1);
+ const grade=db.sqlite.prepare('SELECT result,score FROM grades WHERE job_id=?').get(job.id);assert.equal(grade.result,'incorrect');assert.equal(grade.score,0);
+});

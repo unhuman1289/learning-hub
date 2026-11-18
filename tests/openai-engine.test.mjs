@@ -121,3 +121,8 @@ test('Queue keeps the adult-only plan and normal-sensitivity assessment gates', 
     assert.equal(failures, 1);
   }
 });
+
+test('incomplete response preserves its safe status and token-limit reason',async()=>{
+ const engine=openAiEngine({apiKey:'fake',kind:'assess',purpose:'submission',fetcher:async()=>Response.json({status:'incomplete',incomplete_details:{reason:'max_output_tokens'},usage:{input_tokens:12,output_tokens:6000}})});
+ await assert.rejects(engine.run(input),error=>error.invalidCode==='response_status_incomplete_max_output_tokens' && error.usage.outputTokens===6000);
+});

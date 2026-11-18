@@ -79,7 +79,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
       if (body?.status !== 'completed') {
         const status = ['failed', 'incomplete', 'cancelled', 'queued', 'in_progress'].includes(body?.status) ? body.status : 'unknown';
         const reason = ['max_output_tokens', 'content_filter'].includes(body?.incomplete_details?.reason) ? body.incomplete_details.reason : null;
-        throw invalidResponse('OpenAI response status: ' + status + (reason ? ' (' + reason + ')' : ''), 'response_status');
+        throw invalidResponse('OpenAI response status: ' + status + (reason ? ' (' + reason + ')' : ''), 'response_status_' + status + (reason ? '_' + reason : ''));
       }
 
       const content = (body.output ?? []).filter(item => item.type === 'message').flatMap(item => item.content ?? []);
