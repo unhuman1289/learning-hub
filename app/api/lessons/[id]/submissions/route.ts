@@ -51,8 +51,8 @@ export async function GET(req: Request, context: { params: Promise<{ id: string 
     const row = await db.prepare('SELECT id FROM submissions WHERE learner_id=? AND lesson_id=? AND client_submission_id=?')
       .bind(learner, id, key).first<{ id: string }>();
     if (!row) return Response.json({ submission: null }, { headers: privateHeaders });
-    const lesson = await db.prepare('SELECT draft_revision FROM learning_lessons WHERE id=? AND user_id=?')
-      .bind(id, learner).first<{ draft_revision: number }>();
-    return Response.json({ submission: { ...(await readSubmission(db, learner, row.id)), replayed: true }, draftRevision: lesson?.draft_revision }, { headers: privateHeaders });
+    const lesson = await db.prepare('SELECT draft_revision,draft FROM learning_lessons WHERE id=? AND user_id=?')
+      .bind(id, learner).first<{ draft_revision: number; draft: string }>();
+    return Response.json({ submission: { ...(await readSubmission(db, learner, row.id)), replayed: true }, draftRevision: lesson?.draft_revision, draft: lesson ? JSON.parse(lesson.draft) : null }, { headers: privateHeaders });
   } catch (e) { return apiFailure(e, 'Chưa kiểm tra được lượt nộp.', privateHeaders); }
 }

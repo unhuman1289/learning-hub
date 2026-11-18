@@ -334,7 +334,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       });
       // Always reconcile the key first. If the read fails, retain the pending request;
       // a later explicit retry or reconnect will read again before any POST.
-      const check = await json<{ submission: (SubmissionView & { replayed: boolean }) | null; draftRevision?: number }>(
+      const check = await json<{ submission: (SubmissionView & { replayed: boolean }) | null; draftRevision?: number; draft?: DraftAnswers | null }>(
         url + "/submissions?clientSubmissionId=" + encodeURIComponent(input.clientSubmissionId));
       const response = check.submission && check.draftRevision !== undefined
         ? { submission: check.submission, draftRevision: check.draftRevision }
@@ -345,7 +345,12 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       }
       if (itemId === "whole-lesson" && !response.submission.replayed) feedbackStarted.current = { submissionId: response.submission.id, at: started };
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
-      if (input.answers) {
+      const changedOnServer = !!check.submission && !!input.answers && JSON.stringify(check.draft) !== JSON.stringify(input.answers);
+      if (changedOnServer) {
+        ready.current = false;
+        storeDraft(JSON.stringify({ revision: input.draftRevision, answers: latest.current }));
+        setError("Lượt nộp đã lưu, nhưng nháp trên máy chủ đã đổi. Chép bài trên trang trước khi tải lại.");
+      } else if (input.answers) {
         revision.current = response.draftRevision;
         saved.current = JSON.stringify(input.answers);
         ready.current = true;
@@ -355,7 +360,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       pendingSubmission.current = null;
       writeOfflineDraft(submissionKey, undefined);
       setPending(null);
-      setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
+      setState(!changedOnServer && JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
       void refreshFeedback();
     } catch (e) {
