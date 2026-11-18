@@ -561,6 +561,13 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
       for (const attempt of promptContext.attempts ?? []) attempt.previousAttempts = [];
       if (promptContext.recentEvidence) promptContext.recentEvidence = [];
     }
+    let planInstructions = getPrompt(lease.kind, lease.purpose);
+    if (openAiWholeLesson) {
+      planInstructions = planInstructions.split('\n').filter(line =>
+        !line.startsWith('- Bài chính thông thường ') &&
+        !line.startsWith('- Ít nhất một nửa số câu có '),
+      ).join('\n');
+    }
     const uploadedAudio = new Set();
     for (let round = 0; round < 2; round++) {
       let result;
@@ -576,10 +583,10 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
           result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
         } else {
         const out = await qwen.run({
-          system: getPrompt(lease.kind, lease.purpose) + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
+          system: planInstructions + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
             '\n\nLượt soạn theo sổ: các quyết định trong adaptive do Hub tính và thay quy tắc giao bài bên trên. Dùng đúng mode, targetSkills và step. Dùng ID kỹ năng có trong sổ, không thêm kỹ năng. Bài thêm khoảng 15 phút, bài chính khoảng 45 phút; cho phép từ 1 đến 25 câu và bài review làm primary. Khi needsScaffold, mở đầu bằng ví dụ ngắn. Không gửi roadmap, notebookSetup hoặc reviewSet. Với request, giao bài qua explorations; subjects bắt buộc no_action, primaryLesson=null, skillChanges=[], masteryProposals=[], requestsHandled=[]. Với mode none, không tạo bài và từ chối yêu cầu kèm lý do của Hub.' : ''),
           user: userPrompt(promptContext, repair) + (openAiWholeLesson
-            ? '\nMỗi bài dùng gradingMode whole-lesson, tối đa 8 câu văn bản mở có rubric và lời giải. Viết lại mọi yêu cầu chọn/nối/xếp thành câu trả lời tự nhập. Không tạo đáp án chấm máy hay tệp đính kèm.'
+            ? '\nQuy tắc whole-lesson này THAY quy tắc số câu, câu mở và key trong hướng dẫn soạn bài: bài chính 5–8 câu, bài thêm 3–6 câu. Tất cả là câu văn bản mở có rubric 2–5 tiêu chí và lời giải, dùng gradingMode whole-lesson. Viết lại mọi yêu cầu chọn/nối/xếp thành câu trả lời tự nhập. Không tạo đáp án chấm máy hay tệp đính kèm.'
             : ''),
           schema,
           images,
