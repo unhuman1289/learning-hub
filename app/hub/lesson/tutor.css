@@ -24,7 +24,7 @@
 .tutor-trigger:focus-visible, .tutor-chips button:focus-visible, .tutor-compose :focus-visible { outline:2px solid #773729; outline-offset:2px; }
 @media (min-width:1024px) {
   .lesson-flow:has(.tutor-whole) { width:min(53rem,calc(100vw - 220px)); margin-left:0; }
-  .lesson-flow:has(.tutor-sheet) { width:min(53rem,calc(100vw - 500px)); }
+  .lesson-flow:has(.tutor-sheet) { width:min(50rem,calc(100vw - 548px)); margin-left:3rem; }
   .tutor-trigger { flex-direction:column; align-items:center; }
   .tutor-trigger > span:first-child { margin:0 0 4px; }
 }

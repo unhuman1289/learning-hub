@@ -1,4 +1,5 @@
 "use client";
+import { renderEmphasis } from "../inline-emphasis";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import { pencil, pencilLink, RedPen, ResultStamp } from "../paper-bits";
 import { parseStructuredAnswer } from "../../../lib/lesson-v2/answer";
@@ -19,8 +20,8 @@ function answerLabel(answer: string, item?: ItemView) {
 }
 
 function linkedLines(text: string, onLine?: (line: number) => void) {
-  if (!onLine) return text;
-  return text.split(/(dòng\s+[1-9]\d{0,3}\b)/gi).map((part, index) => index % 2 === 0 ? part
+  if (!onLine) return renderEmphasis(text);
+  return text.split(/(dòng\s+[1-9]\d{0,3}\b)/gi).map((part, index) => index % 2 === 0 ? renderEmphasis(part)
     : <button key={index} type="button" className={pencilLink} onClick={() => onLine(Number(part.match(/\d+/)?.[0]))}>{part}</button>);
 }
 
@@ -92,7 +93,7 @@ export function Feedback({
           {!earlier && a.result && onRefresh && <DisputeControl attemptId={a.id} dispute={a.dispute ?? null} readOnly={readOnly} child={child} onChanged={onRefresh} />}
         </div>;
       })}
-      {!earlier && submission.summary && <RedPen className="mt-7">{formatText(submission.summary)}</RedPen>}
+      {!earlier && submission.summary && <RedPen className="mt-7">{renderEmphasis(formatText(submission.summary))}</RedPen>}
     </section>
   );
 }
