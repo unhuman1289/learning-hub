@@ -15,5 +15,19 @@ test('Hub derives score and result only from complete valid rubric scores and pr
  const p=deriveAssessScores(partial,context).grades[0];assert.equal(p.result,'partial');assert.equal(p.score,a.rubric[0].points/a.rubric.reduce((n,r)=>n+r.points,0));
  const blank=structuredClone(result);blank.grades[0].result='ungradable';blank.grades[0].score=0;blank.grades[0].rubricScores=[];
  assert.equal(deriveAssessScores(blank,context).grades[0].result,'ungradable');
- const bad=structuredClone(result);bad.grades[0].rubricScores[0].max+=1;assert.equal(deriveAssessScores(bad,context).grades[0].rubricScores[0].max,bad.grades[0].rubricScores[0].max);
+ const bad=structuredClone(result);bad.grades[0].rubricScores[0].max+=1;assert.equal(deriveAssessScores(bad,context).grades[0].rubricScores[0].max,context.attempts[0].rubric[0].points);
+});
+
+test('cleanup removes auto diagnoses and invalid check items, repairs max without accepting bad points or missing criteria',async()=>{
+ const context=await calibrationContext(fixture,fixture.submissions[0],'job_00000000000000000000');
+ const a=context.attempts[0];context.attempts.push({...structuredClone(a),attemptId:'auto',itemId:'i2',autoGrade:{result:'correct',expected:'',chosenErrorLabel:null}});
+ const result={diagnosis:[{attemptId:'auto',errors:[]},{attemptId:'other',errors:[]}],grades:[{attemptId:a.attemptId,result:'correct',score:1,rubricScores:a.rubric.map(r=>({criterion:r.criterion,points:0,max:0})),checkItem:{id:'bad id'},errors:[]}]};
+ const events=[],clean=deriveAssessScores(result,context,code=>events.push(code));
+ assert.deepEqual(clean.diagnosis,[{attemptId:'other',errors:[]}]);assert.equal(clean.grades[0].checkItem,null);
+ assert.deepEqual(clean.grades[0].rubricScores.map(x=>x.max),a.rubric.map(x=>x.points));assert.equal(clean.grades[0].result,'incorrect');
+ assert.ok(events.includes('auto_diagnosis'));assert.ok(events.includes('rubric_max'));assert.ok(events.includes('check_item'));
+ const negative=structuredClone(result);negative.grades[0].rubricScores[0].points=-1;
+ assert.equal(deriveAssessScores(negative,context).grades[0].rubricScores[0].points,-1);
+ const missing=structuredClone(result);missing.grades[0].rubricScores.pop();
+ assert.equal(deriveAssessScores(missing,context).grades[0].rubricScores.length,a.rubric.length-1);
 });

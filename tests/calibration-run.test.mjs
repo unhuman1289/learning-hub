@@ -71,3 +71,13 @@ test('incomplete max-output response records reason and usage while continuing',
  const metrics=await runCalibration(fixture,'job_00000000000000000000',engine,'prompt');assert.equal(calls,8);assert.equal(metrics.invalid,1);
  assert.deepEqual(metrics.invalidReasons,['s6=response_status_incomplete_max_output_tokens']);assert.equal(metrics.outputTokens,40);
 });
+
+test('model auxiliary diagnosis, incorrect maxima and invalid check item are cleaned in calibration',async()=>{
+ let calls=0;const engine={name:'openai',vision:false,async run({user}){
+  const context=JSON.parse(user.split('\n')[2]);calls++;
+  const grades=context.attempts.map(a=>({attemptId:a.attemptId,result:'correct',score:1,rubricScores:a.rubric.map(r=>({criterion:r.criterion,max:0,points:0})),feedback:'ok',correction:'',errors:[],checkItem:{id:'bad id'}}));
+  return {json:{contract:'assess-result/1',summary:'',grades,diagnosis:[{attemptId:context.attempts[0].attemptId,errors:[]}],masteryProposals:[],errorPatternUpdates:[],reviewProposals:[],recheckDecision:null},usage:{model:'fake',inputTokens:10,outputTokens:5,ms:20}};
+ }};
+ const result=await runCalibration(fixture,'job_00000000000000000000',engine,'prompt');
+ assert.equal(calls,8);assert.equal(result.invalid,0);assert.equal(result.inputTokens,80);
+});

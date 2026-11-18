@@ -483,8 +483,8 @@ export function normalizeAssess(json, context) {
   };
 }
 
-function finalize(json, context, usage, kind) {
-  const body = kind === 'assess' ? (context.purpose === 'recheck' ? normalizeAssess(json, context) : deriveAssessScores(normalizeAssess(json, context), context)) : json;
+function finalize(json, context, usage, kind, onCleanup) {
+  const body = kind === 'assess' ? (context.purpose === 'recheck' ? normalizeAssess(json, context) : deriveAssessScores(normalizeAssess(json, context), context, onCleanup)) : json;
   return { ...body, contextHash: context.contextHash, usage: { ...usage, model: String(usage.model).slice(0, 120) } };
 }
 
@@ -602,7 +602,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
           });
           const itemSchema = notebookLessonSchema(context.subjects.length === 1 ? context.subjects[0] : undefined, context.adaptive?.listening).properties.items.items;
           const out = await qwen.run({ system: getPrompt(lease.kind, lease.purpose), user: text, schema: partialSchema(itemSchema, paths), images: [] });
-          result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind);
+          result = finalize(mergeFixes(draft, out.json?.fixes, paths), context, out.usage, lease.kind, code => log({jobId: lease.jobId, event: 'assess_cleanup', code}));
         } else {
         const out = await qwen.run({
           system: planInstructions + (context.roadmapProtocol===2 ? '\n\nDùng đúng quyết định adaptive của Hub và chuẩn học đã chọn trong subject.framework. Chỉ viết openingSteps khi mở sổ hoặc replan. Dùng roadmapChanges append khi extend. Với extend hoặc replan, để requires rỗng để Hub tự nối các bước; dùng kỹ năng có trong ngữ cảnh hoặc key của kỹ năng mới hợp lệ. Với request và roadmapTask=none, chỉ đề xuất sửa bước tương lai khi có căn cứ mới. Nếu không cần, bỏ roadmapChanges và để skillChanges rỗng. Giữ bài theo bước đích đã giao. Viết tình huống và câu hỏi mới. Nếu là bài thử, mọi câu là câu vận dụng và chấm ngay khi schema yêu cầu; không có gợi ý. Mỗi câu bài thử chỉ dùng kỹ năng đã chỉ định trong schema, lần lượt phủ hết kỹ năng đích. Dùng một tình huống mới xuyên suốt, chẳng hạn bưu điện, buổi triển lãm hoặc nhận phòng khách sạn. Với request, giao bài qua explorations. Với bài xếp chỗ, viết năm bước và năm câu theo schema. Bước và câu cùng số dùng đúng key:step-N. Mỗi openingStep cần tiêu đề riêng và mục tiêu khác nhau. Với openingSteps, để requires rỗng để Hub tự nối theo thứ tự; kỹ năng 6–8 dành cho bước soạn về sau. Giữ giới hạn difficulty và targetSkills. Nếu thiếu nguồn cho bước đích, dùng bài kỹ năng.' : context.adaptive ?
@@ -613,7 +613,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
           schema,
           images,
         });
-        result = finalize(out.json, context, out.usage, lease.kind);
+        result = finalize(out.json, context, out.usage, lease.kind, code => log({jobId: lease.jobId, event: 'assess_cleanup', code}));
         }
       } catch (error) {
         lastError = qwen.name + ': ' + (error instanceof Error ? error.message : String(error));
