@@ -136,7 +136,8 @@
                     "application",
                     "slip",
                     "reading",
-                    "unknown"
+                    "unknown",
+                    "extra"
                   ]
                 },
                 "evidence": {
@@ -503,7 +504,8 @@
                     "application",
                     "slip",
                     "reading",
-                    "unknown"
+                    "unknown",
+                    "extra"
                   ]
                 },
                 "evidence": {

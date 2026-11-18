@@ -57,6 +57,8 @@ export async function prepareAssess(db: EvidenceDb, job: Job, context: AssessCon
       issue(path, 'privacy', 'Lời phê có thể chứa định danh.');
     const solutionSeen = appended.gradingMode === 'whole-lesson' && a.support === 'solution';
     errors.push(...rubricIssues(g, a, path));
+    if (g.errors.filter(e => e.category === 'extra').length > 2)
+      issue(path + '/errors', 'schema', 'Tối đa hai lỗi ngoài rubric.');
     const evidence = checkGradeEvidence(g, current.answer, a.attachments.some((img) => !img.expired));
     if (evidence.invalid)
       issue(path + '/errors', 'schema', 'Trích dẫn bằng chứng phải có thật trong câu trả lời văn bản.');
