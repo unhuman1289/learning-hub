@@ -33,3 +33,57 @@ test('mất phản hồi sau khi lưu: đọc lại trước khi thử, không t
   const history = await (await page.request.get(api + '/feedback')).json();
   expect(history.submissions.filter(s => s.attempts.some(a => a.item_id === item.id))).toHaveLength(1);
 });
+
+test('mất mạng trước POST: tự gửi một lần khi có mạng', async ({ page, context }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Ếch thử/ }).tap();
+  await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
+  const id = 'les_00000000000000000001', api = `/api/lessons/${id}`;
+  const lesson = (await (await page.request.get(api)).json()).lesson;
+  const item = lesson.items.filter(i => i.input === 'short')[1];
+  const draft = await page.request.put(api + '/draft', { headers: { origin: new URL(page.url()).origin }, data: { revision: lesson.draftRevision, answers: { [item.id]: { answer: 'Buch' } } } });
+  expect(draft.ok()).toBeTruthy();
+  let posts = [];
+  await page.route(`**${api}/submissions`, async route => { if (route.request().method() === 'POST') posts.push(route.request().postDataJSON().clientSubmissionId); await route.continue(); });
+  await page.goto('/?bai2=' + id);
+  const question = page.locator(`[data-question-number="${lesson.items.findIndex(i => i.id === item.id) + 1}"]:visible`).locator('xpath=ancestor::article');
+  await expect(question).toBeVisible();
+  await context.setOffline(true);
+  await question.getByRole('button', { name: /Kiểm tra/ }).tap();
+  await expect(page.getByText(/kiểm tra lại khi có mạng/)).toBeVisible();
+  expect(posts).toHaveLength(0);
+  await context.setOffline(false);
+  await expect.poll(() => posts.length).toBe(1);
+  await expect(page.getByText(/kiểm tra lại khi có mạng/)).toHaveCount(0);
+  const found = await (await page.request.get(api + '/submissions?clientSubmissionId=' + posts[0])).json();
+  expect(found.submission.attempts.filter(a => a.item_id === item.id)).toHaveLength(1);
+});
+
+test('nháp đổi trên máy khác: giữ bài và không ghi đè khi nối mạng', async ({ page, context }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: /Ếch thử/ }).tap();
+  await expect(page.getByRole('region', { name: 'Bài tiếp theo' })).toBeVisible();
+  const id = 'les_00000000000000000001', api = `/api/lessons/${id}`;
+  const lesson = (await (await page.request.get(api)).json()).lesson;
+  const item = lesson.items.filter(i => i.input === 'short')[2];
+  const initial = await page.request.put(api + '/draft', { headers: { origin: new URL(page.url()).origin }, data: { revision: lesson.draftRevision, answers: { [item.id]: { answer: 'Nháp ban đầu' } } } });
+  expect(initial.ok()).toBeTruthy();
+  const revision = (await initial.json()).revision;
+  await page.goto('/?bai2=' + id);
+  const number = lesson.items.findIndex(i => i.id === item.id) + 1;
+  const question = page.locator(`[data-question-number="${number}"]:visible`).locator('xpath=ancestor::article');
+  await expect(question).toBeVisible();
+  await context.setOffline(true);
+  await question.getByRole('textbox', { name: 'Bài làm của bạn' }).fill('Bài trên máy này');
+  await question.getByRole('button', { name: /Kiểm tra/ }).tap();
+  await expect(page.getByText(/kiểm tra lại khi có mạng/)).toBeVisible();
+  const other = await page.request.put(api + '/draft', { headers: { origin: new URL(page.url()).origin }, data: { revision, answers: { [item.id]: { answer: 'Bản từ máy khác' } } } });
+  expect(other.ok()).toBeTruthy();
+  await context.setOffline(false);
+  await expect(page.getByRole('alert').filter({ hasText: /khác|phiên bản|thay đổi/ }).first()).toBeVisible();
+  expect(await question.getByRole('textbox', { name: 'Bài làm của bạn' }).inputValue()).toBe('Bài trên máy này');
+  const current = (await (await page.request.get(api)).json()).lesson;
+  expect(current.draft[item.id].answer).toBe('Bản từ máy khác');
+  const history = (await (await page.request.get(api + '/feedback')).json()).submissions;
+  expect(history.filter(s => s.attempts.some(a => a.item_id === item.id))).toHaveLength(0);
+});
