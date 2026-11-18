@@ -1,5 +1,5 @@
 {
-  "note": "Authored test answers (no learner data). Result follows the rubric: full points correct, at least half partial, below half incorrect. All 32 expected values were reviewed against the rubric on 14/11/2026 on the owner's behalf (owner delegated the review); 4 rows were corrected (inj/weil1, inj2/weil1, s5/mail1, s5/fix1). The owner may still correct any row.",
+  "note": "Authored test answers (no learner data). Result follows the Hub rule (lib/ai-jobs/apply/derive-score.ts, assess-openai.md): full points correct, some points partial, zero points incorrect. Reviewed against the rubric on 14/11/2026 on the owner's behalf; 4 rows were corrected (inj/weil1, inj2/weil1, s5/mail1, s5/fix1). 18/11/2026 owner decision: the earlier 'below half incorrect' threshold is dropped; s2/fix1, s4/denn1 and s5/mail1 earn some rubric points and are now partial. The owner may still correct any row.",
   "lesson": {
     "title": "Begründen mit weil und denn",
     "objective": "Begründungen im Alltag und bei der Arbeit mit weil (Verb am Ende) und denn (Verb an Position 2) formulieren.",
@@ -165,7 +165,7 @@
         },
         "fix1": {
           "answer": "Ich lerne Deutsch, weil ich will arbeiten in Deutschland.",
-          "expected": "incorrect",
+          "expected": "partial",
           "facets": [
             "G"
           ]
@@ -253,7 +253,7 @@
         },
         "denn1": {
           "answer": "Ich kann morgen nicht kommen, denn habe ich einen Arzttermin.",
-          "expected": "incorrect",
+          "expected": "partial",
           "facets": [
             "G"
           ]
@@ -282,7 +282,7 @@
         },
         "mail1": {
           "answer": "Hi Anna, Meeting Dienstag geht nicht, mach Donnerstag. Grund: Termin.",
-          "expected": "incorrect",
+          "expected": "partial",
           "facets": [
             "N",
             "G"
