@@ -211,7 +211,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
           }
         } } : {}),
         log: (entry?: { event: string; errors?: unknown[]; passed?: boolean; code?: string }) => {
-          if (job.kind === 'assess' && entry?.event === 'assess_cleanup' && ['auto_diagnosis','rubric_max','check_item','mastery_proposal'].includes(entry.code ?? ''))
+          if (job.kind === 'assess' && entry?.event === 'assess_cleanup' && ['auto_diagnosis','rubric_max','check_item','mastery_proposal','evidence_trim'].includes(entry.code ?? ''))
             console.info(JSON.stringify({component:'openai-queue',jobId:id,event:'assess_cleanup',code:entry.code}));
           if (job.kind === 'assess' && entry?.event === 'assess_first_validation' && typeof entry.passed === 'boolean')
             console.info(JSON.stringify({component:'openai-queue',jobId:id,event:'assess_first_validation',passed:entry.passed}));

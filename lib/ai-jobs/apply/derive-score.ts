@@ -2,7 +2,14 @@ import {matchRubricScores} from './rubric.ts';
 import {lessonItem} from '../../contracts/lesson-items.ts';
 import type {AssessContext, AssessResult} from '../../contracts/ai-common.ts';
 
-export type CleanupCode = 'auto_diagnosis' | 'rubric_max' | 'check_item' | 'mastery_proposal';
+export type CleanupCode = 'auto_diagnosis' | 'rubric_max' | 'check_item' | 'mastery_proposal' | 'evidence_trim';
+const EVIDENCE_MAX = 80;
+/** Shorten verbatim evidence to the contract limit; a prefix of a quote is still verbatim. */
+function trimEvidence(value: string) {
+  const chars = Array.from(value);
+  while (chars.join('').length > EVIDENCE_MAX) chars.pop();
+  return chars.join('').trimEnd();
+}
 /** Clean auxiliary fields without changing earned points or inventing evidence. */
 export function deriveAssessScores(input: unknown, context: AssessContext, onCleanup: (code: CleanupCode) => void = () => {}): unknown {
   if (!input || typeof input !== 'object') return input;
@@ -16,6 +23,9 @@ export function deriveAssessScores(input: unknown, context: AssessContext, onCle
     if (!grade) continue;
     const attempt = context.attempts.find(a => a.attemptId === grade.attemptId);
     if (!attempt) continue;
+    if (Array.isArray(grade.errors)) for (const error of grade.errors) {
+      if (error && typeof error.evidence === 'string' && error.evidence.length > EVIDENCE_MAX) { error.evidence = trimEvidence(error.evidence); onCleanup('evidence_trim'); }
+    }
     if (grade.checkItem) {
       const parsed = lessonItem.safeParse(grade.checkItem);
       if (!parsed.success || parsed.data.skills.some(id => !attempt.skills.includes(id)) || context.attempts.some(a => a.itemId === parsed.data.id)) {
