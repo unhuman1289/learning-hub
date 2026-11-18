@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 import { runFake } from '../../scripts/fake-runner.mjs';
 import { shapeNetwork, timeFromTap } from './network.mjs';
 import { routeMetrics } from './route-metrics.mjs';
+import { hubLongFrame } from './turn-frame.mjs';
 
 const desk = page => page.getByRole('region', { name: 'Bài tiếp theo' });
 const flow = page => page.locator('.lesson-flow');
@@ -137,10 +138,11 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
     if (await summary.isVisible()) break;
     // The turn starts after a lazy import, so wait for the sheet to be replaced
     // instead of racing the next tap against a page that is about to unmount.
-    const sheet = flow(page).locator('.lesson-flow-page');
+    await flow(page).locator('.lesson-flow-page[data-e2e-turned-from]').evaluateAll(sheets => sheets.forEach(sheet => delete sheet.dataset.e2eTurnedFrom));
+    const sheet = flow(page).locator('.lesson-flow-page:visible');
     await sheet.evaluate(element => { element.dataset.e2eTurnedFrom = ''; });
     await nextEdge(page).tap();
-    await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]')).toHaveCount(0);
+    await expect(flow(page).locator('.lesson-flow-page[data-e2e-turned-from]:visible')).toHaveCount(0);
     await turnSettled(page);
   }
   await expect(flow(page).getByRole('heading', { name: 'Tổng kết bài' })).toBeVisible();
@@ -248,11 +250,11 @@ test('cửa sổ Lübeck chờ bàn học có bài trước khi tải cảnh', a
 });
 
 const lessonHeading = page => flow(page).locator('[data-lesson-heading]');
-const questionHeading = page => flow(page).locator('[data-question-number]').first();
+const questionHeading = page => flow(page).locator('[data-question-number]:visible').first();
 
 /** A one-finger horizontal drag on the page, as touch events (React listens on the lesson root). */
 async function swipe(page, dx, { release = true, at = 0.75 } = {}) {
-  await page.locator('.lesson-flow-page').evaluate((sheet, { dx, release, at }) => {
+  await page.locator('.lesson-flow-page:visible').evaluate((sheet, { dx, release, at }) => {
     const { left, width, top, height } = sheet.getBoundingClientRect();
     const y = top + Math.min(height, innerHeight - top) * at;
     const x = left + width / 2;
@@ -390,6 +392,8 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await turnSettled(page);
 
   // Keyboard: the edge takes visible focus, curls further, and Enter turns the page.
+  const draftField = flow(page).getByRole('textbox', { name: 'Bài làm của bạn' }).first();
+  await draftField.fill('Bản nháp được giữ lại.');
   const forward = nextEdge(page);
   await forward.focus();
   if (browserName === 'chromium') {
@@ -400,13 +404,57 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
     await expect.poll(() => forward.locator('[data-curl]').evaluate(node => node.getBoundingClientRect().width)).toBeGreaterThan(30);
   }
   const before = await questionHeading(page).getAttribute('data-question-number');
+  const preparedPage = flow(page).locator('[data-question-page]:not([data-active])').first();
+  await expect(preparedPage).toHaveAttribute('aria-hidden', 'true');
+  await expect(preparedPage).toBeHidden();
+  expect(await preparedPage.evaluate(node => node.inert)).toBe(true);
+  await preparedPage.locator('textarea, input, button').first().evaluate(element => element.focus());
+  await expect(forward).toBeFocused();
+  for (let step = 0; step < 12; step++) {
+    await page.keyboard.press('Tab');
+    expect(await preparedPage.evaluate(node => node.contains(document.activeElement))).toBe(false);
+  }
+  await forward.focus();
+  const hiddenHeading = await preparedPage.locator('[data-question-number]').first().textContent();
+  expect(await flow(page).ariaSnapshot()).not.toContain(hiddenHeading.trim());
+  const activeHeight = await flow(page).locator('[data-question-page][data-active]').evaluate(node => node.getBoundingClientRect().height);
+  await preparedPage.evaluate((node, height) => { node.style.minHeight = `${height + 160}px`; }, activeHeight);
+  expect(await preparedPage.evaluate(node => node.getBoundingClientRect().height)).toBeGreaterThan(activeHeight + 100);
+  // Allow ResizeObserver to record the altered height before the turn.
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => {
+    const viewport = window.visualViewport;
+    window.__pageViewportEffects = { resize: 0, scroll: 0 };
+    const add = viewport.addEventListener.bind(viewport);
+    viewport.addEventListener = (type, ...args) => {
+      if (type === 'resize' || type === 'scroll') window.__pageViewportEffects[type]++;
+      return add(type, ...args);
+    };
+  });
+  const preparedHandle = await preparedPage.elementHandle();
+  await preparedPage.evaluate(node => { node.dataset.testPreparedInstance = 'same'; });
+  await watchTurnWindows(page);
   await page.keyboard.press('Enter');
-  await expect(flow(page).locator(`[data-question-number="${before}"]`)).toHaveCount(0);
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).not.toBeVisible();
+  if (browserName === 'chromium') await expectSameWindow(page);
   await turnSettled(page);
+  await expect(flow(page).locator('[data-question-page][data-active][data-test-prepared-instance="same"]')).toBeVisible();
+  expect(await preparedHandle.evaluate(node => node.isConnected && !node.inert && !node.hasAttribute('aria-hidden'))).toBe(true);
+  await expect.poll(() => page.evaluate(() => window.__pageViewportEffects)).toEqual({ resize: 1, scroll: 1 });
   await expect(page.locator(':focus')).not.toHaveAttribute('data-turn-edge');
   await page.keyboard.press('ArrowLeft');
   await turnSettled(page);
   await expect(flow(page).locator(`[data-question-number="${before}"]`)).toBeVisible();
+  await expect(draftField).toHaveValue('Bản nháp được giữ lại.');
+  await draftField.fill('');
+  // Reduced motion uses the same prepared page switch without an animation.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await nextEdge(page).tap();
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).not.toBeVisible();
+  await expect(page.locator('html')).not.toHaveAttribute('data-lesson-turn');
+  await previousEdge(page).tap();
+  await expect(flow(page).locator(`[data-question-number="${before}"]`)).toBeVisible();
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
 
   // Remembered in the profile: the hint stays away after a reload.
   await page.reload();
@@ -414,31 +462,117 @@ test('lật trang bằng mép giấy, vuốt và bàn phím', async ({ page, con
   await expect(hint).toHaveCount(0);
 
   if (browserName === 'chromium') {
-    // On a 4× slower CPU a turn must not block the main thread for more than 50 ms.
+    // Measure question-to-question turns, where the adjacent pages are prepared.
+    await nextEdge(page).tap();
+    await expect(questionHeading(page)).toBeVisible();
+    await turnSettled(page);
+    // On a 4× slower CPU, gate long frames attributed to Hub scripts during the turn.
     const cdp = await context.newCDPSession(page);
     await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+    const tracing = process.env.E2E_DIAG === '1';
+    if (tracing) await cdp.send('Tracing.start', {
+      categories: 'devtools.timeline,v8.execute,disabled-by-default-devtools.timeline',
+      transferMode: 'ReturnAsStream',
+    });
     await page.evaluate(diag => {
-      window.__e2eTurnDiag = diag;
+      window.__e2eTurnDiag = true;
+      window.__turnLayoutReads = [];
+      if (diag) {
+        for (const [prototype, name] of [[Element.prototype, 'getBoundingClientRect'], [Element.prototype, 'scrollIntoView'], [HTMLElement.prototype, 'focus']]) {
+          const original = prototype[name];
+          prototype[name] = function (...args) {
+            const start = performance.now();
+            try { return original.apply(this, args); }
+            finally {
+              if (document.documentElement.dataset.lessonTurn) window.__turnLayoutReads.push({
+                name, start, duration: performance.now() - start, stack: new Error().stack,
+              });
+            }
+          };
+        }
+        for (const name of ['offsetWidth', 'offsetHeight', 'offsetTop', 'offsetLeft']) {
+          const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, name);
+          Object.defineProperty(HTMLElement.prototype, name, { ...descriptor, get() {
+            const start = performance.now();
+            try { return descriptor.get.call(this); }
+            finally {
+              if (document.documentElement.dataset.lessonTurn) window.__turnLayoutReads.push({
+                name, start, duration: performance.now() - start, stack: new Error().stack,
+              });
+            }
+          } });
+        }
+      }
       window.__turnDiagnosticTasks = [];
       if (diag) new PerformanceObserver(list => window.__turnDiagnosticTasks.push(...list.getEntries().map(entry => entry.toJSON())))
         .observe({ type: 'longtask', buffered: true });
+      window.__turnFrames = [];
+      if (!PerformanceObserver.supportedEntryTypes.includes('long-animation-frame')) throw Error('Long animation frame observer unavailable');
+      window.__turnFrameObserver = new PerformanceObserver(list => window.__turnFrames.push(...list.getEntries().map(entry => ({
+          ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
+        }))));
+      window.__turnFrameObserver.observe({ type: 'long-animation-frame' });
       window.__longTasks = [];
       new PerformanceObserver(list => window.__longTasks.push(...list.getEntries().map(entry => Math.round(entry.duration))))
         .observe({ type: 'longtask' });
     }, process.env.E2E_DIAG === '1');
+    let turnFailed = false;
     try {
     for (const turn of [() => nextEdge(page).tap(), () => previousEdge(page).tap()]) {
-      await page.evaluate(() => { window.__longTasks.length = 0; });
+      await page.evaluate(() => {
+        window.__longTasks.length = 0;
+        window.__turnFrames.length = 0;
+        performance.clearMarks('turn:start');
+        performance.clearMarks('turn:end');
+        performance.clearMarks('turn:prepared');
+      });
       await turn();
       await expect(page.locator('html')).toHaveAttribute('data-lesson-turn', /.+/);
       await turnSettled(page);
-      const tasks = await page.evaluate(() => window.__longTasks);
+      const { tasks, frames, start, end, origin, prepared, callback } = await page.evaluate(() => {
+        window.__turnFrames.push(...window.__turnFrameObserver.takeRecords().map(entry => ({
+          ...entry.toJSON(), scripts: entry.scripts.map(script => script.toJSON()),
+        })));
+        return { tasks: window.__longTasks, frames: window.__turnFrames,
+          start: performance.getEntriesByName('turn:start').at(-1)?.startTime,
+          end: performance.getEntriesByName('turn:end').at(-1)?.startTime, origin: location.origin,
+          prepared: performance.getEntriesByName('turn:prepared').length,
+          callback: performance.getEntriesByName('turn:update', 'measure').at(-1)?.duration };
+      });
       console.log(JSON.stringify({ metric: 'turn-long-tasks', tasks }));
-      expect(Math.max(0, ...tasks), 'long task during a turn').toBeLessThanOrEqual(50);
+      expect(start, 'turn start mark').toBeDefined();
+      expect(end, 'turn end mark').toBeDefined();
+      expect(prepared, 'prepared question turn').toBe(1);
+      console.log(JSON.stringify({ metric: 'turn-callback-ms', ms: callback }));
+      expect(callback, 'prepared turn callback').toBeLessThan(8);
+      const blockingFrames = frames.filter(frame => hubLongFrame(frame, start, end, origin));
+      console.log(JSON.stringify({ metric: 'turn-hub-long-frames', frames: blockingFrames }));
+      expect(blockingFrames, 'Hub-attributed long animation frame during a turn').toEqual([]);
     }
+    } catch (error) {
+      turnFailed = true;
+      throw error;
     } finally {
+      if (tracing) {
+        const completed = new Promise(resolve => cdp.once('Tracing.tracingComplete', resolve));
+        await cdp.send('Tracing.end');
+        const { stream } = await completed;
+        const chunks = [];
+        let eof = false;
+        while (!eof) {
+          const part = await cdp.send('IO.read', { handle: stream });
+          chunks.push(Buffer.from(part.data, part.base64Encoded ? 'base64' : 'utf8'));
+          eof = part.eof;
+        }
+        await cdp.send('IO.close', { handle: stream });
+        if (turnFailed) {
+          const tracePath = testInfo.outputPath('turn-performance-trace.json');
+          await writeFile(tracePath, Buffer.concat(chunks));
+          await testInfo.attach('turn-performance-trace', { path: tracePath, contentType: 'application/json' });
+        }
+      }
       if (process.env.E2E_DIAG === '1') {
-        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
+        const diagnostics = await page.evaluate(() => ({ tasks: window.__turnDiagnosticTasks, frames: window.__turnFrames, reads: window.__turnLayoutReads, entries: performance.getEntries().filter(entry => entry.name.startsWith('turn:')).map(entry => entry.toJSON()) }));
         const diagnosticPath = testInfo.outputPath('turn-diagnostics.json');
         await writeFile(diagnosticPath, JSON.stringify(diagnostics, null, 2));
         await testInfo.attach('turn-diagnostics', { path: diagnosticPath, contentType: 'application/json' });

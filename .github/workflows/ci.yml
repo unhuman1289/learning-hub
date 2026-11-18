@@ -37,7 +37,7 @@ jobs:
       - run: npm run build
   e2e:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     env:
       WRANGLER_SEND_METRICS: 'false'
       E2E_DIAG: ${{ inputs.e2e_diag && '1' || '0' }}

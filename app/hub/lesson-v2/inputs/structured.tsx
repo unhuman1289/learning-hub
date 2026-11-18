@@ -141,14 +141,14 @@ function TableInput(props: InputProps<"table">) {
   </div>;
 }
 
-export function StructuredInput({ item, focusLine, ...props }: Props & { item: ItemView; focusLine?: { line: number; key: number } }) {
+export function StructuredInput({ item, focusLine, active = true, ...props }: Props & { item: ItemView; focusLine?: { line: number; key: number }; active?: boolean }) {
   switch (item.input) {
     case "cloze": return <ClozeInput item={item} {...props} />;
     case "match": return <MatchInput item={item} {...props} />;
     case "order": return <OrderInput item={item} {...props} />;
     case "label": return <LabelInput item={item} {...props} />;
     case "table": return <TableInput item={item} {...props} />;
-    case "code": return <Suspense fallback={<p role="status">Đang mở ô viết mã…</p>}><CodeInput item={item} focusLine={focusLine} {...props} /></Suspense>;
+    case "code": return <Suspense fallback={<p role="status">Đang mở ô viết mã…</p>}><CodeInput item={item} focusLine={focusLine} active={active} {...props} /></Suspense>;
     default: return null;
   }
 }

@@ -831,6 +831,7 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
    around the fold line and the sheet inside counter-rotates, so only transforms animate; the
    rolled back of the paper shades the curl and its shadow falls on the new page (U6). */
 .lesson-flow-leaf { position: relative; view-transition-name: lesson-leaf; }
+.lesson-flow-window-page:not([data-active]) { position: absolute; inset: 0 0 auto; visibility: hidden; pointer-events: none; }
 .lesson-flow-curl { position: absolute; inset: 0; pointer-events: none; }
 html[data-lesson-turn] .lesson-flow-curl { view-transition-name: lesson-curl; }
 html[data-lesson-turn] .lesson-flow-edge [data-curl] { opacity: 0; transition: none; }

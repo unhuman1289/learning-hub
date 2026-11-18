@@ -30,19 +30,19 @@ function clock(seconds: number) {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
-export function LessonAudio({ audio, ...controls }: { audio: ListeningAudio } & ListeningControls) {
-  if (controls.asText) return <AudioTranscript audio={audio} item={controls.item} automatic />;
+export function LessonAudio({ audio, active = true, ...controls }: { audio: ListeningAudio; active?: boolean } & ListeningControls) {
+  if (controls.asText) return <AudioTranscript audio={audio} item={controls.item} automatic active={active} />;
   const src = audio.src?.[controls.voice];
   return <>
-    {src ? <Player key={src} audio={audio} src={src} {...controls} /> :
+    {src ? <Player key={src} audio={audio} src={src} {...controls} active={active} /> :
       <p className="text-sm text-muted-paper">Âm thanh chưa sẵn sàng</p>}
     {audio.transcript === "after_answer" && !controls.item.readOnly &&
-      <AudioTranscript audio={audio} item={controls.item} answered={controls.answered} />}
+      <AudioTranscript audio={audio} item={controls.item} answered={controls.answered} active={active} />}
   </>;
 }
 
-function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, plays, onPlayed, playSaving, nextSrc }:
-  { audio: ListeningAudio; src: string } & ListeningControls) {
+function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, plays, onPlayed, playSaving, nextSrc, active }:
+  { audio: ListeningAudio; src: string; active: boolean } & ListeningControls) {
   const media = useRef<HTMLAudioElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const attempt = useRef<PlayAttempt | null>(null);
@@ -54,6 +54,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
   const remaining = Math.max(0, audio.maxPlays - plays);
 
   useEffect(() => {
+    if (!active) return;
     const player = media.current;
     const root = panel.current;
     if (!player || !root) return;
@@ -75,7 +76,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
       clearTimeout(timeout.current);
       player.pause();
     };
-  }, [src, nextSrc]);
+  }, [src, nextSrc, active]);
 
   function failed() {
     clearTimeout(timeout.current);
@@ -157,10 +158,11 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     }
   });
   useEffect(() => {
+    if (!active) return;
     const keydown = (event: KeyboardEvent) => shortcut(event);
     window.addEventListener("keydown", keydown);
     return () => window.removeEventListener("keydown", keydown);
-  }, []);
+  }, [active]);
 
   function finished() {
     clearTimeout(timeout.current);
@@ -172,8 +174,8 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     void onPlayed(current.slow).catch(() => setRecordError(true));
   }
 
-  const active = state === "playing" || state === "starting";
-  const playLabel = active ? "Tạm dừng" : state === "ready" ? "Phát âm thanh" : state === "retry" ? "Phát lại" : state === "paused" ? "Nghe tiếp" :
+  const playing = state === "playing" || state === "starting";
+  const playLabel = playing ? "Tạm dừng" : state === "ready" ? "Phát âm thanh" : state === "retry" ? "Phát lại" : state === "paused" ? "Nghe tiếp" :
     remaining === 0 ? "Nghe thêm (tính là gợi ý)" : "Phát âm thanh";
   const duration = (audio.durationMs ?? 0) / 1000;
   return <div ref={panel} className="grid gap-1">
@@ -189,7 +191,7 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
     />
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <button type="button" className={transport} onClick={toggle} disabled={playSaving || state === "authorizing"}>
-        {active ? <Pause size={18} aria-hidden /> : state === "retry" ? <RotateCcw size={18} aria-hidden /> :
+        {playing ? <Pause size={18} aria-hidden /> : state === "retry" ? <RotateCcw size={18} aria-hidden /> :
           <Play size={18} aria-hidden />}
         {playLabel}
       </button>
@@ -218,25 +220,26 @@ function Player({ audio, src, item, voice, voiceSaving, voiceError, onVoice, pla
   </div>;
 }
 
-function AudioTranscript({ audio, item, answered = false, automatic = false }:
-  { audio: ListeningAudio; item: ListeningItem; answered?: boolean; automatic?: boolean }) {
+function AudioTranscript({ audio, item, answered = false, automatic = false, active }:
+  { audio: ListeningAudio; item: ListeningItem; answered?: boolean; automatic?: boolean; active: boolean }) {
   const [transcript, setTranscript] = useState("");
   const [confirm, setConfirm] = useState(false);
   const [request, setRequest] = useState(0);
   const [status, setStatus] = useState("");
 
   useEffect(() => {
+    if (!active) return;
     if (!automatic && request === 0) return;
-    let active = true;
+    let live = true;
     function unavailable() {
-      if (active) setStatus("Lời thoại chưa sẵn sàng.");
+      if (live) setStatus("Lời thoại chưa sẵn sàng.");
     }
     void revealTranscript({ lessonId: item.lessonId, itemId: item.itemId, readOnly: item.readOnly }).then(text => {
       if (!text) unavailable();
-      else if (active) { setTranscript(text); setStatus(""); }
+      else if (live) { setTranscript(text); setStatus(""); }
     }, unavailable);
-    return () => { active = false; };
-  }, [automatic, request, item.lessonId, item.itemId, item.readOnly]);
+    return () => { live = false; };
+  }, [active, automatic, request, item.lessonId, item.itemId, item.readOnly]);
 
   function load() {
     setConfirm(false);

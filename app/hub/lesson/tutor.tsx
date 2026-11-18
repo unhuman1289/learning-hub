@@ -18,7 +18,7 @@ function readTutor(lessonId:string, fresh:boolean) {
   return request;
 }
 
-export default function Tutor({lessonId,itemId,number,child,correctCheck}:{lessonId:string;itemId:string;number:number;child:boolean;correctCheck?:string}) {
+export default function Tutor({lessonId,itemId,number,child,correctCheck,active=true}:{lessonId:string;itemId:string;number:number;child:boolean;correctCheck?:string;active?:boolean}) {
   const [enabled,setEnabled]=useState(false), [open,setOpen]=useState(false), [remaining,setRemaining]=useState(20);
   const [limit,setLimit]=useState<'lesson'|'day'>('lesson');
   const [messages,setMessages]=useState<Message[]>([]), [question,setQuestion]=useState(''), [state,setState]=useState<TutorPetState>('idle');
@@ -40,30 +40,31 @@ export default function Tutor({lessonId,itemId,number,child,correctCheck}:{lesso
     return data;
   },[lessonId,itemId]);
   useEffect(()=>{
+    if (!active) return;
     // Loading permission and history is synchronization with the server.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void load().catch(()=>{});
-  },[load]);
+  },[active,load]);
   useEffect(()=>{
-    if (!open) return;
+    if (!active || !open) return;
     input.current?.focus();
     const escape=(event:KeyboardEvent) => { if(event.key==='Escape') { event.preventDefault(); setOpen(false); setState('idle'); trigger.current?.focus(); } };
     window.addEventListener('keydown',escape);
     return ()=>window.removeEventListener('keydown',escape);
-  },[open]);
+  },[active,open]);
   useEffect(()=>{
-    if (state !== 'greet' && state !== 'point') return;
+    if (!active || (state !== 'greet' && state !== 'point')) return;
     const timer=setTimeout(()=>setState(current=>current === 'greet' ? 'point' : current === 'point' ? 'listen' : current), state === 'greet' ? 480 : 720);
     return ()=>clearTimeout(timer);
-  },[state]);
+  },[active,state]);
   useEffect(()=>{
-    if (!correctCheck || correctCheck === seenCheck.current) return;
+    if (!active || !correctCheck || correctCheck === seenCheck.current) return;
     seenCheck.current=correctCheck;
     // The choice uses the tutor history already loaded for this item.
     setReaction(asked.current ? 'nod' : 'cheer');
     const timer=setTimeout(()=>setReaction(null),720);
     return ()=>clearTimeout(timer);
-  },[correctCheck]);
+  },[active,correctCheck]);
   function close() { setOpen(false); setState('idle'); trigger.current?.focus(); }
   async function ask() {
     const text=question.trim(); if(!text || sending || remaining<=0) return;
@@ -96,7 +97,7 @@ export default function Tutor({lessonId,itemId,number,child,correctCheck}:{lesso
       else { setOffline(true); setState('offline'); }
     } finally { setSending(false); }
   }
-  if(!enabled) return null;
+  if(!active || !enabled) return null;
   return <div className="mt-4 flex flex-col items-end gap-2">
     <link rel="preload" as="image" href="/api/tutor/sprite/v2/idle.webp" />
     <link rel="preload" as="image" href="/api/tutor/sprite/v2/sit.webp" />

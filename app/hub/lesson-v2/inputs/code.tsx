@@ -5,9 +5,9 @@ import type { ItemView } from "../../../../lib/lesson-v2/store";
 
 import { CodeLines } from "./code-lines";
 
-export function CodeInput({ item, value, onChange, disabled, focusLine }: {
+export function CodeInput({ item, value, onChange, disabled, focusLine, active = true }: {
   item: Extract<ItemView, { input: "code" }>; value: string; onChange: (value: string) => void;
-  disabled: boolean; focusLine?: { line: number; key: number };
+  disabled: boolean; focusLine?: { line: number; key: number }; active?: boolean;
 }) {
   const editor = useRef<HTMLTextAreaElement>(null);
   const ink = useRef<HTMLPreElement>(null);
@@ -15,7 +15,7 @@ export function CodeInput({ item, value, onChange, disabled, focusLine }: {
   const handledLine = useRef<number>(-1);
 
   useEffect(() => {
-    if (!focusLine || handledLine.current === focusLine.key) return;
+    if (!active || !focusLine || handledLine.current === focusLine.key) return;
     const frame = requestAnimationFrame(() => {
       const area = editor.current;
       if (!area) return;
@@ -29,7 +29,7 @@ export function CodeInput({ item, value, onChange, disabled, focusLine }: {
       handledLine.current = focusLine.key;
     });
     return () => cancelAnimationFrame(frame);
-  }, [focusLine]);
+  }, [active, focusLine]);
 
   return <div>
     <p id={item.id + "-code-help"} className="font-hand text-base text-muted-paper">Tab thụt dòng. Bấm Esc rồi Tab để ra khỏi ô.</p>

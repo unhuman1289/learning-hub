@@ -81,3 +81,21 @@ test('sprite ở góc trang người lớn', async ({page})=>{
   const pet=page.getByRole('button',{name:'Hỏi gia sư về câu này'}).first().locator('.tutor-pet');
   await expect(pet).toHaveCSS('width','72px'); await expect(pet).toHaveCSS('height','78px');
 });
+
+test('trang câu hỏi chuẩn bị không tải gia sư cho đến khi active', async ({page}) => {
+  let reads = 0;
+  await page.route('**/api/tutor/sprite/v2/*.webp', route => route.fulfill({status:200,contentType:'image/webp',body:Buffer.from('UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEADsD+JaQAA3AAAAAA','base64')}));
+  await page.route('**/api/lessons/*/tutor', route => {
+    reads++;
+    return route.fulfill({json:{turns:[],enabled:true,remaining:20,limit:'lesson'}});
+  });
+  await page.goto('/');
+  await page.getByRole('button',{name:/Người học thử/}).tap();
+  await page.getByRole('region',{name:'Bài tiếp theo'}).getByRole('listitem').filter({hasText:'Đọc về hệ thống'}).getByRole('link',{name:/Mở bài|Học tiếp/}).first().tap();
+  const flow = page.locator('.lesson-flow');
+  await flow.getByRole('button',{name:'Bắt đầu bài'}).tap();
+  await expect(flow.locator('[data-question-page]:not([data-active])').first()).toHaveAttribute('aria-hidden','true');
+  await expect.poll(() => reads).toBe(1);
+  await flow.getByRole('button',{name:/^Trang sau: Câu/}).tap();
+  await expect.poll(() => reads).toBe(2);
+});
