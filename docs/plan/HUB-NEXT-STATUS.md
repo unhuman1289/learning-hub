@@ -114,3 +114,5 @@ Khung staging G3 chi tiết hiệu chuẩn #228 đã đóng lúc 18:40 Europe/Be
 Khung staging Q0 đã đóng lúc 18:44 Europe/Berlin ngày 18/11.
 
 Khung staging G3 fixture #230 đã đóng lúc 19:20 Europe/Berlin ngày 18/11.
+
+staging: G3 #231 + cấu hình R #232, đến 20:30 Europe/Berlin
