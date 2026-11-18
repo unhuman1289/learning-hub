@@ -214,3 +214,18 @@ test('only an explicitly revealed solution enters model context', async t => {
   assert.equal(await answerTutor(db,env,turn.id,'',()=>{},fetcher),'answered');
   assert.match(request,/solution-secret/); assert.doesNotMatch(request,/private-rubric/);
 });
+
+test('25-item lesson preserves nearby context and bounds the model input',async t=>{
+  const {db,lessonId,create}=await setup(t); const row=db.sqlite.prepare("SELECT * FROM lesson_items WHERE lesson_id=? AND item_id='i1'").get(lessonId);
+  db.sqlite.prepare("DELETE FROM lesson_items WHERE lesson_id=? AND item_id NOT IN ('i1','i2')").run(lessonId);
+  const columns=Object.keys(row); const insert=db.sqlite.prepare(`INSERT INTO lesson_items (${columns.join(',')}) VALUES (${columns.map(()=>'?').join(',')})`);
+  for(let n=3;n<=25;n++) {
+    const item=JSON.parse(row.payload); item.id=`i${n}`; item.prompt=`Câu ${n}: `+'Từ vựng cần học. '.repeat(300); item.solution=`secret${n}`; item.key={type:'text',accepted:[`secret${n}`]};
+    insert.run(...columns.map(column=>column==='item_id'?item.id:column==='payload'?JSON.stringify(item):row[column]));
+  }
+  const turn=await openTutorTurn(db,'u',{lessonId,itemId:'i3',question:'Gợi ý?'},false); let sent;
+  assert.equal(await answerTutor(db,{OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake'},turn.id,'',()=>{},async(_url,options)=>{sent=JSON.parse(options.body);return fakeTutorOpenAi();}),'answered');
+  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(sent.input.length<=10500,`input length ${sent.input.length}`);
+  assert.equal(input.selectedItem,'i3'); assert.ok(input.lesson.items[2].prompt.length>input.lesson.items[24].prompt.length);
+  assert.doesNotMatch(sent.input,/secret(?:3|25)/);
+});
