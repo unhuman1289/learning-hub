@@ -282,6 +282,8 @@ Việc:
 4. Đo `tutor_first_token` qua `/api/rum` trên iPhone ở Đức. Mục tiêu p75 < 5 giây (sửa 17/11 theo số đo T2.1: riêng OpenAI đã mất 1,7–3,3 s), và "Đang nghĩ…" hiện trong vòng 100 ms sau khi gửi.
 5. Hồ sơ trẻ em đã được bật theo quyết định 17/11 (mục 0). Kiểm thêm một lượt bằng hồ sơ trẻ em: chỉ gửi biệt danh, giám hộ đọc được.
 
+**Kết quả 18/11:** bước 2 đạt (QA L4, 4 lượt sau #224, token 1.350, chữ đầu phía máy chủ 1,2–3,1 s). Chủ dự án báo nghiệm thu trên iPhone đạt. Còn mở: bước 3 (ca bận, Claude làm) và bước 5 (staging chưa có hồ sơ trẻ em, D1 không có lượt Bột trẻ em nào).
+
 ## 6. Kiểm tra vận hành
 
 ### D. Giao bài 00:00 Berlin với OpenAI
@@ -353,6 +355,8 @@ Chủ dự án làm:
 - duyệt hiệu ứng lật trang của U6.
 
 Claude ghi kết quả vào `status/PHONE.md`.
+
+**18/11:** chủ dự án báo PHONE-CHECK trên iPhone đạt (mở lại, lật trang, âm thanh, mất mạng, chụp ảnh nộp bài). Chưa có số đo RUM ghi lại.
 
 ## 7. K · Tài liệu Knowledge
 
