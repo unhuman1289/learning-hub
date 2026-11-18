@@ -10,6 +10,7 @@ import { canonical } from './context/common.ts';
 import { leasedJob, readJob, recheckEscalation } from './lease.ts';
 import { preparePlan } from './apply/plan.ts';
 import { prepareAssess } from './apply/assess.ts';
+import { deriveAssessScores } from './apply/derive-score.ts';
 import { prepareRecheck } from './apply/recheck.ts';
 import { recomputeSkill } from '../learner-model/recompute.ts';
 
@@ -31,6 +32,7 @@ export async function applyResult(
     if (job.result_hash !== hash) throw new ApiError(409, 'Job đã hoàn tất với kết quả khác.');
     return { status: 200, outcome: JSON.parse(job.outcome!), replayed: true };
   }
+  if (job.kind === 'assess' && job.purpose === 'submission') input = deriveAssessScores(input, JSON.parse(job.context_snapshot!) as AssessContext);
   const parsed = (job.kind === 'plan' ? planResult : assessResult).safeParse(input);
   let issues = parsed.success ? [] : parsed.error.issues.map((e) => ({ path: '/' + e.path.join('/'), code: 'schema', message: e.message }));
   if (parsed.success && parsed.data.contextHash !== job.context_hash) throw new ApiError(409, 'Ngữ cảnh không khớp lease.');
