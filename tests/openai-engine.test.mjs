@@ -22,6 +22,7 @@ test('OpenAI uses Responses, a strict schema, and the intended model for each jo
       if (kind === 'plan') {
         assert.equal(body.text.format.type, 'json_object');
         assert.match(body.input, /"required":\["score"\]/);
+        assert.ok(body.input.indexOf('schema') < body.input.indexOf(input.user));
       } else {
         assert.equal(body.text.format.strict, true);
         assert.deepEqual(body.text.format.schema.required, ['score', 'comment']);
@@ -33,13 +34,14 @@ test('OpenAI uses Responses, a strict schema, and the intended model for each jo
           { type: 'reasoning' },
           { type: 'message', content: [{ type: 'output_text', text: '{"score":1,"comment":null}' }] },
         ],
-        usage: { input_tokens: 31, output_tokens: 20 },
+        usage: { input_tokens: 31, output_tokens: 20, input_tokens_details: { cached_tokens: 12 } },
       });
     } });
     const result = await engine.run(input);
     assert.deepEqual(result.json, { score: 1 });
     assert.equal(result.usage.inputTokens, 31);
     assert.equal(result.usage.outputTokens, 20);
+    assert.equal(result.usage.cachedInputTokens, 12);
   }
 });
 
@@ -125,4 +127,11 @@ test('Queue keeps the adult-only plan and normal-sensitivity assessment gates', 
 test('incomplete response preserves its safe status and token-limit reason',async()=>{
  const engine=openAiEngine({apiKey:'fake',kind:'assess',purpose:'submission',fetcher:async()=>Response.json({status:'incomplete',incomplete_details:{reason:'max_output_tokens'},usage:{input_tokens:12,output_tokens:6000}})});
  await assert.rejects(engine.run(input),error=>error.invalidCode==='response_status_incomplete_max_output_tokens' && error.usage.outputTokens===6000);
+});
+
+test('cached input is optional and is priced as part of input, not in addition', async () => {
+  const { estimateCost } = await import('../lib/ai-jobs/cost.ts');
+  const prices = JSON.stringify({ demo: { input: 2, output: 4, cacheRead: 0.5 } });
+  assert.equal(estimateCost({ model: 'demo', inputTokens: 100, outputTokens: 10, cachedInputTokens: 40 }, prices), 0.00018);
+  assert.equal(estimateCost({ model: 'demo', inputTokens: 100, outputTokens: 10 }, prices), 0.00024);
 });

@@ -32,8 +32,8 @@ test('streamed request sends the lesson without nickname and saves tokens before
   const input=JSON.parse(request.input); assert.equal(input.nickname,undefined); assert.equal(input.lesson.items[0].answer,'draft'); assert.match(input.question,/email redacted/);
   assert.equal('key' in input,false); assert.equal('solution' in input,false);
   assert.equal(events[0].type,'turn'); assert.equal(events.at(-1).type,'done');
-  const row=db.sqlite.prepare('SELECT status,answer,input_tokens,output_tokens,first_token_ms FROM tutor_turns WHERE id=?').get(turn.id);
-  assert.equal(row.status,'answered'); assert.equal(row.input_tokens,12); assert.equal(row.output_tokens,8); assert.ok(row.first_token_ms>=0);
+  const row=db.sqlite.prepare('SELECT status,answer,input_tokens,output_tokens,cached_tokens,first_token_ms FROM tutor_turns WHERE id=?').get(turn.id);
+  assert.equal(row.status,'answered'); assert.equal(row.input_tokens,12); assert.equal(row.output_tokens,8); assert.equal(row.cached_tokens,5); assert.ok(row.first_token_ms>=0);
 });
 
 test('timeout queues and duplicate delivery cannot duplicate a completed answer',async t=>{
@@ -225,7 +225,7 @@ test('25-item lesson preserves nearby context and bounds the model input',async 
   }
   const turn=await openTutorTurn(db,'u',{lessonId,itemId:'i3',question:'Gợi ý?'},false); let sent;
   assert.equal(await answerTutor(db,{OPENAI_ENABLED:'true',OPENAI_API_KEY:'fake'},turn.id,'',()=>{},async(_url,options)=>{sent=JSON.parse(options.body);return fakeTutorOpenAi();}),'answered');
-  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(Buffer.byteLength(sent.input)<=10500,`input bytes ${Buffer.byteLength(sent.input)}`);
+  const input=JSON.parse(sent.input); assert.equal(input.lesson.items.length,25); assert.ok(Buffer.byteLength(sent.input)<=5500,`input bytes ${Buffer.byteLength(sent.input)}`);
   assert.equal(input.selectedItem,'i3'); assert.ok(input.lesson.items[2].prompt.length>input.lesson.items[24].prompt.length);
   assert.doesNotMatch(sent.input,/secret(?:3|25)/);
 });
@@ -238,4 +238,22 @@ test('fake adapter uses Bột’s voice and prompt provides eight examples',asyn
  const answer=db.sqlite.prepare('SELECT answer FROM tutor_turns WHERE id=?').get(turn.id).answer;
  assert.match(answer,/\b[Cc]on\b/u); assert.doesNotMatch(answer,/\b(?:mình|bạn|Bột)\b/iu);
  for(const sentence of answer.split(/[.!?]/u)) assert.ok((sentence.match(/ạ/gu)??[]).length<=1);
+});
+
+test('T4 questions retain scope, name privacy and useful explanations',async t=>{
+  const {db,env,lessonId}=await setup(t);
+  const cases=[
+    {question:'Câu 5 điền gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/gợi|đọc lại đề/iu},
+    {question:'Tôi là ai, tên gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/Ếch/iu},
+    {question:'Câu này hiểu như nào, vì sao',model:'ON_TOPIC\nCâu 2 hỏi về động từ. Con giải thích nghĩa đề nha.',expected:/giải thích nghĩa đề/iu},
+    {question:'Đáp án là gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/chưa nói đáp án/iu},
+    {question:'Giải thích quy tắc trong bài',model:'ON_TOPIC\nCon giải thích cách nghĩ nha.',expected:/giải thích cách nghĩ/iu},
+  ];
+  for(const {question,model,expected} of cases) {
+    const turn=await openTutorTurn(db,'u',{lessonId,itemId:'i2',question},false);
+    const entries=[{type:'response.output_text.delta',delta:model},{type:'response.completed',response:{status:'completed',usage:{input_tokens:1,output_tokens:1}}}];let request;
+    const result=await answerTutor(db,env,turn.id,'',()=>{},async(_url,options)=>{request=options.body;return new Response(entries.map(entry=>'data: '+JSON.stringify(entry)+'\n\n').join(''));});
+    assert.equal(result,'answered',question);const saved=db.sqlite.prepare('SELECT answer,off_topic,leak_blocked FROM tutor_turns WHERE id=?').get(turn.id);
+    assert.equal(saved.off_topic,0,question);assert.equal(saved.leak_blocked,0,question);assert.match(saved.answer,expected,question);assert.doesNotMatch(request,/Ếch/);
+  }
 });

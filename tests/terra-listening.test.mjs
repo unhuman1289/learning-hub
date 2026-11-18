@@ -55,7 +55,7 @@ async function setupTerraFixture(t, { mutate, speech, put, head, retry } = {}) {
       assert.equal(body.model, 'gpt-6.1-terra');
       assert.equal(body.store, false);
       assert(!body.input.includes('Mỗi bài dùng gradingMode whole-lesson'));
-      const context = JSON.parse(body.input.split('\n')[2]);
+      const context = JSON.parse(body.input.split('<context>\n')[1].split('\n</context>')[0]);
       assert.deepEqual(context.adaptive.listening, { min: 2, max: 3 });
       assert.deepEqual(context.tts.languages, ['de-DE']);
       assert.equal(context.learner.displayName, 'Người học');

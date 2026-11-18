@@ -45,7 +45,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
         body: JSON.stringify({
           model,
           instructions: system,
-          input: images.length ? [{ role: 'user', content: [{ type: 'input_text', text: user }, ...images.map(img => ({ type: 'input_image', image_url: 'data:' + img.mime + ';base64,' + img.base64 }))] }] : kind === 'plan' ? user + '\nReturn one JSON object. Follow this schema and omit unused optional fields:\n' + JSON.stringify(schema) : user,
+          input: images.length ? [{ role: 'user', content: [{ type: 'input_text', text: user }, ...images.map(img => ({ type: 'input_image', image_url: 'data:' + img.mime + ';base64,' + img.base64 }))] }] : kind === 'plan' ? 'Return one JSON object. Follow this schema and omit unused optional fields:\n' + JSON.stringify(schema) + '\n' + user : user,
           store: false,
           service_tier: 'default',
           reasoning: { effort: kind === 'plan' || purpose === 'recheck' ? 'low' : 'none' },
@@ -70,7 +70,9 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
         error.retryable = response.status >= 500 || (response.status === 429 && code === 'rate_limit_exceeded');
         throw error;
       }
-      const responseUsage = body?.usage ? { model: body.model || model, inputTokens: body.usage.input_tokens ?? 0, outputTokens: body.usage.output_tokens ?? 0, ms: Date.now() - started } : null;
+      const cached = body?.usage?.input_tokens_details?.cached_tokens;
+      const cacheUsage = Number.isSafeInteger(cached) && cached >= 0 && cached <= body.usage.input_tokens ? { cachedInputTokens: cached } : {};
+      const responseUsage = body?.usage ? { model: body.model || model, inputTokens: body.usage.input_tokens ?? 0, outputTokens: body.usage.output_tokens ?? 0, ...cacheUsage, ms: Date.now() - started } : null;
       const invalidResponse = (message, code) => {
         const error = new Error(message);
         if (responseUsage) { error.invalidOutput = true; error.invalidCode = code; error.usage = responseUsage; }
@@ -92,7 +94,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
         const error = new Error('OpenAI response was not valid JSON.');
         error.invalidOutput = true;
         error.invalidCode = 'invalid_json';
-        error.usage = { model: body.model || model, inputTokens: body.usage?.input_tokens ?? 0, outputTokens: body.usage?.output_tokens ?? 0, ms: Date.now() - started };
+        error.usage = responseUsage;
         throw error;
       }
 
@@ -105,6 +107,7 @@ export function openAiEngine({ apiKey, kind, purpose, fetcher = fetch, beforeFet
           model: body.model || model,
           inputTokens: body.usage?.input_tokens ?? 0,
           outputTokens: body.usage?.output_tokens ?? 0,
+          ...cacheUsage,
           ms: Date.now() - started,
         },
       };
