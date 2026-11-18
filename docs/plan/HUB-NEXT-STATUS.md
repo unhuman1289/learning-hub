@@ -109,4 +109,4 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 
 Khung staging F4+F7 sửa #227 đã đóng lúc 15:09 Europe/Berlin ngày 18/11.
 
-staging: G3 chi tiết hiệu chuẩn #228 (0040), đến 17:00 Europe/Berlin
+staging: G3 chi tiết hiệu chuẩn #228 (0040), đến 19:15 Europe/Berlin
