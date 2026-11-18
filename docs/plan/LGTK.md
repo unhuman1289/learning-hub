@@ -422,6 +422,8 @@ Bàn học đang ở 177/180 KB, chỉ còn 3 KB dư. Mục tiêu ≤ 150 KB.
 - Staging chưa có `placement`. Production có `azure:westeurope`.
 - Đặt cùng cấu hình cho staging, hoặc thử Smart Placement. So `Server-Timing` của `/api/today` trước và sau.
 
+**Xong 18/11 (Claude):** staging đặt `placement` `azure:westeurope` ([#218](https://github.com/unhuman1289/learning-hub/pull/218)); bước deploy in Server-Timing của `/api/today` ([#217](https://github.com/unhuman1289/learning-hub/pull/217)). 5 mẫu cùng phiên QA sau placement: `app` 68, 139, 85, 62, 102 ms, trung vị **85 ms**; D1 trung vị 502 ms. Mốc trước lấy từ F0 ngày 17/11 (cùng route, 5 mẫu): app 308 ms, D1 731 ms. Không đo được "trước" cùng ngày vì secret sai lúc deploy đầu; code giữa hai mốc có thay đổi khác nên mức giảm khoảng 70% là ước lượng.
+
 ### F6. Mượt khi thao tác
 
 - Giữ test tác vụ dài ≤ 50 ms khi lật trang và khi gõ.
