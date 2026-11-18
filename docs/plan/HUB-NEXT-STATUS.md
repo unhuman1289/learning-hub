@@ -106,3 +106,5 @@ Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một d
 - Hub và MCP staging đã được đọc lại ở commit `ffd86264015d1431f73360d74973100145a375c0`. D1 kết nối. Đã sao lưu staging trước migration `0031_listening.sql`. Smoke trong workflow gặp `ECONNRESET` sau khi hai Worker đã deploy. Chạy lại smoke từ máy đạt.
 - Luna đã chấm và đọc lại lượt nộp demo `subm_95f513a5a67e7daf42d1` gồm 8 câu. Đã ghi gợi ý và tính 0 điểm cho câu ngắn đã xem đáp án. Gửi lại cùng mã nộp chỉ trả một lượt. Terra đã soạn và đọc lại bài `les_3d6e2b7eec96b6e65c9b` ở chế độ nộp cả bài. D1 ghi cả hai job thành công với đúng model và đã lưu số token. Kiểm thử local đạt 444/444.
 - Terra đã chấm lại một câu trong **QA H5 Deutsch** qua giao diện staging, giữ nguyên điểm và lưu lời giải thích. Còn xác nhận lượt giao lúc 00:00 Berlin và thao tác trên điện thoại thật. Số tiền trừ credit cần đối chiếu với OpenAI Usage. Xem [biên bản](../ops/QA-H5-OPENAI-ACCEPTANCE.md).
+
+staging: F4+F7 sửa #227, đến 15:45 Europe/Berlin
