@@ -1,11 +1,8 @@
 name: Learning Hub CI
 on:
-  # One run per change: PRs run on pull_request; only the integration and main branches run on push.
   push:
-    branches: [main, codex/hub-next-wip]
-    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
-    paths-ignore: ['docs/**', '**/*.md']
+    types: [opened, synchronize, reopened, labeled, unlabeled]
   workflow_dispatch:
     inputs:
       e2e_diag:
@@ -36,7 +33,9 @@ jobs:
       - run: npm run lint
       - run: npm run build
   e2e:
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'e2e'))
     runs-on: ubuntu-latest
+    container: mcr.microsoft.com/playwright:v1.65.1-noble
     timeout-minutes: 25
     env:
       WRANGLER_SEND_METRICS: 'false'
@@ -48,7 +47,6 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npx playwright install --with-deps chromium webkit
       - run: npm run build
       - name: Test the built Worker
         run: node scripts/e2e-diagnostics.mjs u5 npm run test:e2e:u5
