@@ -30,6 +30,7 @@
 | 18/11 | **Gia sư tên Bột, một Bột cho cả bài.** Bột nói như em bé ("Chỗ này sai ạ!"), đứng cạnh trang sổ (điện thoại: nút nổi), luôn biết toàn bài, chỉ trả lời trong nội dung bài và kiến thức liền kề | Thay gia sư theo từng câu của T3/T3b bằng T5. T4 nghiệm thu trên Bột |
 | 18/11 | **Duyệt M5b** ([canvas M5](https://claude.ai/artifact/TRkZc3V9qzMKzbF1z4sYVX), phần M5b): Bột xưng "con", gọi tên người học, đứng cạnh lời mình nói, không hàng tiêu đề | Giao T5 |
 | 18/11 | **Duyệt M6 (F7).** Bỏ e2e tự động: e2e chỉ chạy tay hoặc PR có nhãn `e2e` (F5b); Claude chạy e2e tay trước R | F4+F7 theo M6. T5 lên staging không qua e2e |
+| 18/11 | **Duyệt M7** (hệ nút sổ tay: vệt bút dạ cho việc chính, gạch chân bút chì cho việc phụ, khoanh tròn cho lựa chọn, chữ kem trên thanh gỗ; bài nghe một hàng) | Giao W3, sau W2 vì cùng sửa màn bài |
 | 18/11 | **Luôn chấm một lượt cuối bài; bỏ nút "Kiểm tra" từng câu**, kể cả sổ có bài nghe và bài cũ chưa xong (không đổi nội dung hay câu trả lời đã lưu) | Bước W1 (soạn bài) + W2 (giao diện) |
 | 18/11 | **Ảnh bài làm cho mọi câu có phép tính hoặc lời giải nhiều bước** (bỏ trần 2 câu; sổ nhạy cảm vẫn không ảnh). Bỏ dòng "Ảnh bài làm (tuỳ chọn) · giữ tối đa 30 ngày…", nút đổi thành "Nộp ảnh bài làm" | W1 + W2 |
 | 18/11 | **Mỗi sổ ~30 phút học/ngày**: bài chính ~30 phút, 10–14 câu (câu ngắn ~2 phút, câu dài 4–5 phút); bài thêm ~15 phút, 6–8 câu; trần 25 câu giữ nguyên | W1. Thay quy tắc 5–8 / 3–6 câu |
