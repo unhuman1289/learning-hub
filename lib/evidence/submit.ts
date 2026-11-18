@@ -97,10 +97,10 @@ export async function readLessonSubmissions(db:Db,learnerId:string,lessonId:stri
  const support=JSON.parse(owner.support??'{}') as Record<string,string>;
  const {results:rows=[]}=await db.prepare(`SELECT s.id,s.stage,s.status,s.created_at,j.status AS job_status,CASE WHEN j.status='succeeded' THEN json_extract(j.outcome,'$.summary') END AS summary FROM submissions s LEFT JOIN ai_jobs j ON j.id=s.ai_job_id WHERE s.lesson_id=? AND s.learner_id=? AND (s.id IN (SELECT id FROM submissions WHERE lesson_id=s.lesson_id AND learner_id=s.learner_id ORDER BY created_at DESC,rowid DESC LIMIT 30) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND (SELECT count(*) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.attempt_no>a.attempt_no)<2) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND a.current_grade_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.current_grade_id IS NOT NULL AND b.attempt_no>a.attempt_no))) ORDER BY s.created_at DESC,s.rowid DESC`).bind(lessonId,learnerId).all<Record<string,unknown>>();
  if(!rows.length)return [];
- const {results:attempts=[]}=await db.prepare(`SELECT a.submission_id,a.id,a.item_id,a.answer,a.attempt_no,a.support,a.status,g.result,g.score,g.feedback,g.correction,
+ const {results:attempts=[]}=await db.prepare(`SELECT a.submission_id,a.id,a.item_id,a.answer,a.attachment_ids,a.attempt_no,a.support,a.status,g.result,g.score,g.feedback,g.correction,
  (SELECT json_object('id',d.id,'status',d.status,'note',d.resolution_note) FROM disputes d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1) AS dispute
  FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id WHERE a.lesson_id=? AND a.learner_id=? AND a.submission_id IN (SELECT value FROM json_each(?)) ORDER BY a.rowid`).bind(lessonId,learnerId,JSON.stringify(rows.map(r=>r.id))).all<Record<string,unknown>>();
- return rows.map(row=>({...row,id:String(row.id),attempts:attempts.filter(a=>a.submission_id===row.id).map(a=>({...a,...hiddenCorrection(a,support),dispute:a.dispute?JSON.parse(String(a.dispute)):null}))}));
+ return rows.map(row=>({...row,id:String(row.id),attempts:attempts.filter(a=>a.submission_id===row.id).map(a=>({...a,...hiddenCorrection(a,support),attachmentIds:JSON.parse(String(a.attachment_ids)),dispute:a.dispute?JSON.parse(String(a.dispute)):null}))}));
 }
 export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: string, input: SubmissionInput, now = new Date()) {
   const hash = await requestHash(input);
@@ -143,11 +143,11 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     .all<{ item_id: string; stage: string; payload: string; skill_ids: string; activity: string }>(),
     db
     .prepare(
-      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.status,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.attachment_ids,a.status,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
        WHERE a.lesson_id=? AND a.learner_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
     )
     .bind(lessonId, learnerId)
-    .all<{ item_id: string; id: string; attempt_no: number; answer: string; status: string; support: string; result: string | null; correction: string | null }>(),
+    .all<{ item_id: string; id: string; attempt_no: number; answer: string; attachment_ids: string; status: string; support: string; result: string | null; correction: string | null }>(),
   ]);
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
   if (lesson.completed_at) throw new ApiError(409, 'Bỏ dấu đã học trước khi nộp sửa lại.');
@@ -170,6 +170,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     selected = selected.filter(row => {
       const previous = latest.find(attempt => attempt.item_id === row.item_id);
       return !previous || (draft[row.item_id]?.answer ?? '') !== previous.answer ||
+        JSON.stringify(draft[row.item_id]?.attachmentIds ?? []) !== previous.attachment_ids ||
         (support[row.item_id] === 'solution' && previous.support !== 'solution');
     });
     if (!selected.length) throw new ApiError(400, 'Chưa có câu mới hoặc câu đã sửa để nộp.');
@@ -216,7 +217,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       photos = draft[row.item_id]?.attachmentIds ?? [];
     const answered = hasLessonAnswer(item.input, answer) && !(item.input === 'code' && answer === item.starter);
     const skip = wholeLesson && support[row.item_id] === 'solution' && (item.input === 'short' || !answered);
-    if (wholeLesson && photos.length) throw new ApiError(400, 'Bài này chỉ nhận câu trả lời văn bản.');
+    // Blank questions stay unanswered; their omission must not prevent submitting the rest.
+    if (wholeLesson && !answered && !photos.length && !skip) continue;
     if (!skip && !(wholeLesson ? answered : hasLessonAnswer(item.input, answer)) && !photos.length) throw new ApiError(400, `Chưa có bài làm cho câu ${row.item_id}.`);
     if (item.attachment === 'required' && !photos.length) throw new ApiError(400, `Câu ${row.item_id} cần ảnh bài làm.`);
     if (item.attachment === 'none' && photos.length) throw new ApiError(400, `Câu ${row.item_id} không nhận ảnh.`);
@@ -238,7 +240,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       gradeId = makeId('gr_'),
       number = (previous?.attempt_no ?? 0) + 1;
     const key = item.key;
-    const grade = skip ? { result: 'incorrect', score: 0, feedback: 'Đã xem đáp án.' } : key && answer.trim()
+    const grade = skip ? { result: 'incorrect', score: 0, feedback: 'Đã xem đáp án.' } : !photos.length && key && answer.trim()
       ? key.type === 'choice' || key.type === 'numeric' || key.type === 'text' || key.type === 'dictation'
         ? autoGrade(key, answer, item.audio?.lang) : autoGradeStructured(key, answer)
       : null;

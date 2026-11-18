@@ -69,6 +69,11 @@ export function LessonReader({
   const answered = new Set(history.flatMap(submission => submission.attempts.map(attempt => attempt.item_id)));
   const hasAnswer = (item: Lesson["items"][number]) =>
     hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length;
+  const changedWhole = lesson.items.some(item => {
+    const previous = feedbackForItems(history, [item.id])[0]?.attempts[0];
+    const answer = answers[item.id]?.answer ?? "";
+    return previous ? previous.answer !== answer || JSON.stringify(previous.attachmentIds ?? []) !== JSON.stringify(answers[item.id]?.attachmentIds ?? []) : hasAnswer(item);
+  });
   const correctionIndex = correction ? lesson.items.findIndex(item =>
     ["incorrect", "partial"].includes(feedbackForItems(history, [item.id])[0]?.attempts[0]?.result ?? "")) : -1;
   const summaryIndex = lesson.items.length + 1;
@@ -95,12 +100,13 @@ export function LessonReader({
 
   performance.mark("f3:reader-render-ready");
   return <Book id={lesson.subjectId} title={subject} page="lesson" go={go} focusedLesson>
+    {session.offline && <p role="status" className="mb-1 bg-[#f5ebd8] px-3 py-1 text-sm text-[#6e4a10]">Mất mạng · Bài làm vẫn còn trên trang này.</p>}
     {session.verification === "loading" && <p role="status" className="mb-1 text-sm text-oak-ink">Đang cập nhật…</p>}
     {readonly && <p className="mb-1 font-hand text-lg text-oak-ink">Bạn đang xem bài của người học.</p>}
     {feedbackError && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-ink-paper">
       {feedbackError} <button onClick={() => void session.refreshFeedback()} className={pencilLink}>{words.action.retry}</button>
     </p>}
-    {error && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
+    {error && !(session.offline && pending === "whole-lesson") && <p role="alert" className="mb-1 bg-paper px-3 py-2 text-brick">{error}</p>}
     {hasListening && <ListeningBrowserNotice />}
     <LessonFlow initialItem={initialItem} groups={session.hadPrefetch && !grouped ? lesson.items.map((_, i) => [i + 1]) : lessonGroups(lesson.items)} count={lesson.items.length} subject={subject} materials={materials}
       locked={busy || !!pending || !!session.verification || (session.hadPrefetch && !grouped)} status={state} hint={session.pageEdgeHint} onHintSeen={session.pageEdgeHintSeen}
@@ -112,14 +118,14 @@ export function LessonReader({
           {lesson.template === "reading" ? <LessonNotes lesson={lesson} formatText={formatText} /> : materials}
         </>;
         if (index === summaryIndex) return <>
-          <LessonSummary lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
+          <LessonSummary child={child} displayName={session.displayName} offlinePending={session.offline && pending === "whole-lesson"} items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
             onQuestion={itemId => {
               const itemIndex = lesson.items.findIndex(item => item.id === itemId);
               if (itemIndex >= 0) jump(itemIndex + 1);
             }}
-            progressKey={history.map(entry => entry.id).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
+            progressKey={history.map(entry => entry.id + ":" + entry.job_status + ":" + entry.attempts.map(a => a.result + ":" + a.feedback).join("~")).join(",") + "|" + lesson.items.filter(item => item.revealed.solutionSeen).map(item => item.id).join(",")}
             completed={!!lesson.completedAt} justCompleted={session.justCompleted}>
-            {lesson.wholeLesson && !readonly && !lesson.completedAt &&
+            {lesson.wholeLesson && !readonly && !lesson.completedAt && (!history.length || changedWhole || !!pending) &&
               <button type="button" className={buttonClass("primary")} disabled={busy || !!session.verification || session.waitingForGrade || savingPlays.length > 0}
                 onClick={() => void session.submit("whole-lesson")}>
                 {pending ? "Thử nộp lại" : "Nộp bài"}
@@ -167,7 +173,7 @@ export function LessonReader({
           germanInput={/\b(?:deutsch|german)\b|tiếng đức/iu.test(subject)} hasAnswer={hasAnswer(item)}
           disabled={playSaving || busy || !!session.verification || (!!pending && pending !== item.id)} retrySubmission={pending === item.id} readOnly={readonly || !!lesson.completedAt}
           onChange={answer => session.change(item.id, answer)} onReveal={level => void session.reveal(item.id, level)}
-          onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} awaitingFeedback={awaiting && pending !== item.id}
+          onSubmit={() => { setCheckIntent({itemId:item.id,previousId:current?.id}); void session.submit(item.id); }} canSubmit={!lesson.wholeLesson && canSubmit} allowUploadSubmit={!lesson.wholeLesson && !awaiting && !pending} awaitingFeedback={awaiting && pending !== item.id}
           submitLabel={pending === item.id ? "Thử lại" : current ? words.action.recheck : words.action.check}
           gradeLater={awaiting && session.gradeLater} feedbackResult={latest?.result} feedbackSupported={latest?.support === "solution"}
           feedbackPreview={latest?.feedback ? formatText(latest.feedback) : awaiting ? words.status.grading :

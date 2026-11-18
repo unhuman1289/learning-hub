@@ -121,3 +121,19 @@ test('today reads its four independent datasets in one concurrent round', async 
   assert.equal((await today).items.length, 1);
   db.sqlite.close();
 });
+
+test('desk marks only saved AI feedback for the learner and unfinished lesson', async () => {
+  const { db, id } = await seeded();
+  const submitted = await submitLesson(db, 'ech', id, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, itemIds: ['i2'], answers: { i2: { answer: 'Test' } } }));
+  const attempt = submitted.attempts[0].id;
+  db.sqlite.prepare("INSERT INTO ai_jobs(id,kind,purpose,trigger,learner_id,learning_day,priority,status,dedupe_key,created_at,updated_at,expires_at) VALUES('job_aaaaaaaaaaaaaaaaaaaa','assess','submission','on_demand','ech','2026-10-12',1,'queued','test','t','t','2099')").run();
+  db.sqlite.prepare("INSERT INTO grades(id,attempt_id,grader,job_id,result,score,feedback,correction,created_at) VALUES('gr_test',?,'ai','job_aaaaaaaaaaaaaaaaaaaa','correct',1,'Tốt','','t')").run(attempt);
+  db.sqlite.prepare("UPDATE attempts SET current_grade_id='gr_test',status='graded' WHERE id=?").run(attempt);
+  const read = async learner => (await todayFor(db,learner,new Date('2026-10-12T12:00:00Z'),'ly')).items;
+  assert.equal((await read('ech'))[0].hasFeedback,false);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='succeeded' WHERE id='job_aaaaaaaaaaaaaaaaaaaa'").run();
+  assert.equal((await read('ech'))[0].hasFeedback,true);
+  assert.equal((await read('other')).length,0);
+  db.sqlite.prepare("UPDATE learning_lessons SET completed_at='2026-10-12T13:00:00Z' WHERE id=?").run(id);
+  assert.equal((await read('ech')).length,0);
+});

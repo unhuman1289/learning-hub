@@ -111,6 +111,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
     return lesson && !lesson.completedAt ? [{ track, lesson }] : [];
   });
   const activeSubjects = new Set(data?.items.filter(item => item.lessonId).map(item => item.subjectId));
+  const feedbackSubjects = new Set(data?.items.filter(item => item.hasFeedback).map(item => item.subjectId));
   const loading = !daily.data && !daily.error;
   const subjects = shelf.subjects ?? [];
   const spineBooks: SpineBook[] = subjects.map((subject) => {
@@ -123,7 +124,7 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
       };
     }
     return {
-      id: subject.id, title: subject.title, status: activeSubjects.has(subject.id) ? "đang học" : subject.status === "setup" ? "đang chuẩn bị" : "xem sổ",
+      id: subject.id, title: subject.title, hasFeedback: feedbackSubjects.has(subject.id), status: activeSubjects.has(subject.id) ? "đang học" : subject.status === "setup" ? "đang chuẩn bị" : "xem sổ",
       route: { view: "book", id: subject.id }, transition: `cover-${subject.id}`,
     };
   });

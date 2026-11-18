@@ -32,6 +32,7 @@ export type SubmissionView = {
     id: string;
     item_id: string;
     answer: string;
+    attachmentIds?: string[];
     status: string;
     result: string | null;
     score: number | null;

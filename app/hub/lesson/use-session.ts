@@ -6,7 +6,7 @@ import type { StudyDay } from "../../../lib/study-sql";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import type { readLessonV2 } from "../../../lib/lesson-v2/store";
 import type { Drafts } from "../lesson-page";
-import { useLiveRefresh } from "../use-live-refresh";
+import { startFeedbackPolling } from "./feedback-poll";
 import { rumAfterPaint } from "../rum";
 import { useRunnerStatus, type RunnerStatus } from "../runner-status";
 import type { SubmissionView } from "../lesson-v2/feedback";
@@ -28,7 +28,7 @@ type PendingSubmission = {
   answers?: DraftAnswers;
 };
 export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
-type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; pageEdgeHint?: boolean };
+type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; runner: RunnerStatus | null; study: StudyDay; displayName?: string; pageEdgeHint?: boolean };
 class RequestError extends Error {
   constructor(
     message: string,
@@ -73,11 +73,21 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     ready = useRef(false),
     generation = useRef(0);
   const pendingSubmission = useRef<PendingSubmission | null>(null);
+  const submissionInFlight = useRef(false);
+  const [offline, setOffline] = useState(false);
+  useEffect(() => {
+    const update = () => setOffline(!navigator.onLine);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
   const cacheKey = "v2:" + ownerId + ":" + id,
     readonly = learner !== null,
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
   const [child, setChild] = useState(prefetched?.child ?? false);
+  const [displayName, setDisplayName] = useState(prefetched?.displayName ?? "");
   const [pageEdgeHint, setPageEdgeHint] = useState(false);
   const [initialRunner, setInitialRunner] = useState<RunnerStatus | null>(null);
   const submissionKey = cacheKey + ":submission";
@@ -91,9 +101,10 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
     json<ReaderPayload>(url + "?" + query)
-      .then(({ lesson: result, submissions, child, runner, study, pageEdgeHint }) => {
+      .then(({ lesson: result, submissions, child, runner, study, displayName, pageEdgeHint }) => {
         if (generation.current !== version) return;
         setChild(child);
+        setDisplayName(displayName ?? "");
         setPageEdgeHint(!readonly && !!pageEdgeHint);
         setInitialRunner(runner);
         const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
@@ -177,17 +188,28 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   }, [history]);
 
   const waitingForGrade = lesson?.items.some(item => waitingForFeedback(feedbackForItems(history, [item.id])[0])) ?? false;
-  useLiveRefresh(async () => {
-    const active = lesson?.items.flatMap(item => {
-      const submission = feedbackForItems(history, [item.id])[0];
-      return waitingForFeedback(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
-    }) ?? [];
+  const activeFeedback = lesson?.items.flatMap(item => {
+    const submission = feedbackForItems(history, [item.id])[0];
+    return waitingForFeedback(submission) ? submission.attempts.filter(attempt => attempt.item_id === item.id) : [];
+  }) ?? [];
+  const watch = activeFeedback.map(attempt => attempt.id).join(",");
+  const rechecks = activeFeedback.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(",");
+  const waitingCreated = history.find(entry => waitingForFeedback(entry))?.created_at;
+  useEffect(() => {
+    if (!waitingForGrade || busy || !watch) return;
+    const parsed = waitingCreated ? Date.parse(waitingCreated) : NaN;
     const query = new URLSearchParams(suffix.slice(1));
-    query.set("watch", active.map(attempt => attempt.id).join(","));
-    query.set("rechecks", active.filter(attempt => attempt.dispute?.status === "rechecking").map(attempt => attempt.id).join(","));
-    const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
-    if (value.changed) await refreshFeedback();
-  }, !!lesson && !busy && waitingForGrade, 5000);
+    query.set("watch", watch); query.set("rechecks", rechecks);
+    return startFeedbackPolling({
+      startedAt: Number.isFinite(parsed) ? parsed : Date.now(),
+      visible: () => document.visibilityState === "visible",
+      subscribe: change => { document.addEventListener("visibilitychange", change); return () => document.removeEventListener("visibilitychange", change); },
+      read: async () => {
+        const value = await json<{ changed: boolean }>(url + "/feedback?" + query);
+        if (value.changed) await refreshFeedback();
+      },
+    });
+  }, [waitingForGrade, busy, watch, rechecks, waitingCreated, suffix, url, refreshFeedback]);
   const storeDraft = useCallback((value: string | undefined) => {
     cache.current.set(cacheKey, value);
     writeOfflineDraft(cacheKey, value);
@@ -285,13 +307,14 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     }
   }
   async function submit(itemId: string) {
-    if (!lesson || busy || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+    if (!lesson || busy || submissionInFlight.current || (pending && pending !== itemId) || (!pendingSubmission.current && !ready.current)) return;
+    submissionInFlight.current = true;
     const started = performance.now();
     setBusy(true);
     setError("");
     try {
       if (!pendingSubmission.current) {
-        if (saveInFlight.current && !(await saveInFlight.current)) return;
+        if (saveInFlight.current) await saveInFlight.current;
         const item = lesson.items.find(i => i.id === itemId);
         if (!item && !lesson.wholeLesson) return;
         pendingSubmission.current = {
@@ -310,18 +333,25 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      const response = await request().catch(error => {
-        if (error instanceof RequestError && error.status >= 400 && error.status < 500) throw error;
-        // Uncertain response: the same immutable submission key lets the server return the saved attempt.
-        return request();
-      });
+      // Always reconcile the key first. If the read fails, retain the pending request;
+      // a later explicit retry or reconnect will read again before any POST.
+      const check = await json<{ submission: (SubmissionView & { replayed: boolean }) | null; draftRevision?: number; draft?: DraftAnswers | null }>(
+        url + "/submissions?clientSubmissionId=" + encodeURIComponent(input.clientSubmissionId));
+      const response = check.submission && check.draftRevision !== undefined
+        ? { submission: check.submission, draftRevision: check.draftRevision }
+        : await request();
       if (!response.submission.replayed && response.submission.attempts.length
         && response.submission.attempts.every(attempt => attempt.result)) {
         gradeStarted.current = { submissionId: response.submission.id, at: started };
       }
       if (itemId === "whole-lesson" && !response.submission.replayed) feedbackStarted.current = { submissionId: response.submission.id, at: started };
       setHistory(current=>[response.submission,...current.filter(s=>s.id!==response.submission.id)]);
-      if (input.answers) {
+      const changedOnServer = !!check.submission && !!input.answers && JSON.stringify(check.draft) !== JSON.stringify(input.answers);
+      if (changedOnServer) {
+        ready.current = false;
+        storeDraft(JSON.stringify({ revision: input.draftRevision, answers: latest.current }));
+        setError("Lượt nộp đã lưu, nhưng nháp trên máy chủ đã đổi. Chép bài trên trang trước khi tải lại.");
+      } else if (input.answers) {
         revision.current = response.draftRevision;
         saved.current = JSON.stringify(input.answers);
         ready.current = true;
@@ -331,20 +361,24 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       pendingSubmission.current = null;
       writeOfflineDraft(submissionKey, undefined);
       setPending(null);
-      setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
+      setState(!changedOnServer && JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
+      void refreshFeedback();
     } catch (e) {
-      if (e instanceof RequestError && e.status >= 400 && e.status < 500) {
-        pendingSubmission.current = null;
-        writeOfflineDraft(submissionKey, undefined);
-        setPending(null);
-        void refreshFeedback();
-      }
-      setError((e as Error).message + (pendingSubmission.current ? " Bấm nộp lại khi có mạng để kiểm tra kết quả." : ""));
+
+      setError((e as Error).message + (pendingSubmission.current ? " Sẽ kiểm tra lại khi có mạng; bạn cũng có thể bấm Thử nộp lại." : ""));
     } finally {
+      submissionInFlight.current = false;
       setBusy(false);
     }
   }
+  const submitRef = useRef(submit);
+  useEffect(() => { submitRef.current = submit; });
+  useEffect(() => {
+    const reconnect = () => { if (pending) void submitRef.current(pending); };
+    window.addEventListener("online", reconnect);
+    return () => window.removeEventListener("online", reconnect);
+  }, [pending]);
   async function complete(confirmed = false) {
     if (!lesson || busy || pending) return;
     if (!lesson.completedAt && unanswered > 0 && !confirmed) {
@@ -386,7 +420,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
+    lesson, child, displayName, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
     waitingForGrade, gradeLater: runner?.online === false, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };
