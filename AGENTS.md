@@ -4,13 +4,13 @@
 
 Build a family learning hub where each person has their own shelf and notebooks. Each learner sees only their own progress and work; admins see everyone's; guardians see their child's. Read README.md, DESIGN.md and `docs/hub2/README.md` before changing product behavior. Use Vietnamese for primary product copy and explanations, with EN/DE terminology and German practice. Keep the interface centered on current lessons, progress and practical outputs.
 
-Follow the release order in the approved HUB-NEXT plan (PR #143). Develop with demo profiles on local, verify on staging, and release production from its dedicated tagged checkout. Before release, verify migrations and backup D1. After release, verify health and runner.
+Follow the release order in the approved HUB-NEXT plan (PR #143). Develop with demo profiles on local, verify on staging, and release production from its dedicated tagged checkout. Before release, verify migrations and backup D1. After release, verify health, the AI Queue and a saved job outcome.
 
 ## Architecture and cost
 
 - Start with Workers Free and D1; measure real CPU/usage before recommending a paid plan.
-- The existing family Mac runner handles jobs outside the staging rollout. ChatGPT Knowledge maintains source material within its granted scope.
-- The [HUB-NEXT decision of 16/11/2026](docs/plan/HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài) sets OpenAI API as the target for staging AI workflows through job API v2, without a local Qwen fallback. Test through the API path and expand notebook by notebook, starting with adult QA data. Children's text requires the data handling and guardian checks in the plan. Store credentials in staging secrets. Production rollout requires a separate decision. Anthropic model APIs remain outside this scope.
+- Decision 11.3 (18/11/2026): OpenAI API handles every AI workflow (authoring, grading, tutor, speech) through the Worker Queue and job API v2. The family Mac runner and local Qwen are retired (Q0); production keeps the Mac runner only until release step R switches it off. ChatGPT Knowledge maintains source material within its granted scope.
+- The [HUB-NEXT decision of 16/11/2026](docs/plan/HUB-NEXT.md#quyết-định-16112026--openai-api-và-chấm-cuối-bài) sets OpenAI API as the target for staging AI workflows through job API v2, without a local Qwen fallback. Test through the API path and expand notebook by notebook, starting with adult QA data. Children's text requires the data handling and guardian checks in the plan. Store credentials in environment secrets. Production takes effect at release step R with owner approval. Anthropic model APIs remain outside this scope.
 - The study window is decoration fed by two public services through `/api/ambient` (Open-Meteo for weather, MET Norway for the moon; owner decision 11/11/2026). Only Lübeck's coordinates and the date are sent, answers are cached in the Worker, and the window must keep working without them. Do not add other outbound calls for decoration, and never send learner data to them.
 - Git owns source/configuration; D1 owns learning state; Docs owns editable long-form materials. Do not use Docs as the transactional progress database.
 - This checkout retains Sites auth and connector infrastructure. Before independent/public hosting, replace the platform trust boundary with validated app authentication and service authorization. Never trust client-supplied `oai-authenticated-user-*` headers on a standalone Worker. With `HOUSEHOLD_GATE` set (`access` or `passphrase`, `lib/household.ts`) the trust boundary is the household gate checked by the Worker on every request; inside it, family profiles replace accounts and "Chế độ quản lý" grants admin powers.
@@ -29,7 +29,7 @@ Follow the release order in the approved HUB-NEXT plan (PR #143). Develop with d
 
 ## Content quality
 
-`docs/hub2/LESSON-DESIGN.md` is the single source for how lessons are built and graded; runner prompts derive from it. Non-negotiable:
+`docs/hub2/LESSON-DESIGN.md` is the single source for how lessons are built and graded; AI prompts derive from it. Non-negotiable:
 
 - Use opened primary sources; record URL, read scope, actual retrieval time, publication date, and whether only an abstract was read. Never invent source access, learner feedback or completed work.
 - Write original summaries and exercises; do not copy copyrighted articles or textbook exercises.
