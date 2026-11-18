@@ -347,6 +347,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
       setPending(null);
       setState(JSON.stringify(latest.current) === saved.current ? "Đã lưu" : "Chưa lưu");
       window.dispatchEvent(new CustomEvent("lh:lesson-changed", { detail: { subjectId: lesson.subjectId } }));
+      void refreshFeedback();
     } catch (e) {
 
       setError((e as Error).message + (pendingSubmission.current ? " Sẽ kiểm tra lại khi có mạng; bạn cũng có thể bấm Thử nộp lại." : ""));

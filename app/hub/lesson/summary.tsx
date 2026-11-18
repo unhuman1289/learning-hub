@@ -13,6 +13,7 @@ import type { SubmissionView } from "../lesson-v2/feedback";
 import type { ItemView } from "../../../lib/lesson-v2/store";
 import type { DraftAnswers } from "../../../lib/lesson-v2/actions";
 import { hasLessonAnswer } from "../../../lib/lesson-v2/answer";
+import { summaryState } from "../../../lib/lesson-v2/summary-state";
 import { feedbackForItems } from "../../../lib/feedback-history";
 import type { TodayItem } from "../../../lib/today";
 
@@ -23,11 +24,12 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
 }) {
   const [data, setData] = useState<LessonSummaryData | null>(null), [error, setError] = useState("");
   const [slow, setSlow] = useState(false);
+  const waitingSince = history.find(entry => entry.attempts.some(a => !a.result))?.created_at;
   useEffect(() => {
-    if (!waiting) return;
-    const timer = setTimeout(() => setSlow(true), 30_000);
+    const elapsed = waitingSince ? Math.max(0, Date.now() - Date.parse(waitingSince)) : 0;
+    const timer = setTimeout(() => setSlow(waiting), waiting ? Math.max(0, 30_000 - (Number.isFinite(elapsed) ? elapsed : 0)) : 0);
     return () => clearTimeout(timer);
-  }, [waiting]);
+  }, [waiting, waitingSince]);
   const [opening, setOpening] = useState(false);
   const [nextError, setNextError] = useState("");
   async function openNext() {
@@ -57,12 +59,12 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
     setData(summary); setError("");
   }, waiting || !!data?.pending, 5000);
   const needsWork = data && (data.needsCorrection > 0 || data.unanswered > 0);
-  const queued = history.some(entry => entry.job_status === "queued" && entry.attempts.some(a => !a.result));
-  const pendingCount = items.filter(item => { const a = feedbackForItems(history, [item.id])[0]?.attempts[0]; return a && !a.result; }).length;
-  const results = items.map(item => feedbackForItems(history, [item.id])[0]?.attempts[0]);
-  const corrections = results.map((a, i) => a && ["partial", "incorrect"].includes(a.result ?? "") ? items[i].id : null).filter((id): id is string => !!id);
-  const correct = results.filter(a => a?.result === "correct").length;
-  const graded = history.length > 0 && !waiting && results.some(a => !!a?.result);
+  const current = items.map(item => feedbackForItems(history, [item.id])[0]);
+  const queued = current.some(entry => entry?.job_status === "queued" && entry.attempts.some(a => !a.result));
+  const results = current.map(entry => entry?.attempts[0]);
+  const presentation = summaryState(results, waiting, queued, slow, child, displayName);
+  const corrections = presentation.corrections.map(i => items[i].id);
+  const graded = presentation.phase === "graded";
   return (
     <section aria-label="Tổng kết bài">
       <h1 tabIndex={-1} data-lesson-heading className="mb-3 font-print text-4xl leading-tight">Tổng kết bài</h1>
@@ -70,11 +72,7 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
       {!data && !error && <p role="status" className={pencil}>Đang đọc tổng kết…</p>}
       {data && <>
         {!history.length && <p>Đã làm {items.filter(item => hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length).length}/{items.length} câu. {items.filter(item => !hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") && !answers[item.id]?.attachmentIds?.length).length ? "Vẫn còn câu trống; bạn vẫn có thể nộp." : ""}</p>}
-        {graded && <p className="font-hand text-3xl text-brick">{correct}/{items.length} câu đúng</p>}
-        {(waiting || graded) && <div className="my-3 flex items-center gap-3" role="status">
-          <TutorPet size="panel" state={waiting ? (queued || slow ? "busy" : "think") : child ? "cheer" : "nod"} />
-          <p>{waiting ? (queued || slow ? "Bài đã lưu rồi, bạn cứ đóng sổ nhé. Có lời phê con báo nha." : `Con đang đọc ${pendingCount} câu viết nha.`) : child ? `${displayName ? `${displayName} giỏi` : "Giỏi"} quá! ${corrections.length ? `Chỉ còn ${corrections.length} câu cần sửa thôi nè.` : "Con làm xong rồi nè."}` : `Con chấm xong rồi ạ.${corrections.length ? ` Có ${corrections.length} câu cần sửa.` : ""}`}</p>
-        </div>}
+        {graded && <p className="font-hand text-3xl text-brick">{presentation.correct}/{items.length} câu đúng</p>}
         {completed && <Stamp label={needsWork ? "Cố lên!" : data.pending || data.solutionsSeen ? "Đã học" : "Giỏi lắm!"}
           className={needsWork ? "border-warn! text-warn!" : undefined} pressed={justCompleted} />}
         <ul aria-label="Từng câu" className="divide-y divide-rule">
@@ -84,13 +82,17 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
             const answered = hasLessonAnswer(item.input, answers[item.id]?.answer ?? "") || !!answers[item.id]?.attachmentIds?.length;
             const mark = attempt?.result === "correct" ? "ĐÚNG" : attempt?.result === "incorrect" || attempt?.result === "partial" ? "SỬA LẠI" : attempt ? "· · ·" : answered ? "✓" : "–";
             const comment = attempt?.feedback || (attempt ? (attempt.result ? "Đã chấm" : "Chờ lời phê") : answered ? "Đã làm" : "Chưa làm");
-            return <li key={item.id}><button type="button" onClick={() => onQuestion?.(item.id)} className="flex min-h-11 w-full items-baseline gap-3 py-2 text-left focus-visible:outline-2 focus-visible:outline-accent-paper">
+            return <li key={item.id}><button type="button" onClick={() => onQuestion?.(item.id)} className={"flex w-full items-baseline gap-3 py-1 text-left focus-visible:outline-2 focus-visible:outline-accent-paper " + (child ? "min-h-12 text-lg" : "min-h-11")}>
               <span className="shrink-0 font-hand text-xl">Câu {index + 1}</span>
-              <span className="shrink-0 font-hand text-lg text-brick">{mark}</span>
+              <span className={"shrink-0 rounded border px-2 font-hand text-lg " + (mark === "ĐÚNG" ? "border-green-700 text-green-800" : mark === "SỬA LẠI" ? "border-brick text-brick" : "border-rule text-muted-paper")}>{mark}</span>
               <span className="min-w-0 truncate text-sm">{comment}</span>
             </button></li>;
           })}
         </ul>
+        {presentation.pet && <div className="my-5 flex items-end gap-2" role="status">
+          <TutorPet size="panel" state={presentation.pet} />
+          <p className="mb-3 rounded-xl rounded-bl-sm border border-rule bg-white px-3 py-2 font-print">{presentation.message}</p>
+        </div>}
         <p className={pencil}>{data.minutes} phút học sổ này hôm nay{data.hintsUsed ? ` · ${data.hintsUsed} lần xem gợi ý` : ""}.</p>
         {data.needsPractice.length > 0 && <p>Nên luyện thêm: {data.needsPractice.map(skillLabel).join(", ")}.</p>}
         {data.comments.map(comment => <RedPen key={comment} className="mt-7">{comment}</RedPen>)}

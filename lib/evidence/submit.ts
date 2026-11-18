@@ -143,11 +143,11 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     .all<{ item_id: string; stage: string; payload: string; skill_ids: string; activity: string }>(),
     db
     .prepare(
-      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.status,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
+      `SELECT a.item_id,a.id,a.attempt_no,a.answer,a.attachment_ids,a.status,a.support,g.result,g.correction FROM attempts a LEFT JOIN grades g ON g.id=a.current_grade_id
        WHERE a.lesson_id=? AND a.learner_id=? AND a.attempt_no=(SELECT max(attempt_no) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id)`,
     )
     .bind(lessonId, learnerId)
-    .all<{ item_id: string; id: string; attempt_no: number; answer: string; status: string; support: string; result: string | null; correction: string | null }>(),
+    .all<{ item_id: string; id: string; attempt_no: number; answer: string; attachment_ids: string; status: string; support: string; result: string | null; correction: string | null }>(),
   ]);
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
   if (lesson.completed_at) throw new ApiError(409, 'Bỏ dấu đã học trước khi nộp sửa lại.');
@@ -170,6 +170,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
     selected = selected.filter(row => {
       const previous = latest.find(attempt => attempt.item_id === row.item_id);
       return !previous || (draft[row.item_id]?.answer ?? '') !== previous.answer ||
+        JSON.stringify(draft[row.item_id]?.attachmentIds ?? []) !== previous.attachment_ids ||
         (support[row.item_id] === 'solution' && previous.support !== 'solution');
     });
     if (!selected.length) throw new ApiError(400, 'Chưa có câu mới hoặc câu đã sửa để nộp.');
@@ -216,7 +217,8 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       photos = draft[row.item_id]?.attachmentIds ?? [];
     const answered = hasLessonAnswer(item.input, answer) && !(item.input === 'code' && answer === item.starter);
     const skip = wholeLesson && support[row.item_id] === 'solution' && (item.input === 'short' || !answered);
-    if (wholeLesson && photos.length) throw new ApiError(400, 'Bài này chỉ nhận câu trả lời văn bản.');
+    // Blank questions stay unanswered; their omission must not prevent submitting the rest.
+    if (wholeLesson && !answered && !photos.length && !skip) continue;
     if (!skip && !(wholeLesson ? answered : hasLessonAnswer(item.input, answer)) && !photos.length) throw new ApiError(400, `Chưa có bài làm cho câu ${row.item_id}.`);
     if (item.attachment === 'required' && !photos.length) throw new ApiError(400, `Câu ${row.item_id} cần ảnh bài làm.`);
     if (item.attachment === 'none' && photos.length) throw new ApiError(400, `Câu ${row.item_id} không nhận ảnh.`);
@@ -238,7 +240,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
       gradeId = makeId('gr_'),
       number = (previous?.attempt_no ?? 0) + 1;
     const key = item.key;
-    const grade = skip ? { result: 'incorrect', score: 0, feedback: 'Đã xem đáp án.' } : key && answer.trim()
+    const grade = skip ? { result: 'incorrect', score: 0, feedback: 'Đã xem đáp án.' } : !photos.length && key && answer.trim()
       ? key.type === 'choice' || key.type === 'numeric' || key.type === 'text' || key.type === 'dictation'
         ? autoGrade(key, answer, item.audio?.lang) : autoGradeStructured(key, answer)
       : null;

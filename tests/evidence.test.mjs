@@ -360,3 +360,29 @@ test('whole-lesson mode rejects per-question submission and skips revealed short
   assert.ok(skipped.attempts.every(attempt => attempt.result === 'incorrect' && attempt.score === 0));
   assert.equal(await queueSubmission(db, {}, 'learner', skipped.id), null);
 });
+
+test('whole lesson accepts blanks without creating attempts for them', async () => {
+  const { db } = await seed();
+  const lesson = { ...fixture, contract: 'lesson-package/3', knowledge: [], gradingMode: 'whole-lesson' };
+  const id = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-14', slot: 'extra', lesson });
+  const item = lesson.items.find(i => i.input === 'short');
+  const submission = await submitLesson(db, 'learner', id, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, answers: { [item.id]: { answer: 'Antwort' } } }));
+  assert.deepEqual(submission.attempts.map(a => a.item_id), [item.id]);
+  const allBlank = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-15', slot: 'extra', lesson });
+  const empty = await submitLesson(db, 'learner', allBlank, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0 }));
+  assert.equal(empty.attempts.length, 0);
+});
+
+test('whole lesson submits a photo for grading', async () => {
+  const { db } = await seed();
+  const lesson = { ...fixture, contract: 'lesson-package/3', knowledge: [], gradingMode: 'whole-lesson' };
+  const id = await insertLessonV2(db, { learnerId: 'learner', subjectId: sid, day: '2026-10-16', slot: 'extra', lesson });
+  const item = lesson.items.find(i => i.input === 'short');
+  db.sqlite.prepare("UPDATE lesson_items SET payload=json_set(payload,'$.attachment','optional') WHERE lesson_id=? AND item_id=?").run(id, item.id);
+  const photo = 'img_aaaaaaaaaaaaaaaaaaaa';
+  db.sqlite.prepare("INSERT INTO attachments(id,learner_id,r2_key,mime,bytes,width,height,sha256,created_at,expires_at) VALUES(?,?,'test','image/png',20,2,2,?,'2026-01-01','2099-01-01')").run(photo,'learner','0'.repeat(64));
+  const submission = await submitLesson(db, 'learner', id, parseSubmission({ clientSubmissionId: crypto.randomUUID(), draftRevision: 0, answers: { [item.id]: { answer: '', attachmentIds: [photo] } } }));
+  assert.equal(submission.attempts.length,1);
+  assert.equal(submission.attempts[0].status,'pending');
+  assert.deepEqual(submission.attempts[0].attachmentIds,[photo]);
+});
