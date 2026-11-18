@@ -22,6 +22,9 @@ export async function consumeCalibration(db: D1Database, env: Cloudflare.Env, id
       db.prepare(`INSERT INTO grader_calibrations(id,model,prompt_hash,set_hash,n,agreement,evidence_not_verbatim,injection_shifted,mean_ms,input_tokens,output_tokens,created_at)
         SELECT ?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM calibration_jobs WHERE id=? AND status='leased' AND lease_token=?)`)
         .bind(id, OPENAI_MODELS.assess, promptHash, setHash, metrics.n, metrics.agreement, metrics.evidenceNotVerbatim, metrics.injectionShifted, metrics.meanMs, metrics.inputTokens, metrics.outputTokens, stamp, id, token),
+      ...metrics.details.map((detail: {fixtureId:string;itemId:string;expectedResult:string;modelResult:string|null;fixtureAnswer:string;rubricScores:unknown;errorCode:string|null}) => db.prepare(`INSERT INTO grader_calibration_details(calibration_id,fixture_id,item_id,expected_result,model_result,fixture_answer,rubric_scores,error_code)
+        SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM calibration_jobs WHERE id=? AND status='leased' AND lease_token=?)`)
+        .bind(id,detail.fixtureId,detail.itemId,detail.expectedResult,detail.modelResult,detail.fixtureAnswer,JSON.stringify(detail.rubricScores),detail.errorCode,id,token)),
       db.prepare(`INSERT OR IGNORE INTO alert_events(id,learning_day,code,message,created_at)
         SELECT ?,?,'grader_calibration_low','Kết quả hiệu chuẩn chất lượng chấm cần được xem lại.',? WHERE ?=1 AND EXISTS (SELECT 1 FROM calibration_jobs WHERE id=? AND status='leased' AND lease_token=?)`)
         .bind('alert_' + (await sha256Hex(day + ':grader_calibration_low')).slice(0,20), day, stamp, Number(calibrationLow(metrics)), id, token),
@@ -29,7 +32,7 @@ export async function consumeCalibration(db: D1Database, env: Cloudflare.Env, id
         WHERE id=? AND status='leased' AND lease_token=? AND EXISTS(SELECT 1 FROM grader_calibrations WHERE id=?)`)
         .bind('invalid_submissions=' + metrics.invalid + (metrics.invalidReasons.length ? ';' + metrics.invalidReasons.join(';') : ''), stamp, stamp, id, token, id),
     ]);
-    if (!result[2].meta.changes) throw new Error('Calibration was not saved');
+    if (!result[result.length - 1].meta.changes) throw new Error('Calibration was not saved');
     return 'succeeded';
   } catch (error) {
     const message = error instanceof Error ? error.message : '';
