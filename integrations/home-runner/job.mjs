@@ -735,6 +735,7 @@ export async function processJob(hub, lease, qwen, { log = () => {}, heartbeatMs
         if(current.status!=='succeeded')throw error;
       }
       const verified = await hub.state(lease.jobId);
+      if (verified.status === 'prepared') return { jobId: lease.jobId, status: 'prepared', engine: qwen.name };
       if (verified.status !== 'succeeded') throw Error('Hub chưa xác nhận kết quả (' + verified.status + ').');
       const lessonCount = lease.kind === 'plan' && verified.outcome
         ? (verified.outcome.extraLessonIds?.length || verified.outcome.subjects?.flatMap(subject => subject.lessonIds).length || 0)
@@ -761,7 +762,7 @@ async function submit(hub, lease, result) {
         if (error.status === 409 || error.status === 410 || error.status === 422) throw error;
       }
       const state = await hub.state(lease.jobId).catch(() => null);
-      if (state?.status === 'succeeded') return;
+      if (state?.status === 'succeeded' || state?.status === 'prepared') return;
       if (state && state.status !== 'leased') throw error;
       await sleep(2000 * (attempt + 1));
     }

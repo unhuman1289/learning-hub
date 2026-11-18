@@ -67,12 +67,12 @@ export async function failExpiredOpenAiJobs(db: NonNullable<Cloudflare.Env['DB']
     db.prepare(`UPDATE disputes SET status='needs_human' WHERE status='rechecking' AND EXISTS (
       SELECT 1 FROM ai_jobs j WHERE j.ref_id=disputes.id AND j.learner_id=disputes.learner_id
         AND j.purpose='recheck' AND j.status='leased' AND j.lease_client_id=?
-        AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL)`)
+        AND j.lease_expires_at<=? AND j.openai_calls>=2 AND j.apply_token IS NULL AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=j.id))`)
       .bind(client.id, stamp),
     db.prepare(`UPDATE ai_jobs SET status='failed',error='Không hoàn tất được công việc sau khi gọi AI.',
       finished_at=?,updated_at=?,lease_token_sha256=NULL,lease_expires_at=NULL
       WHERE status='leased' AND lease_client_id=? AND lease_expires_at<=?
-        AND openai_calls>=2 AND apply_token IS NULL`)
+        AND openai_calls>=2 AND apply_token IS NULL AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)`)
       .bind(stamp, stamp, client.id, stamp),
   ]);
 }
@@ -243,7 +243,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       // only fail our own still-active, unclaimed lease, never a saved result.
       try {
         const current = await readJob(db, id);
-        if (current?.status === 'succeeded' || current?.status === 'failed' || current?.status === 'expired' || current?.status === 'cancelled') {
+        if (current?.status === 'prepared' || current?.status === 'succeeded' || current?.status === 'failed' || current?.status === 'expired' || current?.status === 'cancelled') {
           message.ack();
         } else if (current?.status === 'leased' && ownedLeaseHash && current.lease_token_sha256 === ownedLeaseHash) {
           const count = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
@@ -272,7 +272,7 @@ export async function redispatchOpenAi(env: Cloudflare.Env, now: Date) {
     `SELECT id FROM ai_jobs
       WHERE subject_id IN (SELECT value FROM json_each(?))
       AND expires_at>? AND updated_at<=?
-      AND (status='queued' OR (status='leased' AND lease_client_id=? AND lease_expires_at<=?))
+      AND (status='queued' OR (status='leased' AND lease_client_id=? AND lease_expires_at<=? AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)))
       AND (trigger<>'deferred' OR purpose IN ('submission','recheck'))
       ORDER BY priority DESC, created_at, id LIMIT 10`,
   ).bind(JSON.stringify(subjectIds), now.toISOString(), new Date(now.getTime() - 120000).toISOString(),
