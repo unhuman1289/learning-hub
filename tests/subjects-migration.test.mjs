@@ -83,9 +83,12 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
     learner_settings: [{ user_id: 'vu', daily_target_minutes: 45, updated: 't' }],
   } };
   const copy = memoryDb({ through: "0025" }).sqlite;
-  copy.exec(read('0032_tutor.sql'));
+  copy.exec(read('0032_tutor.sql') + read('0041_tutor_address.sql'));
   copy.exec(buildRestoreSql(old));
   assert.equal(copy.prepare("SELECT role FROM learner_settings WHERE user_id='vu'").get().role, 'adult');
+  assert.deepEqual({ ...copy.prepare("SELECT tutor_self, tutor_call FROM learner_settings WHERE user_id='vu'").get() },
+    { tutor_self: null, tutor_call: null });
+  copy.prepare("UPDATE learner_settings SET tutor_self='con', tutor_call='bố Thạch' WHERE user_id='vu'").run();
   const now = 't';
   copy.prepare(insertSubjectSql).run('sub_x', 'vu', 'Deutsch B2', 'skill', 'normal', 'B2', 'A2', '', JSON.stringify(DEFAULT_LIMITS), 3, 'active', null, 'vu', now, now);
   copy.prepare("INSERT INTO guardians VALUES('vu','ech','admin',?)").run(now);
@@ -94,7 +97,7 @@ test('backups carry the new tables and older format-3 snapshots still restore', 
     tables[table] = copy.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row }));
   }
   const restored = memoryDb({ through: "0025" }).sqlite;
-  restored.exec(read('0032_tutor.sql'));
+  restored.exec(read('0032_tutor.sql') + read('0041_tutor_address.sql'));
   restored.exec(buildRestoreSql({ format: 3, tables }));
   for (const [table, rows] of Object.entries(tables)) assert.deepEqual(restored.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all().map((row) => ({ ...row })), rows, table);
   copy.close(); restored.close();

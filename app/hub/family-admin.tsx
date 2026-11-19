@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { X } from "lucide-react";
 import type { FamilyMember } from "../../lib/admin/family";
+import { tutorSelfOptions } from "../../lib/tutor/address";
 import { buttonClass } from "./ui";
 
 /** Admin: who is a child, their nickname, and who their guardians are. Saved per change, confirmed by the server. */
@@ -55,9 +56,10 @@ function MemberRow({ member, members, nameOf, busy, send }: {
   send: (key: string, payload: Record<string, unknown>) => Promise<void>;
 }) {
   const [nickname, setNickname] = useState(member.displayName ?? "");
+  const [call, setCall] = useState(member.tutorCall ?? "");
   const [guardian, setGuardian] = useState("");
   const candidates = members.filter((item) => item.id !== member.id && !member.guardianIds.includes(item.id));
-  const working = busy.startsWith(member.id);
+  const working = Boolean(busy);
   return (
     <li className="grid gap-3 rounded-md border border-line bg-paper px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -76,6 +78,20 @@ function MemberRow({ member, members, nameOf, busy, send }: {
             <input value={nickname} maxLength={40} onChange={(event) => setNickname(event.target.value)} className="min-h-11 max-w-full rounded-md border border-rule bg-paper px-2 text-ink" />
           </label>
           <button type="submit" disabled={working || nickname === (member.displayName ?? "")} className={buttonClass("secondary", "min-h-11 px-3")}>Lưu</button>
+        </form>
+      </div>
+      <div className="flex flex-wrap items-end gap-3" aria-busy={busy.startsWith(member.id + ":")}>
+        <label className="grid gap-1 text-sm text-muted">Bột xưng
+          <select value={member.tutorSelf ?? ""} disabled={working} onChange={(event) => void send(`${member.id}:tutor-self`, { action: "tutor-address", userId: member.id, self: event.target.value || null })} className="min-h-11 max-w-full rounded-md border border-rule bg-paper px-2 text-ink">
+            <option value="">Mặc định (con)</option>
+            {tutorSelfOptions.map(option => <option key={option} value={option}>{option}</option>)}
+          </select>
+        </label>
+        <form className="flex flex-wrap items-end gap-2" onSubmit={(event) => { event.preventDefault(); void send(`${member.id}:tutor-call`, { action: "tutor-address", userId: member.id, call: call.trim() || null }); }}>
+          <label className="grid gap-1 text-sm text-muted">Bột gọi
+            <input value={call} maxLength={30} disabled={working} placeholder="Ví dụ: chị Ếch" onChange={(event) => setCall(event.target.value)} className="min-h-11 max-w-full rounded-md border border-rule bg-paper px-2 text-ink" />
+          </label>
+          <button type="submit" disabled={working || call.trim() === (member.tutorCall ?? "")} className={buttonClass("secondary", "min-h-11 px-3")}>Lưu cách gọi</button>
         </form>
       </div>
       <label className="flex min-h-11 w-fit items-center gap-2 text-sm">

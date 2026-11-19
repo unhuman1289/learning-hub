@@ -69,6 +69,7 @@ export const learnerSettings = sqliteTable('learner_settings', {
  userId:text('user_id').primaryKey(),dailyTargetMinutes:integer('daily_target_minutes').notNull().default(60),updated:text('updated').notNull(),
  role:text('role').notNull().default('adult'),displayName:text('display_name'),explainLanguage:text('explain_language').notNull().default('vi'),
  preferences:text('preferences').notNull().default('{}'),aiBudget:text('ai_budget'),
+ tutorSelf:text('tutor_self',{enum:['con','em','cháu']}),tutorCall:text('tutor_call'),
 });
 export const guardians = sqliteTable('guardians', {
  guardianId:text('guardian_id').notNull(),learnerId:text('learner_id').notNull(),createdBy:text('created_by').notNull(),createdAt:text('created_at').notNull(),

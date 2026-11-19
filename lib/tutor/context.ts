@@ -3,22 +3,32 @@ import { normalizeText } from '../evidence/normalize-text.ts';
 const normalizeForVisible = (value:string) => normalizeText(value,{ignoreCase:true,punctuation:'ignore'}).replace(/\s+/g,' ').trim();
 import { safeText } from '../automation/privacy.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
+import { tutorAddress, type TutorSelf } from './address.ts';
 import type { SubjectSensitivity } from '../subjects/sql.ts';
 
 /** Build model input from the lesson, keeping hidden answers exclusively in the Worker. */
 export async function tutorContext(db: EvidenceDb, id: string) {
   const row = await db.prepare(`SELECT t.learner_id,t.item_id,t.question,l.id AS lesson_id,l.payload AS lesson,l.draft,l.support,
-    s.display_name,coalesce(s.tutor_enabled,1) AS enabled,l.completed_at,i.flag,
+    s.display_name,u.name AS account_name,s.tutor_self,s.tutor_call,coalesce(s.tutor_enabled,1) AS enabled,l.completed_at,i.flag,
     (SELECT sensitivity FROM subjects WHERE id=l.subject_id AND learner_id=l.user_id) AS sensitivity
     FROM tutor_turns t JOIN learning_lessons l ON l.id=t.lesson_id AND l.user_id=t.learner_id
     JOIN lesson_items i ON i.lesson_id=t.lesson_id AND i.item_id=t.item_id AND i.learner_id=t.learner_id
+    LEFT JOIN "user" u ON u.id=t.learner_id
     LEFT JOIN learner_settings s ON s.user_id=t.learner_id WHERE t.id=? AND t.status='queued'`)
-    .bind(id).first<{learner_id:string;item_id:string;question:string;lesson_id:string;lesson:string;draft:string;support:string;display_name:string|null;enabled:number;completed_at:string|null;flag:string|null;sensitivity:SubjectSensitivity|null}>();
+    .bind(id).first<{learner_id:string;item_id:string;question:string;lesson_id:string;lesson:string;draft:string;support:string;display_name:string|null;account_name:string|null;tutor_self:TutorSelf|null;tutor_call:string|null;enabled:number;completed_at:string|null;flag:string|null;sensitivity:SubjectSensitivity|null}>();
   if (!row || !row.enabled || row.completed_at || row.flag === 'item_void') return null;
-  const name = row.display_name?.trim() ?? '';
+  const displayName = row.display_name?.trim() || row.account_name?.trim() || '';
+  const address = tutorAddress(row, displayName);
+  const aliases = [row.display_name, row.account_name, address.call]
+    .map(value => value?.trim().normalize('NFC') ?? '').filter(Boolean);
+  // Choices and details are serialized JSON, so also mask aliases containing JSON escapes.
+  const patterns = [...new Set(aliases.flatMap(value => [value, JSON.stringify(value).slice(1, -1)]))]
+    .sort((a, b) => b.length - a.length)
+    .map(value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const names = patterns.length ? new RegExp(`(?<![\\p{L}\\p{M}\\p{N}])(?:${patterns.join('|')})(?![\\p{L}\\p{M}\\p{N}])`, 'giu') : null;
   const clean = (value: unknown) => {
-    const text = safeText(value, row.sensitivity ?? 'normal');
-    return name ? text.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'giu'), '{ten}') : text;
+    const text = safeText(value, row.sensitivity ?? 'normal').normalize('NFC');
+    return names ? text.replace(names, '{ten}') : text;
   };
   const lesson = JSON.parse(row.lesson) as Record<string, unknown>;
   const draft = JSON.parse(row.draft || '{}') as Record<string,{answer?:string}>;
@@ -61,5 +71,5 @@ export async function tutorContext(db: EvidenceDb, id: string) {
   }
   for (const item of entries) for (const [key, value] of Object.entries(item))
     if (value === '' || value === '[]' || value === '{}') delete (item as Record<string, unknown>)[key];
-  return {learnerId:row.learner_id, displayName:name, answerFragments:protectedAnswers, context};
+  return {learnerId:row.learner_id, address, answerFragments:protectedAnswers, context};
 }

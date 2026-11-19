@@ -60,9 +60,11 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   console.log(JSON.stringify({ project: info.project.name, deskGzip: deskStats.gzip }));
   expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
-  // WebKit can report the ambient request twice with a service worker. Keep
-  // the desk API budget strict while allowing that duplicate observation.
-  expect(deskStats.api.filter(path => path !== "/api/ambient"), JSON.stringify(deskStats.api)).toEqual(["/api/today"]);
+  // The desk uses the same /api/today payload. Bột only downloads its existing sprite rows.
+  const sprite = /^\/api\/tutor\/sprite\/v2\/(?:wave|sit)\.webp$/;
+  expect(deskStats.api.filter(path => path !== "/api/ambient" && !sprite.test(path)), JSON.stringify(deskStats.api)).toEqual(["/api/today"]);
+  await expect(page.locator("h1")).toHaveText(/Con chào Ếch/);
+  await expect(page.locator("h1 + time")).toHaveText(/ngày .* tháng/);
   expect(deskStats.api.filter(path => path === "/api/ambient").length).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
 

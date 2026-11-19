@@ -3,6 +3,7 @@ import {useLiveRefresh} from "./use-live-refresh";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LearnerSummary } from "../../lib/learners/list";
+import type { TutorAddress } from "../../lib/tutor/address";
 import type { Greeting } from "../../lib/greeting";
 import type { TodayItem } from "../../lib/today";
 import type { StudyDay } from "../../lib/study-sql";
@@ -25,6 +26,7 @@ type TodayData = {
   subjects: ShelfSubject[];
   learners: LearnerSummary[];
   greeting: Greeting;
+  tutor?: (TutorAddress & { enabled: boolean }) | null;
   items: TodayItem[];
   study: StudyDay;
   adaptiveSubjects: string[];

@@ -69,7 +69,7 @@ test('backup restores every table and Unicode/quotes into empty migrated SQLite;
  db.sqlite.prepare('INSERT INTO learning_workspace VALUES(?,?,2,?)').run('__shared_family_workspace__',JSON.stringify({notes:["Ghi chú ' tiếng Việt"]}),now.toISOString());
  // Keep the v1 journal tables for this fixture while exercising the current backup contract.
  const perfSchema=readFileSync(new URL('../drizzle/0030_perf.sql',import.meta.url),'utf8');
- const tutorSchema=readFileSync(new URL('../drizzle/0032_tutor.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0033_ai_controls.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0034_tutor_openai.sql',import.meta.url),'utf8');
+ const tutorSchema=readFileSync(new URL('../drizzle/0032_tutor.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0033_ai_controls.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0034_tutor_openai.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0041_tutor_address.sql',import.meta.url),'utf8');
  const calibrationSchema=readFileSync(new URL('../drizzle/0036_calibration.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0038_tutor_cached_tokens.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0039_prepared_daily.sql',import.meta.url),'utf8')+readFileSync(new URL('../drizzle/0040_calibration_details.sql',import.meta.url),'utf8');
  db.sqlite.exec(perfSchema+listeningSchema+tutorSchema+calibrationSchema);
  const backup=await createBackup(db,'user-private',now);assert.equal(backup.format,4);

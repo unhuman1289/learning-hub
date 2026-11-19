@@ -155,16 +155,3 @@ export function SeasonItem({ place, month, className }: { className?: string; pl
     ? <svg aria-hidden="true" viewBox="-28 -62 56 68" className={className ?? "h-14 w-12 shrink-0 sm:h-16 sm:w-14"} dangerouslySetInnerHTML={{ __html: markup }} />
     : <svg aria-hidden="true" viewBox="-16 -46 32 48" className="block h-11 w-8" dangerouslySetInnerHTML={{ __html: markup }} />;
 }
-
-const MONTHS = ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"];
-
-/** Tear-off calendar leaf with today's date in Lübeck. */
-export function CalendarLeaf({ clock }: { clock: BerlinClock | undefined }) {
-  return (
-    <time className="grid w-[4.5rem] shrink-0 overflow-hidden rounded-[3px] bg-paper text-center text-ink-paper shadow-page" aria-label={clock ? `${clock.weekday}, ngày ${clock.day} ${MONTHS[clock.month - 1].toLowerCase()}` : undefined}>
-      <span className="bg-brick py-0.5 text-xs font-semibold text-white">{clock ? MONTHS[clock.month - 1] : " "}</span>
-      <span className="font-print text-[2rem] font-medium leading-9 tabular-nums">{clock?.day ?? " "}</span>
-      <span className="pb-1 text-sm leading-5 text-muted-paper">{clock?.weekday ?? " "}</span>
-    </time>
-  );
-}
