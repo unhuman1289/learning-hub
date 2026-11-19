@@ -9,5 +9,5 @@ test('Bột giữ trạng thái mất mạng, bận, giới hạn và giảm chu
  const trigger=page.getByRole('button',{name:'Hỏi Bột'});await trigger.tap();const panel=page.getByRole('dialog',{name:'Trò chuyện với Bột'});const input=panel.getByRole('textbox',{name:'Câu hỏi cho Bột'});
  await expect(panel.locator('.tutor-pet-strip')).toHaveCSS('animation-name','none');await input.fill('Hỏi');await panel.getByRole('button',{name:'Gửi'}).tap();await expect(panel.getByText(/Mất kết nối/)).toBeVisible();
  await panel.getByRole('button',{name:'Hỏi tiếp'}).tap();await page.evaluate(()=>{window.__mode='busy';});await input.fill('Hỏi tiếp');await panel.getByRole('button',{name:'Gửi'}).tap();await expect(panel.getByText(/Con đang bận/)).toBeVisible();
- await page.keyboard.press('Escape');await expect(trigger).toBeFocused();remaining=0;await trigger.tap();await expect(panel.getByText(/Bài này con trả lời đủ 20 lượt/)).toBeVisible();await page.keyboard.press('Escape');limit='day';await trigger.tap();await expect(panel.getByText(/đủ 60 lượt/)).toBeVisible();
+ await page.keyboard.press('Escape');await expect(trigger).toBeFocused();remaining=0;await trigger.tap();await expect(panel.getByText(/Bài này con trả lời đủ 20 lượt/)).toBeVisible();await page.keyboard.press('Escape');limit='day';await trigger.tap();await expect(panel.getByText(/đủ 80 lượt/)).toBeVisible();
 });

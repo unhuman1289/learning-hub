@@ -3,7 +3,7 @@ import { apiFailure } from '../api-error.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { answerTutor, dispatchTutor } from './openai.ts';
-import { tutorQuestion } from '../contracts/tutor.ts';
+import { tutorQuestion, TUTOR_DAY_LIMIT, TUTOR_TURN_LIMIT } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { lessonTarget, privateHeaders } from '../lesson-v2/route-helpers.ts';
 import { openTutorTurn, readTutorTurns } from './service.ts';
@@ -75,8 +75,8 @@ export async function getTutor(req: Request, user: Viewer | null, storage: () =>
       LEFT JOIN ai_subject_controls c ON c.subject_id=l.subject_id WHERE l.id=? AND l.user_id=?`)
       .bind(learnerId,cutoffFor(day),cutoffFor(addDays(day,1)),id,learnerId)
       .first<{display_name:string|null;tutor_enabled:number;openai_enabled:number;today:number}>();
-    const lessonRemaining = Math.max(0, 20-turns.length);
-    const dayRemaining = Math.max(0, 60-(info?.today ?? 0));
+    const lessonRemaining = Math.max(0, TUTOR_TURN_LIMIT-turns.length);
+    const dayRemaining = Math.max(0, TUTOR_DAY_LIMIT-(info?.today ?? 0));
     return Response.json({ turns, displayName:info?.display_name ?? '', enabled: enabled && !!info?.tutor_enabled && !!info?.openai_enabled,
       remaining: Math.min(lessonRemaining, dayRemaining), limit: lessonRemaining <= dayRemaining ? 'lesson' : 'day' }, { headers: privateHeaders });
   } catch (error) {

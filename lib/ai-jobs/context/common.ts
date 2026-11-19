@@ -2,7 +2,8 @@ import type { EvidenceDb } from '../../evidence/submit.ts';
 import { sha256Hex } from '../../auth/automation.ts';
 import { safeText } from '../../automation/privacy.ts';
 import { readSubjectSkills } from '../../learner-model/recompute.ts';
-import { canAdvance } from '../../daily-policy.ts';
+import { canAdvance, cutoffFor } from '../../daily-policy.ts';
+import { wholeLessonSubmissionSql } from '../daily-eligibility.ts';
 export { safeText } from '../../automation/privacy.ts';
 export type Job = {
   adaptive?: number;
@@ -115,19 +116,26 @@ export async function skillContext(db: EvidenceDb, learnerId: string, subjectId:
     })(),
   };
 }
-export async function slots(db: EvidenceDb, learner: string, subject: string, day: string) {
+export async function slots(db: EvidenceDb, learner: string, subject: string, day: string, useSubmission = false) {
   const { results = [] } = await db
     .prepare(
-      "SELECT id,slot,assigned_date,completed_at FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot IN ('primary','review') ORDER BY assigned_date DESC,updated DESC,id DESC",
+      `SELECT id,slot,assigned_date,completed_at,package_version,${useSubmission ? `CASE WHEN slot='primary' THEN (${wholeLessonSubmissionSql}) END` : 'NULL'} AS submitted_at
+       FROM learning_lessons l WHERE user_id=? AND subject_id=? AND slot IN ('primary','review') ORDER BY assigned_date DESC,updated DESC,id DESC`,
     )
     .bind(learner, subject)
-    .all<{ id: string; slot: string; assigned_date: string; completed_at: string | null }>();
+    .all<{ id: string; slot: string; assigned_date: string; completed_at: string | null; package_version: string; submitted_at: string | null }>();
   const primary = results.find((r) => r.slot === 'primary' && !r.completed_at) ?? results.find((r) => r.slot === 'primary'),
     review = results.find((r) => r.slot === 'review');
+  const preceding = useSubmission ? results.find(r => r.slot === 'primary' && r.package_version !== '1') : undefined;
+  const submissionReason = !preceding ? 'empty'
+    : preceding.assigned_date >= day ? 'already_assigned_today'
+    : !preceding.submitted_at ? 'unsubmitted'
+    : preceding.submitted_at >= cutoffFor(day) ? 'submitted_after_cutoff'
+    : 'submitted_before_cutoff';
   return {
-    openPrimaryLessonId: primary && !primary.completed_at ? primary.id : null,
-    eligibleForPrimary: canAdvance(primary ? { assignedDate: primary.assigned_date, completedAt: primary.completed_at } : undefined, day),
-    reason: !primary ? 'empty' : !primary.completed_at ? 'unfinished' : primary.assigned_date===day ? 'already_assigned_today' : canAdvance({assignedDate:primary.assigned_date,completedAt:primary.completed_at},day) ? 'completed_before_cutoff' : 'completed_after_cutoff',
+    openPrimaryLessonId: useSubmission ? preceding?.id ?? null : primary && !primary.completed_at ? primary.id : null,
+    eligibleForPrimary: useSubmission ? ['empty', 'submitted_before_cutoff'].includes(submissionReason) : canAdvance(primary ? { assignedDate: primary.assigned_date, completedAt: primary.completed_at } : undefined, day),
+    reason: useSubmission ? submissionReason : !primary ? 'empty' : !primary.completed_at ? 'unfinished' : primary.assigned_date===day ? 'already_assigned_today' : canAdvance({assignedDate:primary.assigned_date,completedAt:primary.completed_at},day) ? 'completed_before_cutoff' : 'completed_after_cutoff',
     openReviewSetId: review && !review.completed_at ? review.id : null,
     eligibleForReview: !review || (!!review.completed_at && review.assigned_date !== day),
   };

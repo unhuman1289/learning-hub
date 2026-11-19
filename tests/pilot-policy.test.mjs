@@ -1,10 +1,8 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {memoryDb} from './d1-adapter.mjs';
-import {openWorkMinutesSql} from '../lib/ai-jobs/open-work.ts';
 import {slots} from '../lib/ai-jobs/context/common.ts';
 function seed(){const db=memoryDb();db.sqlite.exec(`INSERT INTO user(id,name,email,email_verified,created_at,updated_at) VALUES('a','a','a@example.test',1,1,1);
  INSERT INTO subjects(id,learner_id,title,template,status,created_by,created_at,updated_at) VALUES('s','a','Deutsch','skill','active','a','t','t'),('paused','a','Paused','skill','paused','a','t','t');`);return db;}
 function lesson(db,id,version,subject,minutes,day='2026-10-12',completed=null){db.sqlite.prepare("INSERT INTO learning_lessons(id,user_id,subject_id,track,payload,assigned_date,updated,package_version,est_minutes,completed_at) VALUES(?,'a',?,'Deutsch','{}',?,'t',?,?,?)").run(id,subject,day,version,minutes,completed);}
-test('legacy reference material and paused notebooks do not consume v2 workload budget',async()=>{const db=seed();lesson(db,'old','1','s',180);lesson(db,'paused','2','paused',120);lesson(db,'v2','2','s',20);assert.equal((await db.prepare(openWorkMinutesSql).bind('a').first()).minutes,20);db.sqlite.close();});
 test('cutoff reason distinguishes same-day assignment and late completion',async()=>{const db=seed();lesson(db,'v2','2','s',20,'2026-10-13','2026-10-13T09:00:00Z');assert.equal((await slots(db,'a','s','2026-10-13')).reason,'already_assigned_today');db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-10-12'").run();const late=await slots(db,'a','s','2026-10-13');assert.equal(late.eligibleForPrimary,false);assert.equal(late.reason,'completed_after_cutoff');db.sqlite.close();});
 test('an older unfinished primary is not hidden by a more recent completed primary',async()=>{const db=seed();lesson(db,'old','2','s',20);lesson(db,'recent','2','s',20,'2026-10-13','2026-10-13T09:00:00Z');const state=await slots(db,'a','s','2026-10-14');assert.equal(state.openPrimaryLessonId,'old');assert.equal(state.eligibleForPrimary,false);assert.equal(state.reason,'unfinished');db.sqlite.close();});

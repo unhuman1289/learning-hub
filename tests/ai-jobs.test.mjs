@@ -211,21 +211,6 @@ for (const [code, mutate] of [
     },
   ],
   [
-    'over_budget',
-    (r) => {
-      r.subjects[0].primaryLesson.estMinutes = 90;
-      r.subjects[0].reviewSet = {
-        ...structuredClone(fixture),
-        kind: 'review',
-        sheet: null,
-        estMinutes: 10,
-        // A review set from an AI runner holds 5–6 items (D20).
-        items: fixture.items.slice(0, 6),
-        stages: [{ stage: 'independent', itemIds: fixture.items.slice(0, 6).map((i) => i.id) }],
-      };
-    },
-  ],
-  [
     'difficulty_limit',
     (r) => {
       r.subjects[0].primaryLesson.items[0].difficulty = 5;
@@ -274,7 +259,7 @@ test('three validation failures finish a job without any assignments', async () 
   assert.equal((await readJob(db, lease.jobId)).status, 'failed');
   db.sqlite.close();
 });
-test('no_action is valid even when existing unfinished workload is over budget', async () => {
+test('no_action keeps unfinished work and clears the old job error', async () => {
   const { db, lesson } = await assigned();
   const next = new Date('2026-10-14T07:30:00Z');
   db.sqlite.prepare('UPDATE learner_settings SET daily_target_minutes=5').run();
@@ -1179,11 +1164,18 @@ test('an over-budget request does not lease before the next Berlin day', async (
   db.sqlite.close();
 });
 
-test('a practice request waits until tomorrow if there is no room for even a short lesson', async () => {
+test('a practice request can lease despite open minutes and still defers at the extra lesson count cap', async () => {
   const { db, lesson } = await assigned();
   db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=90 WHERE id=?').run(lesson);
-  const req = await createRequest(db, {}, learner, learner, parseRequest({ kind:'extra_practice', subjectId:subject, urgency:'now' }), now);
-  assert.equal(req.deferred,true);
+  const request = parseRequest({ kind:'extra_practice', subjectId:subject, urgency:'now' });
+  const first = await createRequest(db, {}, learner, learner, request, now);
+  assert.equal(first.deferred, false);
+  assert.equal((await leaseJobs(db, client, input, 'test', now)).length, 1);
+  const saveExtra = db.sqlite.prepare(`INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,slot,est_minutes)
+    SELECT ?,user_id,subject_id,payload,assigned_date,updated,package_version,'extra',15 FROM learning_lessons WHERE id=?`);
+  for (let i = 0; i < 4; i++) saveExtra.run('extra-' + i, lesson);
+  const second = await createRequest(db, {}, learner, learner, request, now);
+  assert.equal(second.deferred, true);
   assert.deepEqual(await leaseJobs(db, client, input, 'test', now), []);
   db.sqlite.close();
 });
@@ -1316,7 +1308,7 @@ test('the first saved lesson activates a new notebook and its nightly schedule',
   db.sqlite.prepare('UPDATE subjects SET ai_enabled=0 WHERE legacy_track IS NOT NULL').run();
   await queueDaily(db, {}, midnight);
   assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily'").get().n, 0);
-  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=? WHERE subject_id=?').run(now.toISOString(), subject);
+  await submitWhole(db, db.sqlite.prepare('SELECT id FROM learning_lessons WHERE subject_id=?').get(subject).id, now);
   await queueDaily(db, {}, midnight);
   assert.equal(db.sqlite.prepare("SELECT count(*) AS n FROM ai_jobs WHERE purpose='daily' AND subject_id=? AND adaptive=1").get(subject).n, 1);
   for (const mode of ['learn', 'practice', 'personal']) {
@@ -1378,7 +1370,6 @@ test('a Deutsch notebook with TTS disabled saves its roadmap and places from tex
   assert.equal(lease.jobId, job.id);
   const context = JSON.parse((await readJob(db, job.id)).context_snapshot);
   assert.equal(context.roadmapProtocol, 2);
-  assert.equal(context.policy.openMinutesNow, context.policy.maxOpenMinutes);
   assert.equal(context.subjects[0].framework.key, 'de-cefr');
   const lesson = {...structuredClone(fixture), kind:'diagnostic'};
   const body = plan(context, lesson);
@@ -1409,7 +1400,7 @@ test('a Deutsch notebook with TTS disabled saves its roadmap and places from tex
   const ordinaryRequest = await createRequest(db, {}, learner, learner, parseRequest({
     kind: 'extra_practice', subjectId: subject, urgency: 'now',
   }), now);
-  assert.equal(ordinaryRequest.deferred, true, 'ordinary requests still wait at the cap');
+  assert.equal(ordinaryRequest.deferred, false, 'open minutes do not defer ordinary requests');
   db.sqlite.prepare('UPDATE learning_lessons SET est_minutes=85 WHERE id=?').run(openLesson);
   const nextRequest = await createRequest(db, {}, learner, learner, parseRequest({
     kind: 'extra_practice', subjectId: subject, urgency: 'now',
@@ -1636,10 +1627,99 @@ test('Queue saves score and result derived from rubric even when model disagrees
 });
 
 
+async function submitWhole(db, lessonId, at) {
+  return submitLesson(db, learner, lessonId, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 0, stage: null, itemIds: null,
+    answers: { i1: { answer: '["a"]' } },
+  }, at);
+}
+
+test('W4 applies one 45-minute primary per notebook at midnight with open extras', async t => {
+  const db = seed();
+  t.after(() => db.sqlite.close());
+  db.sqlite.exec("UPDATE learner_settings SET daily_target_minutes=45; UPDATE subjects SET legacy_track=NULL");
+  const notebooks = [subject];
+  for (const title of ['Rust', 'Tiếng Việt']) {
+    const notebook = await createSubject(db, learner, learner, parseSubjectInput({ title }), now);
+    notebooks.push(notebook.id);
+  }
+  const activate = db.sqlite.prepare("UPDATE subjects SET status='active',ai_enabled=1,roadmap=? WHERE id=?");
+  const insertSkill = db.sqlite.prepare(`INSERT INTO skills(id,subject_id,learner_id,key,name,description,path_order,prerequisites,status,origin,created_at,updated_at)
+    VALUES(?,?,?,'modalverb-infinitiv','Skill','',1,'[]','active','ai','t','t')`);
+  const insertExtra = db.sqlite.prepare(`INSERT INTO learning_lessons(id,user_id,subject_id,payload,assigned_date,updated,package_version,slot,est_minutes)
+    VALUES(?,?,?,?,'2026-11-18','t','3','extra',15)`);
+  for (const [index, id] of notebooks.entries()) {
+    const skill = 'sk_' + String(index).padStart(20, '0');
+    insertSkill.run(skill, id, learner);
+    activate.run(JSON.stringify([{ title:'Bước tiếp theo', objective:'Luyện câu', situation:'Lịch họp', skills:[skill], mode:'new' }]), id);
+    insertExtra.run('extra-' + index, learner, id, JSON.stringify(fixture));
+  }
+  const extras = () => db.sqlite.prepare("SELECT id,draft,payload,completed_at FROM learning_lessons WHERE slot='extra' ORDER BY id").all();
+  const previousExtras = extras();
+  const midnight = new Date('2026-11-18T23:00:00Z');
+  assert.deepEqual(await queueDaily(db, {}, midnight), { subjects: 3, failed: 0 });
+  for (let i = 0; i < 3; i++) {
+    const [lease] = await leaseJobs(db, client, {...input,capabilities:['lesson-v3','adaptive-plan']}, 'test', midnight);
+    const context = JSON.parse((await readJob(db, lease.jobId)).context_snapshot);
+    assert.equal(context.adaptive.minutes, 45);
+    const lesson = {...structuredClone(fixture), gradingMode:'whole-lesson', estMinutes:45};
+    const short = fixture.items.find(item => item.input === 'short' && item.rubric);
+    const long = fixture.items.find(item => item.input === 'long');
+    const extended = context.subjects[0].framework.key === 'rust-core'
+      ? {...long, input:'code', language:'rust', starter:'fn main() {}', lines:6}
+      : long;
+    lesson.items = Array.from({length:18}, (_, index) => {
+      const sample = index < 3 ? extended : short;
+      return {...sample, id:'i' + (index + 1), prompt:sample.prompt + ' Tình huống ' + (index + 1),
+        estMinutes: index < 3 ? 5 : 2};
+    });
+    lesson.stages = [{stage:'independent',itemIds:lesson.items.map(item => item.id)}];
+    const result = plan(context, lesson);
+    result.subjects[0].skillChanges = [];
+    const applied = await applyResult(db, client, lease.jobId, lease.leaseToken, result, false, midnight);
+    assert.equal(applied.status, 200, JSON.stringify(applied));
+    assert.equal(applied.outcome.subjects[0].lessonIds.length, 1);
+  }
+  assert.deepEqual(await queueDaily(db, {}, midnight), { subjects: 0, failed: 0 });
+  const saved = db.sqlite.prepare("SELECT subject_id,est_minutes,assigned_date FROM learning_lessons WHERE slot='primary' ORDER BY subject_id").all();
+  assert.deepEqual(saved.map(row => ({...row})), notebooks.sort().map(id => ({ subject_id:id, est_minutes:45, assigned_date:'2026-11-19' })));
+  assert.deepEqual(extras(), previousExtras);
+});
+
+test('W4 blocks completion-only and partial submissions; a late whole submission prepares the following day', async t => {
+  const { db, lesson } = await assigned();
+  t.after(() => db.sqlite.close());
+  db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
+  db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-11-18' WHERE id=?").run(lesson);
+  const before = new Date('2026-11-18T22:59:00Z');
+  // An older reader can submit selected items without a stage. This does not count as Nộp bài.
+  await submitLesson(db, learner, lesson, {
+    clientSubmissionId:crypto.randomUUID(),draftRevision:0,stage:null,itemIds:['i1'],
+    answers:{ i1:{answer:'["a"]'} },
+  }, before);
+  const midnight = new Date('2026-11-18T23:00:00Z');
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=? WHERE id=?').run(before.toISOString(),lesson);
+  assert.deepEqual(await queueDaily(db, {}, midnight), { subjects:0, failed:0 });
+  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=NULL WHERE id=?').run(lesson);
+
+  const late = new Date('2026-11-18T23:00:01Z');
+  const submission = await submitLesson(db, learner, lesson, {
+    clientSubmissionId:crypto.randomUUID(),draftRevision:1,stage:null,itemIds:null,
+    answers:{ i1:{answer:'["a"]'}, i3:{answer:'Ich kann am Montag nicht kommen.'} },
+  }, late);
+  assert.equal(submission.stage, null);
+  assert.deepEqual(await queueDaily(db, {}, late), { subjects:0, failed:0 });
+  const prepared = await queuePreparedDaily(db, {}, learner, lesson, late);
+  assert.equal((await readJob(db, prepared.id)).learning_day, '2026-11-20');
+  assert.equal((await queuePreparedDaily(db, {}, learner, lesson, late)).id, prepared.id);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons').get().n, 1);
+});
+
 test('F4b stores a validated plan without learning writes and cron discards a stale revision', async () => {
   const {db, lesson} = await assigned();
   db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
   const before = new Date('2026-10-24T21:59:00Z');
+  await submitWhole(db, lesson, before);
   db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?').run(before.toISOString(),before.toISOString(),lesson);
   const q = await queuePreparedDaily(db, {}, learner, lesson, before);
   assert.equal((await readJob(db,q.id)).learning_day,'2026-10-25');
@@ -1666,7 +1746,8 @@ test('F4b queues tomorrow across Berlin DST and respects independent notebooks',
   const {db,lesson}=await assigned();
   db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
   const before=new Date('2026-03-28T22:59:00Z');
-  db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-03-28',completed_at=? WHERE id=?").run(before.toISOString(),lesson);
+  db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-03-28' WHERE id=?").run(lesson);
+  await submitWhole(db, lesson, before);
   const first=await queuePreparedDaily(db,{},learner,lesson,before);
   assert.equal((await readJob(db,first.id)).learning_day,'2026-03-29');
   assert.equal((await readJob(db,first.id)).expires_at,'2026-03-29T22:00:00.000Z');
@@ -1674,6 +1755,7 @@ test('F4b queues tomorrow across Berlin DST and respects independent notebooks',
   db.sqlite.prepare("UPDATE subjects SET status='active',ai_enabled=1 WHERE id=?").run(second.id);
   db.sqlite.prepare("INSERT INTO learning_lessons(id,user_id,subject_id,track,payload,assigned_date,updated,package_version,slot,completed_at) SELECT 'les_bbbbbbbbbbbbbbbbbbbb',user_id,?,NULL,payload,'2026-03-29',updated,package_version,'primary',? FROM learning_lessons WHERE id=?").run(second.id,'2026-03-28T23:01:00.000Z',lesson);
   const after=new Date('2026-03-28T23:01:00Z');
+  db.sqlite.prepare("INSERT INTO submissions(id,learner_id,lesson_id,stage,client_submission_id,request_hash,status,created_at) VALUES('dst-submission',?,'les_bbbbbbbbbbbbbbbbbbbb','whole-lesson','dst','hash','graded',?)").run(learner,after.toISOString());
   const q=await queuePreparedDaily(db,{},learner,'les_bbbbbbbbbbbbbbbbbbbb',after);
   assert.equal((await readJob(db,q.id)).learning_day,'2026-03-30');
   db.sqlite.close();
@@ -1685,6 +1767,7 @@ test('F4b undoes completion before midnight and discards expired prepared jobs',
     const {db,lesson}=await assigned();
     db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL WHERE id=?').run(subject);
     const at=new Date('2026-10-13T21:30:00Z');
+    await submitWhole(db, lesson, at);
     db.sqlite.prepare("UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?").run(at.toISOString(),at.toISOString(),lesson);
     const q=await queuePreparedDaily(db,{},learner,lesson,at);
     const [lease]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan']},'test',at);
@@ -1707,11 +1790,12 @@ for (const change of ['none','undo','revision']) test('F4b primary at midnight: 
   const skill=db.sqlite.prepare('SELECT id FROM skills WHERE subject_id=?').get(subject).id;
   db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL,roadmap=? WHERE id=?').run(JSON.stringify([{title:'Luyện tiếp',objective:'Viết câu',situation:'Công việc',skills:[skill],mode:'new'}]),subject);
   const at=new Date('2026-10-13T21:59:00Z');
-  db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?').run(at.toISOString(),at.toISOString(),lesson);
+  await submitWhole(db, lesson, at);
+  if(change==='undo') db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?,updated=? WHERE id=?').run(at.toISOString(),at.toISOString(),lesson);
   const q=await queuePreparedDaily(db,{},learner,lesson,at);
   const [lease]=await leaseJobs(db,client,{...input,capabilities:['lesson-v3','adaptive-plan']},'test',at);
   const context=JSON.parse((await readJob(db,q.id)).context_snapshot);
-  const next=structuredClone(fixture);next.kind=context.adaptive.mode==='learn'?'new':'remediation';
+  const next=structuredClone(fixture);next.estMinutes=45;next.kind=context.adaptive.mode==='learn'?'new':'remediation';
   next.items.forEach((item,i)=>item.prompt += ' Tình huống mới '+i);
   const result=plan(context,next);result.subjects[0].skillChanges=[];
   const r=await applyResult(db,client,q.id,lease.leaseToken,result,false,at);
@@ -1722,8 +1806,10 @@ for (const change of ['none','undo','revision']) test('F4b primary at midnight: 
   if(change==='revision') db.sqlite.prepare('UPDATE subjects SET revision=revision+1 WHERE id=?').run(subject);
   const midnight=new Date('2026-10-13T22:00:00Z');
   await applyPreparedDaily(db,midnight); await applyPreparedDaily(db,midnight);
-  assert.equal((await readJob(db,q.id)).status,change==='none'?'succeeded':'cancelled');
-  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons WHERE origin_job_id=?').get(q.id).n,change==='none'?1:0);
+  assert.equal((await readJob(db,q.id)).status,change==='revision'?'cancelled':'succeeded');
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons WHERE origin_job_id=?').get(q.id).n,change==='revision'?0:1);
+  assert.equal(db.sqlite.prepare('SELECT completed_at FROM learning_lessons WHERE id=?').get(lesson).completed_at,null);
+  assert.equal(db.sqlite.prepare('SELECT answer FROM attempts WHERE lesson_id=?').get(lesson).answer,'["a"]');
   await queueDaily(db,{},midnight);await queueDaily(db,{},midnight);
   assert.equal(db.sqlite.prepare("SELECT count(*) n FROM ai_jobs WHERE subject_id=? AND purpose='daily' AND learning_day='2026-10-14'").get(subject).n,1);
   db.sqlite.close();

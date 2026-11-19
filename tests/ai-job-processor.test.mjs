@@ -622,10 +622,12 @@ test('listening quota and quoted grading evidence are enforced through lease, up
   assert.equal(accepted.status, 200, JSON.stringify(accepted));
 });
 
-test('OpenAI daily plans save 14 timed rubric questions and keep the previous lesson', async t => {
+test('OpenAI daily plans save 18 timed rubric questions and keep the previous lesson', async t => {
   const { db } = await openSubmission();
   t.after(() => db.sqlite.close());
   db.sqlite.prepare('UPDATE learning_lessons SET completed_at=?').run('2026-11-11T08:00:00.000Z');
+  const oldId = db.sqlite.prepare('SELECT id FROM learning_lessons').get().id;
+  db.sqlite.prepare("INSERT INTO submissions(id,learner_id,lesson_id,stage,client_submission_id,request_hash,status,created_at) VALUES('prior-whole',?,?,'whole-lesson','prior','hash','graded','2026-11-11T07:00:00.000Z')").run(learner,oldId);
   const readOld = () => db.sqlite.prepare('SELECT payload, draft, completed_at FROM learning_lessons ORDER BY rowid LIMIT 1').get();
   const previous = readOld();
   await enqueue(db, {}, { learnerId: learner, kind: 'plan', purpose: 'daily' }, new Date('2026-11-13T09:00:00Z'));
@@ -633,21 +635,22 @@ test('OpenAI daily plans save 14 timed rubric questions and keep the previous le
   const [lease] = await hub.lease({ kinds: ['plan'], max: 1, runner, capabilities: ['lesson-v3'] });
   const context = await hub.context(lease);
   const [subject] = context.subjects;
-  assert.equal(context.learner.targetMinutes, 30);
+  assert.equal(context.learner.targetMinutes, 45);
   const skill = subject.skills[0].skillId;
   const lesson = structuredClone(fixture);
-  Object.assign(lesson, { gradingMode: 'whole-lesson', targetSkills: [skill], reasonRefs: [], estMinutes: 30 });
+  Object.assign(lesson, { gradingMode: 'whole-lesson', targetSkills: [skill], reasonRefs: [], estMinutes: 45 });
   const scenarios = [
     'Chuẩn bị thư mời cho buổi họp', 'Sắp xếp ca trực ở thư viện', 'Xin phép đổi giờ phỏng vấn',
     'Lên lịch tập đàn thứ Bảy', 'Chuẩn bị bàn cho khách', 'Hỏi đường đi đến bưu điện',
     'Viết biển báo cho trường học', 'Mời hàng xóm tới buổi chiếu phim', 'Hỏi quy định ở hồ bơi',
     'Đề nghị giúp một bạn kẹt xe', 'Đặt lịch khám cho thú cưng', 'Viết kế hoạch cho nhóm làm bánh',
     'Xin nghỉ buổi tập bóng', 'Hẹn mang sách trả cho bạn',
+    'Xác nhận giờ đón khách', 'Nhờ bạn đổi lịch trực', 'Hỏi giờ mở cửa bảo tàng', 'Hẹn giao lại chìa khóa',
   ];
   lesson.items = scenarios.map((scenario, index) => ({
-    id: 'i' + (index + 1), input: index < 2 ? 'long' : 'short', activity: 'apply', skills: [skill], difficulty: 1,
+    id: 'i' + (index + 1), input: index < 3 ? 'long' : 'short', activity: 'apply', skills: [skill], difficulty: 1,
     prompt: `${scenario}. Viết một yêu cầu phù hợp bằng tiếng Đức và cho biết động từ ở đâu.`,
-    estMinutes: index < 2 ? 4 : index < 4 ? 1 : 2,
+    estMinutes: index < 3 ? 5 : 2,
     rubric: [{ criterion: 'Đúng vị trí động từ', points: 1 }, { criterion: 'Yêu cầu phù hợp tình huống', points: 1 },
       { criterion: 'Trình bày cách tính giờ và kết quả đúng', points: 1 }],
     hints: ['Chọn động từ khuyết thiếu.', 'Đặt động từ nguyên mẫu cuối câu.'],
@@ -675,11 +678,11 @@ test('OpenAI daily plans save 14 timed rubric questions and keep the previous le
     const request = JSON.parse(init.body);
     const schema = JSON.parse(request.input.split('optional fields:\n')[1].split('\nDữ liệu')[0]);
     const primary = schema.properties.subjects.items.properties.primaryLesson.anyOf[0].properties;
-    assert.deepEqual(primary.estMinutes, { const: 30 });
-    assert.equal(primary.items.minItems, 10);
-    assert.equal(primary.items.maxItems, 14);
+    assert.deepEqual(primary.estMinutes, { const: 45 });
+    assert.equal(primary.items.minItems, 15);
+    assert.equal(primary.items.maxItems, 20);
     assert(primary.items.items.anyOf.every(item => item.required.includes('estMinutes') && !item.properties.key));
-    assert.match(request.instructions, /30 phút, 10–14 câu/);
+    assert.match(request.instructions, /45 phút, 15–20 câu/);
     assert.match(request.instructions, /15 phút, 6–8 câu/);
     assert.match(request.instructions, /chỉ gõ chữ/);
     assert.equal(request.max_output_tokens, 16_000);
@@ -694,9 +697,9 @@ test('OpenAI daily plans save 14 timed rubric questions and keep the previous le
   assert.equal(output.status, 'succeeded', JSON.stringify(hub.calls));
   assert.equal(calls, 2);
   const saved = db.sqlite.prepare('SELECT id, payload, est_minutes FROM learning_lessons WHERE origin_job_id=?').get(lease.jobId);
-  assert.equal(saved.est_minutes, 30);
+  assert.equal(saved.est_minutes, 45);
   assert.equal(JSON.parse(saved.payload).gradingMode, 'whole-lesson');
-  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM lesson_items WHERE lesson_id=(SELECT id FROM learning_lessons WHERE origin_job_id=?)').get(lease.jobId).n, 14);
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM lesson_items WHERE lesson_id=(SELECT id FROM learning_lessons WHERE origin_job_id=?)').get(lease.jobId).n, 18);
   assert.deepEqual(readOld(), previous);
 
   // One optional image per question must survive submission and enter the same assessment.
@@ -712,7 +715,7 @@ test('OpenAI daily plans save 14 timed rubric questions and keep the previous le
   }, now);
   const assessmentJob = await queueSubmission(db, {}, learner, submission.id, now);
   const assessment = await buildAssessContext(db, await readJob(db, assessmentJob.id), 'test', now);
-  assert.equal(assessment.attempts.length, 14);
+  assert.equal(assessment.attempts.length, 18);
   for (const attempt of assessment.attempts) {
     assert.deepEqual(attempt.attachments.map(photo => photo.attachmentId), answers[attempt.itemId].attachmentIds);
     assert.equal(attempt.attachments[0].expired, false);

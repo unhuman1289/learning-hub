@@ -68,11 +68,14 @@ test('staging permits children in enabled notebooks and respects the switch',asy
   assert.equal(await tutorEligible(db,turn.id,{...env,OPENAI_ENABLED:'false'}),false);
 });
 
-test('sixty turns are counted per Berlin day across lessons, including DST',async t=>{
+test('the 80th turn is allowed and the 81st waits for Berlin midnight, including DST',async t=>{
   const {db,lessonId}=await setup(t);
   const insert=db.sqlite.prepare("INSERT INTO tutor_turns(id,lesson_id,item_id,learner_id,question,status,created_at) VALUES(?,?,'i1','u','q','answered',?)");
-  const lessons=[];for(let n=0;n<3;n++) lessons.push(await insertLessonV2(db,{learnerId:'u',subjectId:subject,day:`2026-10-${20+n}`,lesson:fixture}));
-  for(let n=0;n<60;n++) insert.run('old'+n,lessons[Math.floor(n/20)],'2026-10-25T00:30:00.000Z');
+  const lessons=[];for(let n=0;n<4;n++) lessons.push(await insertLessonV2(db,{learnerId:'u',subjectId:subject,day:`2026-10-${20+n}`,lesson:fixture}));
+  for(let n=0;n<79;n++) insert.run('old'+n,lessons[Math.floor(n/20)],'2026-10-25T00:30:00.000Z');
+  const eightieth=await openTutorTurn(db,'u',{lessonId,itemId:'i1',question:'q'},false,new Date('2026-10-25T22:29:00Z'));
+  assert.equal(eightieth.status,'queued');
+  db.sqlite.prepare("UPDATE tutor_turns SET status='answered' WHERE id=?").run(eightieth.id);
   await assert.rejects(openTutorTurn(db,'u',{lessonId,itemId:'i1',question:'q'},false,new Date('2026-10-25T22:30:00Z')),{status:409});
   const allowed=await openTutorTurn(db,'u',{lessonId,itemId:'i1',question:'q'},false,new Date('2026-10-25T23:00:00Z'));
   assert.equal(allowed.status,'queued');

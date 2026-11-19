@@ -105,7 +105,6 @@ Người học khác **không** thấy kệ, tiến độ, phút học, bài là
 - AI không đổi được mục tiêu, giới hạn, số phút, trạng thái môn, liên kết phụ huynh.
 - AI không đánh dấu hoàn thành, không xoá hay sửa bài đã giao, không xoá bằng chứng.
 - Độ khó câu hỏi không vượt `limits.maxDifficulty` của môn.
-- Tổng thời lượng bài đang mở không vượt 1,5 lần mục tiêu phút.
 - AI không nâng thành thạo vượt mức luật cho phép.
 - AI không đổi điểm chấm tự động, trừ khi đang chấm lại theo phản đối.
 

@@ -60,7 +60,7 @@ export function hiddenCorrection(a: Record<string, unknown>, lessonSupport: Reco
 }
 export async function readSubmission(db: Db, learnerId: string, id: string) {
   const row = await db
-    .prepare('SELECT id,lesson_id,stage,status,created_at,graded_at FROM submissions WHERE id=? AND learner_id=?')
+    .prepare("SELECT id,lesson_id,nullif(stage,'whole-lesson') AS stage,status,created_at,graded_at FROM submissions WHERE id=? AND learner_id=?")
     .bind(id, learnerId)
     .first<Record<string, unknown>>();
   if (!row) throw new ApiError(404, 'Không tìm thấy lượt nộp.');
@@ -95,7 +95,7 @@ export async function readLessonSubmissions(db:Db,learnerId:string,lessonId:stri
  const owner=await db.prepare("SELECT id,support FROM learning_lessons WHERE id=? AND user_id=? AND package_version IN ('2','3')").bind(lessonId,learnerId).first<{id:string;support:string|null}>();
  if(!owner)throw new ApiError(404,'Không tìm thấy bài.');
  const support=JSON.parse(owner.support??'{}') as Record<string,string>;
- const {results:rows=[]}=await db.prepare(`SELECT s.id,s.stage,s.status,s.created_at,j.status AS job_status,CASE WHEN j.status='succeeded' THEN json_extract(j.outcome,'$.summary') END AS summary FROM submissions s LEFT JOIN ai_jobs j ON j.id=s.ai_job_id WHERE s.lesson_id=? AND s.learner_id=? AND (s.id IN (SELECT id FROM submissions WHERE lesson_id=s.lesson_id AND learner_id=s.learner_id ORDER BY created_at DESC,rowid DESC LIMIT 30) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND (SELECT count(*) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.attempt_no>a.attempt_no)<2) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND a.current_grade_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.current_grade_id IS NOT NULL AND b.attempt_no>a.attempt_no))) ORDER BY s.created_at DESC,s.rowid DESC`).bind(lessonId,learnerId).all<Record<string,unknown>>();
+ const {results:rows=[]}=await db.prepare(`SELECT s.id,nullif(s.stage,'whole-lesson') AS stage,s.status,s.created_at,j.status AS job_status,CASE WHEN j.status='succeeded' THEN json_extract(j.outcome,'$.summary') END AS summary FROM submissions s LEFT JOIN ai_jobs j ON j.id=s.ai_job_id WHERE s.lesson_id=? AND s.learner_id=? AND (s.id IN (SELECT id FROM submissions WHERE lesson_id=s.lesson_id AND learner_id=s.learner_id ORDER BY created_at DESC,rowid DESC LIMIT 30) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND (SELECT count(*) FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.attempt_no>a.attempt_no)<2) OR EXISTS(SELECT 1 FROM attempts a WHERE a.submission_id=s.id AND a.current_grade_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM attempts b WHERE b.lesson_id=a.lesson_id AND b.item_id=a.item_id AND b.current_grade_id IS NOT NULL AND b.attempt_no>a.attempt_no))) ORDER BY s.created_at DESC,s.rowid DESC`).bind(lessonId,learnerId).all<Record<string,unknown>>();
  if(!rows.length)return [];
  const {results:attempts=[]}=await db.prepare(`SELECT a.submission_id,a.id,a.item_id,a.answer,a.attachment_ids,a.attempt_no,a.support,a.status,g.result,g.score,g.feedback,g.correction,
  (SELECT json_object('id',d.id,'status',d.status,'note',d.resolution_note) FROM disputes d WHERE d.attempt_id=a.id ORDER BY d.created_at DESC LIMIT 1) AS dispute
@@ -199,7 +199,7 @@ export async function submitLesson(db: EvidenceDb, learnerId: string, lessonId: 
         id,
         learnerId,
         lessonId,
-        input.stage,
+        wholeLesson ? 'whole-lesson' : input.stage,
         input.clientSubmissionId,
         hash,
         stamp,

@@ -33,11 +33,11 @@ test('reflection is owner-only, gated on grading, revision-safe; survives backup
  db.sqlite.prepare("UPDATE attempts SET status='graded' WHERE submission_id=?").run(submission.id);
  const job={id:'job_test',learner_id:'learner',subject_id:sid,purpose:'daily',learning_day:'2026-10-14'};
  const context=await buildPlanContext(db,job,'local');
- assert.equal(context.learner.targetMinutes,30);
+ assert.equal(context.learner.targetMinutes,45);
  for (const roadmapV2 of [false, true]) {
   const adaptive = await buildPlanContext(db, {...job, adaptive:1}, 'local', roadmapV2);
-  assert.equal(adaptive.learner.targetMinutes,30);
-  assert.equal(adaptive.adaptive.minutes,30);
+  assert.equal(adaptive.learner.targetMinutes,45);
+  assert.equal(adaptive.adaptive.minutes,45);
  }
  assert.equal(context.subjects[0].learnerReflections[0].note,'Giải thích weil rõ hơn');
  assert.equal(db.sqlite.prepare('SELECT completed_at FROM learning_lessons WHERE id=?').get(id).completed_at,null);

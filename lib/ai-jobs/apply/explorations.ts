@@ -36,7 +36,6 @@ export async function prepareExplorations(
   const statements: Statement[] = [],
     guards: Statement[] = [],
     savedIds: string[] = [];
-  let minutes = 0;
   const gate = 'EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)',
     args = [job.id, token],
     stamp = now.toISOString();
@@ -195,7 +194,6 @@ export async function prepareExplorations(
         AND EXISTS(SELECT 1 FROM learner_requests WHERE id=? AND learner_id=? AND job_id=? AND status IN ('queued','in_job'))
         WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`)
         .bind(token+':request:'+e.requestId,targetId,job.learner_id,known.revision,e.requestId,job.learner_id,job.id,...args));
-    minutes += lesson.estMinutes;
     savedIds.push(id);
     statements.push(
       db
@@ -260,5 +258,5 @@ export async function prepareExplorations(
         .bind(id, context.adaptive?.reason ?? e.reason, stamp, e.requestId, job.learner_id, id, ...args),
     );
   }
-  return { statements, guards, savedIds, minutes };
+  return { statements, guards, savedIds };
 }
