@@ -12,7 +12,7 @@ export function monthlySet(now = new Date()) {
   return 'm' + new Intl.DateTimeFormat('en', {timeZone:'Europe/Berlin', month:'2-digit'}).format(now);
 }
 
-function PetImage({state, size}: {state:TutorPetState; size:"panel" | "corner" | "child"}) {
+function PetImage({state, size}: {state:TutorPetState; size:"panel" | "corner" | "child" | "desk"}) {
   // A month whose outfit is not uploaded yet falls back to the default v2 outfit.
   const [set,setSet] = useState(monthlySet);
   const monthly = set !== 'v2';
@@ -37,4 +37,4 @@ function PetImage({state, size}: {state:TutorPetState; size:"panel" | "corner" |
       onError={()=>monthly ? setSet('v2') : setFailed(true)} onAnimationEnd={()=>{if(state === 'blocked' && !covered) setCovered(true);}} /></span>}
   </span>;
 }
-export function TutorPet({state, size}: {state:TutorPetState; size:"panel" | "corner" | "child"}) { return <PetImage key={state} state={state} size={size}/>; }
+export function TutorPet({state, size}: {state:TutorPetState; size:"panel" | "corner" | "child" | "desk"}) { return <PetImage key={state} state={state} size={size}/>; }
