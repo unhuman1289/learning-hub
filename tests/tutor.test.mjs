@@ -110,7 +110,9 @@ test('history reports the binding per-lesson or daily limit',async t=>{
  let data=await (await history()).json(); assert.equal(data.remaining,0); assert.equal(data.limit,'lesson');
  const other=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-14',lesson:fixture});
  const extra=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-13',lesson:fixture});
- for(let i=0;i<40;i++) insert.run('other_'+i,i<19 ? other : extra,now);
+ const fourth=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-12',lesson:fixture});
+ const fifth=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-11',lesson:fixture});
+ for(let i=0;i<60;i++) insert.run('other_'+i,[other,extra,fourth,fifth][Math.floor((i+1)/20)],now);
  const res=await getTutor(new Request(origin+'/api/lessons/'+other+'/tutor'),learner,()=>db,other);
  data=await res.json(); assert.equal(data.remaining,0); assert.equal(data.limit,'day');
 });

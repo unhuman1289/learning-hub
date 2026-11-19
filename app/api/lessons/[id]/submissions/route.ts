@@ -1,6 +1,6 @@
 import { measureStorage } from '../../../../../db/timing';
 import { env } from 'cloudflare:workers';
-import { queueSubmission } from '../../../../../lib/ai-jobs/queue';
+import { queuePreparedDaily, queueSubmission } from '../../../../../lib/ai-jobs/queue';
 import { getHubUser } from '../../../../../lib/auth/session';
 import { apiFailure, ApiError } from '../../../../../lib/api-error';
 import { lessonTarget, privateHeaders } from '../../../../../lib/lesson-v2/route-helpers';
@@ -24,12 +24,15 @@ export async function POST(req: Request, context: { params: Promise<{ id: string
       throw new ApiError(400, 'Dữ liệu nộp không phải JSON hợp lệ.');
     }
     const input = parseSubmission(body);
-    const submission = await submitLesson(db, learner, id, input);
+    const now = new Date();
+    const submission = await submitLesson(db, learner, id, input, now);
     // The submission is saved; a full AI queue only delays feedback and must not look like a failed save.
-    const job = await queueSubmission(db, env, learner, String(submission.id)).catch((error) => {
+    const job = await queueSubmission(db, env, learner, submission.id, now).catch((error) => {
       console.error('Assess job not queued:', error instanceof Error ? error.message : error);
       return null;
     });
+    if (input.stage === null && input.itemIds === null)
+      await queuePreparedDaily(db, env, learner, id, now).catch(() => console.error('Next daily plan not queued.'));
     return Response.json({ submission, draftRevision: input.draftRevision + Number(input.answers !== undefined), aiPending: !!job, eta: job?.trigger === 'deferred' ? 'tomorrow' : 'soon' }, { headers: { ...privateHeaders, "Server-Timing": timing.header() } });
   } catch (e) {
     return apiFailure(e, 'Chưa xác nhận nộp bài. Giữ mã lượt nộp và kiểm tra lại.', privateHeaders);

@@ -8,7 +8,7 @@ Thuộc bộ [Learning Hub 2.0](README.md). Áp dụng cho bài soạn tay, cho 
 
 ## Pilot Deutsch
 
-Trong pilot, Hub chọn bước, kỹ năng và lý do theo bằng chứng. Bài thử adaptive giữ 5–6 câu, phủ các kỹ năng đích và không đưa gợi ý để đo khả năng tự vận dụng. Bài xếp chỗ khi mở sổ giữ 5 câu và tối đa 20 phút để lấy bằng chứng ban đầu cho 5 bước. Cả hai đều chấm cuối bài. Xem [plan pilot](../plan/DEUTSCH-ADAPTIVE-PILOT.md).
+Trong pilot, Hub chọn bước, kỹ năng và lý do theo bằng chứng. Bài thử adaptive theo thời lượng và số câu của bài chính hoặc bài thêm, phủ các kỹ năng đích và không đưa gợi ý để đo khả năng tự vận dụng. Bài xếp chỗ khi mở sổ giữ 5 câu và tối đa 20 phút để lấy bằng chứng ban đầu cho 5 bước. Cả hai đều chấm cuối bài. Xem [plan pilot](../plan/DEUTSCH-ADAPTIVE-PILOT.md).
 
 ## 1. Nguyên tắc
 
@@ -156,7 +156,7 @@ Không bắt Ếch vừa tính, vừa giải thích Hóa, vừa viết tiếng �
 | `independent` (Tự làm) | Bằng chứng tự vận dụng | 2–5 | Ẩn sau "Cần trợ giúp?" | `create`, `apply`; rubric gắn kỹ năng |
 | `check` (Kiểm tra lại) | Câu tương đương sau lời phê | 0–2 | Không | Chỉ Assess thêm |
 
-Bài chính (`daily`, 00:00 Berlin) hướng tới 30 phút mỗi sổ mỗi ngày, 10–14 câu. Bài thêm qua Học mới, Luyện tập hoặc Cá nhân hóa và bộ ôn riêng hướng tới 15 phút, 6–8 câu. Bài thử adaptive giữ 5–6 câu với thời lượng của lượt soạn. Bài xếp chỗ giữ quy tắc riêng của pilot. Trần hợp đồng là 25 câu.
+Bài chính (`daily`, 00:00 Berlin) hướng tới 45 phút mỗi sổ mỗi ngày, 15–20 câu. Bài thêm qua Học mới, Luyện tập hoặc Cá nhân hóa và bộ ôn riêng hướng tới 15 phút, 6–8 câu. Bài xếp chỗ giữ quy tắc riêng của pilot. Trần hợp đồng là 25 câu.
 
 Điều chỉnh số câu ở từng giai đoạn để đủ thời lượng và số câu của lượt soạn. Mỗi câu mới có `estMinutes` tính bằng phút nguyên. Dự trù khoảng 2 phút cho câu ngắn, 4–5 phút cho câu dài. Có thể dùng câu nhanh 1 phút để chừa thời gian cho một câu dài. Tổng `estMinutes` của các câu phải bằng `estMinutes` của bài.
 
@@ -174,7 +174,7 @@ Bìa (câu hỏi trung tâm) → `read` (2–8 phần, nguồn đã mở thật)
 
 | Loại | Hình dạng |
 | --- | --- |
-| `review` (bộ ôn) | Bộ ôn riêng 6–8 câu, 15 phút. Bài chính dạng ôn theo thời lượng bài chính. Chỉ `retrieval` và `independent`. Kỹ năng đến hạn, trộn dạng, ngữ cảnh mới. |
+| `review` (bộ ôn) | Bộ ôn riêng 6–8 câu, 15 phút. Bài chính dạng ôn theo mục tiêu 45 phút, 15–20 câu. Chỉ `retrieval` và `independent`. Kỹ năng đến hạn, trộn dạng, ngữ cảnh mới. |
 | `diagnostic` (khi mở sổ mới) | 5 câu cho 5 bước đầu, không gợi ý, tối đa 20 phút. Bìa ghi "làm sai cũng không sao". |
 | `exploration` | Trả lời ngắn, nêu kiến thức tiên quyết, 6–8 câu luyện trong 15 phút, liên hệ với sổ. Không tự phá lộ trình chính. |
 | `connect` (trong Sổ kết nối) | Khuôn `reading` rút gọn: nguyên lý → từng môn → giống, khác, giới hạn → một câu áp dụng ở bối cảnh mới. 10–20 phút. |

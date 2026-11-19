@@ -2,7 +2,7 @@ import { z } from 'zod/v4';
 import { reasons } from '../roadmap/reasons.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 
-export const DAILY_LESSON_MINUTES = 30;
+export const DAILY_LESSON_MINUTES = 45;
 export const EXTRA_LESSON_MINUTES = 15;
 
 export const adaptiveDecision = z.object({

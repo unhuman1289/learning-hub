@@ -2,7 +2,6 @@ import { ApiError } from '../api-error.ts';
 import { usesAdaptivePlan } from '../subjects/sql.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 import { enqueue, type QueueBindings } from '../ai-jobs/queue.ts';
-import { openWorkMinutesSql } from '../ai-jobs/open-work.ts';
 import { berlinDay } from '../daily-policy.ts';
 import { addDays } from '../learner-model/rules.ts';
 import { containsContactDetails } from '../automation/privacy.ts';
@@ -87,13 +86,10 @@ export async function createRequest(db: EvidenceDb, bindings: QueueBindings, lea
   if (input.kind === 'extra_practice' && !tonight) {
     const cap = await db.prepare(`SELECT
       (SELECT count(*) FROM learning_lessons WHERE user_id=? AND assigned_date=? AND slot='extra') AS used,
-      CASE WHEN (SELECT role FROM learner_settings WHERE user_id=?)='child' THEN 2 ELSE 4 END AS cap,
-      coalesce((SELECT daily_target_minutes FROM learner_settings WHERE user_id=?),45)*1.5 AS max_minutes,
-      (${openWorkMinutesSql}) AS open_minutes`)
-      .bind(learnerId, berlinDay(now), learnerId, learnerId, learnerId)
-      .first<{ used: number; cap: number; max_minutes: number; open_minutes: number }>();
-    // Even the shortest lesson allowed by lesson-package/2 needs five minutes.
-    tonight = !!cap && (cap.used >= cap.cap || cap.open_minutes + 5 > cap.max_minutes);
+      CASE WHEN (SELECT role FROM learner_settings WHERE user_id=?)='child' THEN 2 ELSE 4 END AS cap`)
+      .bind(learnerId, berlinDay(now), learnerId)
+      .first<{ used: number; cap: number }>();
+    tonight = !!cap && cap.used >= cap.cap;
   }
   // A full queue leaves the request queued; the admin sees the job cap alert.
   const job = await enqueue(

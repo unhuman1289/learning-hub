@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { renderEmphasis } from '../inline-emphasis';
-import type { TutorTurn } from '../../../lib/contracts/tutor';
+import { TUTOR_DAY_LIMIT, TUTOR_TURN_LIMIT, type TutorTurn } from '../../../lib/contracts/tutor';
 import { TutorPet, type TutorPetState } from './tutor-pet';
 import './tutor.css';
 
@@ -102,7 +102,7 @@ export default function Tutor({lessonId,items,number,child}:{lessonId:string;ite
         {messages.map((m,index)=><div key={m.id} className="tutor-message"><p className="tutor-question">{m.question}</p>{(m.answer || m.status==='queued' || (sending && m.status==='streaming')) && <div className="tutor-bot">{index===messages.length-1 && <TutorPet size="panel" state={remaining===0?'limit':state}/>}<p>{m.answer ? m.answer.split(blockedText).map((part,i)=><span key={i}>{i>0 && <strong>{blockedText}</strong>}{renderEmphasis(part)}</span>) : m.status==='queued' ? busyText : 'Để con nghĩ xíu nha…'}</p></div>}</div>)}
         {offline && <p role="status">Mất kết nối. Phần đã nghe vẫn được giữ. <button type="button" className="notebook-button notebook-secondary" onClick={()=>{setOffline(false);setState('listen');input.current?.focus();}}>Hỏi tiếp</button></p>}
         {notice && <p role="alert">{notice}</p>}
-        {remaining===0 && <p>{limit==='day' ? 'Hôm nay con đã trả lời đủ 60 lượt. Mai hỏi con tiếp nha!' : 'Bài này con trả lời đủ 20 lượt rồi, con đi ngủ xíu đây.'}</p>}
+        {remaining===0 && <p>{limit==='day' ? `Hôm nay con đã trả lời đủ ${TUTOR_DAY_LIMIT} lượt. Mai hỏi con tiếp nha!` : `Bài này con trả lời đủ ${TUTOR_TURN_LIMIT} lượt rồi, con đi ngủ xíu đây.`}</p>}
       </div>
       {remaining>0 && <div className="tutor-compose"><label htmlFor="tutor-question" className="sr-only">Câu hỏi cho Bột</label><textarea ref={input} id="tutor-question" value={question} onFocus={()=>setState('listen')} onChange={e=>{setState('listen');setQuestion(e.target.value);}} maxLength={500} rows={2}/><button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="notebook-button notebook-primary">{sending?'Chờ chút':'Gửi'}</button><small>Còn {remaining} lượt hỏi trong bài này</small></div>}
     </section>}

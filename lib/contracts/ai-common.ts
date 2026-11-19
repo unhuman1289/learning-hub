@@ -307,8 +307,6 @@ export const planContext = z
         maxPrimaryPerSubjectPerDay: z.literal(1),
         maxReviewSetsPerSubjectPerDay: z.literal(1),
         extraLessonsLeftToday: z.number(),
-        maxOpenMinutes: z.number(),
-        openMinutesNow: z.number(),
         historyDays: z.literal(14),
         duplicateWindowDays: z.literal(90),
       })

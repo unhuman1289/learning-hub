@@ -1,7 +1,6 @@
 import { berlinDay } from '../daily-policy.ts';
 import {checkCoverage} from '../roadmap/coverage.ts';
 import {jobGapStatements} from '../knowledge/service.ts';
-import {openWorkMinutesSql} from './open-work.ts';
 import { estimateCost } from './cost.ts';
 import { planResult, assessResult, type PlanContext, type AssessContext } from '../contracts/ai-common.ts';
 import type { Job } from './context/common.ts';
@@ -125,19 +124,7 @@ export async function applyResult(
           )
           .bind(token + ':' + g.skillId, g.skillId, job.learner_id, g.revision, id, token),
       );
-  if ('outcomes' in prepared) {
-    const context = JSON.parse(job.context_snapshot!) as PlanContext;
-    guards.push(...prepared.guards);
-    const minutes = prepared.newMinutes;
-    if (minutes && !context.adaptive)
-      guards.push(
-        db
-          .prepare(
-            `INSERT INTO ai_apply_guards(token,valid) SELECT ?,CASE WHEN (${openWorkMinutesSql})+?<=? THEN 1 ELSE 0 END WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`,
-          )
-          .bind(token + ':budget', job.learner_id, minutes, context.policy.maxOpenMinutes, id, token),
-      );
-  }
+  if ('outcomes' in prepared) guards.push(...prepared.guards);
   const claim = internalPreparedJob
     ? db.prepare("UPDATE ai_jobs SET apply_token=? WHERE id=? AND status='leased' AND expires_at>? AND apply_token IS NULL AND EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id AND result_hash=?)")
       .bind(token, id, now.toISOString(), hash)

@@ -10,6 +10,7 @@ import { uploadPhoto } from "../lesson-v2/photo";
 import { germanCharacters, hasVietnameseTyping } from "../lesson-v2/keyboard";
 import { LessonAudio, type ListeningControls } from "./audio";
 import { StructuredInput } from "../lesson-v2/inputs/structured";
+import { RuledAnswerField } from "./ruled-answer-field";
 export function LessonItem({
   active = true,
   item,
@@ -49,7 +50,7 @@ export function LessonItem({
     [uploading, setUploading] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
   const [focusLine, setFocusLine] = useState<{ line: number; key: number }>();
-  const answerField = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
+  const answerField = useRef<HTMLTextAreaElement>(null);
   const result = useRef<HTMLDivElement>(null);
   const lastResult = useRef(feedbackResult);
   useEffect(() => {
@@ -108,40 +109,9 @@ export function LessonItem({
       ) : item.input === "short" || item.input === "long" ? (
         <div className="min-w-0">
           <label htmlFor={fieldId} className="sr-only">Bài làm của bạn</label>
-          {item.input === "short" ? (
-            <input
-              id={fieldId}
-              ref={element => { answerField.current = element; }}
-              autoComplete="off"
-              lang={germanInput ? "de" : undefined}
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={value.answer}
-              disabled={locked}
-              onChange={(e) => onChange({ ...value, answer: e.target.value })}
-              maxLength={8000}
-              placeholder="Viết câu trả lời…"
-              className="block min-h-11 w-full border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink-paper placeholder:text-muted-paper focus:border-b-2 focus:border-accent-paper"
-            />
-          ) : (
-            <textarea
-              id={fieldId}
-              ref={element => { answerField.current = element; }}
-              autoComplete="off"
-              lang={germanInput ? "de" : undefined}
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              value={value.answer}
-              disabled={locked}
-              onChange={(e) => onChange({ ...value, answer: e.target.value })}
-              maxLength={8000}
-              rows={5}
-              placeholder="Viết bài làm ở đây…"
-              className="block w-full resize-y [field-sizing:content] min-h-28 border-0 bg-transparent p-0 font-hand text-xl leading-7 text-ink-paper placeholder:text-muted-paper focus:border-b-2 focus:border-accent-paper max-h-[45dvh]"
-            />
-          )}
+          <RuledAnswerField id={fieldId} field={answerField} active={active} short={item.input === "short"}
+            germanInput={germanInput} disabled={locked} value={value.answer}
+            onChange={answer => onChange({ ...value, answer })} />
           {germanInput && !locked && <>
             <div role="group" aria-label="Ký tự tiếng Đức" className="flex flex-wrap gap-x-1">
               {germanCharacters.map(character => (

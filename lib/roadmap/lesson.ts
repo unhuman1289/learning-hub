@@ -1,6 +1,7 @@
 import type {Db} from '../subjects/service.ts';
 import type {PlanContext} from '../contracts/ai-common.ts';
 import type {RoadmapStep} from './types.ts';
+import {EXTRA_LESSON_MINUTES} from '../ai-jobs/adaptive.ts';
 import {transferActivities} from './progress.ts';
 
 export function checkRoadmapLesson(lesson:{gradingMode?: string;items:{skills:string[];activity:string;difficulty:number;hints:string[];key?:unknown}[]},adaptive:PlanContext['adaptive'],
@@ -20,11 +21,13 @@ export function checkRoadmapLesson(lesson:{gradingMode?: string;items:{skills:st
  if(adaptive?.mode!=='challenge')return;
  const {items}=lesson;
  const band=Math.min(adaptive.difficulty?.max??limit,limit);
- if(items.length<5||items.length>6||items.some(item=>item.hints.length)||
+ const [minItems,maxItems] = lesson.gradingMode !== 'whole-lesson' ? [5,6]
+   : adaptive.minutes === EXTRA_LESSON_MINUTES ? [6,8] : [15,20];
+ if(items.length<minItems||items.length>maxItems||items.some(item=>item.hints.length)||
    items.filter(item=>transferActivities.has(item.activity)).length<2||
    (lesson.gradingMode !== 'whole-lesson' && items.filter(item=>item.key!=null).length*2<items.length)||!items.some(item=>item.difficulty===band)||
    !adaptive.targetSkills.every(skill=>items.some(item=>item.skills.includes(skill))))
-  issue('Bài thử cần 5–6 câu, ít nhất hai câu vận dụng, có câu ở mức khó cao nhất và không có gợi ý.' +
+  issue(`Bài thử cần ${minItems}–${maxItems} câu, ít nhất hai câu vận dụng, có câu ở mức khó cao nhất và không có gợi ý.` +
     (lesson.gradingMode === 'whole-lesson' ? '' : ' Ít nhất nửa số câu cần chấm ngay.'));
 }
 

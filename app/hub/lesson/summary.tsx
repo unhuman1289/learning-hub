@@ -6,7 +6,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { LessonSummaryData } from "../../../lib/lesson-v2/summary";
 import { apiJson, learnerQuery } from "../api";
 import { pencil, RedPen, skillLabel } from "../paper-bits";
-import { buttonClass, RouteLink } from "../ui";
+import { buttonClass } from "../ui";
 import type { Route } from "../use-route";
 import { TutorPet } from "./tutor-pet";
 import type { SubmissionView } from "../lesson-v2/feedback";
@@ -119,7 +119,6 @@ export function LessonSummary({ lessonId, subjectId, learner, waiting, progressK
           {opening ? "Đang tìm bài…" : "Bài tiếp theo"}
         </button>}
         {finish}
-        <RouteLink route={{ view: "desk" }} go={go} className={buttonClass("secondary")}>Về bàn</RouteLink>
       </div>
       {children}
       {nextError && <p role="alert" className="mt-2 text-brick">{nextError}</p>}

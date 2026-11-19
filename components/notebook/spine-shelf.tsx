@@ -132,7 +132,10 @@ function SpineFace({ title, color }: { title: string; color: string }) {
       <span className="absolute inset-x-0 top-2.5 h-[3px] bg-[#c9a24a]/80" />
       <span className="absolute inset-x-0 bottom-2.5 h-[3px] bg-[#c9a24a]/80" />
       <span className="absolute inset-x-[5px] bottom-[22px] top-[22px] grid place-items-center overflow-hidden rounded-[2px] bg-label py-1.5 text-label-ink">
-        <span className="max-h-full truncate font-hand text-[15px] leading-none [text-orientation:mixed] [transform:rotate(180deg)] [writing-mode:vertical-rl]">{title}</span>
+        <span className={cx(
+          "max-h-full truncate font-hand text-[15px] leading-none [writing-mode:vertical-rl]",
+          /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/u.test(title) ? "[text-orientation:upright]" : "[text-orientation:mixed] [transform:rotate(180deg)]",
+        )}>{title}</span>
       </span>
     </span>
   );

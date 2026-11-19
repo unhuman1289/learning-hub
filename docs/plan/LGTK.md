@@ -39,6 +39,11 @@
 | 18/11 | **Chấp nhận độ khớp chấm khoảng 85%** (hiệu chuẩn lần 9–11: 87,5%, 75% do lỗi evidence đã sửa, 84%; hợp lệ 8/8) thay cho ngưỡng 90% để phát hành. Câu lệch còn lại là dao động của mô hình (mail1 4/5, vài câu incorrect→partial), không có câu sai thành đúng hoàn toàn | G3 đóng. Cảnh báo hiệu chuẩn vẫn bật để theo dõi; xem lại sau 2 tuần dùng thật |
 | 18/11 | **Quyết định 11.3: production dùng OpenAI cho mọi luồng AI; xoá luồng và runner Qwen** (gồm launchd trên Mac) | Bước Q0 sau F4b và C1 vì cùng sửa `integrations/home-runner`, `lib/ai-jobs`. Cập nhật AGENTS.md mục Architecture theo |
 | 18/11 | **Quyết định 11.4: chi tiêu OpenAI khoảng 10–20 € mỗi tháng cho 2 người học.** Tài khoản nạp trước, không làm trần chi tiêu trong Hub | Giảm token ở C1; chấm còn một lời gọi (G3) |
+| 19/11 | **Bỏ trần phút bài đang mở** (`maxOpenMinutes` = 1,5 × mục tiêu ngày) sau khi lượt 00:00 ngày 19/11 bỏ Deutsch và Rust của Vu vì trần 67,5 phút. **Mỗi sổ, lúc 00:00 giao một bài chính ~45 phút** (thay 30 phút, 10–14 câu); mỗi lần xin thêm trong ngày là bài ~15 phút, 6–8 câu. **Còn bài chính hôm trước chưa nộp toàn bài (trước 00:00) thì không giao bài chính mới** cho sổ đó | W4. Thay quyết định "~30 phút/sổ" ngày 18/11 và điều kiện "hoàn thành trước 00:00" của bài chính |
+| 19/11 | **Gia sư Bột: 80 lượt hỏi mỗi ngày** cho mỗi người học (thay 60); 20 lượt mỗi bài giữ nguyên | W4 |
+| 19/11 | **Gáy sổ chữ tượng hình (tiếng Trung) xếp dọc đứng chữ**, không xoay | W5 |
+| 19/11 | **Bỏ "Quyền riêng tư của ảnh" trong bài và nút "Về bàn" ở trang Tổng kết** (đã có Đóng sổ và vuốt xuống để đóng) | W5 |
+| 19/11 | **Ô trả lời chữ kéo giãn được, cao theo dòng kẻ, có trần theo màn hình**; câu trả lời ngắn cũng xuống dòng thay vì một dòng cuộn ngang (ví dụ i6 bài thêm Deutsch của Vu ngày 18/11, câu trả lời 94 ký tự khó sửa lại) | W5 |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.

@@ -856,6 +856,65 @@ html[data-vt="turn"] .lesson-spread { view-transition-name: lesson-page; }
   box-shadow: var(--shadow-page);
   overflow-wrap: anywhere;
 }
+.ruled-answer-paper {
+  --answer-line: var(--paper-line-height);
+  --answer-cap: min(40dvh, calc(var(--answer-viewport-height, 100dvh) * .4));
+  --answer-max: max(var(--answer-line), round(down, var(--answer-cap), var(--answer-line)));
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+  min-height: min(var(--answer-max), calc(var(--answer-manual-rows, var(--answer-min-rows)) * var(--answer-line)));
+  max-height: var(--answer-max);
+  height: calc(var(--answer-manual-rows) * var(--answer-line));
+}
+@media (min-width: 40rem) {
+  .ruled-answer-paper { --answer-cap: min(45dvh, calc(var(--answer-viewport-height, 100dvh) * .45)); }
+}
+.ruled-answer-text {
+  grid-area: 1 / 1;
+  min-width: 0;
+  font: 1.25rem / var(--answer-line) var(--font-hand);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ruled-answer-mirror {
+  visibility: hidden;
+  overflow: hidden;
+}
+.ruled-answer-input {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  resize: none;
+  overflow: auto;
+  padding: 0;
+  border: 0;
+  background-color: var(--color-paper);
+  color: var(--color-ink-paper);
+  scrollbar-color: var(--color-muted-paper) transparent;
+}
+.ruled-answer-input:focus {
+  outline: 2px solid var(--color-accent-paper);
+  outline-offset: 1px;
+}
+.ruled-answer-grip {
+  display: grid;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  color: var(--color-muted-paper);
+  cursor: ns-resize;
+  touch-action: none;
+}
+.ruled-answer-grip:hover,
+.ruled-answer-grip:focus-visible {
+  color: var(--color-accent-paper);
+  cursor: ns-resize;
+}
+
 /* Page edges turn the page. At rest the bottom and top corners curl up a little; hover,
    focus or a swipe lifts them further, and a turn starts from that curl (U6). The bottom
    edge is the button; the top corner is an extra pointer target for the same turn. */
