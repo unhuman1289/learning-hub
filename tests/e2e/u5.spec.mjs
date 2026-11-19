@@ -61,7 +61,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   expect(deskStats.gzip, JSON.stringify(deskStats.chunks)).toBeLessThanOrEqual(180_000);
   expect(deskStats.api).toContain("/api/today");
   // The desk uses the same /api/today payload. Bột only downloads its existing sprite rows.
-  const sprite = /^\/api\/tutor\/sprite\/v2\/(?:wave|sit)\.webp$/;
+  const sprite = /^\/api\/tutor\/sprite\/(?:v2|m0[1-9]|m1[0-2])\/(?:wave|sit)\.webp$/;
   expect(deskStats.api.filter(path => path !== "/api/ambient" && !sprite.test(path)), JSON.stringify(deskStats.api)).toEqual(["/api/today"]);
   await expect(page.locator("h1")).toHaveText(/Con chào Ếch/);
   await expect(page.locator("h1 + time")).toHaveText(/ngày .* tháng/);

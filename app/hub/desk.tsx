@@ -45,10 +45,13 @@ function DeskPet({ enabled }: { enabled: boolean }) {
   const [greeting, setGreeting] = useState(true);
   useEffect(() => {
     if (!enabled) return;
-    const timer = window.setTimeout(() => setGreeting(false), 480);
+    const timer = window.setTimeout(() => setGreeting(false), 720);
     return () => window.clearTimeout(timer);
   }, [enabled]);
-  return <TutorPet size="corner" state={enabled && greeting ? "greet" : "idle"} fallback={!enabled} />;
+  if (!enabled) return <span aria-hidden="true" className="tutor-pet tutor-pet-corner">
+    <span className="tutor-pet-fallback">☺</span>
+  </span>;
+  return <TutorPet size="corner" state={greeting ? "greet" : "idle"} />;
 }
 
 export type Viewing = {
