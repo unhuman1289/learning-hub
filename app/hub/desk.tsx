@@ -51,7 +51,7 @@ function DeskPet({ enabled }: { enabled: boolean }) {
   if (!enabled) return <span aria-hidden="true" className="tutor-pet tutor-pet-corner">
     <span className="tutor-pet-fallback">☺</span>
   </span>;
-  return <TutorPet size="corner" state={greeting ? "greet" : "idle"} />;
+  return <TutorPet size="desk" state={greeting ? "greet" : "idle"} />;
 }
 
 export type Viewing = {
@@ -167,14 +167,11 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8">
       {/* Entering the study: a greeting by the garden window. */}
-      <section className="flex items-start gap-3 sm:items-center sm:gap-4">
+      <section className="flex items-center gap-3 sm:gap-5">
         <DeskPet key={viewing.id ?? ownerId} enabled={data?.tutor?.enabled === true} />
         <div className="min-w-0">
-          <h1 className="font-print text-[2rem] font-medium leading-tight sm:text-[2.75rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
-          {clock && <time className="mt-1 block text-xs text-muted" dateTime={[clock.month, clock.day].map(part => String(part).padStart(2, "0")).join("-")}>
-            {clock.weekday}, ngày {clock.day} tháng {clock.month}
-          </time>}
-          {data?.greeting.cheer && <p className="mt-1 font-hand text-lg leading-snug text-accent">{data.greeting.cheer}</p>}
+          <h1 className="text-balance font-print text-[1.625rem] font-medium leading-tight sm:text-[2.25rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
+          {data?.greeting.cheer && <p className="mt-1.5 text-pretty font-hand text-lg leading-snug text-accent sm:text-xl">{data.greeting.cheer}</p>}
           {viewing.learners.length > 1 && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem bàn của
               <select value={viewing.id ?? ""} onChange={(event) => { window.dispatchEvent(new Event("lh:profile-change")); viewing.set(event.target.value || null); }} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
