@@ -11,5 +11,7 @@ test('sprite reads only allowed R2 keys and handles caching',async()=>{
  r=await tutorSprite(request('sleep.webp'),bucket); assert.equal(r.status,404);
  r=await tutorSprite(request('sit.webp',{method:'POST'}),bucket); assert.equal(r.status,405);
  r=await tutorSprite(new Request('https://example.test/api/tutor/sprite/sit.webp'),bucket); assert.equal(r.status,200);
- assert.deepEqual(calls,['assets/tutor/v2/sit.webp','assets/tutor/v2/sit.webp','assets/tutor/v2/sleep.webp','assets/tutor/v1/sit.webp']);
+ r=await tutorSprite(new Request('https://example.test/api/tutor/sprite/m11/sit.webp'),bucket); assert.equal(r.status,200);
+ for(const month of ['m00','m13','m1','x11']) { r=await tutorSprite(new Request(`https://example.test/api/tutor/sprite/${month}/sit.webp`),bucket); assert.equal(r.status,404); }
+ assert.deepEqual(calls,['assets/tutor/v2/sit.webp','assets/tutor/v2/sit.webp','assets/tutor/v2/sleep.webp','assets/tutor/v1/sit.webp','assets/tutor/m11/sit.webp']);
 });
