@@ -2,9 +2,10 @@ const names = new Set(['idle','run_right','run_left','wave','jump','rest','expla
 
 /** Called only after the Worker household guard has succeeded. */
 export async function tutorSprite(request: Request, bucket: R2Bucket | undefined): Promise<Response> {
-  const match = new URL(request.url).pathname.match(/^\/api\/tutor\/sprite\/(v2\/)?([a-z_]+)\.webp$/);
+  // v1 has no folder; v2 is the default outfit; m01–m12 are the monthly outfits.
+  const match = new URL(request.url).pathname.match(/^\/api\/tutor\/sprite\/(?:(v2|m0[1-9]|m1[0-2])\/)?([a-z_]+)\.webp$/);
   const name = match?.[2];
-  const version = match?.[1] ? "v2" : "v1";
+  const version = match?.[1] ?? "v1";
   if (!name || !names.has(name)) return new Response(null, {status: 404});
   if (request.method !== 'GET' && request.method !== 'HEAD') return new Response(null, {status: 405, headers: {Allow: 'GET, HEAD'}});
   if (!bucket) return new Response(null, {status: 503});

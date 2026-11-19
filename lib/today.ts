@@ -1,5 +1,6 @@
 import type { EvidenceDb } from './evidence/submit.ts';
 import { berlinHour, greetingFor, readGreetingFacts } from "./greeting.ts";
+import { tutorAddress, type TutorSelf } from "./tutor/address.ts";
 import { readDaySql, toStudyDay } from './study-sql.ts';
 import { berlinDay } from './daily-policy.ts';
 export type TodayItem = {
@@ -27,9 +28,16 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
   const day = berlinDay(now);
   const [setting, { results: studyRows = [] }, { results = [] }, { results: due = [] }, facts] = await Promise.all([
     db
-      .prepare('SELECT st.daily_target_minutes, st.role, coalesce(st.display_name,u.name) name FROM "user" u LEFT JOIN learner_settings st ON st.user_id=u.id WHERE u.id=?')
-      .bind(learner)
-      .first<{ daily_target_minutes: number | null; name: string; role: string | null }>(),
+      .prepare(`SELECT st.daily_target_minutes, st.role, coalesce(nullif(trim(st.display_name),''),u.name) name,
+        st.tutor_self, st.tutor_call, coalesce(st.tutor_enabled,1) AS tutor_enabled,
+        EXISTS(SELECT 1 FROM ai_jobs j JOIN submissions sub ON sub.ai_job_id=j.id AND sub.learner_id=j.learner_id
+          JOIN subjects s ON s.id=j.subject_id AND s.learner_id=j.learner_id
+          WHERE j.learner_id=u.id AND j.kind='assess' AND j.status IN ('queued','leased')
+          AND j.expires_at>? AND sub.status IN ('grading','deferred') AND s.status='active') AS awaiting_grade
+        FROM "user" u LEFT JOIN learner_settings st ON st.user_id=u.id WHERE u.id=?`)
+      .bind(now.toISOString(), learner)
+      .first<{ daily_target_minutes: number | null; name: string; role: string | null;
+        tutor_self: TutorSelf | null; tutor_call: string | null; tutor_enabled: number; awaiting_grade: number }>(),
     db
     .prepare(readDaySql)
     .bind(learner, day)
@@ -105,12 +113,14 @@ export async function todayFor(db: EvidenceDb, learner: string, now = new Date()
   const minutes = Object.values(study.seconds).reduce<number>((sum, seconds) => sum + (seconds ?? 0), 0) / 60;
   const { targetMinutes } = study;
   const name = setting?.name ?? "bạn";
+  const address = tutorAddress(setting, name);
   const greeting = facts
-    ? greetingFor({ ...facts, minutesToday: minutes, targetMinutes },
-      { name, day, hour: hour ?? berlinHour(now), role: setting?.role ?? "adult" })
+    ? greetingFor({ ...facts, minutesToday: minutes, targetMinutes, awaitingGrade: setting?.awaiting_grade === 1 },
+      { name, day, hour: hour ?? berlinHour(now), role: setting?.role ?? "adult", address })
     : { hello: `Bàn của ${name}`, cheer: null, kind: null };
   return {
     greeting,
+    tutor: viewer === learner ? { ...address, enabled: setting?.tutor_enabled === 1 } : null,
     day,
     minutes,
     targetMinutes,

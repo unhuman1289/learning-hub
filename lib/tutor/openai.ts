@@ -1,6 +1,7 @@
 import { tutorAnswer } from '../contracts/tutor.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
-import { SentenceFilter } from './leak.ts';
+import { capitalize, tutorInstructions } from './address.ts';
+import { BLOCKED_SENTENCE, SentenceFilter } from './leak.ts';
 import { tutorContext } from './context.ts';
 
 export const TUTOR_BUSY = 'Gia sư đang bận, câu trả lời sẽ có trong bài';
@@ -86,20 +87,23 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
   const nameQuestion=/(?:tôi|mình|tên)\s+(?:là\s+ai|tên\s+gì|gì)|tên\s+(?:tôi|mình)\s+(?:là\s+)?gì/u.test(question);
   const itemQuestion=/\bcâu\s*(?:\d+|này|đó|kia)\b/iu.test(question);
   const answerQuestion=/(?:đáp án|lời giải|điền gì|cách làm)/iu.test(question);
+  const { self, call } = data.address;
+  const Self = capitalize(self);
+  const formal = self === 'cháu';
   let substitute: string | undefined;
   let namePending = '';
   const personalize = (text:string, final=false) => {
-    namePending = (namePending + text).replaceAll('{ten}', data.displayName);
+    namePending += text;
     let cut = namePending.length;
     if (!final) for (let size=1;size<5;size++) {
       if (namePending.endsWith('{ten}'.slice(0,size))) { cut=namePending.length-size; break; }
     }
     const part = namePending.slice(0, cut);
     namePending = namePending.slice(cut);
-    return part;
+    return part.replaceAll('{ten}', () => call);
   };
   const filter = new SentenceFilter(data.answerFragments, (text, blocked) => {
-    const personalized = personalize(text);
+    const personalized = personalize(blocked ? text.replace(BLOCKED_SENTENCE, BLOCKED_SENTENCE.replace('con giữ lại nha', `${self} giữ lại ${formal ? 'ạ' : 'nha'}`)) : text);
     answer += personalized;
     if (blocked) { leakBlocked=true; emit('blocked',{}); }
     if (personalized) emit('delta',{text:personalized,blocked});
@@ -118,7 +122,7 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     const openaiStarted=Date.now();
     const response=await fetcher('https://api.openai.com/v1/responses', {method:'POST',
       headers:{Authorization:'Bearer '+env.OPENAI_API_KEY,'Content-Type':'application/json'},
-      body:JSON.stringify({model:'gpt-6-luna',instructions:prompt,input:JSON.stringify(data.context),stream:true,store:false,
+      body:JSON.stringify({model:'gpt-6-luna',instructions:tutorInstructions(prompt, self),input:JSON.stringify(data.context),stream:true,store:false,
         reasoning:{effort:'none'},max_output_tokens:800}), signal:abort.signal,redirect:'manual'});
     if (!response.ok || !response.body) throw new Error('Unavailable');
     for await (const entry of records(response.body)) {
@@ -139,8 +143,10 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
           const marker=classification.slice(0,newline).trim();
           if (marker !== 'ON_TOPIC' && marker !== 'OFF_TOPIC') throw new Error('Invalid scope classification');
           offTopic=marker === 'OFF_TOPIC' && !nameQuestion && !itemQuestion && !answerQuestion;
-          if (nameQuestion) substitute=data.displayName ? 'Con gọi là {ten} nha! Quay lại bài này cùng con nhé.' : 'Con chưa biết tên ạ. Quay lại bài này cùng con nha!';
-          else if (marker === 'OFF_TOPIC' && (itemQuestion || answerQuestion)) substitute='Con chưa nói đáp án đâu nha. Thử đọc lại đề và tìm điều câu hỏi yêu cầu trước nhé!';
+          if (nameQuestion) substitute=call
+            ? `${Self} gọi là {ten} ${formal ? 'ạ.' : 'nha!'} Mình quay lại bài nhé.`
+            : `${Self} chưa biết tên ạ. Mình quay lại bài nhé.`;
+          else if (marker === 'OFF_TOPIC' && (itemQuestion || answerQuestion)) substitute=`${Self} giữ lại đáp án ${formal ? 'ạ' : 'nha'}. Thử đọc lại đề xem câu hỏi yêu cầu gì nhé.`;
           const rest=classification.slice(newline+1); classification='';
           if (!offTopic && !substitute) filter.push(rest);
         } else if (!offTopic && !substitute) filter.push(entry.delta);
@@ -156,7 +162,9 @@ export async function answerTutor(db:EvidenceDb, env:Bindings, id:string, prompt
     }
     if (offTopic === undefined) throw new Error('Missing scope classification');
     if (substitute) filter.push(substitute);
-    if (offTopic) filter.push(`Hihi, chuyện đó để lúc khác nha, giờ con chỉ giúp bài này thôi ạ. Quay lại câu đang mở nhé?`);
+    if (offTopic) filter.push(formal
+      ? `${Self} chỉ giúp trong bài này thôi ạ. Mình quay lại câu đang mở nhé?`
+      : `Chuyện đó để lúc khác nha, giờ ${self} chỉ giúp bài này thôi ạ. Quay lại câu đang mở nhé?`);
     filter.finish();
     const tail=personalize('',true); answer+=tail; if (tail) emit('delta',{text:tail,blocked:false});
     const parsed=tutorAnswer.safeParse(answer);

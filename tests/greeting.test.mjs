@@ -45,3 +45,25 @@ test("the learner's own hour chooses the greeting words, and only a whole hour i
   assert.equal(deviceHour("0"), 0);
   for (const bad of [null, "", "24", "-1", "7.5", "abc", "1e1", "２０"]) assert.equal(deviceHour(bad), null, String(bad));
 });
+
+test("Bột greets each profile with its configured address, and defaults to the display name", () => {
+  const cases = [
+    [{ self: "em", call: "chị Ếch" }, 15, "Em chào chị Ếch buổi chiều ạ!"],
+    [{ self: "cháu", call: "ông" }, 8, "Cháu chào ông buổi sáng ạ."],
+    [{ self: "con", call: "bố Thạch" }, 19, "Con chào bố Thạch buổi tối ạ!"],
+    [undefined, 8, "Con chào Mai buổi sáng ạ!"],
+  ];
+  for (const [address, hour, hello] of cases) {
+    assert.equal(greetingFor(base, { ...options, hour, address }).hello, hello);
+  }
+});
+
+test("the desk mentions real notebook titles, waiting work and keeps stars for children", () => {
+  const child = { ...options, role: "child", address: { self: "em", call: "chị Ếch" } };
+  const open = greetingFor({ ...base, openLessons: 2, openNotebooks: ["Tiếng Đức", "Toán 7"] }, child);
+  assert.equal(open.kind, "open");
+  assert.match(open.cheer, /2 bài đang mở.*Tiếng Đức và Toán 7/);
+  const streak = greetingFor({ ...base, streak: 3 }, child);
+  assert.match(streak.cheer, /^⭐ .*3 ngày/);
+  assert.equal(greetingFor({ ...base, awaitingGrade: true, openLessons: 2 }, child).kind, "grading");
+});

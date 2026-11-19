@@ -2,7 +2,7 @@ import { env } from 'cloudflare:workers';
 import { getHubUser } from '../../../../lib/auth/session';
 import { storage } from '../../../../db/storage';
 import { ApiError, apiFailure } from '../../../../lib/api-error';
-import { linkGuardian, listFamily, setLearnerProfile, setTutorEnabled, unlinkGuardian } from '../../../../lib/admin/family';
+import { familyAccessError, linkGuardian, listFamily, setLearnerProfile, setTutorAddress, setTutorEnabled, unlinkGuardian } from '../../../../lib/admin/family';
 
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store' };
@@ -10,8 +10,8 @@ const ID = /^[A-Za-z0-9_-]{1,128}$/;
 
 async function requireAdmin() {
   const user = await getHubUser();
-  if (!user) return { response: Response.json({ error: 'Sign in required' }, { status: 401, headers }) };
-  if (user.role !== 'admin') return { response: Response.json({ error: 'Admin access required' }, { status: 403, headers }) };
+  const error = familyAccessError(user);
+  if (error || !user) return { response: apiFailure(error, 'Sign in required', headers) };
   return { user };
 }
 
@@ -26,7 +26,7 @@ export async function GET() {
   }
 }
 
-/** {action:"profile", userId, role?, displayName?} | {action:"tutor", userId, enabled} | {action:"link"|"unlink", guardianId, learnerId} */
+/** {action:"profile", userId, role?, displayName?} | {action:"tutor-address", userId, self?, call?} | {action:"tutor", userId, enabled} | {action:"link"|"unlink", guardianId, learnerId} */
 export async function POST(req: Request) {
   const access = await requireAdmin();
   if ('response' in access) { if (env.ENVIRONMENT === 'local') await req.arrayBuffer(); return access.response; }
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
     };
     const db = storage();
     if (body.action === 'profile') await setLearnerProfile(db, id('userId'), { role: body.role, displayName: body.displayName });
+    else if (body.action === 'tutor-address') await setTutorAddress(db, id('userId'), { self: body.self, call: body.call });
     else if (body.action === 'tutor') await setTutorEnabled(db, id('userId'), body.enabled);
     else if (body.action === 'link') await linkGuardian(db, id('guardianId'), id('learnerId'), access.user.id);
     else if (body.action === 'unlink') await unlinkGuardian(db, id('guardianId'), id('learnerId'));

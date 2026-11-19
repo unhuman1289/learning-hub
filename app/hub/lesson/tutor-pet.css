@@ -1,12 +1,15 @@
 .tutor-pet-panel { --pet-width:96px; --pet-height:104px; }
 .tutor-pet-corner { --pet-width:72px; --pet-height:78px; }
 .tutor-pet-child { --pet-width:88px; --pet-height:95px; }
+/* The 192×208 cells leave clear space around Bột; negative margins keep the figure, not the cell, next to the greeting. */
+.tutor-pet-desk { --pet-width:120px; --pet-height:130px; margin:-14px -28px -8px -24px; }
+@media (min-width:640px) { .tutor-pet-desk { --pet-width:164px; --pet-height:178px; margin:-22px -40px -12px -34px; } }
 .tutor-pet { display:inline-grid; place-items:center; flex:none; width:var(--pet-width); height:var(--pet-height); }
 .tutor-pet-window { display:block; width:var(--pet-width); height:var(--pet-height); overflow:hidden; }
 .tutor-pet-strip { display:block; max-width:none; width:calc(var(--frames) * var(--pet-width)); height:var(--pet-height); animation:tutor-frames var(--duration) steps(var(--frames)) infinite; }
 .tutor-pet-once { animation-name:tutor-frames-once; animation-timing-function:steps(calc(var(--frames) - 1)); animation-iteration-count:1; animation-fill-mode:forwards; }
 .tutor-pet-offline { animation:tutor-umbrella-intro 360ms steps(3) 1 forwards, tutor-umbrella-loop 360ms steps(3) 360ms infinite; }
-.tutor-pet-fallback { width:var(--pet-width); height:var(--pet-width); border:2px solid #765342; border-radius:50%; background:#f8e4bf; color:#493026; font-size:24px; text-align:center; }
+.tutor-pet-fallback { width:var(--pet-width); height:var(--pet-width); border:2px solid #765342; border-radius:50%; background:#f8e4bf; color:#493026; font-size:24px; display:grid; place-items:center; }
 .tutor-pet-fallback[hidden] { display:none; }
 @keyframes tutor-frames { to { transform:translateX(calc(var(--frames) * -1 * var(--pet-width))); } }
 @keyframes tutor-frames-once { to { transform:translateX(calc((var(--frames) - 1) * -1 * var(--pet-width))); } }

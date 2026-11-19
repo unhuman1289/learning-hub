@@ -1,11 +1,12 @@
 "use client";
 
 import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from "react";
-import { CalendarLeaf, LubeckWindow, SeasonItem, useSkyClock } from "./lubeck/window";
+import { LubeckWindow, SeasonItem, useSkyClock } from "./lubeck/window";
 import { workerMessage } from "./offline-client";
 import { LazyProfileSettings } from "./profile-settings-loader";
 import { PaperDialog } from "./paper-dialog";
 import { PostIt } from "../../components/notebook/post-it";
+import { TutorPet } from "./lesson/tutor-pet";
 import { TodayBoard } from "./today-board";
 import { rumAfterPaint, rumNavigationStart } from "./rum";
 import { words } from "./words";
@@ -38,6 +39,19 @@ function subscribeNetwork(update: () => void) {
     window.removeEventListener("online", update);
     window.removeEventListener("offline", update);
   };
+}
+
+function DeskPet({ enabled }: { enabled: boolean }) {
+  const [greeting, setGreeting] = useState(true);
+  useEffect(() => {
+    if (!enabled) return;
+    const timer = window.setTimeout(() => setGreeting(false), 720);
+    return () => window.clearTimeout(timer);
+  }, [enabled]);
+  if (!enabled) return <span aria-hidden="true" className="tutor-pet tutor-pet-corner">
+    <span className="tutor-pet-fallback">☺</span>
+  </span>;
+  return <TutorPet size="desk" state={greeting ? "greet" : "idle"} />;
 }
 
 export type Viewing = {
@@ -153,11 +167,11 @@ export function Desk({ name, ownerId, go, daily, shelf, viewing, canOpenNotebook
   return (
     <div className="mx-auto grid w-full max-w-6xl gap-8">
       {/* Entering the study: a greeting by the garden window. */}
-      <section className="flex items-center gap-4">
-        <CalendarLeaf clock={clock} />
+      <section className="flex items-center gap-3 sm:gap-5">
+        <DeskPet key={viewing.id ?? ownerId} enabled={data?.tutor?.enabled === true} />
         <div className="min-w-0">
-          <h1 className="font-print text-[2.25rem] font-medium leading-tight sm:text-[2.75rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
-          <p aria-live="off" className="min-h-7 font-hand text-lg text-accent">{data?.greeting.cheer}</p>
+          <h1 className="text-balance font-print text-[1.625rem] font-medium leading-tight sm:text-[2.25rem]">{data?.greeting.hello ?? (readOnly ? `Bàn của ${viewedName}` : `Chào ${name}.`)}</h1>
+          {data?.greeting.cheer && <p className="mt-1.5 text-pretty font-hand text-lg leading-snug text-accent sm:text-xl">{data.greeting.cheer}</p>}
           {viewing.learners.length > 1 && (
             <label className="mt-3 inline-flex items-center gap-2 text-sm text-muted">Xem bàn của
               <select value={viewing.id ?? ""} onChange={(event) => { window.dispatchEvent(new Event("lh:profile-change")); viewing.set(event.target.value || null); }} className="min-h-11 rounded-md border border-rule bg-paper px-2 py-1 text-ink-paper">
