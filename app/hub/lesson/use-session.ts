@@ -27,7 +27,7 @@ type PendingSubmission = {
   answers?: DraftAnswers;
 };
 export type Lesson = Awaited<ReturnType<typeof readLessonV2>>;
-type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; study: StudyDay; displayName?: string; pageEdgeHint?: boolean };
+type ReaderPayload = { lesson: Lesson; submissions: SubmissionView[]; child: boolean; study: StudyDay; pageEdgeHint?: boolean };
 class RequestError extends Error {
   constructor(
     message: string,
@@ -87,7 +87,6 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     url = `/api/lessons/${id}`,
     suffix = learner ? "?learner=" + encodeURIComponent(learner) : "";
   const [child, setChild] = useState(prefetched?.child ?? false);
-  const [displayName, setDisplayName] = useState(prefetched?.displayName ?? "");
   const [pageEdgeHint, setPageEdgeHint] = useState(false);
   const submissionKey = cacheKey + ":submission";
   const cache = useRef(drafts);
@@ -100,10 +99,9 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
     const query = new URLSearchParams(suffix.slice(1));
     query.set("view", "reader");
     json<ReaderPayload>(url + "?" + query)
-      .then(({ lesson: result, submissions, child, study, displayName, pageEdgeHint }) => {
+      .then(({ lesson: result, submissions, child, study, pageEdgeHint }) => {
         if (generation.current !== version) return;
         setChild(child);
-        setDisplayName(displayName ?? "");
         setPageEdgeHint(!readonly && !!pageEdgeHint);
         const storedSubmission = readonly ? undefined : readOfflineDraft(submissionKey);
         if (storedSubmission) {
@@ -437,7 +435,7 @@ export function useLessonSession({ id, ownerId, learner, drafts, onLoaded, onCom
   const unanswered = lesson?.items.filter(i => !i.revealed.solutionSeen && !history.some(s => s.attempts.some(a => a.item_id === i.id))).length ?? 0;
 
   return {
-    lesson, child, displayName, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
+    lesson, child, pageEdgeHint, pageEdgeHintSeen, answers, history, readonly, busy, pending, offline, error, feedbackError, state, verification, hadPrefetch: !!prefetched,
     waitingForGrade, unanswered, confirmFinish,
     justCompleted, setJustCompleted, setConfirmFinish, change, reveal, submit, complete, refreshFeedback,
   };

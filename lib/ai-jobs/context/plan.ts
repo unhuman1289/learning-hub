@@ -165,7 +165,10 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       )
       .bind(job.learner_id, id, from, job.learner_id, id, from, job.learner_id, id, from, job.learner_id, id)
       .first<{ aiGraded: number; disputed: number; overturned: number; keyIssues: number }>();
-    const {results: reflections=[]} = await db.prepare('SELECT submission_id,lesson_id,difficulty,usefulness,minutes,note,updated_at FROM lesson_reflections WHERE learner_id=? AND subject_id=? ORDER BY updated_at DESC LIMIT 10').bind(job.learner_id,id).all<Record<string,unknown>>();
+    const {results: reflections=[]} = await db.prepare(`SELECT submission_id,lesson_id,difficulty,usefulness,minutes,note,updated_at FROM (
+      SELECT *,row_number() OVER (PARTITION BY lesson_id ORDER BY updated_at DESC,created_at DESC,submission_id DESC) AS position
+      FROM lesson_reflections WHERE learner_id=? AND subject_id=?
+    ) WHERE position=1 ORDER BY updated_at DESC,created_at DESC,submission_id DESC LIMIT 10`).bind(job.learner_id,id).all<Record<string,unknown>>();
     const { maxDifficulty, allowNewTopics, maxNewSkillsPerWeek, itemKinds } = JSON.parse(String(s.limits));
     list.push({
       framework: {key:framework.key,label:safeText(framework.label,sensitivity),

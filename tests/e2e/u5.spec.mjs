@@ -136,6 +136,8 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const gradeMs = await timeFromTap(retry, summary.getByText('Đã có kết quả bài làm.', { exact: true }));
   checkTime(info, 'grade', gradeMs, 1200);
   expect((await submissions()).length).toBe(previous + 1);
+  await expect(summary.locator('time')).toHaveCount(1);
+  await expect(flow(page).getByText('Đã lưu', { exact: true })).toHaveCount(0);
   await page.reload();
   await expect(flow(page)).toBeVisible();
   expect((await submissions()).length).toBe(previous + 1);

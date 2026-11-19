@@ -228,7 +228,7 @@ export function LessonFlow({ initialItem, groups, count, subject, materials, pag
           {numbers.map(number => <div key={number} className="min-w-0">{page(number, jump, active)}</div>)}
         </div>
         {hint && !end && <p className="lesson-flow-hint font-hand">Chạm mép giấy để lật</p>}
-        {status && <p role="status" className="mt-5 border-t border-rule pt-2 text-sm text-muted-paper">{status}</p>}
+        {status && (!end || status !== "Đã lưu") && <p role="status" className="mt-5 border-t border-rule pt-2 text-sm text-muted-paper">{status}</p>}
         {active && <nav aria-label="Lật trang bài học">
           {index > 0 && <>
             <button type="button" ref={element => keepEdge("left-bottom", element)} data-turn-edge="left" data-side="left" data-corner="bottom"

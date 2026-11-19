@@ -1,14 +1,14 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { renderEmphasis } from '../inline-emphasis';
-import { TUTOR_DAY_LIMIT, TUTOR_TURN_LIMIT, type TutorTurn } from '../../../lib/contracts/tutor';
+import { TUTOR_DAY_LIMIT, type TutorTurn } from '../../../lib/contracts/tutor';
 import { capitalize, tutorGreeting, type TutorAddress } from '../../../lib/tutor/address';
 import { TutorPet, type TutorPetState } from './tutor-pet';
 import './tutor.css';
 
 const blockedText = /(\(Chỗ này lộ đáp án mất, (?:con|em|cháu) giữ lại (?:nha|ạ)\.\))/u;
 type Message = { id:string; question:string; answer:string; status:string };
-type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; limit:'lesson'|'day'; displayName:string } & TutorAddress;
+type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; displayName:string } & TutorAddress;
 const initialRequests = new Map<string, Promise<Data>>();
 function readTutor(lessonId:string, fresh:boolean) {
   if (!fresh && initialRequests.has(lessonId)) return initialRequests.get(lessonId)!;
@@ -27,14 +27,13 @@ export default function Tutor({lessonId,items,number,child}:{lessonId:string;ite
   const busyText=`${Self} đang bận một chút. Câu trả lời sẽ có trong bài ${formal ? 'ạ' : 'nha'}.`;
   const selected=choice.page===number ? choice.value : number;
   const itemId=items[selected-1] ?? items[0];
-  const [enabled,setEnabled]=useState(false), [open,setOpen]=useState(false), [remaining,setRemaining]=useState(20);
-  const [limit,setLimit]=useState<'lesson'|'day'>('lesson');
+  const [enabled,setEnabled]=useState(false), [open,setOpen]=useState(false), [remaining,setRemaining]=useState(TUTOR_DAY_LIMIT);
   const [messages,setMessages]=useState<Message[]>([]), [question,setQuestion]=useState(''), [state,setState]=useState<TutorPetState>('idle');
   const [sending,setSending]=useState(false), [offline,setOffline]=useState(false), [notice,setNotice]=useState('');
   const trigger=useRef<HTMLButtonElement>(null), input=useRef<HTMLTextAreaElement>(null);
   const load=useCallback(async (fresh=false) => {
     const data=await readTutor(lessonId,fresh);
-    setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit); setAddress({self:data.self ?? 'con',call:data.call ?? data.displayName ?? ''});
+    setEnabled(data.enabled); setRemaining(data.remaining); setAddress({self:data.self ?? 'con',call:data.call ?? data.displayName ?? ''});
     setMessages(previous => {
       const saved=data.turns.map(t=> {
         const partial=previous.find(m=>m.id===t.id || (m.question===t.question && m.status==='streaming'));
@@ -105,9 +104,9 @@ export default function Tutor({lessonId,items,number,child}:{lessonId:string;ite
         {messages.map((m,index)=><div key={m.id} className="tutor-message"><p className="tutor-question">{m.question}</p>{(m.answer || m.status==='queued' || (sending && m.status==='streaming')) && <div className="tutor-bot">{index===messages.length-1 && <TutorPet size="panel" state={remaining===0?'limit':state}/>}<p>{m.answer ? m.answer.split(blockedText).map((part,i)=>i%2 ? <strong key={i}>{part}</strong> : <span key={i}>{renderEmphasis(part)}</span>) : m.status==='queued' ? busyText : `Để ${self} nghĩ ${formal ? 'một chút ạ' : 'xíu nha'}…`}</p></div>}</div>)}
         {offline && <p role="status">Mất kết nối. Phần đã nghe vẫn được giữ. <button type="button" className="notebook-button notebook-secondary" onClick={()=>{setOffline(false);setState('listen');input.current?.focus();}}>Hỏi tiếp</button></p>}
         {notice && <p role="alert">{notice}</p>}
-        {remaining===0 && <p>{limit==='day' ? `Hôm nay ${self} đã trả lời đủ ${TUTOR_DAY_LIMIT} lượt. Mai hỏi ${self} tiếp nhé!` : `Bài này ${self} đã trả lời đủ ${TUTOR_TURN_LIMIT} lượt rồi ${formal ? "ạ" : "nha"}.`}</p>}
+        {remaining===0 && <p>{`Hôm nay đã đủ ${TUTOR_DAY_LIMIT} lượt hỏi. Mai hỏi ${self} tiếp ${formal ? 'ạ' : 'nhé'}!`}</p>}
       </div>
-      {remaining>0 && <div className="tutor-compose"><label htmlFor="tutor-question" className="sr-only">Câu hỏi cho Bột</label><textarea ref={input} id="tutor-question" value={question} onFocus={()=>setState('listen')} onChange={e=>{setState('listen');setQuestion(e.target.value);}} maxLength={500} rows={2}/><button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="notebook-button notebook-primary">{sending?'Chờ chút':'Gửi'}</button><small>Còn {remaining} lượt hỏi trong bài này</small></div>}
+      {remaining>0 && <div className="tutor-compose"><label htmlFor="tutor-question" className="sr-only">Câu hỏi cho Bột</label><textarea ref={input} id="tutor-question" value={question} onFocus={()=>setState('listen')} onChange={e=>{setState('listen');setQuestion(e.target.value);}} maxLength={500} rows={2}/><button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="notebook-button notebook-primary">{sending?'Chờ chút':'Gửi'}</button><small>Còn {remaining} lượt hỏi hôm nay</small></div>}
     </section>}
   </div>;
 }

@@ -128,7 +128,7 @@ export function LessonReader({
           {lesson.template === "reading" ? <LessonNotes lesson={lesson} formatText={formatText} /> : materials}
         </>;
         if (index === summaryIndex) return <>
-          <LessonSummary child={child} displayName={session.displayName} offlinePending={session.offline && pending} items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
+          <LessonSummary child={child} offlinePending={session.offline && pending} items={lesson.items} answers={answers} history={history} lessonId={id} subjectId={lesson.subjectId} learner={learner} waiting={session.waitingForGrade} go={go}
             onQuestion={itemId => {
               const itemIndex = lesson.items.findIndex(item => item.id === itemId);
               if (itemIndex >= 0) jump(itemIndex + 1);
@@ -148,7 +148,7 @@ export function LessonReader({
           <PaperConfirm open={confirmFinish}
             message={blankCount ? `Còn ${blankCount} câu chưa làm. Bạn vẫn muốn đánh dấu xong bài này?` : `Còn ${session.unanswered} câu chưa nộp. Bạn vẫn muốn đánh dấu xong bài này?`} confirmLabel={words.action.finish}
             onCancel={() => session.setConfirmFinish(false)} onConfirm={() => void session.complete(true)} />
-          {reflection && <LessonReflection key={reflection.id} submissionId={reflection.id} lessonId={id} />}
+          {reflection && <LessonReflection key={id} submissionId={reflection.id} lessonId={id} />}
         </>;
 
         const item = lesson.items[index - 1];

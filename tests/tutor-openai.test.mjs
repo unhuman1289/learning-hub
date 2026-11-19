@@ -71,8 +71,7 @@ test('staging permits children in enabled notebooks and respects the switch',asy
 test('the 80th turn is allowed and the 81st waits for Berlin midnight, including DST',async t=>{
   const {db,lessonId}=await setup(t);
   const insert=db.sqlite.prepare("INSERT INTO tutor_turns(id,lesson_id,item_id,learner_id,question,status,created_at) VALUES(?,?,'i1','u','q','answered',?)");
-  const lessons=[];for(let n=0;n<4;n++) lessons.push(await insertLessonV2(db,{learnerId:'u',subjectId:subject,day:`2026-10-${20+n}`,lesson:fixture}));
-  for(let n=0;n<79;n++) insert.run('old'+n,lessons[Math.floor(n/20)],'2026-10-25T00:30:00.000Z');
+  for(let n=0;n<79;n++) insert.run('old'+n,lessonId,'2026-10-25T00:30:00.000Z');
   const eightieth=await openTutorTurn(db,'u',{lessonId,itemId:'i1',question:'q'},false,new Date('2026-10-25T22:29:00Z'));
   assert.equal(eightieth.status,'queued');
   db.sqlite.prepare("UPDATE tutor_turns SET status='answered' WHERE id=?").run(eightieth.id);
