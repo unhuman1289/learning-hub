@@ -138,4 +138,4 @@ Khung staging W6 đã đóng lúc 11:12 Europe/Berlin ngày 19/11 (`33b87a7`, mi
 
 Khung staging W6 bàn học đã đóng lúc 11:25 Europe/Berlin ngày 19/11 (`fcf998a`).
 
-staging: W7, đến 14:30 Europe/Berlin
+Khung staging W7 đã đóng lúc 12:18 Europe/Berlin ngày 19/11 (`54988bc`, migration 0042 chỉ thêm 2 chỉ mục; sao lưu `private-data/backups/staging/before-0042-20261119-1215.sql`).
