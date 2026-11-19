@@ -213,12 +213,6 @@
         "extraLessonsLeftToday": {
           "type": "number"
         },
-        "maxOpenMinutes": {
-          "type": "number"
-        },
-        "openMinutesNow": {
-          "type": "number"
-        },
         "historyDays": {
           "type": "number",
           "const": 14
@@ -232,8 +226,6 @@
         "maxPrimaryPerSubjectPerDay",
         "maxReviewSetsPerSubjectPerDay",
         "extraLessonsLeftToday",
-        "maxOpenMinutes",
-        "openMinutesNow",
         "historyDays",
         "duplicateWindowDays"
       ],
@@ -261,7 +253,7 @@
           "type": "number",
           "enum": [
             15,
-            30
+            45
           ]
         },
         "step": {

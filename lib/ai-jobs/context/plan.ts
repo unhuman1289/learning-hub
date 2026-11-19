@@ -5,7 +5,6 @@ import { itemPolicy, listeningLanguage } from "../../subjects/item-kinds.ts";
 import {frameworks,inferFramework} from '../../roadmap/frameworks.ts';
 import { contextExcerpt } from '../../knowledge/service.ts';
 import { DAILY_LESSON_MINUTES, EXTRA_LESSON_MINUTES, decideAdaptivePlan } from '../adaptive.ts';
-import {openWorkMinutesSql} from '../open-work.ts';
 import type { EvidenceDb } from '../../evidence/submit.ts';
 import { addDays } from '../../learner-model/rules.ts';
 import { planContext, type PlanContext } from '../../contracts/ai-common.ts';
@@ -26,12 +25,6 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
     .prepare('SELECT day,sum(seconds)/60.0 AS minutes FROM study_time WHERE user_id=? AND day>=? AND day<=? GROUP BY day ORDER BY day')
     .bind(job.learner_id, from, job.learning_day)
     .all<{ day: string; minutes: number }>();
-  const open = await db
-    .prepare(
-      openWorkMinutesSql,
-    )
-    .bind(job.learner_id)
-    .first<{ minutes: number }>();
   const extra = await db
     .prepare("SELECT count(*) AS n FROM learning_lessons WHERE user_id=? AND assigned_date=? AND slot='extra'")
     .bind(job.learner_id, job.learning_day)
@@ -70,8 +63,6 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       maxPrimaryPerSubjectPerDay: 1,
       maxReviewSetsPerSubjectPerDay: 1,
       extraLessonsLeftToday: Math.max(0, (learner.public.role === 'child' ? 2 : 4) - (extra?.n ?? 0)),
-      maxOpenMinutes: target * 1.5,
-      openMinutesNow: open?.minutes ?? 0,
       historyDays: 14,
       duplicateWindowDays: 90,
     },
@@ -195,7 +186,7 @@ export async function buildPlanContext(db: EvidenceDb, job: Job, environment: st
       weight: s.weight,
       revision: s.revision,
       progressSummary: safeText(s.progress_summary, sensitivity),
-      slot: await slots(db, job.learner_id, id, job.learning_day),
+      slot: await slots(db, job.learner_id, id, job.learning_day, job.purpose === 'daily' && (s.legacy_track === null || !!job.adaptive)),
       skills: data.skills,
       errorPatterns: data.errors.map((e) => ({ ...e, examples: e.examples.map((x) => safeText(x, sensitivity)) })),
       recentLessons: recent,

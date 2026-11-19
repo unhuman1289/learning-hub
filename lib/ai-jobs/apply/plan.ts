@@ -14,6 +14,7 @@ import { containsContactDetails, containsPossibleClinicalIdentifier } from '../.
 import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
+import { primaryBlocksDailySql, primarySnapshotSql } from '../daily-eligibility.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
 export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>, ttsSubjectIds: readonly string[] = []) {
   const errors: ValidationIssue[] = [],
@@ -26,7 +27,6 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
   if (ids.length !== new Set(ids).size || ids.length !== expected.length || expected.some((id) => !ids.includes(id)))
     issue('/subjects', 'unknown_reference', 'Mỗi sổ trong ngữ cảnh phải xuất hiện đúng một lần.');
   const extra = await prepareExplorations(db, job, context, result, token, now, issue, audioBucket);
-  let newMinutes = extra.minutes;
   const savedIds: string[] = [...extra.savedIds];
   statements.push(...extra.statements);
   applyGuards.push(...extra.guards);
@@ -48,15 +48,12 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       continue;
     }
     const current = await db
-      .prepare('SELECT revision,status,ai_enabled,framework FROM subjects WHERE id=? AND learner_id=?')
+      .prepare('SELECT revision,status,ai_enabled,framework,legacy_track FROM subjects WHERE id=? AND learner_id=?')
       .bind(s.subjectId, job.learner_id)
-      .first<{ revision: number; status: string; ai_enabled: number; framework: string | null }>();
-    const slot = await db
-      .prepare(
-        "SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND completed_at IS NULL ORDER BY assigned_date DESC,updated DESC LIMIT 1",
-      )
-      .bind(job.learner_id, s.subjectId)
-      .first<{ id: string }>();
+      .first<{ revision: number; status: string; ai_enabled: number; framework: string | null; legacy_track: string | null }>();
+    const useSubmission = job.purpose === 'daily' && (current?.legacy_track === null || !!job.adaptive);
+    const snapshotSql = primarySnapshotSql(useSubmission);
+    const slot = await db.prepare(snapshotSql).bind(job.learner_id, s.subjectId).first<{ id: string }>();
     if (
       !current ||
       current.revision !== s.expectedRevision ||
@@ -187,13 +184,14 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     const gate =
       'EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?) AND EXISTS(SELECT 1 FROM subjects WHERE id=? AND learner_id=? AND revision=? AND updated_at=?)';
     const gateValues = [job.id, token, s.subjectId, job.learner_id, s.expectedRevision + 1, now.toISOString()];
+    const primaryBlocker = primaryBlocksDailySql(useSubmission);
     const sqlEligibility = s.primaryLesson
-      ? `AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND (completed_at IS NULL OR completed_at>=? OR assigned_date=?))`
+      ? `AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE user_id=? AND subject_id=? AND slot='primary' AND (${primaryBlocker}))`
       : '';
     statements.push(
       db
         .prepare(
-          `UPDATE subjects SET revision=revision+1,progress_summary=?,progress_updated_at=?,updated_at=?,status=CASE WHEN status='setup' THEN 'active' ELSE status END WHERE id=? AND learner_id=? AND revision=? ${context.adaptive && s.primaryLesson ? "AND status='active' AND ai_enabled=1" : ''} AND coalesce((SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary' AND completed_at IS NULL ORDER BY assigned_date DESC,updated DESC LIMIT 1),'')=? AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?) ${sqlEligibility}`,
+          `UPDATE subjects SET revision=revision+1,progress_summary=?,progress_updated_at=?,updated_at=?,status=CASE WHEN status='setup' THEN 'active' ELSE status END WHERE id=? AND learner_id=? AND revision=? ${context.adaptive && s.primaryLesson ? "AND status='active' AND ai_enabled=1" : ''} AND coalesce((${snapshotSql}),'')=? AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?) ${sqlEligibility}`,
         )
         .bind(
           s.progressSummary,
@@ -207,7 +205,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           s.expectedOpenPrimaryLessonId ?? '',
           job.id,
           token,
-          ...(s.primaryLesson ? [job.learner_id, s.subjectId, cutoffFor(job.learning_day), job.learning_day] : []),
+          ...(s.primaryLesson ? [job.learner_id, s.subjectId, job.learning_day, cutoffFor(job.learning_day)] : []),
         ),
     );
     if (s.roadmap) {
@@ -312,7 +310,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       if (context.adaptive?.mode === 'learn' && !context.adaptive.targetSkills.some(id => l.targetSkills.includes(id) ||
           l.targetSkills.some(ref => c.skills.find(skill => 'key:' + skill.key === ref)?.skillId === id)))
         issue(path + '/' + field, 'schema', 'Bài cần bám kỹ năng trong bước tiếp theo.');
-      if (field === 'primaryLesson' && !c.slot.eligibleForPrimary) issue(path + '/' + field, 'not_eligible', 'Bài trước chưa xong trước 00:00.');
+      if (field === 'primaryLesson' && !c.slot.eligibleForPrimary) issue(path + '/' + field, 'not_eligible', useSubmission ? 'Bài chính đã có hoặc bài chính trước đó chưa được nộp trước 00:00.' : 'Bài trước chưa xong trước 00:00.');
       if (field === 'reviewSet' && !c.slot.eligibleForReview) issue(path + '/' + field, 'slot_taken', 'Bộ ôn đang mở hoặc đã giao hôm nay.');
       const used = l.items
         .flatMap((i) => [...i.skills, ...(i.rubric ?? []).flatMap((r) => (r.skill ? [r.skill] : []))])
@@ -331,6 +329,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           issue(path + '/' + field, 'repetition', 'Quá nhiều câu dùng dạng hoạt động đã bị kẹt.');
       }
       const hashes = await Promise.all(l.items.map((i) => promptHash(i.prompt)));
+      const {results: previousPrompts = []} = await db.prepare(
+        'SELECT DISTINCT prompt_hash FROM lesson_items WHERE learner_id=? AND subject_id=? AND created_at>=? AND prompt_hash IN (SELECT value FROM json_each(?))',
+      ).bind(job.learner_id, s.subjectId, addDays(job.learning_day, -89), JSON.stringify(hashes)).all<{prompt_hash:string}>();
+      const previousHashes = new Set(previousPrompts.map(row => row.prompt_hash));
       for (const [itemIndex, hash] of hashes.entries()) {
         const itemPath = `${path}/${field}/items/${itemIndex}/prompt`;
         if (assignedPrompts.has(hash)) {
@@ -338,15 +340,8 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
           continue;
         }
         assignedPrompts.add(hash);
-        const old = await db
-          .prepare('SELECT 1 AS found FROM lesson_items WHERE learner_id=? AND subject_id=? AND prompt_hash=? AND created_at>=? LIMIT 1')
-          .bind(job.learner_id, s.subjectId, hash, addDays(job.learning_day, -89))
-          .first();
-        if (old) issue(itemPath, 'duplicate_item', 'Câu đã dùng trong 90 ngày. Đổi tình huống hoặc dạng bài, giữ kỹ năng cần luyện.');
+        if (previousHashes.has(hash)) issue(itemPath, 'duplicate_item', 'Câu đã dùng trong 90 ngày. Đổi tình huống hoặc dạng bài, giữ kỹ năng cần luyện.');
       }
-      const openingDiagnostic = job.purpose === 'initial' && current.status === 'setup' &&
-        field === 'primaryLesson' && l.kind === 'diagnostic';
-      if (!openingDiagnostic) newMinutes += l.estMinutes;
       const id = newLessonId();
       lessonIds.push(id);
       savedIds.push(id);
@@ -364,7 +359,7 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       const stepId=stepRole&&stepRole!=='placement'?context.adaptive?.step?.id??null:l.kind==='new'?context.adaptive?.step?.id??null:null;
       const reasonRefs=context.adaptive?.reasonCode?[...new Set([...resolved.reasonRefs,context.adaptive.reasonCode])]:resolved.reasonRefs;
       if(modern)checkRoadmapLesson(resolved,context.adaptive,resultingSteps,initial,c.limits.maxDifficulty,msg=>issue(path+'/'+field,'roadmap',msg));
-      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot=? AND (completed_at IS NULL OR assigned_date=? ${slotKind === 'primary' ? 'OR completed_at>=?' : ''}))`;
+      const guards = `${gate} AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE user_id=? AND subject_id=? AND slot=? AND (${slotKind === 'primary' ? primaryBlocker : 'completed_at IS NULL OR assigned_date=?'}))`;
       const guardParams = [
         ...gateValues,
         job.learner_id,
@@ -471,7 +466,5 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
     }
     outcomes.push({ subjectId: s.subjectId, status: s.action === 'no_action' ? 'no_action' : 'applied', lessonIds, reason: s.reason });
   }
-  if (!context.adaptive && newMinutes > 0 && context.policy.openMinutesNow + newMinutes > context.policy.maxOpenMinutes)
-    issue('/subjects', 'over_budget', 'Bài đang mở và bài mới vượt 1,5 lần thời gian mục tiêu.');
-  return { errors, statements, guards:applyGuards, outcomes, savedIds, newMinutes };
+  return { errors, statements, guards:applyGuards, outcomes, savedIds };
 }

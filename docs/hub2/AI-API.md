@@ -8,7 +8,7 @@ Có hai loại job, tương ứng hai lượt AI:
 
 | Job | Khi nào | Đọc | Trả về |
 | --- | --- | --- | --- |
-| **plan** | `daily`: cron 03:00 Berlin. `initial`: khi mở sổ mới. `request`: câu hỏi khám phá hoặc xin thêm bài, loại "ngay". | plan-context/1 (§6.2) | Kỹ năng thêm/sửa, bài chính, bộ ôn, bài khám phá, đề xuất thành thạo, nhận xét tiến bộ (§6.3) |
+| **plan** | `daily`: cron 00:00 Berlin. `initial`: khi mở sổ mới. `request`: câu hỏi khám phá hoặc xin thêm bài, loại "ngay". | plan-context/1 (§6.2) | Kỹ năng thêm/sửa, bài chính, bộ ôn, bài khám phá, đề xuất thành thạo, nhận xét tiến bộ (§6.3) |
 | **assess** | `submission`: khi nộp mà có câu cần AI chấm. `recheck`: khi phản đối kèm yêu cầu chấm lại. | assess-context/1 (§6.4) | Điểm và lời phê từng câu, chẩn đoán lỗi, câu kiểm tra lại, đề xuất thành thạo và lịch ôn (§6.5) |
 
 **Hub kéo, không đẩy dữ liệu.** Khi có job theo yêu cầu, Hub chỉ báo `jobId`: qua Queue cho Worker chấm bài, hoặc qua webhook cho runner ngoài (§5). Runner tự **lease** job qua API rồi đọc context. Dữ liệu chỉ đi một đường, và có kiểm soát bằng lease.
@@ -33,7 +33,7 @@ sequenceDiagram
   W-->>U: lời phê
 ```
 
-Plan `daily` đi cùng đường: cron tạo job lúc 03:00, tác vụ ChatGPT lease lúc 03:10. Không cần báo việc.
+Lúc 00:00 Berlin, Hub lưu bản soạn sẵn hoặc xếp job cho sổ đủ điều kiện, tối đa một bài chính mỗi sổ mỗi ngày. Với sổ theo lộ trình thích ứng, bài chính liền trước phải có lượt nộp toàn bài lưu trước mốc 00:00. Có thể soạn trước ngay sau khi nộp, kể cả khi bài đang chờ chấm. Ngữ cảnh `slot.openPrimaryLessonId` giữ ID của bài chính liền trước để đối chiếu khi lưu.
 
 ## 2. Xác thực
 
@@ -79,7 +79,7 @@ stateDiagram-v2
 | --- | --- | --- |
 | Thời hạn lease | 60 phút | 10 phút |
 | Gia hạn bằng heartbeat, tối đa | 2 giờ | 30 phút |
-| `expires_at` | `daily`: mốc 03:00 hôm sau. `initial`, `request`: 36 giờ | 36 giờ |
+| `expires_at` | `daily`: mốc 00:00 hôm sau. `initial`, `request`: 36 giờ | 36 giờ |
 | Chuyển `deferred` | | `on_demand` chờ quá 15 phút thì `trigger = deferred`, độ ưu tiên hạ xuống 20 |
 
 **Lease.** Server chọn job `queued` theo `priority` giảm dần rồi `created_at` tăng dần, trong số kind client được phép. Lệnh `UPDATE … WHERE status = 'queued' … RETURNING` bảo đảm hai runner không lease trùng. Lúc lease, server chụp context, lưu `context_snapshot` và `context_hash`. Đọc context nhiều lần trong một lease trả cùng nội dung.
@@ -279,14 +279,14 @@ Mọi hợp đồng có trường `contract` mang tên và phiên bản. Server 
   },
   "policy": {
     "maxPrimaryPerSubjectPerDay": 1, "maxReviewSetsPerSubjectPerDay": 1,
-    "extraLessonsLeftToday": 2, "maxOpenMinutes": 67, "openMinutesNow": 20,
+    "extraLessonsLeftToday": 2,
     "historyDays": 14, "duplicateWindowDays": 90
   },
   "subjects": [{
     "subjectId": "sub_…", "title": "Deutsch", "template": "skill", "sensitivity": "normal",
     "goal": "…", "level": "…", "curriculum": "…", "limits": { "maxDifficulty": 3, "allowNewTopics": false },
     "weight": 3, "revision": 12, "progressSummary": "…",
-    "slot": { "openPrimaryLessonId": null, "eligibleForPrimary": true, "reason": "completed_before_cutoff",
+    "slot": { "openPrimaryLessonId": "les_…", "eligibleForPrimary": true, "reason": "submitted_before_cutoff",
               "openReviewSetId": null, "eligibleForReview": true },
     "skills": [{
       "skillId": "sk_modal", "key": "modalverb-infinitiv", "name": "Modalverb + Infinitiv",
