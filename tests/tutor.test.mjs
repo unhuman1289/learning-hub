@@ -51,12 +51,12 @@ test('guardian can read saved response and question with contact information red
  const {turns}=await (await history(guardian,'?learner=child')).json();
  assert.match(turns[0].question,/\[email redacted\]/);assert.match(turns[0].question,/\[phone redacted\]/);assert.equal(turns[0].status,'answered');
 });
-test('per-lesson limit, profile toggle and guardian history',async t=>{
+test('the 21st turn in a lesson works alongside profile and guardian controls',async t=>{
  const {db,ask,history,lessonId}=await setup(t);
  assert.equal((await listFamily(db))[0].tutorEnabled,true);await setTutorEnabled(db,'child',false);assert.equal((await ask()).status,403);
  assert.equal((await history(guardian,'?learner=child')).status,200);await setTutorEnabled(db,'child',true);
- for(let n=0;n<20;n++) assert.match(await (await ask()).text(),/event: done/);
- assert.equal((await ask()).status,409);assert.equal((await lessonSummary(db,'child',lessonId)).tutorTurns.length,20);
+ for(let n=0;n<21;n++) assert.match(await (await ask()).text(),/event: done/);
+ assert.equal((await lessonSummary(db,'child',lessonId)).tutorTurns.length,21);
 });
 test('child can ask by default and a disabled notebook returns 403',async t=>{
  const {db,ask}=await setup(t);
@@ -102,19 +102,17 @@ test('atomic tutor support preserves stronger help',async t=>{
  assert.equal(db.sqlite.prepare("SELECT json_extract(support,'$.i1') AS level FROM learning_lessons WHERE id=?").get(lessonId).level,'solution');
 });
 
-test('history reports the binding per-lesson or daily limit',async t=>{
- const {db,history,lessonId}=await setup(t);
+test('history reports a single daily allowance shared across lessons',async t=>{
+ const {db,ask,history,lessonId}=await setup(t);
  const insert=db.sqlite.prepare("INSERT INTO tutor_turns(id,lesson_id,item_id,learner_id,question,status,created_at) VALUES(?,?,'i1','child','q','answered',?)");
  const now=new Date().toISOString();
  for(let i=0;i<20;i++) insert.run('lesson_'+i,lessonId,now);
- let data=await (await history()).json(); assert.equal(data.remaining,0); assert.equal(data.limit,'lesson');
+ let data=await (await history()).json(); assert.equal(data.remaining,60); assert.equal(data.limit,undefined);
  const other=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-14',lesson:fixture});
- const extra=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-13',lesson:fixture});
- const fourth=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-12',lesson:fixture});
- const fifth=await insertLessonV2(db,{learnerId:'child',subjectId,day:'2026-11-11',lesson:fixture});
- for(let i=0;i<60;i++) insert.run('other_'+i,[other,extra,fourth,fifth][Math.floor((i+1)/20)],now);
- const res=await getTutor(new Request(origin+'/api/lessons/'+other+'/tutor'),learner,()=>db,other);
- data=await res.json(); assert.equal(data.remaining,0); assert.equal(data.limit,'day');
+ for(let i=0;i<60;i++) insert.run('other_'+i,other,now);
+ data=await (await history()).json(); assert.equal(data.remaining,0);
+ const refused=await ask();
+ assert.equal(refused.status,409); assert.match((await refused.json()).error,/một câu.*80 lượt mỗi ngày/);
 });
 
 test('family address uses the admin gate and updates only the supplied field', async t => {

@@ -1,5 +1,6 @@
 import { ApiError } from '../api-error.ts';
 import { readTutorTurns } from '../tutor/service.ts';
+import { submissionDatesColumns, type SubmissionDates } from './submission-dates.ts';
 import { berlinDay } from '../daily-policy.ts';
 import type { EvidenceDb } from '../evidence/submit.ts';
 
@@ -7,7 +8,7 @@ export async function lessonSummary(db: EvidenceDb, learnerId: string, lessonId:
   const lesson = await db.prepare("SELECT subject_id FROM learning_lessons WHERE id=? AND user_id=? AND package_version IN ('2','3')")
     .bind(lessonId, learnerId).first<{ subject_id: string }>();
   if (!lesson) throw new ApiError(404, 'Không tìm thấy bài.');
-  const [work, time, comments, skills, tutorTurns] = await Promise.all([
+  const [work, time, comments, skills, tutorTurns, submission] = await Promise.all([
     db.prepare(`WITH ranked AS (
       SELECT a.item_id,a.attempt_no,a.status,a.support,g.result,j.status AS job_status,
         row_number() OVER (PARTITION BY a.item_id ORDER BY a.attempt_no DESC) AS position
@@ -31,6 +32,8 @@ export async function lessonSummary(db: EvidenceDb, learnerId: string, lessonId:
       ORDER BY s.created_at DESC,s.rowid DESC LIMIT 5`).bind(lessonId, learnerId).all<{ summary: string }>(),
     db.prepare('SELECT id,name FROM skills WHERE subject_id=? AND learner_id=?').bind(lesson.subject_id, learnerId).all<{ id: string; name: string }>(),
     readTutorTurns(db, learnerId, lessonId),
+    db.prepare(`SELECT ${submissionDatesColumns} FROM submissions WHERE lesson_id=? AND learner_id=?`)
+      .bind(lessonId, learnerId).first<SubmissionDates>(),
   ]);
   const items = work.results ?? [];
   const names = new Map((skills.results ?? []).map((s) => [s.id,s.name]));
@@ -64,6 +67,7 @@ export async function lessonSummary(db: EvidenceDb, learnerId: string, lessonId:
     minutes: Math.floor((time?.seconds ?? 0) / 60),
     needsPractice: [...needsPractice],
     tutorTurns,
+    submission,
     comments: [...new Set((comments.results ?? []).map((row) => row.summary).filter(Boolean))],
   };
 }
