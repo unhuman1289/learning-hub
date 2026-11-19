@@ -135,4 +135,4 @@ Khung staging Bột 12 tháng đã đóng lúc 10:45 Europe/Berlin ngày 19/11 (
 
 Khung staging W6 đã đóng lúc 11:12 Europe/Berlin ngày 19/11 (`33b87a7`, migration 0041; sao lưu `private-data/backups/staging/before-0041-20261119-1102.sql`). Hồ sơ QA đặt thử em / chị QA.
 
-staging: W6 bàn học, đến 12:45 Europe/Berlin
+Khung staging W6 bàn học đã đóng lúc 11:25 Europe/Berlin ngày 19/11 (`fcf998a`).
