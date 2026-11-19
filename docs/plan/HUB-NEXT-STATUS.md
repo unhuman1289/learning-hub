@@ -133,4 +133,4 @@ Khung staging W4+W5 đã đóng lúc 10:16 Europe/Berlin ngày 19/11 (`b1d0a44`)
 
 Khung staging Bột 12 tháng đã đóng lúc 10:45 Europe/Berlin ngày 19/11 (`70b31fb`; 192 dải ảnh trên R2 staging `assets/tutor/m01–m12`).
 
-staging: W6 + Bột 12 tháng, đến 12:30 Europe/Berlin
+Khung staging W6 đã đóng lúc 11:12 Europe/Berlin ngày 19/11 (`33b87a7`, migration 0041; sao lưu `private-data/backups/staging/before-0041-20261119-1102.sql`). Hồ sơ QA đặt thử em / chị QA.
