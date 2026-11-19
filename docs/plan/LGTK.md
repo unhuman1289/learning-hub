@@ -46,6 +46,7 @@
 | 19/11 | **Ô trả lời chữ kéo giãn được, cao theo dòng kẻ, có trần theo màn hình**; câu trả lời ngắn cũng xuống dòng thay vì một dòng cuộn ngang (ví dụ i6 bài thêm Deutsch của Vu ngày 18/11, câu trả lời 94 ký tự khó sửa lại) | W5 |
 | 19/11 | **Bột xưng hô theo hồ sơ**: Ếch → Bột xưng "em", gọi "chị Ếch"; Ông Thắng → "cháu" / "ông"; unhuman (Vu) → "con" / "bố Thạch". Hồ sơ chưa đặt giữ "con" + tên hiển thị. Quản trị sửa được. Thay tấm lịch cạnh lời chào trên bàn học bằng Bột; lời chào và dòng tóm tắt nói bằng giọng Bột, cá nhân hoá, ngôn ngữ tự nhiên, dễ hiểu | W6. Tên/cách gọi không gửi cho mô hình (giữ thay `{ten}` phía Hub) |
 | 19/11 | **Bột theo 12 tháng** (gói `mini-bot-sprites-12-thang`): Bột mặc trang phục của tháng hiện tại giờ Berlin, thiếu ảnh thì dùng bộ v2 | [#245](https://github.com/unhuman1289/learning-hub/pull/245); ảnh trên R2 `assets/tutor/mMM/`, không vào Git |
+| 19/11 | **Trang Tổng kết gọn lại**: bỏ Bột nhỏ và lời báo cáo ngắn cạnh Bột; chỉ một trạng thái lưu (nút Lưu chuyển thành "Đã lưu", không thêm dòng báo). Mỗi bài hiện một bản ghi nộp: lần nộp đầu lưu bản ghi, nộp sửa lại cập nhật vào bản ghi đó kèm ghi chú "đã sửa", đánh giá + góp ý cũng lưu vào bản ghi đó. Lịch sử lượt làm và điểm trong D1 vẫn giữ nguyên (chỉ gộp cách hiển thị); góp ý gắn với bài, không theo từng lượt nộp | W7 |
 
 **Luật chung (giữ từ bản 1):**
 - Mọi PR gộp vào `codex/hub-next-wip`. Staging chỉ deploy từ nhánh đó, sau khi ghi khung giờ trong `HUB-NEXT-STATUS.md`.
