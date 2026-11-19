@@ -1,7 +1,7 @@
 "use client";
 
 
-import { useSyncExternalStore, type ReactNode } from "react";
+import { useRef, useSyncExternalStore, type ReactNode } from "react";
 import { OakDesk } from "../../../components/notebook/house";
 import { MiniCover, RuledPage } from "../../../components/notebook/paper";
 import { RouteLink } from "../ui";
@@ -27,6 +27,7 @@ const legacyTabs = [
 export function Book({ title, go, children, paged = false, focusedLesson = false, compactNotebook = false, ...current }: {
   title: string; go: (route: Route) => void; children: ReactNode; paged?: boolean; focusedLesson?: boolean; compactNotebook?: boolean;
 } & BookNavigation) {
+  const closeDrag = useRef<{ id: number; x: number; y: number } | null>(null);
   const legacy = "track" in current;
   const settings: Route = legacy
     ? { view: "notebook", track: current.track, tab: "muc-tieu" }
@@ -42,7 +43,19 @@ export function Book({ title, go, children, paged = false, focusedLesson = false
       <WindowStrip />
     </div>}
     <OakDesk className={reading ? "sm:[&>.bg-oak-planks]:pt-2" : undefined}>
-    <div className="flex items-center justify-between gap-3 bg-oak-dark/35 text-oak-ink">
+    <div className={"flex items-center justify-between gap-3 bg-oak-dark/35 text-oak-ink" + (focusedLesson ? " touch-pan-x" : "")}
+      onPointerDown={event => {
+        if (!focusedLesson || event.pointerType !== "touch" || !event.isPrimary || (event.target as Element).closest("a, button")) return;
+        closeDrag.current = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      }}
+      onPointerUp={event => {
+        const start = closeDrag.current;
+        if (!start || start.id !== event.pointerId) return;
+        closeDrag.current = null;
+        const down = event.clientY - start.y;
+        if (down >= 64 && down > Math.abs(event.clientX - start.x) * 1.5) go(close);
+      }}
+      onPointerCancel={() => { closeDrag.current = null; }}>
       <RouteLink route={close} go={go} className="notebook-button notebook-ghost notebook-wood">
         <SketchIcon name="closeBook" size={24} />{words.action.close}
       </RouteLink>

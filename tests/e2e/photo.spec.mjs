@@ -28,10 +28,8 @@ test('iPhone canvas photo uploads and appears attached', async ({ page, context 
   await expect(page.getByRole('link', { name: 'Xem ảnh đã đính kèm' }).first()).toBeVisible();
   await expect(page.getByText(/Ảnh bài làm.*giữ tối đa/)).toHaveCount(0);
   const summary = await openLessonSummary(page);
-  const privacy = summary.locator('summary').filter({ hasText: 'Quyền riêng tư của ảnh' });
-  await expect(privacy).toHaveCount(1);
-  await privacy.tap();
-  await expect(summary.getByText(/Ảnh được giữ tối đa 30 ngày/)).toBeVisible();
+  await expect(summary.getByText('Quyền riêng tư của ảnh')).toHaveCount(0);
+  await expect(summary.getByRole('link', { name: 'Về bàn' })).toHaveCount(0);
   const submitted = page.waitForResponse(r => r.url().endsWith(url + '/submissions') && r.request().method() === 'POST');
   await summary.getByRole('button', { name: 'Nộp bài', exact: true }).tap();
   const result = await submitted;

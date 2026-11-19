@@ -143,10 +143,6 @@ export function LessonReader({
                 disabled={busy || !!session.verification || !!pending || (!lesson.completedAt && (!history.length || hasUnsubmittedWork || session.waitingForGrade))} onClick={() => void session.complete().then(done => { if (done === false) jump(0); })}>
                 {lesson.completedAt ? words.action.reopen : words.action.finish}
               </button>}>
-            {lesson.items.some(item => item.attachment !== "none") && <details className="w-full text-sm text-muted-paper">
-              <summary className={pencilLink + " min-h-11 content-center cursor-pointer"}>Quyền riêng tư của ảnh</summary>
-              <p>Ảnh được giữ tối đa 30 ngày. Tránh chụp tên, địa chỉ hoặc giấy tờ.</p>
-            </details>}
             {lesson.output && <p>{words.place.product} · {lesson.output}</p>}
           </LessonSummary>
           <PaperConfirm open={confirmFinish}
