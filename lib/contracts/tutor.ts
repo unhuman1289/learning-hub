@@ -2,7 +2,6 @@ import { z } from 'zod';
 
 export const TUTOR_QUESTION_LIMIT = 500;
 export const TUTOR_ANSWER_LIMIT = 2000;
-export const TUTOR_TURN_LIMIT = 20;
 export const TUTOR_DAY_LIMIT = 80;
 export const TUTOR_OPEN_TURN_LIMIT = 1;
 

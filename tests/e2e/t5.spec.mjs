@@ -5,7 +5,7 @@ test('một Bột cho cả bài, chọn câu khác và giữ hội thoại khi l
   let sent;
   const turns = [];
   await page.route('**/api/lessons/*/tutor', route => route.fulfill({ json: {
-    turns, enabled: true, remaining: 20 - turns.length, limit: 'lesson', displayName: 'Ếch', self: 'em', call: 'chị Ếch',
+    turns, enabled: true, remaining: 80 - turns.length, displayName: 'Ếch', self: 'em', call: 'chị Ếch',
   } }));
   await page.route('**/api/tutor', async route => {
     sent = route.request().postDataJSON();

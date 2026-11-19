@@ -1,6 +1,8 @@
 import type { EvidenceDb } from "../evidence/submit.ts";
 
-export type NotebookLessonRow = {
+import { submissionDatesColumns, type SubmissionDates } from "./submission-dates.ts";
+
+export type NotebookLessonRow = SubmissionDates & {
   id: string; title: string; completedAt: string | null; assignedDate: string;
   kind: string; slot: string; reason: string; minutes: number | null; skill: string | null;
   hasWork: number; correct: number; graded: number; attempted: number; total: number;
@@ -19,6 +21,10 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
       ORDER BY CASE WHEN ?=1 THEN assigned_date END DESC, completed_at IS NOT NULL,
         coalesce(completed_at,updated) DESC,id DESC
       LIMIT ? OFFSET ?
+    ), submission_dates AS (
+      SELECT s.lesson_id, ${submissionDatesColumns}
+      FROM submissions s JOIN page l ON l.id=s.lesson_id AND l.user_id=s.learner_id
+      GROUP BY s.lesson_id
     ), current_attempts AS (
       SELECT a.lesson_id,a.item_id,a.attempt_no,a.support,a.status,g.result,
         row_number() OVER (PARTITION BY a.lesson_id,a.item_id ORDER BY a.attempt_no DESC) position
@@ -36,6 +42,7 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
     )
     SELECT l.id,json_extract(l.payload,'$.title') title,l.assigned_date assignedDate,l.completed_at completedAt,
       l.kind,l.slot,l.reason,l.est_minutes minutes,l.firstMonth,l.step_role stepRole,
+      sd.firstSubmittedAt,sd.lastResubmittedAt,
       (SELECT title FROM roadmap_steps r WHERE r.id=l.roadmap_step_id AND r.learner_id=l.user_id AND r.subject_id=l.subject_id) stepTitle,
       coalesce(c.attempted,0)>0 hasWork,coalesce(c.attempted,0) attempted,
       json_array_length(l.payload,'$.items') total,coalesce(c.correct,0) correct,coalesce(c.graded,0) graded,
@@ -43,7 +50,7 @@ export async function readNotebookLessons(db: EvidenceDb, learner: string, subje
       (SELECT count(*) FROM json_each(l.support) WHERE value='solution') solutionsSeen,
       (SELECT name FROM skills WHERE id=json_extract(l.payload,'$.targetSkills[0]')
         AND learner_id=l.user_id AND subject_id=l.subject_id) skill
-    FROM page l LEFT JOIN counts c ON c.lesson_id=l.id
+    FROM page l LEFT JOIN counts c ON c.lesson_id=l.id LEFT JOIN submission_dates sd ON sd.lesson_id=l.id
     ORDER BY CASE WHEN ?=1 THEN l.assigned_date END DESC, l.completed_at IS NOT NULL,
       coalesce(l.completed_at,l.updated) DESC,l.id DESC
   `).bind(learner, subject, Number(openOnly), Number(all), limit + 1, offset, Number(all)).all<NotebookLessonRow>();

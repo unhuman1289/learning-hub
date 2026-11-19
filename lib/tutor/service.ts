@@ -3,7 +3,7 @@ import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { safeText } from '../automation/privacy.ts';
 import {
-  TUTOR_DAY_LIMIT, TUTOR_OPEN_TURN_LIMIT, TUTOR_QUESTION_LIMIT, TUTOR_TURN_LIMIT,
+  TUTOR_DAY_LIMIT, TUTOR_OPEN_TURN_LIMIT, TUTOR_QUESTION_LIMIT,
   type TutorQuestion, type TutorTurn,
 } from '../contracts/tutor.ts';
 import type { Db } from '../subjects/service.ts';
@@ -38,10 +38,9 @@ export async function openTutorTurn(db: EvidenceDb, learnerId: string, input: Tu
   const insert = db.prepare(`INSERT INTO tutor_turns (id, lesson_id, item_id, learner_id, question, status, created_at)
     SELECT ?, l.id, i.item_id, l.user_id, ?, ?, ? ${eligibleItem}
       AND l.completed_at IS NULL AND COALESCE(s.tutor_enabled,1)=1
-      AND (SELECT count(*) FROM tutor_turns WHERE lesson_id=l.id AND learner_id=l.user_id) < ?
       AND (SELECT count(*) FROM tutor_turns WHERE learner_id=l.user_id AND status IN ('queued','streaming')) < ?
       AND (SELECT count(*) FROM tutor_turns WHERE learner_id=l.user_id AND created_at>=? AND created_at<?) < ?`)
-    .bind(id, question, status, createdAt, ...scope, TUTOR_TURN_LIMIT, TUTOR_OPEN_TURN_LIMIT, start, end, TUTOR_DAY_LIMIT);
+    .bind(id, question, status, createdAt, ...scope, TUTOR_OPEN_TURN_LIMIT, start, end, TUTOR_DAY_LIMIT);
   // The support update shares the insertion transaction with the submission gate.
   // It never lowers existing support and does not alter already submitted work.
   const support = db.prepare(`UPDATE learning_lessons SET support=json_set(support,?, 'hint1')
@@ -51,7 +50,7 @@ export async function openTutorTurn(db: EvidenceDb, learnerId: string, input: Tu
     .bind('$.'+input.itemId,input.lessonId,learnerId,id,status,input.lessonId,input.itemId,learnerId,'$.'+input.itemId);
   const [result] = await db.batch([insert,support]) as {meta:{changes?:number}}[];
   if (!result.meta.changes) {
-    throw new ApiError(409, `Chỉ có thể chờ một câu trả lời mỗi lần, hỏi tối đa ${TUTOR_TURN_LIMIT} lượt mỗi bài và ${TUTOR_DAY_LIMIT} lượt mỗi ngày.`);
+    throw new ApiError(409, `Chỉ có thể chờ một câu trả lời mỗi lần, hỏi tối đa ${TUTOR_DAY_LIMIT} lượt mỗi ngày.`);
   }
   return { id, status };
 }

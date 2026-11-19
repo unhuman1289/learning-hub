@@ -9,6 +9,7 @@ import { RouteLink } from "../ui";
 import type { useBook } from "./use-book";
 import { useEffect, useState } from "react";
 import { shortDay, pencilLink } from "../paper-bits";
+import { SubmissionDate } from "../lesson/submission-date";
 import { apiJson } from "../api";
 
 type Row = {
@@ -111,11 +112,12 @@ export function NotebookHistory({ data, subjectId, learner, child, go }: {
   </div>;
 }
 
-function LessonHistoryLink({ row, go, notebook }: { row: Pick<NotebookLessonRow, "id" | "title" | "completedAt" | "correction" | "hasWork">; go: (route: Route) => void; notebook?: string }) {
+function LessonHistoryLink({ row, go, notebook }: { row: Pick<NotebookLessonRow, "id" | "title" | "completedAt" | "correction" | "hasWork" | "firstSubmittedAt" | "lastResubmittedAt">; go: (route: Route) => void; notebook?: string }) {
   const state = row.completedAt ? "Đã xong" : row.correction ? "Cần sửa lại" : row.hasWork ? "Đang làm" : "Chưa mở";
   return <li className="min-w-0">
     <RouteLink route={{ view: "lesson", id: row.id }} go={go} className={pencilLink + " break-words"}>{row.title}</RouteLink>
     <span className="text-sm text-muted-paper"> · {notebook ?? state}</span>
+    <SubmissionDate firstSubmittedAt={row.firstSubmittedAt} lastResubmittedAt={row.lastResubmittedAt} />
   </li>;
 }
 

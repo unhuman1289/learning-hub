@@ -203,3 +203,83 @@ test('bài đã nhận, nháp đổi sau đó: không xóa bản đang giữ khi
   await summary.getByRole('button', { name: new RegExp('^Câu ' + number + ' ') }).tap();
   expect(await question.getByRole('textbox',{name:'Bài làm của bạn'}).inputValue()).toBe('Câu trên máy này');
 });
+
+test('Tổng kết giữ mốc nộp đầu và góp ý khi nộp sửa lại', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', {name:/Ếch thử/}).tap();
+  await expect(page.getByRole('region', {name:'Bài tiếp theo'})).toBeVisible();
+  const id = 'les_00000000000000000003', api = '/api/lessons/' + id;
+  const origin = new URL(page.url()).origin;
+  const { lesson } = await (await page.request.get(api)).json();
+  const draft = await page.request.put(api + '/draft', {headers:{origin}, data:{
+    revision:lesson.draftRevision, answers:{i1:{answer:'nicht'},i2:{answer:'nicht'},i3:{answer:'nicht'}},
+  }});
+  expect(draft.ok()).toBeTruthy();
+  await page.goto('/?bai2=' + id);
+  const summary = await openLessonSummary(page);
+  const reflection = page.getByRole('region', {name:'Góp ý cho bài sau'});
+  const note = reflection.getByRole('textbox');
+  const save = reflection.getByRole('button', {name:'Lưu',exact:true});
+  const saved = reflection.getByRole('button', {name:'Đã lưu',exact:true});
+  async function submit() {
+    const response = page.waitForResponse(r => r.url().endsWith(api + '/submissions') && r.request().method() === 'POST');
+    await summary.getByRole('button', {name:'Nộp bài',exact:true}).tap();
+    const posted = await response;
+    expect(posted.ok()).toBeTruthy();
+    return (await posted.json()).submission;
+  }
+  async function complete() {
+    await summary.getByRole('button', {name:'Xong bài',exact:true}).tap();
+    await expect(reflection).toBeVisible();
+  }
+  const first = await submit();
+  await expect(summary.getByText('2/3 câu đúng')).toBeVisible();
+  await expect(summary.getByRole('button', {name:/Câu 1 SỬA LẠI/})).toBeVisible();
+  await expect(summary.locator('time')).toHaveCount(1);
+  await expect(summary.locator('time')).toHaveAttribute('datetime',first.created_at);
+  await complete();
+  await note.fill('Thêm ví dụ với kein.');
+  await page.route('**/api/submissions/*/reflection', async route => {
+    if (route.request().method() !== 'PUT') return route.continue();
+    await route.fulfill({status:503,json:{error:'Chưa lưu được góp ý.'}});
+  });
+  await save.tap();
+  await expect(reflection.getByRole('alert')).toHaveText('Chưa lưu được góp ý.');
+  await expect(save).toBeEnabled();
+  await page.unroute('**/api/submissions/*/reflection');
+  await save.tap();
+  await expect(saved).toBeDisabled();
+  await expect(page.getByText(/^Đã lưu\.?$/)).toHaveCount(1);
+
+  await summary.getByRole('button', {name:'Mở lại bài'}).tap();
+  await expect(reflection).toHaveCount(0);
+  await openLessonSummary(page);
+  await summary.getByRole('button', {name:/Làm lại 1 câu/}).tap();
+  await page.locator('#answer-i1:visible').fill('kein');
+  await openLessonSummary(page);
+  const retry = await submit();
+  expect(retry.id).not.toBe(first.id);
+  await expect(summary.getByText('3/3 câu đúng')).toBeVisible();
+  await expect(summary.getByRole('button', {name:/Câu 1 ĐÚNG/})).toBeVisible();
+  await expect(summary.getByText(/đã sửa ·/)).toHaveCount(1);
+  await expect(summary.locator('time').first()).toHaveAttribute('datetime',first.created_at);
+  await expect(summary.locator('time').last()).toHaveAttribute('datetime',retry.created_at);
+  await complete();
+  await expect(reflection).toHaveCount(1);
+  await expect(note).toHaveValue('Thêm ví dụ với kein.');
+  await expect(saved).toBeDisabled();
+  await note.fill('Thêm một câu với kein.');
+  await expect(save).toBeEnabled();
+  await save.tap();
+  await expect(saved).toBeDisabled();
+  const oldUrl = '/api/submissions/' + first.id + '/reflection';
+  expect((await (await page.request.get(oldUrl)).json()).reflection).toMatchObject({revision:2,note:'Thêm một câu với kein.'});
+  await page.goto('/?sach=' + lesson.subjectId);
+  await page.getByText('Lịch sử', {exact:true}).tap();
+  const row = page.locator('li').filter({has:page.locator('a[href*="bai2=' + id + '"]')});
+  await expect(row).toHaveCount(1);
+  await row.locator('xpath=ancestor::details[1]/summary').tap();
+  await expect(row.getByText(/đã sửa ·/)).toBeVisible();
+  await expect(row.locator('time').first()).toHaveAttribute('datetime',first.created_at);
+  await expect(row.locator('time').last()).toHaveAttribute('datetime',retry.created_at);
+});
