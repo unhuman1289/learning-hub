@@ -132,3 +132,5 @@ Khung staging W3 đã đóng lúc 22:53 Europe/Berlin ngày 18/11.
 Khung staging W4+W5 đã đóng lúc 10:16 Europe/Berlin ngày 19/11 (`b1d0a44`).
 
 Khung staging Bột 12 tháng đã đóng lúc 10:45 Europe/Berlin ngày 19/11 (`70b31fb`; 192 dải ảnh trên R2 staging `assets/tutor/m01–m12`).
+
+staging: W6 + Bột 12 tháng, đến 12:30 Europe/Berlin
