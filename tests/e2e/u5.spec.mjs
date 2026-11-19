@@ -64,7 +64,7 @@ test('mở bàn, làm bài khi mất mạng, tổng kết và mở bài tiếp t
   const sprite = /^\/api\/tutor\/sprite\/(?:v2|m0[1-9]|m1[0-2])\/(?:wave|sit)\.webp$/;
   expect(deskStats.api.filter(path => path !== "/api/ambient" && !sprite.test(path)), JSON.stringify(deskStats.api)).toEqual(["/api/today"]);
   await expect(page.locator("h1")).toHaveText(/Con chào Ếch/);
-  await expect(page.locator("h1 + time")).toHaveText(/ngày .* tháng/);
+  await expect(page.locator("h1 + time")).toHaveCount(0);
   expect(deskStats.api.filter(path => path === "/api/ambient").length).toBeLessThanOrEqual(2);
   await expect(page.locator(".lhw-window [data-p=front]")).toHaveCount(1);
 
