@@ -249,7 +249,7 @@ test('T4 questions retain scope, name privacy and useful explanations',async t=>
     {question:'Câu 5 điền gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/gợi|đọc lại đề/iu},
     {question:'Tôi là ai, tên gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/Ếch/iu},
     {question:'Câu này hiểu như nào, vì sao',model:'ON_TOPIC\nCâu 2 hỏi về động từ. Con giải thích nghĩa đề nha.',expected:/giải thích nghĩa đề/iu},
-    {question:'Đáp án là gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/chưa nói đáp án/iu},
+    {question:'Đáp án là gì',model:'OFF_TOPIC\nKhông liên quan.',expected:/giữ lại đáp án/iu},
     {question:'Giải thích quy tắc trong bài',model:'ON_TOPIC\nCon giải thích cách nghĩ nha.',expected:/giải thích cách nghĩ/iu},
   ];
   for(const {question,model,expected} of cases) {
@@ -259,4 +259,39 @@ test('T4 questions retain scope, name privacy and useful explanations',async t=>
     assert.equal(result,'answered',question);const saved=db.sqlite.prepare('SELECT answer,off_topic,leak_blocked FROM tutor_turns WHERE id=?').get(turn.id);
     assert.equal(saved.off_topic,0,question);assert.equal(saved.leak_blocked,0,question);assert.match(saved.answer,expected,question);assert.doesNotMatch(request,/Ếch/);
   }
+});
+
+const tutorPrompt = readFileSync(new URL('../integrations/runner-prompts/tutor.md', import.meta.url), 'utf8');
+for (const [displayName, self, call, heading] of [
+  ['Ếch', 'em', 'chị Ếch', 'Em'],
+  ['Ông Thắng', 'cháu', 'ông', 'Cháu'],
+  ['unhuman', 'con', 'bố Thạch', 'Con'],
+  ['Mai', null, null, 'Con'],
+]) test(`tutor substitutes ${heading} locally and never sends the configured address (${displayName})`, async t => {
+  const { db, env, create } = await setup(t);
+  db.sqlite.prepare('UPDATE learner_settings SET display_name=?, tutor_self=?, tutor_call=?').run(displayName, self, call);
+  const turn = await create();
+  db.sqlite.prepare('UPDATE tutor_turns SET question=? WHERE id=?').run(`Nhờ ${call ?? displayName} xem giúp ${displayName} trong bài.`, turn.id);
+  db.sqlite.prepare('UPDATE learning_lessons SET draft=?').run(JSON.stringify({ i1: { answer: `${displayName} và ${call ?? displayName}` } }));
+  let request;
+  const result = await answerTutor(db, env, turn.id, tutorPrompt, () => {}, async (_url, options) => {
+    request = JSON.parse(options.body);
+    const events = [
+      { type: 'response.output_text.delta', delta: `ON_TOPIC\n${heading} chào {te` },
+      { type: 'response.output_text.delta', delta: 'n} ạ!' },
+      { type: 'response.completed', response: { status: 'completed', usage: { input_tokens: 1, output_tokens: 1 } } },
+    ];
+    return new Response(events.map(event => `data: ${JSON.stringify(event)}\n\n`).join(''));
+  });
+  assert.equal(result, 'answered');
+  assert.ok(request.instructions.includes(`Xưng “${self ?? 'con'}”`));
+  assert.ok(request.instructions.includes(`${heading} chào {ten} ạ!`));
+  assert.doesNotMatch(request.instructions, /\{[xX]ung\}|\{giong\}/u);
+  if (self === 'cháu') assert.match(request.instructions, /Lễ phép, điềm đạm/);
+  if (self === 'em') assert.match(request.instructions, /Thân mật, vui vẻ/);
+  const input = JSON.parse(request.input);
+  assert.equal(input.question, 'Nhờ {ten} xem giúp {ten} trong bài.');
+  assert.equal(input.lesson.items[0].answer, '{ten} và {ten}');
+  assert.equal(db.sqlite.prepare('SELECT answer FROM tutor_turns WHERE id=?').get(turn.id).answer,
+    `${heading} chào ${call ?? displayName} ạ!`);
 });

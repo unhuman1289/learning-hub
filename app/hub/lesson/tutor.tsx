@@ -2,13 +2,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { renderEmphasis } from '../inline-emphasis';
 import { TUTOR_DAY_LIMIT, TUTOR_TURN_LIMIT, type TutorTurn } from '../../../lib/contracts/tutor';
+import { capitalize, tutorGreeting, type TutorAddress } from '../../../lib/tutor/address';
 import { TutorPet, type TutorPetState } from './tutor-pet';
 import './tutor.css';
 
-const blockedText = '(Chỗ này lộ đáp án mất, con giữ lại nha.)';
-const busyText = 'Con đang bận một chút. Câu trả lời sẽ có trong bài nha.';
+const blockedText = /(\(Chỗ này lộ đáp án mất, (?:con|em|cháu) giữ lại (?:nha|ạ)\.\))/u;
 type Message = { id:string; question:string; answer:string; status:string };
-type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; limit:'lesson'|'day'; displayName:string };
+type Data = { turns:TutorTurn[]; enabled:boolean; remaining:number; limit:'lesson'|'day'; displayName:string } & TutorAddress;
 const initialRequests = new Map<string, Promise<Data>>();
 function readTutor(lessonId:string, fresh:boolean) {
   if (!fresh && initialRequests.has(lessonId)) return initialRequests.get(lessonId)!;
@@ -21,7 +21,10 @@ function readTutor(lessonId:string, fresh:boolean) {
 }
 
 export default function Tutor({lessonId,items,number,child}:{lessonId:string;items:string[];number:number;child:boolean}) {
-  const [choice,setChoice]=useState({page:number, value:number}), [displayName,setDisplayName]=useState('');
+  const [choice,setChoice]=useState({page:number, value:number}), [address,setAddress]=useState<TutorAddress>({self:'con',call:''});
+  const {self, call}=address;
+  const Self=capitalize(self), formal=self==='cháu';
+  const busyText=`${Self} đang bận một chút. Câu trả lời sẽ có trong bài ${formal ? 'ạ' : 'nha'}.`;
   const selected=choice.page===number ? choice.value : number;
   const itemId=items[selected-1] ?? items[0];
   const [enabled,setEnabled]=useState(false), [open,setOpen]=useState(false), [remaining,setRemaining]=useState(20);
@@ -31,7 +34,7 @@ export default function Tutor({lessonId,items,number,child}:{lessonId:string;ite
   const trigger=useRef<HTMLButtonElement>(null), input=useRef<HTMLTextAreaElement>(null);
   const load=useCallback(async (fresh=false) => {
     const data=await readTutor(lessonId,fresh);
-    setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit); setDisplayName(data.displayName ?? '');
+    setEnabled(data.enabled); setRemaining(data.remaining); setLimit(data.limit); setAddress({self:data.self ?? 'con',call:data.call ?? data.displayName ?? ''});
     setMessages(previous => {
       const saved=data.turns.map(t=> {
         const partial=previous.find(m=>m.id===t.id || (m.question===t.question && m.status==='streaming'));
@@ -93,16 +96,16 @@ export default function Tutor({lessonId,items,number,child}:{lessonId:string;ite
   if(!enabled) return null;
   return <div className="tutor-whole">
     <button hidden={open} ref={trigger} type="button" aria-label="Hỏi Bột" aria-expanded={false} onClick={()=>{setChoice({page:number,value:number});setOpen(true);setState('greet');void load(true).catch(()=>{setOffline(true);setState('offline');});}} className="tutor-trigger">
-      <span>Hỏi Bột nè!</span><TutorPet size="corner" state="idle" />
+      <span>{formal ? 'Hỏi Bột' : 'Hỏi Bột nè!'}</span><TutorPet size="corner" state="idle" />
     </button>
     {open && <section role="dialog" aria-label="Trò chuyện với Bột" className={'tutor-sheet '+(child?'tutor-sheet-child':'')}>
       <div className="tutor-chips"><div role="group" aria-label="Hỏi về câu nào">{items.map((id,index)=><button key={id} type="button" aria-pressed={selected===index+1} className="notebook-button notebook-choice" onClick={()=>setChoice({page:number,value:index+1})}>Câu {index+1}{number===index+1?' · đang mở':''}</button>)}</div><button type="button" className="notebook-button" aria-label="Đóng, Bột về chỗ ngồi" onClick={close}>×</button></div>
       <div className="tutor-messages" aria-live="polite">
-        {!messages.length && <div className="tutor-bot"><TutorPet size="panel" state={state}/><p>Con chào{displayName ? ` ${displayName}` : ''} ạ! Bài này có {items.length} câu, đang ở câu {number} nè. Chỗ nào chưa hiểu cứ hỏi con nha, con chỉ gợi ý thôi chứ không nói đáp án đâu.</p></div>}
-        {messages.map((m,index)=><div key={m.id} className="tutor-message"><p className="tutor-question">{m.question}</p>{(m.answer || m.status==='queued' || (sending && m.status==='streaming')) && <div className="tutor-bot">{index===messages.length-1 && <TutorPet size="panel" state={remaining===0?'limit':state}/>}<p>{m.answer ? m.answer.split(blockedText).map((part,i)=><span key={i}>{i>0 && <strong>{blockedText}</strong>}{renderEmphasis(part)}</span>) : m.status==='queued' ? busyText : 'Để con nghĩ xíu nha…'}</p></div>}</div>)}
+        {!messages.length && <div className="tutor-bot"><TutorPet size="panel" state={state}/><p>{tutorGreeting({self,call})} Bài này có {items.length} câu, đang ở câu {number}{formal ? '.' : ' nè.'} Chỗ nào chưa hiểu cứ hỏi {self} nhé. {Self} sẽ gợi ý cách làm.</p></div>}
+        {messages.map((m,index)=><div key={m.id} className="tutor-message"><p className="tutor-question">{m.question}</p>{(m.answer || m.status==='queued' || (sending && m.status==='streaming')) && <div className="tutor-bot">{index===messages.length-1 && <TutorPet size="panel" state={remaining===0?'limit':state}/>}<p>{m.answer ? m.answer.split(blockedText).map((part,i)=>i%2 ? <strong key={i}>{part}</strong> : <span key={i}>{renderEmphasis(part)}</span>) : m.status==='queued' ? busyText : `Để ${self} nghĩ ${formal ? 'một chút ạ' : 'xíu nha'}…`}</p></div>}</div>)}
         {offline && <p role="status">Mất kết nối. Phần đã nghe vẫn được giữ. <button type="button" className="notebook-button notebook-secondary" onClick={()=>{setOffline(false);setState('listen');input.current?.focus();}}>Hỏi tiếp</button></p>}
         {notice && <p role="alert">{notice}</p>}
-        {remaining===0 && <p>{limit==='day' ? `Hôm nay con đã trả lời đủ ${TUTOR_DAY_LIMIT} lượt. Mai hỏi con tiếp nha!` : `Bài này con trả lời đủ ${TUTOR_TURN_LIMIT} lượt rồi, con đi ngủ xíu đây.`}</p>}
+        {remaining===0 && <p>{limit==='day' ? `Hôm nay ${self} đã trả lời đủ ${TUTOR_DAY_LIMIT} lượt. Mai hỏi ${self} tiếp nhé!` : `Bài này ${self} đã trả lời đủ ${TUTOR_TURN_LIMIT} lượt rồi ${formal ? "ạ" : "nha"}.`}</p>}
       </div>
       {remaining>0 && <div className="tutor-compose"><label htmlFor="tutor-question" className="sr-only">Câu hỏi cho Bột</label><textarea ref={input} id="tutor-question" value={question} onFocus={()=>setState('listen')} onChange={e=>{setState('listen');setQuestion(e.target.value);}} maxLength={500} rows={2}/><button type="button" disabled={sending || !question.trim()} onClick={()=>void ask()} className="notebook-button notebook-primary">{sending?'Chờ chút':'Gửi'}</button><small>Còn {remaining} lượt hỏi trong bài này</small></div>}
     </section>}

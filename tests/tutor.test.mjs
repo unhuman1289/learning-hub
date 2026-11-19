@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { setAiControls } from '../lib/ai-controls.ts';
-import { listFamily, setTutorEnabled } from '../lib/admin/family.ts';
+import { familyAccessError, listFamily, setTutorAddress, setTutorEnabled } from '../lib/admin/family.ts';
 import { backupColumns, buildRestoreSql } from '../lib/backup-contract.mjs';
 import { lessonSummary } from '../lib/lesson-v2/summary.ts';
 import { insertLessonV2 } from '../lib/lesson-v2/store.ts';
@@ -115,4 +115,30 @@ test('history reports the binding per-lesson or daily limit',async t=>{
  for(let i=0;i<60;i++) insert.run('other_'+i,[other,extra,fourth,fifth][Math.floor((i+1)/20)],now);
  const res=await getTutor(new Request(origin+'/api/lessons/'+other+'/tutor'),learner,()=>db,other);
  data=await res.json(); assert.equal(data.remaining,0); assert.equal(data.limit,'day');
+});
+
+test('family address uses the admin gate and updates only the supplied field', async t => {
+  const { db, history } = await setup(t);
+  assert.equal(familyAccessError(null).status, 401);
+  for (const user of [learner, guardian, { role: 'learner' }]) {
+    assert.equal(familyAccessError(user).status, 403);
+  }
+  assert.equal(familyAccessError({ role: 'admin' }), null);
+
+  await setTutorAddress(db, 'child', { self: 'em', call: 'chị Ếch' });
+  await setTutorAddress(db, 'child', { call: ' chị Ếch mới ' });
+  const [member] = await listFamily(db);
+  assert.equal(member.tutorSelf, 'em');
+  assert.equal(member.tutorCall, 'chị Ếch mới');
+  const { displayName, self, call } = await (await history()).json();
+  assert.deepEqual({ displayName, self, call }, { displayName: 'Ếch', self: 'em', call: 'chị Ếch mới' });
+
+  for (const invalid of [{ self: 'tôi' }, { call: 'ông\nThắng' }, { call: 'ông\u2028Thắng' }, { call: 'ô'.repeat(31) }, {}]) {
+    await assert.rejects(setTutorAddress(db, 'child', invalid), { status: 400 });
+  }
+  assert.throws(() => db.sqlite.exec("UPDATE learner_settings SET tutor_call='line' || char(10) || 'break'"), /CHECK/);
+  await setTutorAddress(db, 'child', { self: null, call: null });
+  const defaults = await (await history()).json();
+  assert.equal(defaults.self, 'con');
+  assert.equal(defaults.call, 'Ếch');
 });

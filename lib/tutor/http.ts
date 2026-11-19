@@ -1,3 +1,4 @@
+import { tutorAddress, type TutorSelf } from './address.ts';
 import type { Viewer } from '../access.ts';
 import { apiFailure } from '../api-error.ts';
 import { berlinDay, cutoffFor } from '../daily-policy.ts';
@@ -68,16 +69,16 @@ export async function getTutor(req: Request, user: Viewer | null, storage: () =>
     if (learnerId instanceof Response) return learnerId;
     const turns = await readTutorTurns(db, learnerId, id);
     const day = berlinDay();
-    const info = await db.prepare(`SELECT s.display_name,coalesce(s.tutor_enabled,1) AS tutor_enabled,
+    const info = await db.prepare(`SELECT s.display_name,u.name AS account_name,s.tutor_self,s.tutor_call,coalesce(s.tutor_enabled,1) AS tutor_enabled,
       coalesce(c.openai_enabled,1) AS openai_enabled,
       (SELECT count(*) FROM tutor_turns WHERE learner_id=? AND created_at>=? AND created_at<?) AS today
-      FROM learning_lessons l LEFT JOIN learner_settings s ON s.user_id=l.user_id
+      FROM learning_lessons l LEFT JOIN "user" u ON u.id=l.user_id LEFT JOIN learner_settings s ON s.user_id=l.user_id
       LEFT JOIN ai_subject_controls c ON c.subject_id=l.subject_id WHERE l.id=? AND l.user_id=?`)
       .bind(learnerId,cutoffFor(day),cutoffFor(addDays(day,1)),id,learnerId)
-      .first<{display_name:string|null;tutor_enabled:number;openai_enabled:number;today:number}>();
+      .first<{display_name:string|null;account_name:string|null;tutor_self:TutorSelf|null;tutor_call:string|null;tutor_enabled:number;openai_enabled:number;today:number}>();
     const lessonRemaining = Math.max(0, TUTOR_TURN_LIMIT-turns.length);
     const dayRemaining = Math.max(0, TUTOR_DAY_LIMIT-(info?.today ?? 0));
-    return Response.json({ turns, displayName:info?.display_name ?? '', enabled: enabled && !!info?.tutor_enabled && !!info?.openai_enabled,
+    return Response.json({ turns, displayName:info?.display_name ?? '', ...tutorAddress(info, info?.display_name?.trim() || info?.account_name || ''), enabled: enabled && !!info?.tutor_enabled && !!info?.openai_enabled,
       remaining: Math.min(lessonRemaining, dayRemaining), limit: lessonRemaining <= dayRemaining ? 'lesson' : 'day' }, { headers: privateHeaders });
   } catch (error) {
     return apiFailure(error, 'Chưa đọc được các lượt hỏi gia sư.', privateHeaders);
