@@ -16,13 +16,16 @@ export function RuledAnswerField({ id, field, active, short, germanInput, disabl
   const paper = useRef<HTMLDivElement>(null);
   const drag = useRef<{ y: number; rows: number; lineHeight: number; moved: boolean } | null>(null);
   const [manualRows, setManualRows] = useState<number | null>(null);
+  // Only a focused field can open the keyboard; turning pages must not add viewport listeners.
+  const [focused, setFocused] = useState(false);
+  const watching = active && focused;
   const minRows = short ? 1 : 5;
   const answer = short ? value.replace(lineBreak, " ") : value;
 
   useEffect(() => {
     const element = paper.current;
     const viewport = window.visualViewport;
-    if (!active || !element || !viewport) return;
+    if (!watching || !element || !viewport) return;
     // iOS moves the visual viewport when the keyboard opens without shrinking dvh.
     const limitHeight = () => element.style.setProperty("--answer-viewport-height", `${viewport.height}px`);
     limitHeight();
@@ -31,7 +34,7 @@ export function RuledAnswerField({ id, field, active, short, germanInput, disabl
       viewport.removeEventListener("resize", limitHeight);
       element.style.removeProperty("--answer-viewport-height");
     };
-  }, [active]);
+  }, [watching]);
 
   function readSize() {
     const input = field.current;
@@ -61,6 +64,8 @@ export function RuledAnswerField({ id, field, active, short, germanInput, disabl
         value={answer}
         disabled={disabled}
         wrap="soft"
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         onKeyDown={event => {
           if (short && event.key === "Enter" && !event.nativeEvent.isComposing) event.preventDefault();
         }}

@@ -128,4 +128,4 @@ Khung staging W1/W2 đã đóng lúc 22:25 Europe/Berlin ngày 18/11.
 
 Khung staging W3 đã đóng lúc 22:53 Europe/Berlin ngày 18/11.
 
-staging: W4+W5, đến 11:00 Europe/Berlin ngày 19/11
+staging: W4+W5, đến 12:00 Europe/Berlin
