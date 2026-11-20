@@ -1,5 +1,6 @@
 // Cuts the 12 monthly Bột outfits into the strips the tutor already requests.
 // Requires ImageMagick and cwebp. Input stays outside Git; output defaults to ignored private-data/.
+// umbrella.webp (offline state) uses the drooping "failed" row; the monthly packs no longer draw an umbrella.
 // The tutor shows the outfit of the current Berlin month and falls back to v2 when a strip is missing.
 // Upload (bucket learning-hub-uploads-staging or -production), one object per strip:
 //   for f in private-data/tutor-sprite/months/m*/*.webp; do
@@ -18,7 +19,7 @@ const strips = {
   wave: ['standard', 'wave'], jump: ['standard', 'jump'], rest: ['standard', 'idle'],
   talk: ['standard', 'waiting'], explain: ['standard', 'waiting'], think: ['standard', 'thinking'], tilt: ['standard', 'review'],
   cover_mouth: ['extra', 'shake-head-cover-mouth'], point_up: ['extra', 'point-up'], nod: ['extra', 'nod'],
-  sleep: ['extra', 'doze'], umbrella: ['extra', 'hold-umbrella'], sit: ['extra', 'sit-swing-legs'],
+  sleep: ['extra', 'doze'], umbrella: ['standard', 'failed'], sit: ['extra', 'sit-swing-legs'],
 };
 const FRAMES = 4, WIDTH = 192, HEIGHT = 208, MAX_BYTES = 60_000;
 
