@@ -1,6 +1,7 @@
 import { openAiGermanVoices } from '../../audio/openai-voices.ts';
 import { audioColumns, resolveLessonAudio } from '../../audio/lesson.ts';
 import {applyRoadmapChanges,listSteps} from '../../roadmap/store.ts';
+import { RoadmapChangeError } from '../../roadmap/changes.ts';
 import { listeningLanguage } from '../../subjects/item-kinds.ts';
 import {frameworkFor,inferFramework} from '../../roadmap/frameworks.ts';
 import {checkRoadmapLesson,guardRoadmapIntroduction,openRoadmapStep} from '../../roadmap/lesson.ts';
@@ -15,6 +16,7 @@ import { sha256Hex } from '../../auth/automation.ts';
 import type { Job } from '../context/common.ts';
 import { prepareExplorations } from './explorations.ts';
 import { primaryBlocksDailySql, primarySnapshotSql } from '../daily-eligibility.ts';
+import { adaptivePrimaryKinds } from '../adaptive.ts';
 export type ValidationIssue = { path: string; code: string; message: string };
 export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext, result: PlanResult, token: string, now: Date, deferReplan = false, audioBucket?: Pick<R2Bucket, 'head'>, ttsSubjectIds: readonly string[] = []) {
   const errors: ValidationIssue[] = [],
@@ -74,10 +76,12 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
       issue(path,'schema','Bài xin thêm chỉ được ghi qua yêu cầu của lượt này.');
     if (context.adaptive) {
       if (s.roadmap || s.reviewSet || s.requestsHandled.length) issue(path, 'schema', 'Giữ lộ trình và chỉ giao đúng bài của lượt này.');
-      if (s.primaryLesson && (job.purpose !== 'daily' || !current.ai_enabled || current.status !== 'active' ||
-          (context.adaptive.mode === 'learn' ? s.primaryLesson.kind !== 'new' :
-            context.adaptive.mode === 'challenge' ? s.primaryLesson.kind !== 'diagnostic' : !['practice','review'].includes(context.adaptive.mode) || !['review', 'remediation'].includes(s.primaryLesson.kind))))
-        issue(path + '/primaryLesson', 'schema', 'Bài chính phải đúng quyết định của Hub.');
+      if (s.primaryLesson) {
+        const kinds = job.purpose === 'daily' && current.ai_enabled && current.status === 'active'
+          ? adaptivePrimaryKinds(context.adaptive.mode) : [];
+        if (!kinds.includes(s.primaryLesson.kind))
+          issue(path + '/primaryLesson/kind', 'schema', kinds.length ? `Bài chính cần kind ${kinds.join(' hoặc ')}.` : 'Lượt này không giao bài chính.');
+      }
     }
     const setup = s.notebookSetup;
     if (setup && (job.purpose !== 'initial' || current.status !== 'setup' ||
@@ -280,7 +284,10 @@ export async function preparePlan(db: EvidenceDb, job: Job, context: PlanContext
             WHERE EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND apply_token=?)`)
             .bind(token+':step:'+step.id,step.id,job.learner_id,s.subjectId,step.revision,job.id,token));
         if(task==='replan')statements.push(db.prepare(`UPDATE subjects SET roadmap_replan=0 WHERE id=? AND learner_id=? AND ${gate}`).bind(s.subjectId,job.learner_id,...gateValues));
-      }catch(error){issue(path+'/roadmapChanges','roadmap',String((error as Error).message).slice(0,300));}
+      } catch (error) {
+        if (!(error instanceof RoadmapChangeError)) throw error;
+        issue(path + '/roadmapChanges', 'roadmap', error.message);
+      }
     }
     if(selected){
       statements.push(db.prepare(`UPDATE subjects SET framework=coalesce(framework,?),topic_key=coalesce(topic_key,?) WHERE id=? AND learner_id=? AND ${gate}`)

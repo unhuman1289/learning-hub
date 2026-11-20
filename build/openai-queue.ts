@@ -6,6 +6,8 @@ import { openAiGermanVoices } from '../lib/audio/openai-voices.ts';
 import { openAiEngine } from '../lib/ai/openai.mjs';
 import { contractFor, processJob } from '../lib/ai/job.mjs';
 import { applyResult } from '../lib/ai-jobs/result.ts';
+import { assertDailyContext, dailyContextBindings, dailyContextMatchesSql, DailyContextChanged, dailyContextChangedMessage, finishStaleDailyLease } from '../lib/ai-jobs/daily-context.ts';
+import { ApiError } from '../lib/api-error.ts';
 import { failLeasedJob, heartbeat, leasedJob, leaseJobs, readJob } from '../lib/ai-jobs/lease.ts';
 import { aiSubjects } from '../lib/ai-controls.ts';
 import type { AutomationClient } from '../lib/auth/automation';
@@ -31,17 +33,20 @@ function planFieldNames(node: unknown, fields: Set<string>) {
 
 let planFields: Set<string> | undefined;
 let assessFields: Set<string> | undefined;
-function contentIssues(event: string, issues: unknown[] = []) {
+function contentIssues(issues: unknown[] = []) {
   planFields ??= planFieldNames(contractFor('plan').json, new Set());
   const fields = planFields;
   return issues.slice(0, 10).map(issue => {
-    const [code, path] = typeof issue === 'string' ? (event === 'local_duplicates' ? ['duplicate_item', issue] : issue.split(' ', 2))
+    const [code, path] = typeof issue === 'string' ? issue.split(' ', 2)
       : issue && typeof issue === 'object' && 'code' in issue && 'path' in issue ? [issue.code, issue.path] : [];
     const safeCode = typeof code === 'string' && /^[a-z_]{1,40}$/.test(code) ? code : 'validation_failed';
     const safePath = typeof path === 'string' && path.startsWith('/')
       ? '/' + path.slice(1).split('/').slice(0, 16).map(part => fields.has(part) || /^[0-9]{1,3}$/.test(part) ? part : '*').join('/')
       : undefined;
-    return { code: safeCode, ...(safePath ? { path: safePath } : {}) };
+    // Only use messages from the local plan validators, which omit input values.
+    const message = typeof issue === 'object' && issue && 'message' in issue && typeof issue.message === 'string'
+      ? issue.message.slice(0, 160) : undefined;
+    return { code: safeCode, ...(safePath ? { path: safePath } : {}), ...(message ? { message } : {}) };
   });
 }
 
@@ -130,7 +135,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       }, 'staging');
       if (!lease) {
         const current = await readJob(db, id);
-        if (current?.status === 'leased' && current.lease_client_id === client.id)
+        if (current?.status === 'queued' || (current?.status === 'leased' && current.lease_client_id === client.id))
           message.retry({ delaySeconds: 60 });
         else message.ack();
         continue;
@@ -138,15 +143,20 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       const token = lease.leaseToken;
       const active = await leasedJob(db, client, id, token);
       ownedLeaseHash = active.lease_token_sha256;
+      const checkPlan = job.kind === 'plan' && job.purpose === 'daily' ? () => assertDailyContext(db, active) : undefined;
       let speechLimit = false;
       const logAudioFailure = (event: string, details: object) => console.warn(JSON.stringify({
         component: 'openai-queue-tts', jobId: id, leaseCount: active.lease_count, event, ...details,
       }));
       const engine = openAiEngine({ apiKey, kind: job.kind, purpose: job.purpose, fetcher, allowVision: true, beforeFetch: async () => {
         const counted = await db.prepare(`UPDATE ai_jobs SET openai_calls=openai_calls+1 WHERE id=? AND openai_calls<2
-          AND status='leased' AND lease_token_sha256=? AND NOT EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id AND openai_enabled=0)`)
-          .bind(id, active.lease_token_sha256).run();
-        if (!counted.meta.changes) throw new Error('Đã hết giới hạn 2 lần gọi hoặc quyền sử dụng đã thay đổi.');
+          AND status='leased' AND lease_token_sha256=? AND NOT EXISTS(SELECT 1 FROM ai_subject_controls WHERE subject_id=ai_jobs.subject_id AND openai_enabled=0)
+          ${checkPlan ? 'AND ' + dailyContextMatchesSql : ''}`)
+          .bind(id, active.lease_token_sha256, ...(checkPlan ? dailyContextBindings(active.learning_day) : [])).run();
+        if (!counted.meta.changes) {
+          await checkPlan?.();
+          throw new Error('Đã hết giới hạn 2 lần gọi hoặc quyền sử dụng đã thay đổi.');
+        }
       } });
       const snapshot = JSON.parse(active.context_snapshot!);
       const identity = await db.prepare('SELECT name FROM user WHERE id=?').bind(job.learner_id).first<{name:string}>();
@@ -185,17 +195,19 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       const processed = await processJob({
         attachment: async (_lease: unknown, attachmentId: string) => { const image = photoData.get(attachmentId); if (!image) throw new Error('Ảnh đã hết hạn.'); return image; },
         context: async () => JSON.parse(active.context_snapshot!),
+        checkPlan,
         heartbeat: async () => heartbeat(db, client, id, token),
         result: async (_lease: unknown, body: unknown, dry: boolean) => {
           stage = dry ? 'validate_result' : 'save_result';
-          const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket, ttsSubjectIds);
+          const response = await applyResult(db, client, id, token, body, dry, new Date(), env.AI_PRICE_TABLE, bucket, ttsSubjectIds, { checkDailyContext: true });
           return { status: response.status, body: response };
         },
         state: async () => {
           const current = await readJob(db, id);
           return { status: current?.status, outcome: current?.outcome ? JSON.parse(current.outcome) : null };
         },
-        fail: async (_lease: unknown, _reason: string, retryable: boolean) => {
+        fail: async (_lease: unknown, reason: string, retryable: boolean) => {
+          if (checkPlan && reason === dailyContextChangedMessage) return finishStaleDailyLease(db, active);
           const count = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
           return failLeasedJob(db, await leasedJob(db, client, id, token), retryable && (count?.openai_calls ?? 0) === 0);
         },
@@ -207,8 +219,10 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
             return await uploadOpenAiPlanAudio(context, result, apiKey, async (request, hash) => {
               const verify = () => leasedJob(db, client, id, token);
               return uploadAudio(db, bucket, request, await verify(), hash, verify);
-            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })), fetcher, db, id, speechJobLimit(env.OPENAI_SPEECH_MAX_PER_JOB));
+            }, uploaded, entry => console.info(JSON.stringify({ component: 'openai-queue-tts', jobId: id, ...entry })),
+            fetcher, db, id, speechJobLimit(env.OPENAI_SPEECH_MAX_PER_JOB), checkPlan);
           } catch (error) {
+            if (error instanceof DailyContextChanged) throw error;
             if (error instanceof QueueAudioError && ['speech_call_limit', 'speech_job_limit'].includes(error.diagnostic.code)) speechLimit = true;
             logAudioFailure('audio_error', error instanceof QueueAudioError ? error.diagnostic : {
               stage: 'unexpected', code: 'audio_unexpected',
@@ -222,8 +236,11 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
           if (job.kind === 'assess' && entry?.event === 'assess_first_validation' && typeof entry.passed === 'boolean')
             console.info(JSON.stringify({component:'openai-queue',jobId:id,event:'assess_first_validation',passed:entry.passed}));
           if (job.kind === 'assess' && entry) assessDiagnostic = assessIssue(entry) ?? assessDiagnostic;
-          if (tts && entry && contentEvents.has(entry.event))
-            logAudioFailure(entry.event, { stage: 'lesson_validation', issues: contentIssues(entry.event, entry.errors) });
+          if (job.kind === 'plan' && entry && contentEvents.has(entry.event)) {
+            const details = { stage: 'lesson_validation', issues: contentIssues(entry.errors) };
+            if (tts) logAudioFailure(entry.event, details);
+            else console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, event: entry.event, ...details }));
+          }
           if (job.purpose === 'recheck' && entry && ['engine_error', 'contract_error', 'dry_run_422'].includes(entry.event)) {
             console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, purpose: job.purpose, event: entry.event }));
           }
@@ -234,7 +251,7 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
         const counter = await db.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').bind(id).first<{openai_calls:number}>();
         if (speechLimit) await db.prepare("UPDATE ai_jobs SET error='Chưa tạo được âm thanh: đã hết giới hạn lượt gọi hoặc quyền sử dụng đã thay đổi.' WHERE id=? AND status='failed'").bind(id).run();
         else if (job.kind === 'assess' && assessDiagnostic) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed'").bind(assessDiagnostic, id).run();
-        else if (counter?.openai_calls === 2) await db.prepare("UPDATE ai_jobs SET error='Đã dùng hết 2 lần gọi OpenAI; lượt xử lý không hoàn thành.' WHERE id=? AND status='failed'").bind(id).run();
+        else if (counter?.openai_calls === 2 && processed.error !== dailyContextChangedMessage) await db.prepare("UPDATE ai_jobs SET error='Đã dùng hết 2 lần gọi OpenAI; lượt xử lý không hoàn thành.' WHERE id=? AND status='failed'").bind(id).run();
         const detail = 'error' in processed && typeof processed.error === 'string'
           ? processed.error.match(/OpenAI (?:HTTP \d{3}(?: \([a-z_]+\))?|schema preparation failed|request timed out|request transport failed|response status: (?:failed|incomplete|cancelled|queued|in_progress|unknown)(?: \((?:max_output_tokens|content_filter)\))?|declined this response|response was not valid JSON)/)?.[0] : undefined;
         if (detail && !speechLimit && !assessDiagnostic && counter?.openai_calls !== 2) await db.prepare("UPDATE ai_jobs SET error=? WHERE id=? AND status='failed' AND lease_client_id=?")
@@ -245,8 +262,10 @@ export async function consumeOpenAi(batch: MessageBatch<{ jobId?: string; tutorT
       if (current?.status === 'queued') message.retry({ delaySeconds: 30 });
       else if (current?.status === 'leased') throw new Error('Job remained leased after processing.');
       else message.ack();
-    } catch {
-      console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, event: 'queue_exception', stage }));
+    } catch (error) {
+      console.warn(JSON.stringify({ component: 'openai-queue', jobId: id, event: 'queue_exception', stage,
+        ...(error instanceof ApiError ? { httpStatus: error.status }
+          : { errorName: error instanceof Error && /^[A-Za-z]{1,60}$/.test(error.name) ? error.name : 'Error' }) }));
       // A result write can have committed despite a lost response. Read it first;
       // only fail our own still-active, unclaimed lease, never a saved result.
       try {

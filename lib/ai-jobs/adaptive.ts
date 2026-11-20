@@ -20,6 +20,19 @@ export const adaptiveDecision = z.object({
   roadmapTask:z.enum(['replan','extend','none']).optional(),
 }).strict();
 
+const primaryKinds: Record<z.infer<typeof adaptiveDecision>['mode'], readonly string[]> = {
+  learn: ['new'],
+  practice: ['review', 'remediation'],
+  review: ['review', 'remediation'],
+  challenge: ['diagnostic'],
+  personal: [],
+  none: [],
+};
+
+export function adaptivePrimaryKinds(mode: keyof typeof primaryKinds) {
+  return primaryKinds[mode];
+}
+
 type Skill = { skillId: string; prerequisites: string[]; mastery: string; nextReviewDay: string | null; status: string };
 type Pattern = { skillId: string; confidence: string; status: string };
 type RoadmapStep = { id?:string; title: string; skills: string[]; mode: string };

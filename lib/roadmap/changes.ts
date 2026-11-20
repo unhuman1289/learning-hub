@@ -19,6 +19,9 @@ export const roadmapChanges=z.array(z.discriminatedUnion('op',[
 ])).max(6);
 type Changes=z.infer<typeof roadmapChanges>;
 
+/** These validation messages are written by Hub and can be shown to the planner. */
+export class RoadmapChangeError extends Error {}
+
 export async function applyRoadmapChanges(db:Db,input:{
  learnerId:string;subjectId:string;changes:Changes;jobId:string;stamp:string;gate:string;bind:unknown[];
  resolveSkill:(id:string)=>string|undefined;replan?:boolean;mastered?:Set<string>;initialize?:boolean;requireListening?:boolean;
@@ -31,7 +34,7 @@ export async function applyRoadmapChanges(db:Db,input:{
  const prior=await listSteps(db,learnerId,subjectId);
  const current=prior.map(step=>({...step}));
  const ids=new Map<string,string>();
- const invalid=(message:string):never=>{throw new Error(message);};
+ const invalid=(message:string):never=>{throw new RoadmapChangeError(message);};
  const touched=new Set<string>(), inserted=new Set<string>(), retired=new Map<string,string>();
  if(input.replan)for(const step of current)if(step.status==='planned'){
   step.status='retired';touched.add(step.id);retired.set(step.id,'Cập nhật chuẩn hoặc lộ trình.');
