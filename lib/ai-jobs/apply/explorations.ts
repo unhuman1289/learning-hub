@@ -128,7 +128,7 @@ export async function prepareExplorations(
     for (const ref of refs) {
       if (skillIds.has(ref)) continue;
       if (!explore || !ref.startsWith('key:')) {
-        issue(path + '/lesson', 'unknown_reference', `Kỹ năng ${ref} không thuộc sổ.`);
+        issue(path + '/lesson', 'unknown_reference', 'Bài tham chiếu kỹ năng ngoài sổ.');
         continue;
       }
       const id = 'sk_' + (await sha256Hex(targetId + ':key:' + ref.slice(4))).slice(0, 20);

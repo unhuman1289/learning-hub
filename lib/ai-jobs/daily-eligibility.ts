@@ -3,9 +3,9 @@ export const wholeLessonSubmissionSql = `SELECT min(s.created_at) FROM submissio
   WHERE s.lesson_id=l.id AND s.learner_id=l.user_id
     AND (s.stage='whole-lesson' OR (s.stage IS NULL AND json_extract(l.payload,'$.gradingMode')='whole-lesson'))`;
 
-export function primarySnapshotSql(useSubmission: boolean) {
+export function primarySnapshotSql(useSubmission: boolean, learner = '?', subject = '?') {
   const filter = useSubmission ? "package_version IN ('2','3')" : 'completed_at IS NULL';
-  return `SELECT id FROM learning_lessons WHERE user_id=? AND subject_id=? AND slot='primary'
+  return `SELECT id FROM learning_lessons WHERE user_id=${learner} AND subject_id=${subject} AND slot='primary'
     AND ${filter} ORDER BY assigned_date DESC,updated DESC,id DESC LIMIT 1`;
 }
 

@@ -14,6 +14,8 @@ import { prepareAssess } from './apply/assess.ts';
 import { deriveAssessScores } from './apply/derive-score.ts';
 import { prepareRecheck } from './apply/recheck.ts';
 import { recomputeSkill } from '../learner-model/recompute.ts';
+import { assertDailyContext, dailyContextBindings, dailyContextMatchesSql, DailyContextChanged } from './daily-context.ts';
+import { schemaIssueMessage } from '../contracts/schema-issue.ts';
 
 export async function applyResult(
   db: EvidenceDb,
@@ -26,8 +28,9 @@ export async function applyResult(
   priceTable?: string,
   audioBucket?: Pick<R2Bucket, 'head'>,
   ttsSubjectIds: readonly string[] = [],
-  internalPreparedJob?: Job,
+  options: { internalPreparedJob?: Job; checkDailyContext?: boolean } = {},
 ) {
+  const { internalPreparedJob } = options;
   const job = internalPreparedJob ?? await leasedJob(db, client, id, leaseToken, now, true),
     hash = await sha256Hex(canonical(input));
   const stored = !internalPreparedJob && await db.prepare('SELECT result_hash FROM prepared_daily_plans WHERE job_id=?').bind(id).first<{result_hash:string}>();
@@ -39,9 +42,15 @@ export async function applyResult(
     if (job.result_hash !== hash) throw new ApiError(409, 'Job đã hoàn tất với kết quả khác.');
     return { status: 200, outcome: JSON.parse(job.outcome!), replayed: true };
   }
+  const preparingDaily = !internalPreparedJob && job.kind === 'plan' && job.purpose === 'daily' && job.ref_id && job.learning_day > berlinDay(now);
+  const checkDailyContext = job.kind === 'plan' && job.purpose === 'daily' &&
+    (preparingDaily || internalPreparedJob || options.checkDailyContext);
+  if (checkDailyContext) await assertDailyContext(db, job);
   if (job.kind === 'assess' && job.purpose === 'submission') input = deriveAssessScores(input, JSON.parse(job.context_snapshot!) as AssessContext, code => console.info(JSON.stringify({component:'assess',jobId:id,event:'assess_cleanup',code})));
   const parsed = (job.kind === 'plan' ? planResult : assessResult).safeParse(input);
-  let issues = parsed.success ? [] : parsed.error.issues.map((e) => ({ path: '/' + e.path.join('/'), code: 'schema', message: e.message }));
+  let issues = parsed.success ? [] : parsed.error.issues.map((e) => ({
+    path: '/' + e.path.join('/'), code: 'schema', message: job.kind === 'plan' ? schemaIssueMessage(e) : e.message,
+  }));
   if (parsed.success && parsed.data.contextHash !== job.context_hash) throw new ApiError(409, 'Ngữ cảnh không khớp lease.');
   const token = crypto.randomUUID();
   let prepared = parsed.success
@@ -89,12 +98,17 @@ export async function applyResult(
   }
   if (!prepared || !parsed.success) throw new Error('Missing prepared result.');
   if (dryRun) return { status: 200, outcome: { dryRun: true, validated: true }, replayed: false };
-  if (!internalPreparedJob && job.kind === 'plan' && job.purpose === 'daily' && job.ref_id && job.learning_day > berlinDay(now)) {
-    if ('outcomes' in prepared && prepared.outcomes.some(o => o.status === 'stale')) throw new ApiError(409, 'Sổ hoặc bài đang học đã thay đổi; không lưu bản soạn.');
+  if (preparingDaily) {
+    if ('outcomes' in prepared && prepared.outcomes.some(o => o.status === 'stale')) throw new DailyContextChanged();
     const saved = await db.prepare(`INSERT OR IGNORE INTO prepared_daily_plans(job_id,result,result_hash,created_at)
-      SELECT id,?,?,? FROM ai_jobs WHERE id=? AND status='leased' AND lease_token_sha256=? AND lease_expires_at>? AND expires_at>? AND apply_token IS NULL`)
-      .bind(JSON.stringify(input), hash, now.toISOString(), id, job.lease_token_sha256, now.toISOString(), now.toISOString()).run();
-    if (!saved.meta.changes) throw new ApiError(409, 'Lease hoặc dữ liệu vừa thay đổi; đọc lại job.');
+      SELECT id,?,?,? FROM ai_jobs WHERE id=? AND status='leased' AND lease_token_sha256=? AND lease_expires_at>? AND expires_at>?
+        AND apply_token IS NULL AND ${dailyContextMatchesSql}`)
+      .bind(JSON.stringify(input), hash, now.toISOString(), id, job.lease_token_sha256, now.toISOString(), now.toISOString(),
+        ...dailyContextBindings(job.learning_day)).run();
+    if (!saved.meta.changes) {
+      await assertDailyContext(db, job);
+      throw new ApiError(409, 'Lease hoặc dữ liệu vừa thay đổi; đọc lại job.');
+    }
     return { status: 200, outcome: { prepared: true }, replayed: false };
   }
   const guards = [];
@@ -126,10 +140,12 @@ export async function applyResult(
       );
   if ('outcomes' in prepared) guards.push(...prepared.guards);
   const claim = internalPreparedJob
-    ? db.prepare("UPDATE ai_jobs SET apply_token=? WHERE id=? AND status='leased' AND expires_at>? AND apply_token IS NULL AND EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id AND result_hash=?)")
-      .bind(token, id, now.toISOString(), hash)
-    : db.prepare("UPDATE ai_jobs SET apply_token=? WHERE id=? AND status='leased' AND lease_token_sha256=? AND lease_expires_at>? AND expires_at>? AND apply_token IS NULL")
-      .bind(token, id, job.lease_token_sha256, now.toISOString(), now.toISOString());
+    ? db.prepare(`UPDATE ai_jobs SET apply_token=? WHERE id=? AND status='leased' AND expires_at>? AND apply_token IS NULL
+        AND EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id AND result_hash=?) AND ${dailyContextMatchesSql}`)
+      .bind(token, id, now.toISOString(), hash, ...dailyContextBindings(job.learning_day))
+    : db.prepare(`UPDATE ai_jobs SET apply_token=? WHERE id=? AND status='leased' AND lease_token_sha256=? AND lease_expires_at>? AND expires_at>? AND apply_token IS NULL
+        ${checkDailyContext ? 'AND ' + dailyContextMatchesSql : ''}`)
+      .bind(token, id, job.lease_token_sha256, now.toISOString(), now.toISOString(), ...(checkDailyContext ? dailyContextBindings(job.learning_day) : []));
   let outcomeSql: string, outcomeParams: unknown[];
   if ('outcomes' in prepared) {
     const fragments = prepared.outcomes.map(
@@ -175,8 +191,10 @@ export async function applyResult(
     throw error;
   }
   const saved = await readJob(db, id);
-  if (!(saved?.status === 'succeeded' || internalPreparedJob && saved?.status === 'cancelled') || saved.result_hash !== hash)
+  if (!(saved?.status === 'succeeded' || internalPreparedJob && saved?.status === 'cancelled') || saved.result_hash !== hash) {
+    if (checkDailyContext && (saved?.status === 'leased' || saved?.status === 'prepared')) await assertDailyContext(db, job);
     throw new ApiError(409, 'Lease hoặc dữ liệu vừa thay đổi; đọc lại job trước khi thử.');
+  }
   // A recheck changes which grade counts; skills follow the committed result.
   if (job.purpose === 'recheck' && 'skillIds' in prepared)
     for (const skillId of prepared.skillIds)
@@ -207,12 +225,21 @@ export async function applyPreparedDaily(db: EvidenceDb, now: Date, priceTable?:
         ]);
         continue;
       }
-      const applied = await applyResult(db, {} as AutomationClient, job.id, null, payload, false, now, priceTable, audioBucket, ttsSubjectIds, job);
+      const applied = await applyResult(db, {} as AutomationClient, job.id, null, payload, false, now, priceTable, audioBucket, ttsSubjectIds, { internalPreparedJob: job });
       if (applied.status === 422) await db.batch([
         db.prepare("UPDATE ai_jobs SET status='cancelled',error='Bản soạn không còn hợp lệ',finished_at=?,updated_at=? WHERE id=? AND status='leased' AND apply_token IS NULL").bind(stamp,stamp,job.id),
         db.prepare("DELETE FROM prepared_daily_plans WHERE job_id=? AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND status='cancelled')").bind(job.id,job.id),
       ]);
     } catch (error) {
+      if (error instanceof DailyContextChanged) {
+        await db.batch([
+          db.prepare(`UPDATE ai_jobs SET status='failed',error=?,finished_at=?,updated_at=?
+            WHERE id=? AND status='leased' AND apply_token IS NULL
+              AND EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=ai_jobs.id)`).bind(error.message, stamp, stamp, job.id),
+          db.prepare("DELETE FROM prepared_daily_plans WHERE job_id=? AND EXISTS(SELECT 1 FROM ai_jobs WHERE id=? AND status='failed')").bind(job.id, job.id),
+        ]);
+        continue;
+      }
       console.error('Prepared daily plan could not be applied:', error instanceof Error ? error.message : error);
     }
   }

@@ -1806,12 +1806,12 @@ for (const change of ['none','undo','revision']) test('F4b primary at midnight: 
   if(change==='revision') db.sqlite.prepare('UPDATE subjects SET revision=revision+1 WHERE id=?').run(subject);
   const midnight=new Date('2026-10-13T22:00:00Z');
   await applyPreparedDaily(db,midnight); await applyPreparedDaily(db,midnight);
-  assert.equal((await readJob(db,q.id)).status,change==='revision'?'cancelled':'succeeded');
+  assert.equal((await readJob(db,q.id)).status,change==='revision'?'failed':'succeeded');
   assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons WHERE origin_job_id=?').get(q.id).n,change==='revision'?0:1);
   assert.equal(db.sqlite.prepare('SELECT completed_at FROM learning_lessons WHERE id=?').get(lesson).completed_at,null);
   assert.equal(db.sqlite.prepare('SELECT answer FROM attempts WHERE lesson_id=?').get(lesson).answer,'["a"]');
   await queueDaily(db,{},midnight);await queueDaily(db,{},midnight);
-  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM ai_jobs WHERE subject_id=? AND purpose='daily' AND learning_day='2026-10-14'").get(subject).n,1);
+  assert.equal(db.sqlite.prepare("SELECT count(*) n FROM ai_jobs WHERE subject_id=? AND purpose='daily' AND learning_day='2026-10-14'").get(subject).n,change==='revision'?2:1);
   db.sqlite.close();
 });
 
@@ -1849,4 +1849,243 @@ test('Queue drops only unsupported mastery proposals and saves the valid proposa
  assert.ok(logs.some(x=>x.includes('assess_cleanup')&&x.includes('mastery_proposal')));assert.ok(logs.every(x=>!x.includes('private invalid')));
  const state=db.sqlite.prepare('SELECT mastery_source,mastery_reason FROM skill_states WHERE skill_id=(SELECT json_extract(skill_ids,\'$[0]\') FROM attempts WHERE submission_id=?)').get(sub.id);
  assert.equal(state.mastery_source,'ai');assert.equal(state.mastery_reason,'valid proposal');
+});
+
+async function w7bDailyFixture(t) {
+  const { db, lesson } = await assigned();
+  t.after(() => db.sqlite.close());
+  const before = new Date('2026-11-19T21:00:00Z'), midnight = new Date('2026-11-19T23:00:00Z');
+  const skill = db.sqlite.prepare('SELECT id FROM skills WHERE subject_id=?').get(subject).id;
+  const roadmap = [{ title: 'Luyện tiếp', objective: 'Viết câu', situation: 'Công việc', skills: [skill], mode: 'new' }];
+  db.sqlite.prepare('UPDATE subjects SET legacy_track=NULL,roadmap=? WHERE id=?').run(JSON.stringify(roadmap), subject);
+  const submission = await submitLesson(db, learner, lesson, {
+    clientSubmissionId: crypto.randomUUID(), draftRevision: 0, stage: null, itemIds: null,
+    answers: { i1: { answer: '["a"]' }, i3: { answer: 'Meine private Testantwort.' } },
+  }, before);
+  const request = { ...input, capabilities: ['lesson-v3', 'adaptive-plan'] };
+  const start = (jobId, at) => leaseJobs(db, client, { ...request, jobId }, 'test', at);
+  const snapshot = async jobId => JSON.parse((await readJob(db, jobId)).context_snapshot);
+  const draft = context => {
+    const next = structuredClone(fixture);
+    next.estMinutes = 45;
+    next.kind = context.adaptive.mode === 'learn' ? 'new' : 'remediation';
+    next.items.forEach((item, index) => { item.prompt += ' Tình huống mới ' + index; });
+    const result = plan(context, next);
+    result.subjects[0].skillChanges = [];
+    return result;
+  };
+  return { db, lesson, submission, before, midnight, start, snapshot, draft };
+}
+
+test('W7b waits for assessment before leasing and prepares exactly once from the new revision', async t => {
+  const { db, submission, lesson, before, midnight, start, snapshot, draft } = await w7bDailyFixture(t);
+  const assessment = await queueSubmission(db, {}, learner, submission.id, before);
+  assert.ok(assessment);
+  const daily = await queuePreparedDaily(db, {}, learner, lesson, before);
+  const observed = db.sqlite.prepare('SELECT revision FROM subjects WHERE id=?').get(subject).revision;
+  const [assessLease] = await leaseJobs(db, client, { ...input, kinds: ['assess'], jobId: assessment.id }, 'test', before);
+  assert.ok(assessLease);
+  assert.deepEqual(await start(daily.id, before), []);
+  const waiting = await readJob(db, daily.id);
+  assert.equal(waiting.status, 'queued');
+  assert.equal(waiting.context_snapshot, null);
+  assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').get(daily.id).openai_calls, 0);
+
+  // Simulate the assessment's last write to the notebook and its terminal transition.
+  db.sqlite.prepare('UPDATE subjects SET revision=revision+1 WHERE id=?').run(subject);
+  db.sqlite.prepare("UPDATE ai_jobs SET status='succeeded' WHERE id=?").run(assessment.id);
+  const [lease] = await start(daily.id, before);
+  const context = await snapshot(daily.id);
+  assert.equal(context.subjects[0].revision, observed + 1);
+  let calls = 0;
+  const generated = () => { calls++; return draft(context); };
+  const saved = await applyResult(db, client, daily.id, lease.leaseToken, generated(), false, before);
+  assert.equal(saved.outcome?.prepared, true, JSON.stringify(saved));
+  await applyPreparedDaily(db, midnight);
+  await queueDaily(db, {}, midnight);
+  assert.equal((await readJob(db, daily.id)).status, 'succeeded');
+  assert.equal(db.sqlite.prepare('SELECT count(*) n FROM learning_lessons WHERE origin_job_id=?').get(daily.id).n, 1);
+  assert.equal(calls, 1);
+});
+
+for (const originalStatus of ['failed', 'expired', 'succeeded', 'prepared', 'failed with lesson IDs']) {
+  test('W7b midnight replacement with original ' + originalStatus, async t => {
+    const { db, lesson, before, midnight, start, snapshot, draft } = await w7bDailyFixture(t);
+    const original = await queuePreparedDaily(db, {}, learner, lesson, before);
+    if (originalStatus === 'prepared') {
+      const [lease] = await start(original.id, before);
+      const result = await applyResult(db, client, original.id, lease.leaseToken, draft(await snapshot(original.id)), false, before);
+      assert.equal(result.outcome?.prepared, true, JSON.stringify(result));
+    } else if (originalStatus === 'failed with lesson IDs') {
+      // A historical outcome can retain IDs even if the lesson was later deleted.
+      db.sqlite.prepare("UPDATE ai_jobs SET status='failed',outcome=? WHERE id=?")
+        .run(JSON.stringify({ subjects: [{ lessonIds: ['les_aaaaaaaaaaaaaaaaaaaa'] }] }), original.id);
+    } else {
+      db.sqlite.prepare('UPDATE ai_jobs SET status=? WHERE id=?').run(originalStatus, original.id);
+    }
+    const originalRow = db.sqlite.prepare('SELECT * FROM ai_jobs WHERE id=?').get(original.id);
+    const dailyJobs = () => db.sqlite.prepare("SELECT id,dedupe_key,status FROM ai_jobs WHERE subject_id=? AND learning_day='2026-11-20' ORDER BY dedupe_key").all(subject);
+    await Promise.all([queueDaily(db, {}, midnight), queueDaily(db, {}, new Date(+midnight + 1000))]);
+    await queueDaily(db, {}, midnight);
+    const jobs = dailyJobs();
+    if (originalStatus === 'failed' || originalStatus === 'expired') {
+      assert.equal(jobs.length, 2);
+      const replacement = jobs[1];
+      assert.notEqual(replacement.id, original.id);
+      assert.equal(replacement.dedupe_key, originalRow.dedupe_key + ':r1');
+      // A failed replacement cannot create a third job.
+      db.sqlite.prepare("UPDATE ai_jobs SET status='failed' WHERE id=?").run(replacement.id);
+      await queueDaily(db, {}, midnight);
+      assert.equal(dailyJobs().length, 2);
+      db.sqlite.prepare("UPDATE ai_jobs SET status='queued' WHERE id=?").run(replacement.id);
+      const [lease] = await start(replacement.id, midnight);
+      const result = draft(await snapshot(replacement.id));
+      for (let i = 0; i < 2; i++) {
+        const saved = await applyResult(db, client, replacement.id, lease.leaseToken, result, false, midnight);
+        assert.equal(saved.outcome?.subjects[0].lessonIds.length, 1, JSON.stringify(saved));
+      }
+      await queueDaily(db, {}, midnight);
+      assert.equal(db.sqlite.prepare("SELECT count(*) n FROM learning_lessons WHERE subject_id=? AND slot='primary' AND assigned_date='2026-11-20'").get(subject).n, 1);
+      assert.equal(dailyJobs().length, 2);
+    } else {
+      assert.equal(jobs.length, 1);
+    }
+    assert.deepEqual(db.sqlite.prepare('SELECT * FROM ai_jobs WHERE id=?').get(original.id), originalRow);
+  });
+}
+
+test('W7b queue logs useful 422 and contract messages without lesson or answer text', async t => {
+  const { consumeOpenAi } = await import('../build/openai-queue.ts');
+  const { db, lesson, before } = await w7bDailyFixture(t);
+  t.mock.timers.enable({ apis: ['Date'], now: before });
+  const queued = await queuePreparedDaily(db, {}, learner, lesson, before);
+  const secret = 'Meine private Testantwort.';
+  assert.equal(db.sqlite.prepare("SELECT answer FROM attempts WHERE item_id='i3'").get().answer, secret);
+  const logs = [];
+  t.mock.method(console, 'warn', line => logs.push(JSON.parse(line)));
+  let calls = 0;
+  await consumeOpenAi({ messages: [{ body: { jobId: queued.id }, ack: () => {}, retry: () => assert.fail('unexpected retry') }] },
+    { DB: db, OPENAI_ENABLED: 'true', OPENAI_API_KEY: 'fake' }, () => 'prompt', async () => {
+      const context = JSON.parse((await readJob(db, queued.id)).context_snapshot);
+      const result = plan(context, null);
+      result.summary = 'Unpublished draft title';
+      result.subjects[0].subjectId = secret;
+      if (calls++ === 0) result[secret] = secret;
+      return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(result) }] }] });
+    });
+  assert.equal(calls, 2);
+  assert.equal((await readJob(db, queued.id)).status, 'failed');
+  const contract = logs.find(entry => entry.event === 'contract_error');
+  assert.equal(contract?.issues[0].message, 'Đối tượng có trường ngoài hợp đồng.');
+  const dry = logs.find(entry => entry.event === 'dry_run_422');
+  assert.match(dry?.issues[0].message, /Mỗi sổ trong ngữ cảnh/);
+  assert.ok([...contract.issues, ...dry.issues].every(issue => issue.message.length <= 160));
+  assert.ok(!JSON.stringify(logs).includes(secret));
+  assert.ok(!JSON.stringify(logs).includes('Unpublished draft title'));
+});
+
+for (const changeAt of ['revision before OpenAI', 'slot before OpenAI', 'revision during prepared save']) {
+  test('W7b handles a changed ' + changeAt, async t => {
+    const { consumeOpenAi } = await import('../build/openai-queue.ts');
+    const { db, lesson, before, midnight, start, snapshot, draft } = await w7bDailyFixture(t);
+    t.mock.timers.enable({ apis: ['Date'], now: before });
+    const job = await queuePreparedDaily(db, {}, learner, lesson, before);
+    const reserveSql = 'UPDATE ai_jobs SET openai_calls=openai_calls+1';
+    const saveSql = 'INSERT OR IGNORE INTO prepared_daily_plans';
+    const beforeCall = changeAt.endsWith('before OpenAI');
+    const realPrepare = db.prepare.bind(db);
+    const logs = [];
+    t.mock.method(console, 'warn', line => logs.push(JSON.parse(line)));
+    let changed = false;
+    t.mock.method(db, 'prepare', sql => {
+      if (!changed && sql.startsWith(beforeCall ? reserveSql : saveSql)) {
+        changed = true;
+        if (changeAt.startsWith('slot'))
+          db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-11-20' WHERE id=?").run(lesson);
+        else db.sqlite.prepare('UPDATE subjects SET revision=revision+1 WHERE id=?').run(subject);
+      }
+      return realPrepare(sql);
+    });
+    let calls = 0, ack = 0, retry = 0;
+    await consumeOpenAi({ messages: [{ body: { jobId: job.id }, ack: () => ack++, retry: () => retry++ }] },
+      { DB: db, OPENAI_ENABLED: 'true', OPENAI_API_KEY: 'fake' }, () => 'prompt', async () => {
+        calls++;
+        const context = await snapshot(job.id);
+        const result = plan(context, null);
+        result.subjects[0].openingSteps = Array.from({ length: 5 }, (_, index) => ({
+          title: 'Bước luyện thử ' + index, objective: 'Viết câu', situation: 'Công việc',
+          skills: [context.subjects[0].skills[0].skillId], band: 2, kind: 'new',
+        }));
+        return Response.json({ status: 'completed', output: [{ type: 'message', content: [{ type: 'output_text', text: JSON.stringify(result) }] }] });
+      });
+    const stale = await readJob(db, job.id);
+    assert.ok(changed, JSON.stringify(logs));
+    assert.equal(calls, beforeCall ? 0 : 1);
+    assert.equal(db.sqlite.prepare('SELECT openai_calls FROM ai_jobs WHERE id=?').get(job.id).openai_calls, calls);
+    assert.equal(retry, beforeCall ? 1 : 0);
+    assert.equal(ack, beforeCall ? 0 : 1);
+    assert.equal(stale.status, beforeCall ? 'queued' : 'failed');
+    assert.match(stale.error, /ngữ cảnh mới/);
+    assert.equal(db.sqlite.prepare('SELECT count(*) n FROM prepared_daily_plans').get().n, 0);
+    assert.ok(!logs.some(entry => entry.event === 'queue_exception'), JSON.stringify(logs));
+
+    if (!beforeCall) await queueDaily(db, {}, midnight);
+    const next = beforeCall ? job : db.sqlite.prepare("SELECT id FROM ai_jobs WHERE dedupe_key LIKE '%:r1'").get();
+    const at = beforeCall ? before : midnight;
+    if (changeAt.startsWith('slot'))
+      db.sqlite.prepare("UPDATE learning_lessons SET assigned_date='2026-11-19' WHERE id=?").run(lesson);
+    const [lease] = await start(next.id, at);
+    const fresh = await snapshot(next.id);
+    assert.notEqual(fresh.contextHash, JSON.parse(stale.context_snapshot).contextHash);
+    const saved = await applyResult(db, client, next.id, lease.leaseToken, draft(fresh), false, at);
+    assert.equal(saved.status, 200, JSON.stringify(saved));
+    await applyPreparedDaily(db, midnight);
+    assert.equal((await readJob(db, next.id)).status, 'succeeded');
+    assert.equal(db.sqlite.prepare("SELECT count(*) n FROM learning_lessons WHERE slot='primary' AND assigned_date='2026-11-20'").get().n, 1);
+  });
+}
+
+test('W7b repair identifies the duplicate question and the daily practice kind before dry-run', async t => {
+  const { db, lesson, before, start, snapshot, draft } = await w7bDailyFixture(t);
+  const job = await queuePreparedDaily(db, {}, learner, lesson, before);
+  const [lease] = await start(job.id, before);
+  const context = await snapshot(job.id);
+  context.adaptive = { ...context.adaptive, mode: 'practice' };
+  const corrected = draft(context);
+  const primary = corrected.subjects[0].primaryLesson;
+  primary.kind = 'review';
+  primary.gradingMode = 'whole-lesson';
+  const sample = primary.items.find(item => item.rubric);
+  primary.items = Array.from({ length: 15 }, (_, index) => ({
+    ...sample, id: 'i' + (index + 1), prompt: 'Tình huống thử ' + index, estMinutes: 3,
+  }));
+  primary.stages = [{ stage: 'independent', itemIds: primary.items.map(item => item.id) }];
+  const broken = structuredClone(corrected);
+  broken.subjects[0].primaryLesson.kind = 'new';
+  broken.subjects[0].primaryLesson.items[6].prompt = primary.items[0].prompt;
+  const logs = [];
+  const submitted = [];
+  const prompts = [];
+  const hub = {
+    context: async () => context,
+    result: async (_lease, result, dry) => { submitted.push({ result, dry }); return { status: 200 }; },
+    state: async () => ({ status: 'prepared' }),
+  };
+  const engine = {
+    name: 'openai', queueVision: true,
+    run: async ({ user, schema }) => {
+      prompts.push(user);
+      assert.deepEqual(schema.properties.subjects.items.properties.primaryLesson.anyOf[0].properties.kind.enum, ['review', 'remediation']);
+      return { json: prompts.length === 1 ? broken : corrected, usage: corrected.usage };
+    },
+  };
+  const output = await processJob(hub, lease, engine, { getPrompt: () => 'prompt', log: entry => logs.push(entry) });
+  assert.equal(output.status, 'prepared');
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /kind review hoặc remediation/);
+  assert.match(prompts[1], /\/subjects\/0\/primaryLesson\/items\/6\/prompt/);
+  assert.deepEqual(submitted.map(entry => entry.dry), [true, false]);
+  assert.ok(submitted.every(entry => entry.result.subjects[0].primaryLesson.kind === 'review'));
+  assert.match(logs.find(entry => entry.event === 'local_duplicates').errors[0].message, /Câu trùng/);
+  assert.match(logs.find(entry => entry.event === 'plan_validation_error').errors[0].message, /review hoặc remediation/);
 });
