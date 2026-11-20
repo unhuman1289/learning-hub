@@ -50,6 +50,7 @@ Khung staging G3/T5 sửa/C1 đã đóng lúc 12:08 Europe/Berlin ngày 18/11.
 
 Khung staging F4b/F4+F7 đã đóng lúc 12:40 Europe/Berlin ngày 18/11.
 
+staging: W7b, đến 12:30 Europe/Berlin
 Chỉ deploy staging từ `codex/hub-next-wip`. Trước khi deploy, ghi một dòng theo mẫu `staging: <luồng>, đến <giờ> Europe/Berlin`. Trong khung đã ghi, luồng khác hỏi chủ dự án trước khi deploy.
 
 | | Đang chạy | Ghi chú |
