@@ -5,6 +5,20 @@ import { addDays } from '../learner-model/rules.ts';
 import { ApiError } from '../api-error.ts';
 import { primaryBlocksDailySql, wholeLessonSubmissionSql } from './daily-eligibility.ts';
 import { usesAdaptivePlan } from '../subjects/sql.ts';
+
+const scheduledPlanSql = "j.kind='plan' AND j.purpose='daily' AND j.trigger='scheduled'";
+// Keep both the original job and its saved outcome as evidence. A replacement never gets its own replacement.
+const replaceableDailySql = `j.status IN ('failed','expired') AND j.dedupe_key NOT LIKE '%:r1'
+  AND NOT EXISTS(SELECT 1 FROM prepared_daily_plans WHERE job_id=j.id)
+  AND NOT EXISTS(SELECT 1 FROM learning_lessons WHERE origin_job_id=j.id)
+  AND coalesce(json_array_length(j.outcome,'$.extraLessonIds'),0)=0
+  AND NOT EXISTS(SELECT 1 FROM json_each(j.outcome,'$.subjects') WHERE json_array_length(value,'$.lessonIds')>0)`;
+
+const dailySubjectEligibleSql = `s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(
+  SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version IN ('2','3')
+  AND CASE WHEN s.legacy_track IS NULL OR s.id=? THEN l.slot='primary' AND (${primaryBlocksDailySql(true)})
+    ELSE l.completed_at IS NULL END)`;
+
 export type QueueBindings = {
   ENVIRONMENT?: string;
   OPENAI_ENABLED?: string;
@@ -59,6 +73,8 @@ export async function enqueue(
     refId?: string | null;
     /** Stable scheduler invocation identity; retries reuse it, later checks can create another daily job. */
     dailyRunId?: string;
+    /** Set only by the Berlin scheduler. Null means there is no earlier job for the notebook and day. */
+    scheduledDaily?: { id: string; dedupeKey: string } | null;
     manualRunId?: string;
     adaptiveRequest?: boolean;
     learningDay?: string;
@@ -78,7 +94,7 @@ export async function enqueue(
   const day = input.learningDay ?? berlinDay(now),
     stamp = now.toISOString(),
     dailyKey = input.manualRunId ? 'manual:' + input.manualRunId : input.subjectId && adaptive ? day : input.dailyRunId ?? stamp,
-    dedupe =
+    dedupe = input.scheduledDaily ? input.scheduledDaily.dedupeKey + ':r1' :
       input.kind +
       ':' +
       input.purpose +
@@ -137,6 +153,15 @@ export async function enqueue(
       : 0;
   const id = 'job_' + crypto.randomUUID().replaceAll('-', '').slice(0, 20),
     expires = input.purpose === 'daily' ? cutoffFor(addDays(day, 1)) : new Date(now.getTime() + 36 * 3600000).toISOString();
+  const scheduledGuard = input.scheduledDaily === undefined ? '' : `
+    AND EXISTS(SELECT 1 FROM subjects s JOIN user u ON u.id=s.learner_id
+      WHERE s.id=? AND s.learner_id=? AND ${dailySubjectEligibleSql})
+    AND NOT EXISTS(SELECT 1 FROM ai_jobs j WHERE j.learner_id=? AND j.subject_id=?
+      AND j.learning_day=? AND ${scheduledPlanSql} AND (j.id IS NOT ? OR NOT (${replaceableDailySql})))`;
+  const scheduledBindings = input.scheduledDaily === undefined ? [] : [
+    input.subjectId, input.learnerId, bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', day, cutoffFor(day),
+    input.learnerId, input.subjectId, day, input.scheduledDaily?.id ?? null,
+  ];
   // Bound both system and per-learner budgets in SQL to prevent concurrent requests exceeding caps.
   const result = await db
     .prepare(
@@ -144,7 +169,7 @@ export async function enqueue(
  SELECT ?,?,?,CASE WHEN ?='on_demand' AND (SELECT count(*) FROM ai_jobs WHERE learner_id=? AND learning_day=? AND purpose=? AND trigger='on_demand')>=? THEN 'deferred' ELSE ? END,?,?,?,?,?, 'queued',?,?,?,?,?,? WHERE (SELECT count(*) FROM ai_jobs WHERE learning_day=?)<? AND (? IS NULL OR EXISTS(SELECT 1 FROM learning_lessons l JOIN subjects s ON s.id=l.subject_id AND s.learner_id=l.user_id JOIN user u ON u.id=l.user_id WHERE l.id=? AND l.user_id=? AND l.subject_id=? AND l.slot='primary' AND (${wholeLessonSubmissionSql})<?
    AND s.legacy_track IS NULL AND s.status='active' AND s.ai_enabled=1 AND u.status='active'
    AND NOT EXISTS(SELECT 1 FROM learning_lessons l WHERE l.user_id=s.learner_id AND l.subject_id=s.id AND l.slot='primary'
-     AND (${primaryBlocksDailySql(true)}))))`,
+     AND (${primaryBlocksDailySql(true)}))))${scheduledGuard}`,
     )
     .bind(
       id,
@@ -170,6 +195,7 @@ export async function enqueue(
       day,
       cap,
       input.submittedPrimaryId ?? null, input.submittedPrimaryId ?? null, input.learnerId, input.subjectId ?? null, cutoffFor(day), day, cutoffFor(day),
+      ...scheduledBindings,
     )
     .run();
   const saved = await db
@@ -177,6 +203,10 @@ export async function enqueue(
     .bind(dedupe)
     .first<{ id: string; status: string; trigger: string; kind: string; purpose: string; priority: number }>();
   if (!saved && input.submittedPrimaryId) return { id: null, status: 'unchanged', trigger, created: false };
+  if (!saved && input.scheduledDaily !== undefined) {
+    const usage = await db.prepare('SELECT count(*) AS n FROM ai_jobs WHERE learning_day=?').bind(day).first<{ n: number }>();
+    if ((usage?.n ?? 0) < cap) return { id: null, status: 'unchanged', trigger, created: false };
+  }
   if (!saved) throw new ApiError(429, 'Hết ngân sách công việc trong ngày; không thay bài đang học.');
   const created = !!result.meta.changes;
   if (input.subjectId && await aiSubjectEnabled(db, bindings, input.subjectId) && saved.status === 'queued' &&
@@ -209,21 +239,25 @@ export async function queueDaily(db: EvidenceDb, bindings: QueueBindings, now: D
   // One plan job per notebook keeps each lease, context and apply within the Free CPU and D1 query budget.
   const { results = [] } = await db
     .prepare(
-      `SELECT s.id, s.learner_id FROM subjects s JOIN user u ON u.id=s.learner_id
-       WHERE s.status='active' AND s.ai_enabled=1 AND u.status='active' AND NOT EXISTS(
-         SELECT 1 FROM learning_lessons l WHERE l.subject_id=s.id AND l.user_id=s.learner_id AND l.package_version IN ('2','3')
-         AND CASE WHEN s.legacy_track IS NULL OR s.id=? THEN
-           l.slot='primary' AND (${primaryBlocksDailySql(true)})
-         ELSE l.completed_at IS NULL END
-       ) AND NOT EXISTS(SELECT 1 FROM ai_jobs j WHERE j.learner_id=s.learner_id AND j.subject_id=s.id AND j.kind='plan' AND j.purpose='daily' AND j.trigger='scheduled' AND j.learning_day=?) ORDER BY s.learner_id,s.weight DESC,s.id`,
+      `SELECT s.id,s.learner_id,j.id AS prior_id,j.dedupe_key AS prior_key
+       FROM subjects s JOIN user u ON u.id=s.learner_id
+       LEFT JOIN ai_jobs j ON j.learner_id=s.learner_id AND j.subject_id=s.id AND j.learning_day=? AND ${scheduledPlanSql}
+       WHERE ${dailySubjectEligibleSql} AND (j.id IS NULL OR (${replaceableDailySql}
+         AND NOT EXISTS(SELECT 1 FROM ai_jobs other WHERE other.learner_id=j.learner_id
+           AND other.subject_id=j.subject_id AND other.learning_day=j.learning_day
+           AND other.kind='plan' AND other.purpose='daily' AND other.trigger='scheduled' AND other.id<>j.id)))
+       ORDER BY s.learner_id,s.weight DESC,s.id`,
     )
-    .bind(bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', day, cutoffFor(day), day)
-    .all<{ id: string; learner_id: string }>();
+    .bind(day, bindings.ADAPTIVE_PILOT_SUBJECT_ID ?? '', day, cutoffFor(day))
+    .all<{ id: string; learner_id: string; prior_id: string | null; prior_key: string | null }>();
   // One notebook's failure (daily cap, D1 hiccup) must not stop the others.
   let failed = 0;
   for (const r of results) {
     try {
-      await enqueue(db, bindings, { learnerId: r.learner_id, kind: 'plan', purpose: 'daily', subjectId: r.id,dailyRunId:now.toISOString() }, now);
+      await enqueue(db, bindings, {
+        learnerId: r.learner_id, kind: 'plan', purpose: 'daily', subjectId: r.id, dailyRunId: now.toISOString(),
+        scheduledDaily: r.prior_id && r.prior_key ? { id: r.prior_id, dedupeKey: r.prior_key } : null,
+      }, now);
     } catch (error) {
       failed++;
       console.error('Daily plan job not queued:', error instanceof Error ? error.message : error);

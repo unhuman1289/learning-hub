@@ -5,6 +5,7 @@ import { containsContactDetails, containsPossibleClinicalIdentifier } from '../a
 import type { SubjectSensitivity } from '../subjects/sql.ts';
 import {isChemicalFormula,isChemistryNotebook} from '../chemistry.ts';
 import { parseNumericAnswer } from './numeric.ts';
+import { schemaIssueMessage } from '../contracts/schema-issue.ts';
 
 /** One problem with a lesson package; codes match docs/hub2/AI-API.md §4. */
 export type LessonIssue = { path: string; code: string; message: string };
@@ -56,7 +57,7 @@ export function itemIssues(item: LessonItemAny, path: string, maxDifficulty: num
   if (item.key?.type === 'choice') {
     if (item.input !== 'choice') issue('key', 'schema', 'A choice key needs input "choice".');
     const ids = new Set(item.choices?.map((choice) => choice.id));
-    for (const id of item.key.correct) if (!ids.has(id)) issue('key/correct', 'schema', `Correct choice "${id}" is not among the choices.`);
+    for (const id of item.key.correct) if (!ids.has(id)) issue('key/correct', 'schema', 'Correct choice is not among the choices.');
   }
   if (item.key?.type === 'dictation' && item.input !== 'short')
     issue('input', 'schema', 'Câu chính tả dùng dạng trả lời ngắn.');
@@ -126,7 +127,7 @@ export function validateLessonPackage(
   if (!parsed.success) {
     return {
       lesson: null,
-      issues: parsed.error.issues.map((problem) => ({ path: '/' + problem.path.join('/'), code: 'schema', message: problem.message })),
+      issues: parsed.error.issues.map((problem) => ({ path: '/' + problem.path.join('/'), code: 'schema', message: schemaIssueMessage(problem) })),
     };
   }
   const lesson = parsed.data;
@@ -197,12 +198,14 @@ export function validateLessonPackage(
     if ((rules.withoutItems as readonly string[]).includes(stage.stage) && stage.itemIds.length)
       issue(`${path}/itemIds`, 'schema', `Stage "${stage.stage}" holds no items.`);
     for (const id of stage.itemIds) {
-      if (!ids.includes(id)) issue(`${path}/itemIds`, 'unknown_reference', `Stage refers to unknown item "${id}".`);
+      if (!ids.includes(id)) issue(`${path}/itemIds`, 'unknown_reference', 'Stage refers to an unknown item.');
       placed.set(id, (placed.get(id) ?? 0) + 1);
     }
   });
   if (new Set(lesson.stages.map((stage) => stage.stage)).size !== lesson.stages.length) issue('/stages', 'schema', 'Each stage appears once.');
-  for (const id of ids) if (placed.get(id) !== 1) issue('/stages', 'schema', `Item "${id}" must be in exactly one stage.`);
+  ids.forEach((id, index) => {
+    if (placed.get(id) !== 1) issue('/stages', 'schema', `Item ${index + 1} must be in exactly one stage.`);
+  });
 
   if (lesson.template === 'skill' && (lesson.kind === 'new' || lesson.kind === 'remediation' || lesson.kind === 'diagnostic') && !lesson.sheet) {
     issue('/sheet', 'schema', 'New and remediation skill lessons need a knowledge sheet.');

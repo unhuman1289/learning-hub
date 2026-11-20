@@ -102,6 +102,7 @@ type Upload = (req: Request, hash: string) => ReturnType<typeof uploadAudio>;
 export async function uploadOpenAiPlanAudio(
   context: PlanContext, result: PlanResult, apiKey: string, upload: Upload,
   fetched: Set<string>, log: (entry: { variant: string; ms: number; count: number }) => void, fetcher = fetch, db?: EvidenceDb, jobId?: string, maxPerJob = 12,
+  checkPlan?: () => Promise<void>,
 ) {
   const drafts = [
     ...result.subjects.flatMap((entry, index) => (['primaryLesson', 'reviewSet'] as const)
@@ -148,6 +149,7 @@ export async function uploadOpenAiPlanAudio(
       audio.lines.map((line, index) => ({ hash, audio, line, path: `${path}/lines/${index}/text`, voice: voices[line.speaker === 'a' ? 0 : 1] })));
     const clips = new Map<string, Uint8Array[]>();
     for (let offset = 0; offset < turns.length; offset += 4) {
+      await checkPlan?.();
       const group = turns.slice(offset, offset + 4);
       const bytes = await Promise.all(group.map(({ audio, line, voice, path }) =>
         speech(audio, line, voice, apiKey, fetcher, signal, { path, variant }, db, jobId, maxPerJob)));
